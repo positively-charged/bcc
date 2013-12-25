@@ -11,11 +11,6 @@ solution 'bcc'
       '-Wno-unused',
       '-std=c99',
       '-pedantic',
-      --'-pg',
-   }
-
-   linkoptions {
-      --'-pg',
    }
 
    flags {
@@ -32,9 +27,4 @@ solution 'bcc'
 
       files {
          'src/*.c',
-         'src/tools/ast_view.c',
-      }
-
-      excludes {
-         'src/*.inc.c'
       }
