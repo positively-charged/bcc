@@ -96,8 +96,41 @@ void t_add_opc( struct task* task, int code ) {
          goto finish;
       default:
          task->push_immediate = false;
+         goto fold;
+      }
+   }
+   // Constant folding:
+   // -----------------------------------------------------------------------
+   fold: {
+      switch ( code ) {
+      case PC_ADD:
+      case PC_MUL:
+         if ( task->immediate_count >= 2 ) {
+            break;
+         }
+      default:
          goto direct;
       }
+      struct immediate* second_last = task->immediate;
+      struct immediate* last = second_last->next;
+      while ( last->next ) {
+         second_last = last;
+         last = last->next;
+      }
+      int l = second_last->value;
+      int r = last->value;
+      last->next = task->free_immediate;
+      task->free_immediate = last;
+      --task->immediate_count;
+      last = second_last;
+      last->next = NULL;
+      task->immediate_tail = last;
+      switch ( code ) {
+      case PC_ADD: last->value = l + r; break;
+      case PC_MUL: last->value = l * r; break;
+      default: break;
+      }
+      goto finish;
    }
    // Direct instructions:
    // -----------------------------------------------------------------------

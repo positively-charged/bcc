@@ -298,22 +298,6 @@ void read_op( struct task* task, struct read_expr* read,
    }
 
    // -----------------------------------------------------------------------
-   if ( task->tk == TK_QUESTION ) {
-      t_read_tk( task );
-      struct read lside;
-      read_op( task, read, &lside );
-      t_test_tk( task, TK_COLON );
-      t_read_tk( task );
-      read_op( task, read, &rside );
-      struct ternary* ternary = mem_alloc( sizeof( *ternary ) );
-      ternary->node.type = NODE_TERNARY;
-      ternary->cond = operand->node;
-      ternary->lside = lside.node;
-      ternary->rside = rside.node;
-      operand->node = ( struct node* ) ternary;
-   }
-
-   // -----------------------------------------------------------------------
    if ( ! read->skip_assign ) {
       switch ( task->tk ) {
       case TK_ASSIGN: op = AOP_NONE; break;
@@ -884,19 +868,6 @@ void test_node( struct task* task, struct expr_test* test,
    }
    else if ( node->type == NODE_ACCESS ) {
       test_access( task, test, operand, ( struct access* ) node );
-   }
-   else if ( node->type == NODE_TERNARY ) {
-      /*
-      struct ternary* ternary = ( struct ternary* ) node;
-      struct operand cond;
-      init_operand( &cond, test, ternary->cond );
-      test_node( task, &cond );
-      struct test lside;
-      init_test( &lside, test, ternary->lside );
-      test_node( task, &lside );
-      struct test rside;
-      init_test( &rside, test, ternary->rside );
-      test_node( task, &rside ); */
    }
    else if ( node->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) node;

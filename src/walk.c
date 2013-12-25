@@ -22,7 +22,6 @@ struct operand {
    int index;
    int func_get;
    int func_set;
-   int func_printer;
    int base;
    bool push;
    bool push_temp;
@@ -68,7 +67,6 @@ static void do_access( struct task*, struct operand*, struct access* );
 static void do_access_member( struct task*, struct operand*,
    struct type_member*, bool );
 static void do_access_object( struct task*, struct operand*, struct node* );
-static void do_ternary( struct task*, struct operand*, struct ternary* );
 static void push_indexed( struct task*, int, int );
 static void push_element( struct task*, int, int );
 static void inc_var( struct task*, int, int );
@@ -120,6 +118,11 @@ void t_write_func_content( struct task* task ) {
       impl->obj_pos = t_tell( task );
       add_block_walk( task );
       do_default_params( task, func );
+      struct param* param = func->params;
+      while ( param ) {
+         param->index = alloc_scalar( task );
+         param = param->next;
+      }
       list_iter_t k;
       list_iter_init( &k, &impl->body->stmts );
       while ( ! list_end( &k ) ) {
@@ -302,7 +305,6 @@ void init_operand( struct operand* operand ) {
    operand->index = 0;
    operand->func_get = 0;
    operand->func_set = 0;
-   operand->func_printer = 0;
    operand->base = 0;
    operand->push = false;
    operand->push_temp = false;
@@ -406,9 +408,6 @@ void do_operand( struct task* task, struct operand* operand,
    }
    else if ( node->type == NODE_ASSIGN ) {
       do_assign( task, operand, ( struct assign* ) node );
-   }
-   else if ( node->type == NODE_TERNARY ) {
-      do_ternary( task, operand, ( struct ternary* ) node );
    }
    else if ( node->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) node;
@@ -977,7 +976,6 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
          operand->trigger = TRIGGER_FUNCTION;
          operand->func_get = var->get;
          operand->func_set = var->set;
-         operand->func_printer = var->printer;
          operand->add_str_arg = true;
       }
       else {
@@ -987,22 +985,22 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    else if ( var->shared ) {
       operand->method = METHOD_ELEMENT;
       if ( operand->do_str ) {
-         operand->index = SPACE_ARRAY_STR;
+         operand->index = SHARED_ARRAY_STR;
          operand->base = var->index_str;
       }
       else {
-         operand->index = SPACE_ARRAY;
+         operand->index = SHARED_ARRAY;
          operand->base = var->index;
       }
    }
    else if ( ! var->type->primitive ) {
       operand->method = METHOD_ELEMENT;
       if ( operand->do_str ) {
-         operand->index = SPACE_ARRAY_STR;
+         operand->index = SHARED_ARRAY_STR;
          operand->base = var->index_str;
       }
       else {
-         operand->index = SPACE_ARRAY;
+         operand->index = SHARED_ARRAY;
          operand->base = var->index;
       }
    }
@@ -1255,42 +1253,6 @@ void do_access_object( struct task* task, struct operand* operand,
    else if ( node->type == NODE_CONSTANT ) {
       do_constant( task, operand, ( struct constant* ) node );
    }
-}
-
-void do_ternary( struct task* task, struct operand* operand,
-   struct ternary* ternary ) {
-   struct operand value;
-   init_operand( &value );
-   value.push = true;
-   value.push_temp = true;
-   do_operand( task, &value, ternary->cond );
-   int test = t_tell( task );
-   t_add_opc( task, PC_IF_NOT_GOTO );
-   t_add_arg( task, 0 );
-   init_operand( &value );
-   value.push = operand->push;
-   do_operand( task, &value, ternary->lside );
-   if ( ! operand->push && value.pushed ) {
-      t_add_opc( task, PC_DROP );
-   }
-   int bail = t_tell( task );
-   t_add_opc( task, PC_GOTO );
-   t_add_arg( task, 0 );
-   int next = t_tell( task );
-   init_operand( &value );
-   value.push = operand->push;
-   do_operand( task, &value, ternary->rside );
-   if ( ! operand->push && value.pushed ) {
-      t_add_opc( task, PC_DROP );
-   }
-   int done = t_tell( task );
-   t_seek( task, test );
-   t_add_opc( task, PC_IF_NOT_GOTO );
-   t_add_arg( task, next );
-   t_seek( task, bail );
-   t_add_opc( task, PC_GOTO );
-   t_add_arg( task, done );
-   t_seek( task, OBJ_SEEK_END );
 }
 
 void push_indexed( struct task* task, int storage, int index ) {

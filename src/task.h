@@ -59,7 +59,7 @@ enum tk {
    TK_MOD,
    TK_SHIFT_L,
    TK_SHIFT_R,
-   TK_QUESTION,
+   TK_INSERTION,
    TK_BREAK,
    TK_CASE,
    TK_CONST,
@@ -116,62 +116,51 @@ enum tk {
    TK_FIXED,
    TK_NAMESPACE,
    TK_USING,
-   TK_GOTO,
-   TK_INSERTION
+   TK_GOTO
 };
 
 struct node {
    enum {
       NODE_NONE,
+      NODE_LITERAL,
       NODE_UNARY,
       NODE_BINARY,
-      NODE_TERNARY,
-      NODE_LITERAL,
       NODE_EXPR,
       NODE_EXPR_LINK,
+      NODE_JUMP,
       NODE_SCRIPT_JUMP,
       NODE_IF,
       NODE_WHILE,
       // 10
       NODE_FOR,
-      NODE_JUMP,
       NODE_CALL,
       NODE_FORMAT_ITEM,
-      NODE_NAME,
-      NODE_COMMA,
-      NODE_ARRAY_JUMP,
+      NODE_INDEXED_STRING_USAGE,
+      NODE_FUNC,
+      NODE_ACCESS,
+      NODE_PAREN,
       NODE_SUBSCRIPT,
       NODE_CASE,
       NODE_CASE_DEFAULT,
       // 20
       NODE_SWITCH,
       NODE_BLOCK,
-      NODE_POST_INC,
-      NODE_MEMBER_ACCESS,
-      NODE_MEMBER_CALL,
+      NODE_GOTO,
+      NODE_GOTO_LABEL,
+      NODE_VAR,
       NODE_ASSIGN,
       NODE_TYPE,
       NODE_TYPE_MEMBER,
       NODE_CONSTANT,
       NODE_CONSTANT_SET,
       // 30
-      NODE_UNDEF,
+      NODE_RETURN,
       NODE_PARAM,
       NODE_PALTRANS,
       NODE_NAMESPACE,
-      NODE_NAME_USAGE,
-      NODE_PAREN,
-      NODE_SHORTCUT,
-      NODE_RETURN,
-      NODE_VAR,
-      NODE_GOTO_LABEL,
-      // 40
-      NODE_GOTO,
-      NODE_ACCESS,
       NODE_NAMESPACE_LINK,
-      NODE_FUNC,
-      NODE_TEXT,
-      NODE_INDEXED_STRING_USAGE
+      NODE_SHORTCUT,
+      NODE_NAME_USAGE
    } type;
 };
 
@@ -256,8 +245,7 @@ struct unary {
       UOP_PRE_INC,
       UOP_PRE_DEC,
       UOP_POST_INC,
-      UOP_POST_DEC,
-      UOP_GLOBAL_NS
+      UOP_POST_DEC
    } op;
    struct node* operand;
 };
@@ -304,13 +292,6 @@ struct assign {
       AOP_BIT_XOR,
       AOP_BIT_OR
    } op;
-   struct node* lside;
-   struct node* rside;
-};
-
-struct ternary {
-   struct node node;
-   struct node* cond;
    struct node* lside;
    struct node* rside;
 };
@@ -482,13 +463,10 @@ struct var {
    int size_str;
    int get;
    int set;
-   int printer;
    int get_offset;
    int set_offset;
-   int printer_offset;
    enum {
-      VAR_FLAG_INTERFACE_GET_SET = 0x1,
-      VAR_FLAG_INTERFACE_PRINTER = 0x2,
+      VAR_FLAG_INTERFACE_GET_SET = 0x1
    } flags;
    bool initial_zero;
    bool imported;
@@ -808,8 +786,8 @@ struct buffer {
    int pos;
 };
 
-#define SPACE_ARRAY 0
-#define SPACE_ARRAY_STR 1
+#define SHARED_ARRAY 0
+#define SHARED_ARRAY_STR 1
 
 struct immediate {
    struct immediate* next;
@@ -1204,8 +1182,8 @@ struct task {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
-   int space_size;
-   int space_size_str;
+   int shared_size;
+   int shared_size_str;
    struct buffer* buffer_head;
    struct buffer* buffer;
    bool compress;

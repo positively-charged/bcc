@@ -1,11 +1,9 @@
 #include <string.h>
-#include <limits.h>
 
 #include "task.h"
 
 #include <stdio.h>
 
-#define MAX_MAP_LOCATIONS 128
 #define MAX_WORLD_LOCATIONS 256
 #define MAX_GLOBAL_LOCATIONS 64
 #define SCRIPT_MIN_NUM 0
@@ -23,8 +21,6 @@ struct scope {
    struct scope* prev;
    struct sweep* sweep;
    struct ns_link* ns_link;
-   int size;
-   int size_high;
 };
 
 struct params {
@@ -108,15 +104,13 @@ static void test_initz_struct( struct task*, struct initz_test* );
 static void calc_dim_size( struct dim*, struct type* );
 static void test_func( struct task*, struct resolve*, struct func* );
 static void test_func_body( struct task*, struct func* );
-static void alloc_index( struct task* );
 static void calc_type_size( struct type* );
 static void test_unique_name( struct task*, struct name*, struct pos* );
-static void alloc_string_index( struct task* );
 static void calc_initials_index( struct task* );
 static void count_string_usage( struct task* );
 static void find_string_usage_node( struct node* );
 static void count_string_usage_node( struct node* );
-static bool find_integer_array( struct task*, struct type*, struct dim* );
+static void calc_map_var_size( struct task* );
 
 void t_init_fields_dec( struct task* task ) {
    task->depth = 0;
@@ -156,8 +150,6 @@ void t_init_fields_dec( struct task* task ) {
    type->size = 1;
    type->primitive = true;
    task->type_fixed = type; 
-   task->space_size = 0;
-   task->space_size_str = 0;
    task->in_func = false;
 }
 
@@ -739,8 +731,6 @@ void t_read_dec( struct task* task, struct dec* dec ) {
       var->imported = false;
       var->hidden = false;
       var->shared = false;
-      var->printer = 0;
-      var->printer_offset = 0;
       var->flags = 0;
       if ( is_static ) {
          var->hidden = true;
@@ -1477,8 +1467,7 @@ void t_test( struct task* task ) {
    }
    calc_initials_index( task );
    count_string_usage( task );
-   alloc_string_index( task );
-   alloc_index( task );
+   calc_map_var_size( task );
 }
 
 void test_ns( struct task* task, struct resolve* resolve, struct ns* ns ) {
@@ -2315,7 +2304,6 @@ void test_func_body( struct task* task, struct func* func ) {
    task->in_func = true;
    t_test_block( task, &test, impl->body );
    task->in_func = false;
-   impl->size = task->scope->size_high - func->max_param;
    t_pop_scope( task );
 }
 
@@ -2380,7 +2368,6 @@ void test_script( struct task* task, struct script* script ) {
    test.manual_scope = true;
    test.labels = &script->labels;
    t_test_block( task, &test, script->body );
-   script->size = task->scope->size_high;
    t_pop_scope( task );
    script->tested = true;
 }
@@ -2403,29 +2390,19 @@ void t_add_scope( struct task* task ) {
    else {
       scope = mem_alloc( sizeof( *scope ) );
    }
-   scope->size = 0;
-   scope->size_high = 0;
    scope->prev = task->scope;
    scope->sweep = NULL;
    scope->ns_link = task->ns->ns_link;
    task->scope = scope;
-   task->depth += 1;
-   if ( scope->prev ) {
-      scope->size = scope->prev->size;
-      scope->size_high = scope->size;
-   }
+   ++task->depth;
 }
 
 void t_pop_scope( struct task* task ) {
-   struct scope* prev = task->scope->prev;
-   if ( prev && task->scope->size_high > prev->size_high ) {
-      prev->size_high = task->scope->size_high;
-   }
    if ( task->scope->sweep ) {
       struct sweep* sweep = task->scope->sweep;
       while ( sweep ) {
          // Remove names.
-         for ( int i = 0; i < sweep->size; i += 1 ) {
+         for ( int i = 0; i < sweep->size; ++i ) {
             struct name* name = sweep->names[ i ];
             name->object = name->object->link;
          }
@@ -2436,11 +2413,12 @@ void t_pop_scope( struct task* task ) {
          sweep = prev;
       }
    }
+   struct scope* prev = task->scope->prev;
    task->ns->ns_link = task->scope->ns_link;
    task->scope->prev = task->free_scope;
    task->free_scope = task->scope;
    task->scope = prev;
-   task->depth -= 1;
+   --task->depth;
 }
 
 void use_local_name( struct task* task, struct name* name,
@@ -2459,32 +2437,15 @@ void use_local_name( struct task* task, struct name* name,
       task->scope->sweep = sweep;
    }
    sweep->names[ sweep->size ] = name;
-   sweep->size += 1;
+   ++sweep->size;
    object->depth = task->depth;
    object->link = name->object;
    name->object = object;
 }
 
-void calc_var_size( struct var* var ) {
-   if ( var->dim ) {
-      calc_dim_size( var->dim, var->type );
-   }
-   else if ( ! var->type->primitive && ! var->type->size &&
-      ! var->type->size_str ) {
-      calc_type_size( var->type );
-   }
-   if ( var->dim ) {
-      var->size = var->dim->size * var->dim->count;
-      var->size_str = var->dim->size_str * var->dim->count;
-   }
-   else {
-      var->size = var->type->size;
-      var->size_str = var->type->size_str;
-   }
-}
+static void calc_var_size( struct var* );
 
-void alloc_index( struct task* task ) {
-   // Calculate the size of the map variables.
+void calc_map_var_size( struct task* task ) {
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
@@ -2502,213 +2463,23 @@ void alloc_index( struct task* task ) {
       }
       list_next( &i );
    }
-   // Determine whether the shared arrays are needed.
-   int left = MAX_MAP_LOCATIONS;
-   bool space_int = false;
-   bool space_str = false;
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP ) {
-         if ( ! var->type->primitive ) {
-            if ( var->type->size ) {
-               space_int = true;
-               if ( left ) { 
-                  --left;
-               }
-            }
-            if ( var->type->size_str ) {
-               space_str = true;
-               if ( left ) { 
-                  --left;
-               }
-            }
-         }
-         else if ( var->type->is_str ) {
-            if ( left ) {
-               --left;
-            }
-            else {
-               space_str = true;
-            }
-         }
-         else {
-            if ( left ) {
-               --left;
-            }
-            else {
-               space_int = true;
-            }
-         }
-      }
-      list_next( &i );
+}
+
+void calc_var_size( struct var* var ) {
+   if ( var->dim ) {
+      calc_dim_size( var->dim, var->type );
    }
-   // Allocate indexes.
-   int index = 0;
-   if ( space_int ) {
-      ++index;
+   else if ( ! var->type->primitive && ! var->type->size &&
+      ! var->type->size_str ) {
+      calc_type_size( var->type );
    }
-   if ( space_str ) {
-      ++index;
+   if ( var->dim ) {
+      var->size = var->dim->size * var->dim->count;
+      var->size_str = var->dim->size_str * var->dim->count;
    }
-   // Shared:
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
-         var->shared = true;
-         if ( var->size ) {
-            var->index = task->space_size;
-            task->space_size += var->size;
-         }
-         if ( var->size_str ) {
-            var->index_str = task->space_size_str;
-            task->space_size_str += var->size_str;
-         }
-      }
-      list_next( &i );
-   }
-   // Arrays.
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim ) {
-         if ( index < MAX_MAP_LOCATIONS ) {
-            var->index = index;
-            ++index;
-         }
-         // When an index can no longer be allocated, combine any remaining
-         // variables into an array.
-         else if ( var->type->is_str ) {
-            var->shared = true;
-            var->index_str = task->space_size_str;
-            task->space_size_str += var->size_str;
-         }
-         else  {
-            var->shared = true;
-            var->index = task->space_size;
-            task->space_size += var->size;
-         }
-      }
-      list_next( &i );
-   }
-   // Scalars:
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim ) {
-         if ( index < MAX_MAP_LOCATIONS ) {
-            var->index = index;
-            ++index;
-         }
-         else if ( var->type->is_str ) {
-            var->shared = true;
-            var->index_str = task->space_size_str;
-            task->space_size_str += var->size_str;
-         }
-         else  {
-            var->shared = true;
-            var->index = task->space_size;
-            task->space_size += var->size;
-         }
-      }
-      list_next( &i );
-   }
-   // Functions:
-   int used = 0;
-   list_iter_init( &i, &task->module->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      if ( impl->usage ) {
-         ++used;
-      }
-      list_next( &i );
-   }
-   // The only problem that prevents the usage of the Little-E format is the
-   // instruction for calling a user function. In Little-E, the field that
-   // stores the index of the function is a byte in size, allowing up to 256
-   // functions.
-   if ( used <= UCHAR_MAX ) {
-      task->format = FORMAT_LITTLE_E;
-   }
-   // To interface with an imported variable, getter and setter functions are
-   // used. These are only used by the user of the library. From inside the
-   // library, the variables are interfaced with directly.
-   index = 0;
-   list_iter_init( &i, &task->module->imports );
-   while ( ! list_end( &i ) ) {
-      struct module* module = list_data( &i );
-      list_iter_t i_var;
-      list_iter_init( &i_var, &module->vars );
-      while ( ! list_end( &i_var ) ) {
-         struct var* var = list_data( &i_var );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            var->get = index;
-            ++index;
-            var->set = index;
-            ++index;
-            var->flags |= VAR_FLAG_INTERFACE_GET_SET;
-            // For now, a function will be allocated for printing an imported
-            // array. In the future, I'd like to find a better solution.
-            if ( find_integer_array( task, var->type, var->dim ) ) {
-               var->printer = index;
-               ++index;
-               var->flags |= VAR_FLAG_INTERFACE_PRINTER;
-            }
-         }
-         list_next( &i_var );
-      }
-      list_next( &i );
-   }
-   // Imported functions:
-   list_iter_init( &i, &task->module->imports );
-   while ( ! list_end( &i ) ) {
-      struct module* module = list_data( &i );
-      list_iter_t i_func;
-      list_iter_init( &i_func, &module->funcs );
-      while ( ! list_end( &i_func ) ) {
-         struct func* func = list_data( &i_func );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            impl->index += index;
-            ++index;
-         }
-         list_next( &i_func );
-      }
-      list_next( &i );
-   }
-   // Getter and setter functions for interfacing with the global variables of
-   // a library.
-   if ( task->module->name.value ) {
-      list_iter_init( &i, &task->module->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-            var->get = index;
-            ++index;
-printf( "%d\n", index );
-            var->set = index;
-            ++index;
-            var->flags |= VAR_FLAG_INTERFACE_GET_SET;
-            if ( find_integer_array( task, var->type, var->dim ) ) {
-               var->printer = index;
-               ++index;
-               var->flags |= VAR_FLAG_INTERFACE_PRINTER;
-            }
-         }
-         list_next( &i );
-      }
-   }
-   // User functions:
-   list_iter_init( &i, &task->module->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      impl->index = index;
-      ++index;
-      list_next( &i );
+   else {
+      var->size = var->type->size;
+      var->size_str = var->type->size_str;
    }
 }
 
@@ -2778,28 +2549,6 @@ void calc_type_size( struct type* type ) {
          type->size += member->size;
       }
       member = member->next;
-   }
-}
-
-bool find_integer_array( struct task* task, struct type* type,
-   struct dim* dim ) {
-   if ( type == task->type_int && dim ) {
-      return true;
-   }
-   else {
-      struct type_member* member = type->member;
-      while ( member ) {
-         if ( member->type->primitive ) {
-            if ( member->type == task->type_int && member->dim ) {
-               return true;
-            }
-         }
-         else {
-            find_integer_array( task, member->type, NULL );
-         }
-         member = member->next;
-      }
-      return false;
    }
 }
 
@@ -2996,18 +2745,6 @@ void alloc_value_index_struct( struct alloc_value_index* alloc,
    // Skip past member data that was not specified. 
    alloc->index += type->size - size;
    alloc->index_str += type->size_str - size_str;
-}
-
-void alloc_string_index( struct task* task ) {
-   int index = 0;
-   struct indexed_string* string = task->str_table.head;
-   while ( string ) {
-      if ( string->usage ) {
-         string->index = index;
-         ++index;
-      }
-      string = string->next;
-   }
 }
 
 static void count_string_usage_initial( struct initial* );

@@ -1,5 +1,8 @@
+#include <limits.h>
+
 #include "task.h"
 
+#define MAX_MAP_LOCATIONS 128
 #define DEFAULT_SCRIPT_SIZE 20
 #define STR_ENCRYPTION_CONSTANT 157135
 
@@ -13,6 +16,8 @@ struct func_entry {
    int offset;
 };
 
+static void alloc_index( struct task* );
+static void alloc_string_index( struct task* );
 static void do_sptr( struct task* );
 static void do_sflg( struct task* );
 static void do_strl( struct task* );
@@ -25,7 +30,6 @@ static void do_aini_basic_str( struct task*, struct var* );
 static void do_mini( struct task* );
 static void do_func( struct task* );
 static void add_getter_setter( struct task*, struct var* );
-static void add_printer_func_entry( struct task*, struct var* );
 static void do_fnam( struct task* );
 static void do_load( struct task* );
 static void do_svct( struct task* );
@@ -34,15 +38,18 @@ static void do_astr( struct task* );
 static void do_var_interface( struct task* );
 static void add_getter( struct task*, struct var* );
 static void add_setter( struct task*, struct var* );
-static void add_printer( struct task*, struct var* );
 
 void t_init_fields_chunk( struct task* task ) {
+   task->shared_size = 0;
+   task->shared_size_str = 0;
    task->compress = false;
    task->block_walk = NULL;
    task->block_walk_free = NULL;
 }
 
 void t_publish( struct task* task ) {
+   alloc_index( task );
+   alloc_string_index( task );
 task->format = FORMAT_BIG_E;
    if ( task->format == FORMAT_LITTLE_E ) {
       task->compress = true;
@@ -82,6 +89,217 @@ task->format = FORMAT_BIG_E;
       t_add_int( task, chunk_pos );
    }
    t_flush( task );
+}
+
+void alloc_index( struct task* task ) {
+   // Determine whether the shared arrays are needed.
+   int left = MAX_MAP_LOCATIONS;
+   bool space_int = false;
+   bool space_str = false;
+   list_iter_t i;
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP ) {
+         if ( ! var->type->primitive ) {
+            if ( var->type->size ) {
+               space_int = true;
+               if ( left ) { 
+                  --left;
+               }
+            }
+            if ( var->type->size_str ) {
+               space_str = true;
+               if ( left ) { 
+                  --left;
+               }
+            }
+         }
+         else if ( var->type->is_str ) {
+            if ( left ) {
+               --left;
+            }
+            else {
+               space_str = true;
+            }
+         }
+         else {
+            if ( left ) {
+               --left;
+            }
+            else {
+               space_int = true;
+            }
+         }
+      }
+      list_next( &i );
+   }
+   // Allocate indexes.
+   int index = 0;
+   if ( space_int ) {
+      ++index;
+   }
+   if ( space_str ) {
+      ++index;
+   }
+   // Shared:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
+         var->shared = true;
+         if ( var->size ) {
+            var->index = task->shared_size;
+            task->shared_size += var->size;
+         }
+         if ( var->size_str ) {
+            var->index_str = task->shared_size_str;
+            task->shared_size_str += var->size_str;
+         }
+      }
+      list_next( &i );
+   }
+   // Arrays.
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim ) {
+         if ( index < MAX_MAP_LOCATIONS ) {
+            var->index = index;
+            ++index;
+         }
+         // When an index can no longer be allocated, combine any remaining
+         // variables into an array.
+         else if ( var->type->is_str ) {
+            var->shared = true;
+            var->index_str = task->shared_size_str;
+            task->shared_size_str += var->size_str;
+         }
+         else  {
+            var->shared = true;
+            var->index = task->shared_size;
+            task->shared_size += var->size;
+         }
+      }
+      list_next( &i );
+   }
+   // Scalars:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive &&
+         ! var->dim ) {
+         if ( index < MAX_MAP_LOCATIONS ) {
+            var->index = index;
+            ++index;
+         }
+         else if ( var->type->is_str ) {
+            var->shared = true;
+            var->index_str = task->shared_size_str;
+            task->shared_size_str += var->size_str;
+         }
+         else  {
+            var->shared = true;
+            var->index = task->shared_size;
+            task->shared_size += var->size;
+         }
+      }
+      list_next( &i );
+   }
+   // Functions:
+   int used = 0;
+   list_iter_init( &i, &task->module->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      if ( impl->usage ) {
+         ++used;
+      }
+      list_next( &i );
+   }
+   // The only problem that prevents the usage of the Little-E format is the
+   // instruction for calling a user function. In Little-E, the field that
+   // stores the index of the function is a byte in size, allowing up to 256
+   // functions.
+   if ( used <= UCHAR_MAX ) {
+      task->format = FORMAT_LITTLE_E;
+   }
+   // To interface with an imported variable, getter and setter functions are
+   // used. These are only used by the user of the library. From inside the
+   // library, the variables are interfaced with directly.
+   index = 0;
+   list_iter_init( &i, &task->module->imports );
+   while ( ! list_end( &i ) ) {
+      struct module* module = list_data( &i );
+      list_iter_t i_var;
+      list_iter_init( &i_var, &module->vars );
+      while ( ! list_end( &i_var ) ) {
+         struct var* var = list_data( &i_var );
+         if ( var->storage == STORAGE_MAP && var->usage ) {
+            var->get = index;
+            ++index;
+            var->set = index;
+            ++index;
+            var->flags |= VAR_FLAG_INTERFACE_GET_SET;
+         }
+         list_next( &i_var );
+      }
+      list_next( &i );
+   }
+   // Imported functions:
+   list_iter_init( &i, &task->module->imports );
+   while ( ! list_end( &i ) ) {
+      struct module* module = list_data( &i );
+      list_iter_t i_func;
+      list_iter_init( &i_func, &module->funcs );
+      while ( ! list_end( &i_func ) ) {
+         struct func* func = list_data( &i_func );
+         struct func_user* impl = func->impl;
+         if ( impl->usage ) {
+            impl->index += index;
+            ++index;
+         }
+         list_next( &i_func );
+      }
+      list_next( &i );
+   }
+   // Getter and setter functions for interfacing with the global variables of
+   // a library.
+   if ( task->module->name.value ) {
+      list_iter_init( &i, &task->module->vars );
+      while ( ! list_end( &i ) ) {
+         struct var* var = list_data( &i );
+         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+            var->get = index;
+            ++index;
+            var->set = index;
+            ++index;
+            var->flags |= VAR_FLAG_INTERFACE_GET_SET;
+         }
+         list_next( &i );
+      }
+   }
+   // User functions:
+   list_iter_init( &i, &task->module->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      impl->index = index;
+      ++index;
+      list_next( &i );
+   }
+}
+
+void alloc_string_index( struct task* task ) {
+   int index = 0;
+   struct indexed_string* string = task->str_table.head;
+   while ( string ) {
+      if ( string->usage ) {
+         string->index = index;
+         ++index;
+      }
+      string = string->next;
+   }
 }
 
 void do_sptr( struct task* task ) {
@@ -241,10 +459,10 @@ void do_strl( struct task* task ) {
 void do_aray( struct task* task ) {
    int count = 0;
    // Arrays for the integer and string members of structs.
-   if ( task->space_size ) {
+   if ( task->shared_size ) {
       ++count;
    }
-   if ( task->space_size_str ) {
+   if ( task->shared_size_str ) {
       ++count;
    }
    list_iter_t i;
@@ -265,14 +483,14 @@ void do_aray( struct task* task ) {
    } entry;
    t_add_str( task, "ARAY" );
    t_add_int( task, sizeof( entry ) * count );
-   if ( task->space_size ) {
+   if ( task->shared_size ) {
       entry.number = 0;
-      entry.size = task->space_size;
+      entry.size = task->shared_size;
       t_add_sized( task, &entry, sizeof( entry ) );
    }
-   if ( task->space_size_str ) {
+   if ( task->shared_size_str ) {
       entry.number = 1;
-      entry.size = task->space_size_str;
+      entry.size = task->shared_size_str;
       t_add_sized( task, &entry, sizeof( entry ) );
    }
    list_iter_init( &i, &task->module->vars );
@@ -335,7 +553,7 @@ void do_aini_shared_int( struct task* task ) {
    }
    t_add_str( task, "AINI" );
    t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, SPACE_ARRAY );
+   t_add_int( task, SHARED_ARRAY );
    count = 0;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
@@ -390,7 +608,7 @@ void do_aini_shared_str( struct task* task ) {
    }
    t_add_str( task, "AINI" );
    t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, SPACE_ARRAY_STR );
+   t_add_int( task, SHARED_ARRAY_STR );
    count = 0;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
@@ -579,9 +797,6 @@ void do_func( struct task* task ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->usage ) {
             count += 2;
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               ++count;
-            }
          }
          list_next( &k );
       }
@@ -605,9 +820,6 @@ void do_func( struct task* task ) {
          if ( var->flags & VAR_FLAG_INTERFACE_GET_SET ) {
             count += 2;
          }
-         if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-            ++count;
-         }
          list_next( &i );
       }
    }
@@ -628,9 +840,6 @@ void do_func( struct task* task ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->usage ) {
             add_getter_setter( task, var );
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               add_printer_func_entry( task, var );
-            }
          }
          list_next( &k );
       }
@@ -660,9 +869,6 @@ void do_func( struct task* task ) {
          struct var* var = list_data( &i );
          if ( var->flags & VAR_FLAG_INTERFACE_GET_SET ) {
             add_getter_setter( task, var );
-         }
-         if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-            add_printer_func_entry( task, var );
          }
          list_next( &i );
       }
@@ -731,19 +937,6 @@ void add_getter_setter( struct task* task, struct var* var ) {
    t_add_sized( task, &entry, sizeof( entry ) );
 }
 
-void add_printer_func_entry( struct task* task, struct var* var ) {
-   struct func_entry entry;
-   entry.padding = 0;
-   // Parameter 1: Offset of the array.
-   entry.params = 1;
-   entry.size = 0;
-   entry.value = 0;
-   entry.offset = var->printer_offset;
-   t_add_sized( task, &entry, sizeof( entry ) );
-}
-
-#define I_PRINTER_EXT_LENGTH 3
-
 void do_fnam( struct task* task ) {
    int count = 0;
    int size = 0;
@@ -760,11 +953,6 @@ void do_fnam( struct task* task ) {
             size += t_full_name_length( var->name ) + 1 + 4;
             size += t_full_name_length( var->name ) + 1 + 4;
             count += 2;
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               size += t_full_name_length( var->name ) +
-                  I_PRINTER_EXT_LENGTH + 1;
-               ++count;
-            }
          }
          list_next( &i_var );
       }
@@ -779,11 +967,6 @@ void do_fnam( struct task* task ) {
             size += t_full_name_length( var->name ) + 1 + 4;
             size += t_full_name_length( var->name ) + 1 + 4;
             count += 2;
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               size += t_full_name_length( var->name ) +
-                  I_PRINTER_EXT_LENGTH + 1;
-               ++count;
-            }
          }
          list_next( &i );
       }
@@ -835,11 +1018,6 @@ void do_fnam( struct task* task ) {
             offset += t_full_name_length( var->name ) + 1 + 4;
             t_add_int( task, offset );
             offset += t_full_name_length( var->name ) + 1 + 4;
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               t_add_int( task, offset );
-               offset += t_full_name_length( var->name ) +
-                  I_PRINTER_EXT_LENGTH + 1;
-            }
          }
          list_next( &i_var );
       }
@@ -854,11 +1032,6 @@ void do_fnam( struct task* task ) {
             offset += t_full_name_length( var->name ) + 1 + 4;
             t_add_int( task, offset );
             offset += t_full_name_length( var->name ) + 1 + 4;
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               t_add_int( task, offset );
-               offset += t_full_name_length( var->name ) +
-                  I_PRINTER_EXT_LENGTH + 1;
-            }
          }
          list_next( &i );
       }
@@ -902,11 +1075,6 @@ void do_fnam( struct task* task ) {
             t_add_str( task, task->str.value );
             t_add_str( task, "!set" );
             t_add_byte( task, 0 );
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               t_add_str( task, task->str.value );
-               t_add_str( task, "!pa" );
-               t_add_byte( task, 0 );
-            }
          }
          list_next( &i_var );
       }
@@ -924,11 +1092,6 @@ void do_fnam( struct task* task ) {
             t_add_str( task, task->str.value );
             t_add_str( task, "!set" );
             t_add_byte( task, 0 );
-            if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-               t_add_str( task, task->str.value );
-               t_add_str( task, "!pa" ); // pa: print array.
-               t_add_byte( task, 0 );
-            }
          }
          list_next( &i );
       }
@@ -1012,7 +1175,7 @@ void do_mstr( struct task* task ) {
 
 void do_astr( struct task* task ) {
    int count = 0;
-   if ( task->space_size_str ) {
+   if ( task->shared_size_str ) {
       ++count;
    }
    list_iter_t i;
@@ -1030,8 +1193,8 @@ void do_astr( struct task* task ) {
    }
    t_add_str( task, "ASTR" );
    t_add_int( task, count * sizeof( int ) );
-   if ( task->space_size_str ) {
-      t_add_int( task, SPACE_ARRAY_STR );
+   if ( task->shared_size_str ) {
+      t_add_int( task, SHARED_ARRAY_STR );
    }
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
@@ -1054,10 +1217,6 @@ void do_var_interface( struct task* task ) {
          add_getter( task, var );
          var->set_offset = t_tell( task );
          add_setter( task, var );
-         if ( var->flags & VAR_FLAG_INTERFACE_PRINTER ) {
-            var->printer_offset = t_tell( task );
-            add_printer( task, var );
-         }
       }
       list_next( &i );
    }
@@ -1085,7 +1244,7 @@ void add_getter( struct task* task, struct var* var ) {
             t_add_opc( task, PC_ADD );
          }
          t_add_opc( task, PC_PUSH_MAP_ARRAY );
-         t_add_arg( task, SPACE_ARRAY_STR );
+         t_add_arg( task, SHARED_ARRAY_STR );
          t_add_opc( task, PC_RETURN_VAL );
          if ( jump ) {
             int next = t_tell( task );
@@ -1103,7 +1262,7 @@ void add_getter( struct task* task, struct var* var ) {
             t_add_opc( task, PC_ADD );
          }
          t_add_opc( task, PC_PUSH_MAP_ARRAY );
-         t_add_arg( task, SPACE_ARRAY );
+         t_add_arg( task, SHARED_ARRAY );
          t_add_opc( task, PC_RETURN_VAL );
       }
    }
@@ -1117,11 +1276,11 @@ void add_getter( struct task* task, struct var* var ) {
          t_add_opc( task, PC_PUSH_NUMBER );
          if ( var->type->is_str ) {
             t_add_arg( task, var->index_str );
-            index = SPACE_ARRAY_STR;
+            index = SHARED_ARRAY_STR;
          }
          else {
             t_add_arg( task, var->index );
-            index = SPACE_ARRAY;
+            index = SHARED_ARRAY;
          }
          t_add_opc( task, PC_ADD );
       }
@@ -1135,12 +1294,12 @@ void add_getter( struct task* task, struct var* var ) {
          if ( var->type->is_str ) {
             t_add_arg( task, var->index_str );
             t_add_opc( task, PC_PUSH_MAP_ARRAY );
-            t_add_arg( task, SPACE_ARRAY_STR );
+            t_add_arg( task, SHARED_ARRAY_STR );
          }
          else {
             t_add_arg( task, var->index );
             t_add_opc( task, PC_PUSH_MAP_ARRAY );
-            t_add_arg( task, SPACE_ARRAY );
+            t_add_arg( task, SHARED_ARRAY );
          }
       }
       else {
@@ -1173,7 +1332,7 @@ void add_setter( struct task* task, struct var* var ) {
          t_add_opc( task, PC_PUSH_SCRIPT_VAR );
          t_add_arg( task, 2 );  // Value.
          t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-         t_add_arg( task, SPACE_ARRAY_STR );
+         t_add_arg( task, SHARED_ARRAY_STR );
          t_add_opc( task, PC_RETURN_VOID );
          if ( jump ) {
             int next = t_tell( task );
@@ -1193,7 +1352,7 @@ void add_setter( struct task* task, struct var* var ) {
          t_add_opc( task, PC_PUSH_SCRIPT_VAR );
          t_add_arg( task, 2 );  // Value.
          t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-         t_add_arg( task, SPACE_ARRAY );
+         t_add_arg( task, SHARED_ARRAY );
          t_add_opc( task, PC_RETURN_VOID );
       }
    }
@@ -1207,11 +1366,11 @@ void add_setter( struct task* task, struct var* var ) {
          t_add_opc( task, PC_PUSH_NUMBER );
          if ( var->type->is_str ) {
             t_add_arg( task, var->index_str );
-            index = SPACE_ARRAY_STR;
+            index = SHARED_ARRAY_STR;
          }
          else {
             t_add_arg( task, var->index );
-            index = SPACE_ARRAY;
+            index = SHARED_ARRAY;
          }
          t_add_opc( task, PC_ADD );
       }
@@ -1237,10 +1396,10 @@ void add_setter( struct task* task, struct var* var ) {
          t_add_arg( task, 0 );
          t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
          if ( var->type->is_str ) {
-            t_add_arg( task, SPACE_ARRAY_STR );
+            t_add_arg( task, SHARED_ARRAY_STR );
          }
          else {
-            t_add_arg( task, SPACE_ARRAY );
+            t_add_arg( task, SHARED_ARRAY );
          }
       }
       else {
@@ -1250,25 +1409,6 @@ void add_setter( struct task* task, struct var* var ) {
          t_add_opc( task, PC_ASSIGN_MAP_VAR );
          t_add_arg( task, var->index );
       }
-      t_add_opc( task, PC_RETURN_VOID );
-   }
-}
-
-void add_printer( struct task* task, struct var* var ) {
-   if ( ! var->type->primitive ) {
-      t_add_opc( task, PC_BEGIN_PRINT );
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 0 ); // Array offset.
-      // An integer array is assumed.
-      if ( var->index ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, var->index );
-         t_add_opc( task, PC_ADD );
-      }
-      t_add_opc( task, PC_PUSH_NUMBER );
-     t_add_arg( task, SPACE_ARRAY );
-      t_add_opc( task, PC_PRINT_MAP_CHAR_ARRAY );
-      t_add_opc( task, PC_END_PRINT );
       t_add_opc( task, PC_RETURN_VOID );
    }
 }
