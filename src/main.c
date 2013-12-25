@@ -1,67 +1,48 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
+#include <setjmp.h>
 
-#include "mem.h"
-#include "common.h"
-#include "f_main.h"
-#include "b_main.h"
-#include "tools/ast_view.h"
+#include "task.h"
 
-static bool read_options( options_t*, char** );
+static jmp_buf g_bail;
+
+static void init_options( struct options* );
+static bool read_options( struct options*, char** );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
-
-   mem_init();
-
-   options_t options;
-   job_init_options( &options );
+   struct options options;
+   init_options( &options );
    if ( ! read_options( &options, argv ) ) {
       goto deinit_mem;
    }
-
-   file_table_t file_table;
-   job_init_file_table( &file_table, &options.include_paths,
-      options.source_file );
-
-   ntbl_t name_table;
-   ntbl_init( &name_table );
-
-   ast_t ast;
-   job_init_ast( &ast, &name_table );
-
-   front_t front;
-   f_init( &front, &options, &name_table, &file_table, &ast );
-   if ( tk_load_file( &front, options.source_file ) != k_tk_file_err_none ) {
-      printf( "error: failed to open source file: %s\n",
+   struct task task;
+   t_init( &task, &options );
+   if ( ! t_load_file( &task, options.source_file ) ) {
+      printf( "error: failed to load source file: %s\n",
          options.source_file );
-      goto deinit_file_table;
+      goto deinit_mem;
    }
-
-   if ( p_build_tree( &front ) ) {
-      //mem_temp_reset();
-      ast_view_t view;
-      ast_view_init( &view, &ast );
-      ast_view_show( &view );
-      //b_publish( &ast, &options, options.object_file );
+   if ( setjmp( g_bail ) == 0 ) {
+      t_read_tk( &task );
+      t_read_module( &task );
+      t_test( &task );
+      t_publish( &task );
       result = EXIT_SUCCESS;
    }
-
-   deinit:
-   ntbl_deinit( &name_table );
-   f_deinit( &front );
-
-   deinit_file_table:
-   job_deinit_file_table( &file_table );
-
    deinit_mem:
    mem_deinit();
-
    return result;
 }
 
-bool read_options( options_t* options, char** args ) {
+void init_options( struct options* options ) {
+   list_init( &options->includes );
+   options->source_file = NULL;
+   options->object_file = "object.o";
+   options->encrypt_str = false;
+   options->err_file = false;
+}
+
+bool read_options( struct options* options, char** args ) {
    // Program path not needed.
    ++args;
    while ( true ) {
@@ -78,7 +59,7 @@ bool read_options( options_t* options, char** args ) {
       case 'i':
       case 'I':
          if ( *args ) {
-            list_append( &options->include_paths, *args );
+            list_append( &options->includes, *args );
             ++args;
          }
          else {
@@ -107,4 +88,8 @@ bool read_options( options_t* options, char** args ) {
       options->object_file = *args;
    }
    return true;
+}
+
+void bail( void ) {
+   longjmp( g_bail, 1 );
 }
