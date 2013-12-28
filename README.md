@@ -14,3 +14,5 @@ New features include:
 * Format blocks
 
 __Note:__ New features and their characteristics are subject to change until further notice.
+
+Further detail about a feature is found in the [details.md](https://github.com/wormt/bcc/blob/master/details.md) file.
