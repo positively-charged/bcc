@@ -26,6 +26,7 @@ struct operand {
    bool push;
    bool push_temp;
    bool pushed;
+   bool pushed_element;
    bool do_str;
    bool add_str_arg;
 };
@@ -59,14 +60,9 @@ static void do_format_item( struct task*, struct format_item* );
 static void do_binary( struct task*, struct operand*, struct binary* );
 static void do_assign( struct task*, struct operand*, struct assign* );
 static void set_var( struct task*, struct operand*, struct var* );
-static void do_subscript_first( struct task*, struct operand*,
-   struct subscript* );
+static void do_object( struct task*, struct operand*, struct node* );
 static void do_subscript( struct task*, struct operand*, struct subscript* );
-static void do_access_first( struct task*, struct operand*, struct access* );
 static void do_access( struct task*, struct operand*, struct access* );
-static void do_access_member( struct task*, struct operand*,
-   struct type_member*, bool );
-static void do_access_object( struct task*, struct operand*, struct node* );
 static void push_indexed( struct task*, int, int );
 static void push_element( struct task*, int, int );
 static void inc_var( struct task*, int, int );
@@ -96,6 +92,11 @@ void t_write_script_content( struct task* task ) {
       struct script* script = list_data( &i );
       script->offset = t_tell( task );
       add_block_walk( task );
+      struct param* param = script->params;
+      while ( param ) {
+         param->index = alloc_scalar( task );
+         param = param->next;
+      }
       list_iter_t k;
       list_iter_init( &k, &script->body->stmts );
       while ( ! list_end( &k ) ) {
@@ -309,6 +310,7 @@ void init_operand( struct operand* operand ) {
    operand->push = false;
    operand->push_temp = false;
    operand->pushed = false;
+   operand->pushed_element = false;
    operand->do_str = false;
    operand->add_str_arg = false;
 }
@@ -394,11 +396,8 @@ void do_operand( struct task* task, struct operand* operand,
    else if ( node->type == NODE_UNARY ) {
       do_unary( task, operand, ( struct unary* ) node );
    }
-   else if ( node->type == NODE_SUBSCRIPT ) {
-      do_subscript_first( task, operand, ( struct subscript* ) node );
-   }
-   else if ( node->type == NODE_ACCESS ) {
-      do_access_first( task, operand, ( struct access* ) node );
+   else if ( node->type == NODE_SUBSCRIPT || node->type == NODE_ACCESS ) {
+      do_object( task, operand, node );
    }
    else if ( node->type == NODE_CALL ) {
       do_call( task, operand, ( struct call* ) node );
@@ -744,7 +743,6 @@ void do_format_item( struct task* task, struct format_item* item ) {
          t_add_opc( task, PC_CASE_GOTO );
          t_add_arg( task, 0 );
          t_add_arg( task, 0 );
-         // Print character.
          t_add_opc( task, PC_PRINT_CHARACTER );
          // Next element.
          t_add_opc( task, PC_INC_SCRIPT_VAR );
@@ -760,6 +758,12 @@ void do_format_item( struct task* task, struct format_item* item ) {
          dealloc_last_scalar( task );
       }
       else {
+         // When accessing an array without an operator, the element index will
+         // not be pushed. Use the start of the array as the element index.
+         if ( ! object.pushed_element ) {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, object.base );
+         }
          t_add_opc( task, PC_PUSH_NUMBER );
          t_add_arg( task, object.index );
          int code = PC_PRINT_MAP_CHAR_ARRAY;
@@ -777,8 +781,7 @@ void do_format_item( struct task* task, struct format_item* item ) {
       }
    }
    else {
-      static int casts[] = {
-         0,
+      static const int casts[] = {
          PC_PRINT_BINARY,
          PC_PRINT_CHARACTER,
          PC_PRINT_NUMBER,
@@ -788,8 +791,9 @@ void do_format_item( struct task* task, struct format_item* item ) {
          PC_PRINT_NAME,
          PC_PRINT_STRING,
          PC_PRINT_HEX };
+      STATIC_ASSERT( FCAST_TOTAL == 10 );
       push_expr( task, item->expr, false );
-      t_add_opc( task, casts[ item->cast ] );
+      t_add_opc( task, casts[ item->cast - 1 ] );
    }
 }
 
@@ -984,6 +988,9 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    }
    else if ( var->shared ) {
       operand->method = METHOD_ELEMENT;
+      if ( var->dim && var->type->primitive && var->type->is_str ) {
+         operand->do_str = true;
+      }
       if ( operand->do_str ) {
          operand->index = SHARED_ARRAY_STR;
          operand->base = var->index_str;
@@ -1014,149 +1021,19 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    }
 }
 
-void do_subscript_first( struct task* task, struct operand* operand,
-   struct subscript* subscript ) {
-   do_subscript( task, operand, subscript );
-   if ( operand->base ) {
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, operand->base );
-      t_add_opc( task, PC_ADD );
+void do_object( struct task* task, struct operand* operand,
+   struct node* node ) {
+   if ( node->type == NODE_ACCESS ) {
+      struct access* access = ( struct access* ) node;
+      if ( access->rside->type == NODE_TYPE_MEMBER ) {
+         struct type_member* member = ( struct type_member* ) access->rside;
+         operand->do_str = member->type->is_str;
+      }
+      do_access( task, operand, access );
    }
-   if ( operand->action == ACTION_PUSH_VALUE ) {
-      if ( operand->trigger == TRIGGER_FUNCTION ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, ( int ) operand->do_str );
-         t_add_opc( task, PC_CALL );
-         t_add_arg( task, operand->func_get );
-      }
-      else {
-         push_element( task, operand->storage, operand->index );
-      }
-      operand->pushed = true;
+   else if ( node->type == NODE_SUBSCRIPT ) {
+      do_subscript( task, operand, ( struct subscript* ) node );
    }
-}
-
-void do_subscript( struct task* task, struct operand* operand,
-   struct subscript* subscript ) {
-   struct node* lside = subscript->lside;
-   while ( lside->type == NODE_PAREN ) {
-      struct paren* paren = ( struct paren* ) lside;
-      lside = paren->inside;
-   }
-   if ( lside->type == NODE_NAME_USAGE ) {
-      struct name_usage* usage = ( struct name_usage* ) lside;
-      lside = usage->object;
-      if ( lside->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) lside;
-         lside = &shortcut->target->object->node;
-      }
-   }
-   if ( lside->type == NODE_VAR ) {
-      set_var( task, operand, ( struct var* ) lside );
-      struct operand index;
-      init_operand( &index );
-      index.push = true;
-      index.push_temp = true;
-      do_operand( task, &index, subscript->index );
-      if ( operand->dim->next ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->dim->size_str );
-         }
-         else {
-            t_add_arg( task, operand->dim->size );
-         }
-         t_add_opc( task, PC_MUL );
-      }
-      else if ( ! operand->type->primitive ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->type->size_str );
-         }
-         else {
-            t_add_arg( task, operand->type->size );
-         }
-         t_add_opc( task, PC_MUL );
-      }
-      operand->dim = operand->dim->next;
-   }
-   else if ( lside->type == NODE_SUBSCRIPT ) {
-      do_subscript( task, operand, ( struct subscript* ) lside );
-      struct operand index;
-      init_operand( &index );
-      index.push = true;
-      index.push_temp = true;
-      do_operand( task, &index, subscript->index );
-      if ( operand->dim->next ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->dim->size_str );
-         }
-         else {
-            t_add_arg( task, operand->dim->size );
-         }
-         t_add_opc( task, PC_MUL );
-         t_add_opc( task, PC_ADD );
-      }
-      else if ( ! operand->type->primitive ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->type->size_str );
-         }
-         else {
-            t_add_arg( task, operand->type->size );
-         }
-         t_add_opc( task, PC_MUL );
-         t_add_opc( task, PC_ADD );
-      }
-      else {
-         t_add_opc( task, PC_ADD );
-      }
-      operand->dim = operand->dim->next;
-   }
-   else if ( lside->type == NODE_ACCESS ) {
-      do_access( task, operand, ( struct access* ) lside );
-      struct operand index;
-      init_operand( &index );
-      index.push = true;
-      index.push_temp = true;
-      do_operand( task, &index, subscript->index );
-      if ( operand->dim->next ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->dim->size_str );
-         }
-         else {
-            t_add_arg( task, operand->dim->size );
-         }
-         t_add_opc( task, PC_MUL );
-         t_add_opc( task, PC_ADD );
-      }
-      else if ( ! operand->type->primitive ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( operand->do_str ) {
-            t_add_arg( task, operand->type->size_str );
-         }
-         else {
-            t_add_arg( task, operand->type->size );
-         }
-         t_add_opc( task, PC_MUL );
-         t_add_opc( task, PC_ADD );
-      }
-      else {
-         t_add_opc( task, PC_ADD );
-      }
-      operand->dim = operand->dim->next;
-   }
-}
-
-void do_access_first( struct task* task, struct operand* operand,
-   struct access* access ) {
-   if ( access->rside->type == NODE_TYPE_MEMBER ) {
-      struct type_member* member = ( struct type_member* ) access->rside;
-      operand->do_str = member->type->is_str;
-   }
-   do_access( task, operand, access );
    if ( operand->base ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, operand->base );
@@ -1182,9 +1059,9 @@ void do_access_first( struct task* task, struct operand* operand,
    }
 }
 
-void do_access( struct task* task, struct operand* operand,
-   struct access* access ) {
-   struct node* lside = access->lside;
+void do_subscript( struct task* task, struct operand* operand,
+   struct subscript* subscript ) {
+   struct node* lside = subscript->lside;
    while ( lside->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) lside;
       lside = paren->inside;
@@ -1197,61 +1074,117 @@ void do_access( struct task* task, struct operand* operand,
          lside = &shortcut->target->object->node;
       }
    }
+   // Left side:
    if ( lside->type == NODE_VAR ) {
       set_var( task, operand, ( struct var* ) lside );
-      if ( access->rside->type == NODE_TYPE_MEMBER ) {
-         do_access_member( task, operand,
-            ( struct type_member* ) access->rside, false );
-      }
    }
    else if ( lside->type == NODE_ACCESS ) {
       do_access( task, operand, ( struct access* ) lside );
-      if ( access->rside->type == NODE_TYPE_MEMBER ) {
-         do_access_member( task, operand,
-            ( struct type_member* ) access->rside, true );
-      }
-      else {
-         do_access_object( task, operand, access->rside );
-      }
    }
    else if ( lside->type == NODE_SUBSCRIPT ) {
       do_subscript( task, operand, ( struct subscript* ) lside );
-      if ( access->rside->type == NODE_TYPE_MEMBER ) {
-         do_access_member( task, operand,
-            ( struct type_member* ) access->rside, true );
+   }
+   // Dimension:
+   struct operand index;
+   init_operand( &index );
+   index.push = true;
+   index.push_temp = true;
+   do_operand( task, &index, subscript->index );
+   if ( operand->dim->next ) {
+      t_add_opc( task, PC_PUSH_NUMBER );
+      if ( operand->do_str ) {
+         t_add_arg( task, operand->dim->size_str );
       }
+      else {
+         t_add_arg( task, operand->dim->size );
+      }
+      t_add_opc( task, PC_MUL );
    }
-   else if ( lside->type == NODE_NAMESPACE ) {
-      do_access_object( task, operand, access->rside );
+   else if ( ! operand->type->primitive ) {
+      t_add_opc( task, PC_PUSH_NUMBER );
+      if ( operand->do_str ) {
+         t_add_arg( task, operand->type->size_str );
+      }
+      else {
+         t_add_arg( task, operand->type->size );
+      }
+      t_add_opc( task, PC_MUL );
    }
-}
-
-void do_access_member( struct task* task, struct operand* operand,
-   struct type_member* member, bool add ) {
-   int offset = member->offset;
-   if ( operand->do_str ) {
-      offset = member->offset_str;
-   }
-   t_add_opc( task, PC_PUSH_NUMBER );
-   t_add_arg( task, offset );
-   if ( add ) {
+   if ( operand->pushed_element ) {
       t_add_opc( task, PC_ADD );
    }
-   operand->type = member->type;
-   operand->dim = member->dim;
+   else {
+      operand->pushed_element = true;
+   }
+   operand->dim = operand->dim->next;
 }
 
-void do_access_object( struct task* task, struct operand* operand,
-   struct node* node ) {
-   if ( node->type == NODE_SHORTCUT ) {
-      struct shortcut* shortcut = ( struct shortcut* ) node;
-      node = &shortcut->target->object->node;
+void do_access( struct task* task, struct operand* operand,
+   struct access* access ) {
+   struct node* lside = access->lside;
+   struct node* rside = access->rside;
+   while ( lside->type == NODE_PAREN ) {
+      struct paren* paren = ( struct paren* ) lside;
+      lside = paren->inside;
    }
-   if ( node->type == NODE_VAR ) {
-      set_var( task, operand, ( struct var* ) node );
+   if ( lside->type == NODE_NAME_USAGE ) {
+      struct name_usage* usage = ( struct name_usage* ) lside;
+      lside = usage->object;
+      if ( lside->type == NODE_SHORTCUT ) {
+         struct shortcut* shortcut = ( struct shortcut* ) lside;
+         lside = &shortcut->target->object->node;
+      }
    }
-   else if ( node->type == NODE_CONSTANT ) {
-      do_constant( task, operand, ( struct constant* ) node );
+   // See if the left side is a namespace.
+   struct node* object = lside;
+   if ( object->type == NODE_ACCESS ) {
+      struct access* nested = ( struct access* ) object;
+      object = nested->rside;
+      if ( object->type == NODE_SHORTCUT ) {
+         struct shortcut* shortcut = ( struct shortcut* ) object;
+         object = &shortcut->target->object->node;
+      }
+   }
+   // When the left side is a namespace, only process the right side.
+   if ( object->type == NODE_NAMESPACE ) {
+      lside = access->rside;
+      if ( lside->type == NODE_SHORTCUT ) {
+         struct shortcut* shortcut = ( struct shortcut* ) lside;
+         lside = &shortcut->target->object->node;
+      }
+      rside = NULL;
+   }
+   // Left side:
+   if ( lside->type == NODE_VAR ) {
+      set_var( task, operand, ( struct var* ) lside );
+   }
+   else if ( lside->type == NODE_CONSTANT ) {
+      do_constant( task, operand, ( struct constant* ) lside );
+   }
+   else if ( lside->type == NODE_ACCESS ) {
+      do_access( task, operand, ( struct access* ) lside );
+   }
+   else if ( lside->type == NODE_SUBSCRIPT ) {
+      do_subscript( task, operand, ( struct subscript* ) lside );
+   }
+   // Right side:
+   if ( rside && rside->type == NODE_TYPE_MEMBER ) {
+      struct type_member* member = ( struct type_member* ) rside;
+      t_add_opc( task, PC_PUSH_NUMBER );
+      if ( operand->do_str ) {
+         t_add_arg( task, member->offset_str );
+      }
+      else {
+         t_add_arg( task, member->offset );
+      }
+      if ( operand->pushed_element ) {
+         t_add_opc( task, PC_ADD );
+      }
+      else {
+         operand->pushed_element = true;
+      }
+      operand->type = member->type;
+      operand->dim = member->dim;
    }
 }
 
@@ -1361,7 +1294,7 @@ void dec_array( struct task* task, int storage, int index ) {
 }
 
 void update_indexed( struct task* task, int storage, int index, int op ) {
-   static int code[] = {
+   static const int code[] = {
       PC_ASSIGN_SCRIPT_VAR, PC_ASSIGN_MAP_VAR, PC_ASSIGN_WORLD_VAR,
          PC_ASSIGN_GLOBAL_VAR,
       PC_ADD_SCRIPT_VAR, PC_ADD_MAP_VAR, PC_ADD_WORLD_VAR, PC_ADD_GLOBAL_VAR,
@@ -1386,7 +1319,7 @@ void update_indexed( struct task* task, int storage, int index, int op ) {
 }
 
 void update_element( struct task* task, int storage, int index, int op ) {
-   static int code[] = {
+   static const int code[] = {
       PC_ASSIGN_MAP_ARRAY, PC_ASSIGN_WORLD_ARRAY, PC_ASSIGN_GLOBAL_ARRAY,
       PC_ADD_MAP_ARRAY, PC_ADD_WORLD_ARRAY, PC_ADD_GLOBAL_ARRAY,
       PC_SUB_MAP_ARRAY, PC_SUB_WORLD_ARRAY, PC_SUB_GLOBAL_ARRAY,

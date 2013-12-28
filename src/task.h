@@ -531,7 +531,8 @@ struct format_item {
       FCAST_LOCAL_STRING,
       FCAST_NAME,
       FCAST_STRING,
-      FCAST_HEX
+      FCAST_HEX,
+      FCAST_TOTAL
    } cast;
    struct pos pos;
    struct expr* expr;

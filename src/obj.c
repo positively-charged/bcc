@@ -102,6 +102,7 @@ void t_add_opc( struct task* task, int code ) {
    // Constant folding:
    // -----------------------------------------------------------------------
    fold: {
+goto direct;
       switch ( code ) {
       case PC_ADD:
       case PC_MUL:
