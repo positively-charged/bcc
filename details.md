@@ -31,6 +31,40 @@ script 2 death {
 
 ```
 
+<h3>Proper Scoping</h3>
+In bcc, names of objects follow scoping rules.
+
+A scope is a set of names, each name referring to some object&#8212;a variable say. The same name can be used to refer to some other object&#8212;such as a constant&#8212;as long as it's not in the same scope. Anywhere in your code, some scope is active. When you create a variable, say, the name of the variable is placed in the active scope.
+
+A scope is commonly created by a code block, the statement delimited by braces ({}). At the start of a code block, a new scope is created. This new scope is now the active scope. The previous scope is still there, but is now the parent of the new scope. At the end of the code block, the active scope is destroyed, and the parent scope becomes the active scope again.
+
+When using a name, the compiler will first search the active scope. If the name is not found, the parent scope is then searched. This continues until the top scope is reached. (The __top scope__ is the first scope made and the last scope searched. It is the scope containing objects like scripts and functions.) Through this process, the first instance of the name found is the instance that will be used to retrieve an object.
+
+<h6>Code:</h6>
+```
+// In scope #0 (top scope)
+int a = 0;
+
+script 1 open {
+   // In scope #1
+   print( i : a );
+   int a = 1;
+   {
+      // In scope #2
+      int a = 2;
+      print( i : a );
+   }
+   print( i : a );
+}
+```
+
+<h6>Output:</h6>
+<pre>
+0
+2
+1
+</pre>
+
 <h3>Logical AND and OR Operators</h3>
 In bcc, the logical AND (__&&__) and OR (__||__) operators exhibit short-circuit evaluation.
 
@@ -72,7 +106,7 @@ get_0() || get_1() == 1
 get_1() || get_0() == 1  
 </pre>
 
-Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the right side of the expression is 1, get_0() is not called.
+Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
 
 In simpler words: When using the logical AND operator, you'll get 1 only if both sides are 1. If the left side is 0, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is 1 or anything besides 0. If the left side is 1 or anything besides 0, there is no need to evaluate the right side, because the condition is already met.
 
