@@ -134,7 +134,7 @@ top
 </pre>
 
 <h3>Format Blocks</h3>
-When calling functions like print(), a format block gives you more precision in the formatting of the message. A format block is like a normal code block, but also allows you to mix format items with other statements. (Format items are those colon-separated arguments passed to print() and the like.) Inside a format block, a format item uses a triple left bracket in the middle, not the colon.
+When calling functions like print(), a format block gives you more precision in the formatting of the message. A format block is like a normal code block, but also allows you to mix format items with other statements. (Format items are those colon-separated arguments passed to print() and the like.) Inside a format block, a format item uses a sequence of three left-angled brackets in the middle, not the colon.
 
 <h6>Code:</h6>
 ```
@@ -155,6 +155,6 @@ script 1 open {
 <h6>Output:</h6>
 <pre>The monster is: Dead</pre>
 
-A format block can contain function calls that themselves use a format block.
+A format block can contain function calls that themselves contain a format block.
 
 You cannot move into a format block with a goto statement, and you cannot move out of the format block with a break, continue, or goto statement. You must naturally enter and leave the format block.
