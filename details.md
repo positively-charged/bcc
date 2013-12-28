@@ -13,7 +13,7 @@ struct player {
 };
 ```
 
-```cpp
+```
 
 // Create variable of a structure type.
 struct player player;
@@ -30,3 +30,24 @@ script 2 death {
 }
 
 ```
+
+<h3>goto statement</h3>
+A goto statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
+
+<h6>Code:</h6>
+````
+script 1 open {
+   goto bottom;
+   top:
+   print( s : "top" );
+   goto end;
+   bottom:
+   print( s : "bottom" );
+   goto top;
+   end:
+}
+````
+
+<h6>Output:</h6>
+> bottom  
+> top
