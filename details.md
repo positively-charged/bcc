@@ -108,7 +108,7 @@ get_1() || get_0() == 1
 
 Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
 
-In simpler words: When using the logical AND operator, you'll get 1 only if both sides are 1. If the left side is 0, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is 1 or anything besides 0. If the left side is 1 or anything besides 0, there is no need to evaluate the right side, because the condition is already met.
+In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
 
 <h3>goto statement</h3>
 A goto statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
