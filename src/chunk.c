@@ -2,7 +2,10 @@
 
 #include "task.h"
 
+// NOTE: Something is causing the initialization chunk to break when going
+// over the limit.
 #define MAX_MAP_LOCATIONS 128
+// #define MAX_MAP_LOCATIONS 1
 #define DEFAULT_SCRIPT_SIZE 20
 #define STR_ENCRYPTION_CONSTANT 157135
 
@@ -94,8 +97,8 @@ task->format = FORMAT_BIG_E;
 void alloc_index( struct task* task ) {
    // Determine whether the shared arrays are needed.
    int left = MAX_MAP_LOCATIONS;
-   bool space_int = false;
-   bool space_str = false;
+   bool shared_int = false;
+   bool shared_str = false;
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
@@ -103,13 +106,13 @@ void alloc_index( struct task* task ) {
       if ( var->storage == STORAGE_MAP ) {
          if ( ! var->type->primitive ) {
             if ( var->type->size ) {
-               space_int = true;
+               shared_int = true;
                if ( left ) { 
                   --left;
                }
             }
             if ( var->type->size_str ) {
-               space_str = true;
+               shared_str = true;
                if ( left ) { 
                   --left;
                }
@@ -120,7 +123,7 @@ void alloc_index( struct task* task ) {
                --left;
             }
             else {
-               space_str = true;
+               shared_str = true;
             }
          }
          else {
@@ -128,7 +131,7 @@ void alloc_index( struct task* task ) {
                --left;
             }
             else {
-               space_int = true;
+               shared_int = true;
             }
          }
       }
@@ -136,10 +139,10 @@ void alloc_index( struct task* task ) {
    }
    // Allocate indexes.
    int index = 0;
-   if ( space_int ) {
+   if ( shared_int ) {
       ++index;
    }
-   if ( space_str ) {
+   if ( shared_str ) {
       ++index;
    }
    // Shared:
@@ -1312,14 +1315,19 @@ void add_getter( struct task* task, struct var* var ) {
 
 void add_setter( struct task* task, struct var* var ) {
    if ( ! var->type->primitive ) {
+      enum {
+         VAR_ELEMENT,
+         VAR_VALUE,
+         VAR_DO_STR
+      };
       t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 0 );
+      t_add_arg( task, VAR_ELEMENT );
       // String member.
       if ( var->type->size_str ) {
          int jump = 0;
          if ( var->type->size ) {
             t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-            t_add_arg( task, 1 );
+            t_add_arg( task, VAR_DO_STR );
             jump = t_tell( task );
             t_add_opc( task, PC_IF_NOT_GOTO );
             t_add_arg( task, 0 );
@@ -1330,7 +1338,7 @@ void add_setter( struct task* task, struct var* var ) {
             t_add_opc( task, PC_ADD );
          }
          t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, 2 );  // Value.
+         t_add_arg( task, VAR_VALUE );
          t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
          t_add_arg( task, SHARED_ARRAY_STR );
          t_add_opc( task, PC_RETURN_VOID );
@@ -1350,7 +1358,7 @@ void add_setter( struct task* task, struct var* var ) {
             t_add_opc( task, PC_ADD );
          }
          t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, 2 );  // Value.
+         t_add_arg( task, VAR_VALUE );
          t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
          t_add_arg( task, SHARED_ARRAY );
          t_add_opc( task, PC_RETURN_VOID );

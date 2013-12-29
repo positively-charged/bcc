@@ -43,6 +43,7 @@ static void pop_block_walk( struct task* );
 static int alloc_scalar( struct task* );
 static void dealloc_last_scalar( struct task* );
 static void do_var( struct task*, struct var* );
+static void do_world_global_init( struct task*, struct var* );
 static void do_node( struct task*, struct node* );
 static void do_script_jump( struct task*, struct script_jump* );
 static void do_label( struct task*, struct label* );
@@ -59,16 +60,17 @@ static void do_call( struct task*, struct operand*, struct call* );
 static void do_format_item( struct task*, struct format_item* );
 static void do_binary( struct task*, struct operand*, struct binary* );
 static void do_assign( struct task*, struct operand*, struct assign* );
+static void do_var_name( struct task*, struct operand*, struct var* );
 static void set_var( struct task*, struct operand*, struct var* );
 static void do_object( struct task*, struct operand*, struct node* );
 static void do_subscript( struct task*, struct operand*, struct subscript* );
 static void do_access( struct task*, struct operand*, struct access* );
 static void push_indexed( struct task*, int, int );
 static void push_element( struct task*, int, int );
-static void inc_var( struct task*, int, int );
-static void dec_var( struct task*, int, int );
-static void inc_array( struct task*, int, int );
-static void dec_array( struct task*, int, int );
+static void inc_indexed( struct task*, int, int );
+static void dec_indexed( struct task*, int, int );
+static void inc_element( struct task*, int, int );
+static void dec_element( struct task*, int, int );
 static void update_indexed( struct task*, int, int, int );
 static void update_element( struct task*, int, int, int );
 static void do_if( struct task*, struct if_stmt* );
@@ -196,12 +198,71 @@ void do_var( struct task* task, struct var* var ) {
          var->index = alloc_scalar( task );
       }
       if ( var->initial ) {
-         if ( ! var->dim ) {
+         if ( var->initial->is_initz ) {
+            if ( var->storage == STORAGE_WORLD ||
+               var->storage == STORAGE_GLOBAL ) {
+               do_world_global_init( task, var );
+            }
+         }
+         else {
             struct value* value = ( struct value* ) var->initial;
             push_expr( task, value->expr, false );
             update_indexed( task, var->storage, var->index, AOP_NONE );
          }
       }
+   }
+}
+
+void do_world_global_init( struct task* task, struct var* var ) {
+   // Nullify array.
+   t_add_opc( task, PC_PUSH_NUMBER );
+   t_add_arg( task, var->size + var->size_str - 1 );
+   int loop = t_tell( task );
+   t_add_opc( task, PC_CASE_GOTO );
+   t_add_arg( task, 0 );
+   t_add_arg( task, 0 );
+   t_add_opc( task, PC_DUP );
+   t_add_opc( task, PC_PUSH_NUMBER );
+   t_add_arg( task, 0 );
+   update_element( task, var->storage, var->index, AOP_NONE );
+   t_add_opc( task, PC_PUSH_NUMBER );
+   t_add_arg( task, 1 );
+   t_add_opc( task, PC_SUB );
+   t_add_opc( task, PC_GOTO );
+   t_add_arg( task, loop );
+   int done = t_tell( task );
+   t_seek( task, loop );
+   t_add_opc( task, PC_CASE_GOTO );
+   t_add_arg( task, -1 );
+   t_add_arg( task, done );
+   t_seek( task, OBJ_SEEK_END );
+   // Assign elements.
+   struct value* value = var->value;
+   while ( value ) {
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, value->index );
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, value->expr->value );
+      update_element( task, var->storage, var->index, AOP_NONE );
+      value = value->next;
+   }
+   value = var->value_str;
+   while ( value ) {
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, var->size + value->index );
+      t_add_opc( task, PC_PUSH_NUMBER );
+      int string_index = 0;
+      if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         string_index = usage->string->index;
+      }
+      t_add_arg( task, string_index );
+      if ( task->module->name.value ) {
+         t_add_opc( task, PC_TAG_STRING );
+      }
+      update_element( task, var->storage, var->index, AOP_NONE );
+      value = value->next;
    }
 }
 
@@ -296,6 +357,15 @@ void do_goto( struct task* task, struct goto_stmt* stmt ) {
    }
 }
 
+void do_expr_stmt( struct task* task, struct expr* expr ) {
+   struct operand operand;
+   init_operand( &operand );
+   do_operand( task, &operand, expr->root );
+   if ( operand.pushed ) {
+      t_add_opc( task, PC_DROP );
+   }
+}
+
 void init_operand( struct operand* operand ) {
    operand->type = NULL;
    operand->dim = NULL;
@@ -321,15 +391,6 @@ void push_expr( struct task* task, struct expr* expr, bool temp ) {
    operand.push = true;
    operand.push_temp = temp;
    do_operand( task, &operand, expr->root );
-}
-
-void do_expr_stmt( struct task* task, struct expr* expr ) {
-   struct operand operand;
-   init_operand( &operand );
-   do_operand( task, &operand, expr->root );
-   if ( operand.pushed ) {
-      t_add_opc( task, PC_DROP );
-   }
 }
 
 void do_operand( struct task* task, struct operand* operand,
@@ -368,19 +429,8 @@ void do_operand( struct task* task, struct operand* operand,
    else if ( node->type == NODE_CONSTANT ) {
       do_constant( task, operand, ( struct constant* ) node );
    }
-   // Scalar variable.
    else if ( node->type == NODE_VAR ) {
-      set_var( task, operand, ( struct var* ) node );
-      if ( operand->action == ACTION_PUSH_VALUE ) {
-         if ( operand->trigger == TRIGGER_FUNCTION ) {
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, operand->func_get );
-         }
-         else {
-            push_indexed( task, operand->storage, operand->index );
-         }
-         operand->pushed = true;
-      }
+      do_var_name( task, operand, ( struct var* ) node );
    }
    else if ( node->type == NODE_PARAM ) {
       struct param* param = ( struct param* ) node;
@@ -468,15 +518,60 @@ void do_pre_inc( struct task* task, struct operand* operand,
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
    do_operand( task, &object, unary->operand );
-   if ( object.method == METHOD_ELEMENT ) {
+   if ( object.trigger == TRIGGER_FUNCTION ) {
+      if ( object.method == METHOD_ELEMENT ) {
+         t_add_opc( task, PC_DUP );
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+         }
+         if ( object.add_str_arg ) {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, ( int ) object.do_str );
+         }
+      }
+      t_add_opc( task, PC_CALL );
+      t_add_arg( task, object.func_get );
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, 1 );
+      if ( unary->op == UOP_PRE_INC ) {
+         t_add_opc( task, PC_ADD );
+      }
+      else {
+         t_add_opc( task, PC_SUB );
+      }
+      if ( object.method == METHOD_INDEXED ) {
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+            operand->pushed = true;
+         }
+      }
+      if ( object.add_str_arg ) {
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, ( int ) object.do_str );
+      }
+      t_add_opc( task, PC_CALL_DISCARD );
+      t_add_arg( task, object.func_set );
+      if ( object.method == METHOD_ELEMENT ) {
+         if ( operand->push ) {
+            if ( object.add_str_arg ) {
+               t_add_opc( task, PC_PUSH_NUMBER );
+               t_add_arg( task, ( int ) object.do_str );
+            }
+            t_add_opc( task, PC_CALL );
+            t_add_arg( task, object.func_get );
+            operand->pushed = true;
+         }
+      }
+   }
+   else if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
          t_add_opc( task, PC_DUP );
       }
-      if ( unary->op == UOP_PRE_DEC ) {
-         dec_array( task, object.storage, object.index );
+      if ( unary->op == UOP_PRE_INC ) {
+         inc_element( task, object.storage, object.index );
       }
       else {
-         inc_array( task, object.storage, object.index );
+         dec_element( task, object.storage, object.index );
       }
       if ( operand->push ) {
          push_element( task, object.storage, object.index );
@@ -484,11 +579,11 @@ void do_pre_inc( struct task* task, struct operand* operand,
       }
    }
    else {
-      if ( unary->op == UOP_PRE_DEC ) {
-         dec_var( task, object.storage, object.index );
+      if ( unary->op == UOP_PRE_INC ) {
+         inc_indexed( task, object.storage, object.index );
       }
       else {
-         inc_var( task, object.storage, object.index );
+         dec_indexed( task, object.storage, object.index );
       }
       if ( operand->push ) {
          push_indexed( task, object.storage, object.index );
@@ -503,18 +598,60 @@ void do_post_inc( struct task* task, struct operand* operand,
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
    do_operand( task, &object, unary->operand );
-   if ( object.method == METHOD_ELEMENT ) {
+   if ( object.trigger == TRIGGER_FUNCTION ) {
+      if ( object.method == METHOD_ELEMENT ) {
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+            if ( object.add_str_arg ) {
+               t_add_opc( task, PC_PUSH_NUMBER );
+               t_add_arg( task, ( int ) object.do_str );
+            }
+            t_add_opc( task, PC_CALL );
+            t_add_arg( task, object.func_get );
+            t_add_opc( task, PC_SWAP );
+            operand->pushed = true;
+         }
+         t_add_opc( task, PC_DUP );
+         if ( object.add_str_arg ) {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, ( int ) object.do_str );
+         }
+      }
+      t_add_opc( task, PC_CALL );
+      t_add_arg( task, object.func_get );
+      if ( object.method == METHOD_INDEXED ) {
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+            operand->pushed = true;
+         }
+      }
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, 1 );
+      if ( unary->op == UOP_POST_INC ) {
+         t_add_opc( task, PC_ADD );
+      }
+      else {
+         t_add_opc( task, PC_SUB );
+      }
+      if ( object.add_str_arg ) {
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, ( int ) object.do_str );
+      }
+      t_add_opc( task, PC_CALL_DISCARD );
+      t_add_arg( task, object.func_set );
+   }
+   else if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
          t_add_opc( task, PC_DUP );
          push_element( task, object.storage, object.index );
          t_add_opc( task, PC_SWAP );
          operand->pushed = true;
       }
-      if ( unary->op == UOP_POST_DEC ) {
-         dec_array( task, object.storage, object.index );
+      if ( unary->op == UOP_POST_INC ) {
+         inc_element( task, object.storage, object.index );
       }
       else {
-         inc_array( task, object.storage, object.index );
+         dec_element( task, object.storage, object.index );
       }
    }
    else {
@@ -522,11 +659,11 @@ void do_post_inc( struct task* task, struct operand* operand,
          push_indexed( task, object.storage, object.index );
          operand->pushed = true;
       }
-      if ( unary->op == UOP_POST_DEC ) {
-         dec_var( task, object.storage, object.index );
+      if ( unary->op == UOP_POST_INC ) {
+         inc_indexed( task, object.storage, object.index );
       }
       else {
-         inc_var( task, object.storage, object.index );
+         dec_indexed( task, object.storage, object.index );
       }
    }
 }
@@ -758,12 +895,6 @@ void do_format_item( struct task* task, struct format_item* item ) {
          dealloc_last_scalar( task );
       }
       else {
-         // When accessing an array without an operator, the element index will
-         // not be pushed. Use the start of the array as the element index.
-         if ( ! object.pushed_element ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, object.base );
-         }
          t_add_opc( task, PC_PUSH_NUMBER );
          t_add_arg( task, object.index );
          int code = PC_PRINT_MAP_CHAR_ARRAY;
@@ -904,67 +1035,6 @@ void do_binary( struct task* task, struct operand* operand,
    }
 }
 
-void do_assign( struct task* task, struct operand* operand,
-   struct assign* assign ) {
-   struct operand lside;
-   init_operand( &lside );
-   lside.action = ACTION_PUSH_VAR;
-   do_operand( task, &lside, assign->lside );
-   if ( lside.method == METHOD_ELEMENT ) {
-      if ( operand->push ) {
-         t_add_opc( task, PC_DUP );
-      }
-      if ( lside.trigger == TRIGGER_FUNCTION ) {
-         if ( lside.add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) lside.do_str );
-         }
-      }
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      do_operand( task, &rside, assign->rside );
-      if ( lside.trigger == TRIGGER_FUNCTION ) {
-         t_add_opc( task, PC_CALL_DISCARD );
-         t_add_arg( task, lside.func_set );
-      }
-      else {
-         update_element( task, lside.storage, lside.index, assign->op );
-      }
-      if ( operand->push ) {
-         if ( lside.trigger == TRIGGER_FUNCTION ) {
-            if ( lside.add_str_arg ) {
-               t_add_opc( task, PC_PUSH_NUMBER );
-               t_add_arg( task, ( int ) lside.do_str );
-            }
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, lside.func_get );
-         }
-         else {
-            push_element( task, lside.storage, lside.index );
-         }
-         operand->pushed = true;
-      }
-   }
-   else {
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      do_operand( task, &rside, assign->rside );
-      if ( operand->push ) {
-         t_add_opc( task, PC_DUP );
-         operand->pushed = true;
-      }
-      if ( lside.trigger == TRIGGER_FUNCTION ) {
-         t_add_opc( task, PC_CALL_DISCARD );
-         t_add_arg( task, lside.func_set );
-      }
-      else {
-         update_indexed( task, lside.storage, lside.index, assign->op );
-      }
-   }
-}
-
 void set_var( struct task* task, struct operand* operand, struct var* var ) {
    operand->type = var->type;
    operand->dim = var->dim;
@@ -980,7 +1050,9 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
          operand->trigger = TRIGGER_FUNCTION;
          operand->func_get = var->get;
          operand->func_set = var->set;
-         operand->add_str_arg = true;
+         if ( ! var->type->primitive ) {
+            operand->add_str_arg = true;
+         }
       }
       else {
          operand->index = var->index;
@@ -1002,13 +1074,23 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    }
    else if ( ! var->type->primitive ) {
       operand->method = METHOD_ELEMENT;
-      if ( operand->do_str ) {
-         operand->index = SHARED_ARRAY_STR;
-         operand->base = var->index_str;
+      if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
+         operand->index = var->index;
+         // In a world or global array, the first half contains the integer
+         // members, and the second half contains the string members.
+         if ( operand->do_str ) {
+            operand->base = var->size;
+         }
       }
       else {
-         operand->index = SHARED_ARRAY;
-         operand->base = var->index;
+         if ( operand->do_str ) {
+            operand->index = SHARED_ARRAY_STR;
+            operand->base = var->index_str;
+         }
+         else {
+            operand->index = SHARED_ARRAY;
+            operand->base = var->index;
+         }
       }
    }
    else if ( var->dim ) {
@@ -1018,6 +1100,30 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    else {
       operand->method = METHOD_INDEXED;
       operand->index = var->index;
+   }
+}
+
+void do_var_name( struct task* task, struct operand* operand,
+   struct var* var ) {
+   set_var( task, operand, var );
+   // A variable that resides in an array needs an element index pushed. The
+   // element index is the start of the variable.
+   if ( operand->method == METHOD_ELEMENT ) {
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, operand->base );
+   }
+   if ( operand->action == ACTION_PUSH_VALUE ) {
+      if ( operand->trigger == TRIGGER_FUNCTION ) {
+         t_add_opc( task, PC_CALL );
+         t_add_arg( task, operand->func_get );
+      }
+      else if ( operand->method == METHOD_ELEMENT ) {
+         push_element( task, operand->storage, operand->index );
+      }
+      else {
+         push_indexed( task, operand->storage, operand->index );
+      }
+      operand->pushed = true;
    }
 }
 
@@ -1188,6 +1294,107 @@ void do_access( struct task* task, struct operand* operand,
    }
 }
 
+void do_assign( struct task* task, struct operand* operand,
+   struct assign* assign ) {
+   struct operand lside;
+   init_operand( &lside );
+   lside.action = ACTION_PUSH_VAR;
+   do_operand( task, &lside, assign->lside );
+   if ( lside.trigger == TRIGGER_FUNCTION ) {
+      if ( lside.method == METHOD_ELEMENT ) {
+         if ( assign->op != AOP_NONE ) {
+            t_add_opc( task, PC_DUP );
+         }
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+         }
+      }
+      // When using a compound assignment operator, the value of the variable
+      // is retrieved and manipulated. 
+      if ( assign->op != AOP_NONE ) {
+         if ( lside.add_str_arg ) {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, ( int ) lside.do_str );
+         }
+         t_add_opc( task, PC_CALL );
+         t_add_arg( task, lside.func_get );
+      }
+      // Push right side.
+      struct operand rside;
+      init_operand( &rside );
+      rside.push = true;
+      do_operand( task, &rside, assign->rside );
+      // Manipulate the retrieved value using the pushed right side.
+      if ( assign->op != AOP_NONE ) {
+         static const int code[] = {
+            PC_ADD,
+            PC_SUB,
+            PC_MUL,
+            PC_DIV,
+            PC_MOD,
+            PC_LSHIFT,
+            PC_RSHIFT,
+            PC_AND_BITWISE,
+            PC_EOR_BITWISE,
+            PC_OR_BITWISE };
+         STATIC_ASSERT( AOP_TOTAL == 11 )
+         t_add_opc( task, code[ assign->op - 1 ] );
+      }
+      if ( lside.method == METHOD_INDEXED ) {
+         if ( operand->push ) {
+            t_add_opc( task, PC_DUP );
+         }
+      }
+      // Save the value.
+      if ( lside.add_str_arg ) {
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, ( int ) lside.do_str );
+      }
+      t_add_opc( task, PC_CALL_DISCARD );
+      t_add_arg( task, lside.func_set );
+      // Retrieve new value if needed further.
+      if ( lside.method == METHOD_ELEMENT ) {
+         if ( operand->push ) {
+            if ( lside.add_str_arg ) {
+               t_add_opc( task, PC_PUSH_NUMBER );
+               t_add_arg( task, ( int ) lside.do_str );
+            }
+            t_add_opc( task, PC_CALL );
+            t_add_arg( task, lside.func_get );
+         }
+      }
+   }
+   else if ( lside.method == METHOD_ELEMENT ) {
+      if ( operand->push ) {
+         t_add_opc( task, PC_DUP );
+      }
+      struct operand rside;
+      init_operand( &rside );
+      rside.push = true;
+      do_operand( task, &rside, assign->rside );
+      update_element( task, lside.storage, lside.index, assign->op );
+      if ( operand->push ) {
+         push_element( task, lside.storage, lside.index );
+         operand->pushed = true;
+      }
+   }
+   else {
+      struct operand rside;
+      init_operand( &rside );
+      rside.push = true;
+      do_operand( task, &rside, assign->rside );
+      if ( assign->op == AOP_NONE && operand->push ) {
+         t_add_opc( task, PC_DUP );
+         operand->pushed = true;
+      }
+      update_indexed( task, lside.storage, lside.index, assign->op );
+      if ( assign->op != AOP_NONE && operand->push ) {
+         push_indexed( task, lside.storage, lside.index );
+         operand->pushed = true;
+      }
+   }
+}
+
 void push_indexed( struct task* task, int storage, int index ) {
    int code = PC_PUSH_SCRIPT_VAR;
    switch ( storage ) {
@@ -1215,76 +1422,6 @@ void push_element( struct task* task, int storage, int index ) {
       break;
    case STORAGE_GLOBAL:
       code = PC_PUSH_GLOBAL_ARRAY;
-      break;
-   default:
-      break;
-   }
-   t_add_opc( task, code );
-   t_add_arg( task, index );
-}
-
-void inc_var( struct task* task, int storage, int index ) {
-   int code = PC_INC_SCRIPT_VAR;
-   switch ( storage ) {
-   case STORAGE_MAP:
-      code = PC_INC_MAP_VAR;
-      break;
-   case STORAGE_WORLD:
-      code = PC_INC_WORLD_VAR;
-      break;
-   case STORAGE_GLOBAL:
-      code = PC_INC_GLOBAL_VAR;
-      break;
-   default:
-      break;
-   }
-   t_add_opc( task, code );
-   t_add_arg( task, index );
-}
-
-void dec_var( struct task* task, int storage, int index ) {
-   int code = PC_DEC_SCRIPT_VAR;
-   switch ( storage ) {
-   case STORAGE_MAP:
-      code = PC_DEC_MAP_VAR;
-      break;
-   case STORAGE_WORLD:
-      code = PC_DEC_WORLD_VAR;
-      break;
-   case STORAGE_GLOBAL:
-      code = PC_DEC_GLOBAL_VAR;
-      break;
-   default:
-      break;
-   }
-   t_add_opc( task, code );
-   t_add_arg( task, index );
-}
-
-void inc_array( struct task* task, int storage, int index ) {
-   int code = PC_INC_MAP_ARRAY;
-   switch ( storage ) {
-   case STORAGE_WORLD:
-      code = PC_INC_WORLD_ARRAY;
-      break;
-   case STORAGE_GLOBAL:
-      code = PC_INC_GLOBAL_ARRAY;
-      break;
-   default:
-      break;
-   }
-   t_add_opc( task, code );
-   t_add_arg( task, index );
-}
-
-void dec_array( struct task* task, int storage, int index ) {
-   int code = PC_DEC_MAP_ARRAY;
-   switch ( storage ) {
-   case STORAGE_WORLD:
-      code = PC_DEC_WORLD_ARRAY;
-      break;
-   case STORAGE_GLOBAL:
-      code = PC_DEC_GLOBAL_ARRAY;
       break;
    default:
       break;
@@ -1338,6 +1475,76 @@ void update_element( struct task* task, int storage, int index, int op ) {
    default: break;
    }
    t_add_opc( task, code[ op * 3 + pos ] );
+   t_add_arg( task, index );
+}
+
+void inc_indexed( struct task* task, int storage, int index ) {
+   int code = PC_INC_SCRIPT_VAR;
+   switch ( storage ) {
+   case STORAGE_MAP:
+      code = PC_INC_MAP_VAR;
+      break;
+   case STORAGE_WORLD:
+      code = PC_INC_WORLD_VAR;
+      break;
+   case STORAGE_GLOBAL:
+      code = PC_INC_GLOBAL_VAR;
+      break;
+   default:
+      break;
+   }
+   t_add_opc( task, code );
+   t_add_arg( task, index );
+}
+
+void dec_indexed( struct task* task, int storage, int index ) {
+   int code = PC_DEC_SCRIPT_VAR;
+   switch ( storage ) {
+   case STORAGE_MAP:
+      code = PC_DEC_MAP_VAR;
+      break;
+   case STORAGE_WORLD:
+      code = PC_DEC_WORLD_VAR;
+      break;
+   case STORAGE_GLOBAL:
+      code = PC_DEC_GLOBAL_VAR;
+      break;
+   default:
+      break;
+   }
+   t_add_opc( task, code );
+   t_add_arg( task, index );
+}
+
+void inc_element( struct task* task, int storage, int index ) {
+   int code = PC_INC_MAP_ARRAY;
+   switch ( storage ) {
+   case STORAGE_WORLD:
+      code = PC_INC_WORLD_ARRAY;
+      break;
+   case STORAGE_GLOBAL:
+      code = PC_INC_GLOBAL_ARRAY;
+      break;
+   default:
+      break;
+   }
+   t_add_opc( task, code );
+   t_add_arg( task, index );
+}
+
+void dec_element( struct task* task, int storage, int index ) {
+   int code = PC_DEC_MAP_ARRAY;
+   switch ( storage ) {
+   case STORAGE_WORLD:
+      code = PC_DEC_WORLD_ARRAY;
+      break;
+   case STORAGE_GLOBAL:
+      code = PC_DEC_GLOBAL_ARRAY;
+      break;
+   default:
+      break;
+   }
+   t_add_opc( task, code );
    t_add_arg( task, index );
 }
 

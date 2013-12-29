@@ -106,11 +106,13 @@ static void test_func( struct task*, struct resolve*, struct func* );
 static void test_func_body( struct task*, struct func* );
 static void calc_type_size( struct type* );
 static void test_unique_name( struct task*, struct name*, struct pos* );
-static void calc_initials_index( struct task* );
+static void calc_map_initial_index( struct task* );
 static void count_string_usage( struct task* );
 static void find_string_usage_node( struct node* );
 static void count_string_usage_node( struct node* );
 static void calc_map_var_size( struct task* );
+static void calc_var_size( struct var* );
+static void calc_initial_index( struct var* );
 
 void t_init_fields_dec( struct task* task ) {
    task->depth = 0;
@@ -1465,9 +1467,9 @@ void t_test( struct task* task ) {
       }
       d_list_next( &i );
    }
-   calc_initials_index( task );
-   count_string_usage( task );
    calc_map_var_size( task );
+   calc_map_initial_index( task );
+   count_string_usage( task );
 }
 
 void test_ns( struct task* task, struct resolve* resolve, struct ns* ns ) {
@@ -1871,12 +1873,9 @@ void t_test_local_var( struct task* task, struct var* var ) {
       .do_err = true,
       .local = true };
    test_var( task, &resolve );
-   if ( var->dim ) {
-      calc_dim_size( var->dim, var->type );
-   }
-   else if ( ! var->type->primitive && ! var->type->size &&
-      ! var->type->size_str ) {
-      calc_type_size( var->type );
+   calc_var_size( var );
+   if ( var->initial && var->initial->is_initz ) {
+      calc_initial_index( var );
    }
 }
 
@@ -2443,8 +2442,6 @@ void use_local_name( struct task* task, struct name* name,
    name->object = object;
 }
 
-static void calc_var_size( struct var* );
-
 void calc_map_var_size( struct task* task ) {
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
@@ -2638,43 +2635,47 @@ void add_value_link( struct value_list* list, struct type* type,
    }
 }
 
-void calc_initials_index( struct task* task ) {
+void calc_map_initial_index( struct task* task ) {
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->initial &&
          var->initial->is_initz ) {
-         struct value_list list;
-         list.head = NULL;
-         list.head_str = NULL;
-         list.value = NULL;
-         list.value_str = NULL;
-         if ( var->dim ) {
-            link_values( &list, ( struct initz* ) var->initial, var->type,
-               var->dim );
-         }
-         else {
-            link_values_struct( &list, ( struct initz* ) var->initial,
-               var->type );
-         }
-         var->value = list.head;
-         var->value_str = list.head_str;
-         struct alloc_value_index alloc;
-         alloc.value = list.head;
-         alloc.value_str = list.head_str;
-         alloc.index = 0;
-         alloc.index_str = 0;
-         if ( var->dim ) {
-            alloc_value_index( &alloc, ( struct initz* ) var->initial,
-               var->type, var->dim );
-         }
-         else {
-            alloc_value_index_struct( &alloc, ( struct initz* ) var->initial,
-               var->type );
-         }
+         calc_initial_index( var );
       }
       list_next( &i );
+   }
+}
+
+void calc_initial_index( struct var* var ) {
+   struct value_list list;
+   list.head = NULL;
+   list.head_str = NULL;
+   list.value = NULL;
+   list.value_str = NULL;
+   if ( var->dim ) {
+      link_values( &list, ( struct initz* ) var->initial, var->type,
+         var->dim );
+   }
+   else {
+      link_values_struct( &list, ( struct initz* ) var->initial,
+         var->type );
+   }
+   var->value = list.head;
+   var->value_str = list.head_str;
+   struct alloc_value_index alloc;
+   alloc.value = list.head;
+   alloc.value_str = list.head_str;
+   alloc.index = 0;
+   alloc.index_str = 0;
+   if ( var->dim ) {
+      alloc_value_index( &alloc, ( struct initz* ) var->initial,
+         var->type, var->dim );
+   }
+   else {
+      alloc_value_index_struct( &alloc, ( struct initz* ) var->initial,
+         var->type );
    }
 }
 

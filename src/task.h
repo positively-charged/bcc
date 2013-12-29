@@ -290,7 +290,8 @@ struct assign {
       AOP_SHIFT_R,
       AOP_BIT_AND,
       AOP_BIT_XOR,
-      AOP_BIT_OR
+      AOP_BIT_OR,
+      AOP_TOTAL
    } op;
    struct node* lside;
    struct node* rside;
