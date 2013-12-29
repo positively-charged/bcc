@@ -1140,10 +1140,12 @@ void do_object( struct task* task, struct operand* operand,
    else if ( node->type == NODE_SUBSCRIPT ) {
       do_subscript( task, operand, ( struct subscript* ) node );
    }
-   if ( operand->base ) {
+   if ( operand->method == METHOD_ELEMENT ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, operand->base );
-      t_add_opc( task, PC_ADD );
+      if ( operand->pushed_element ) {
+         t_add_opc( task, PC_ADD );
+      }
    }
    if ( operand->action == ACTION_PUSH_VALUE &&
       operand->method != METHOD_NONE ) {
