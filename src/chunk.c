@@ -2,14 +2,19 @@
 
 #include "task.h"
 
-// NOTE: Something is causing the initialization chunk to break when going
-// over the limit.
 #define MAX_MAP_LOCATIONS 128
-// #define MAX_MAP_LOCATIONS 1
 #define DEFAULT_SCRIPT_SIZE 20
 #define STR_ENCRYPTION_CONSTANT 157135
 
 #include <stdio.h>
+
+struct shared {
+   struct var* last[ 2 ];
+   struct var* last_str[ 2 ];
+   int left;
+   bool needed;
+   bool needed_str;
+};
 
 struct func_entry {
    char params;
@@ -20,6 +25,8 @@ struct func_entry {
 };
 
 static void alloc_index( struct task* );
+static void init_shared( struct shared*, int );
+static void determine_shared( struct shared*, struct var* );
 static void alloc_string_index( struct task* );
 static void do_sptr( struct task* );
 static void do_sflg( struct task* );
@@ -27,6 +34,8 @@ static void do_strl( struct task* );
 static void do_aray( struct task* );
 static void do_aini( struct task* );
 static void do_aini_shared_int( struct task* );
+static void count_shared_values( struct value*, int, int* );
+static void add_shared_values( struct task*, struct value*, int, int* );
 static void do_aini_shared_str( struct task* );
 static void do_aini_basic_int( struct task*, struct var* );
 static void do_aini_basic_str( struct task*, struct var* );
@@ -95,94 +104,17 @@ task->format = FORMAT_BIG_E;
 }
 
 void alloc_index( struct task* task ) {
-   // Determine whether the shared arrays are needed.
-   int left = MAX_MAP_LOCATIONS;
-   bool shared_int = false;
-   bool shared_str = false;
+   // Determine which variables need to be stored in a shared array.
+   STATIC_ASSERT( MAX_MAP_LOCATIONS >= 2 );
+   struct shared shared;
+   init_shared( &shared, MAX_MAP_LOCATIONS );
+   // Arrays:
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP ) {
-         if ( ! var->type->primitive ) {
-            if ( var->type->size ) {
-               shared_int = true;
-               if ( left ) { 
-                  --left;
-               }
-            }
-            if ( var->type->size_str ) {
-               shared_str = true;
-               if ( left ) { 
-                  --left;
-               }
-            }
-         }
-         else if ( var->type->is_str ) {
-            if ( left ) {
-               --left;
-            }
-            else {
-               shared_str = true;
-            }
-         }
-         else {
-            if ( left ) {
-               --left;
-            }
-            else {
-               shared_int = true;
-            }
-         }
-      }
-      list_next( &i );
-   }
-   // Allocate indexes.
-   int index = 0;
-   if ( shared_int ) {
-      ++index;
-   }
-   if ( shared_str ) {
-      ++index;
-   }
-   // Shared:
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
-         var->shared = true;
-         if ( var->size ) {
-            var->index = task->shared_size;
-            task->shared_size += var->size;
-         }
-         if ( var->size_str ) {
-            var->index_str = task->shared_size_str;
-            task->shared_size_str += var->size_str;
-         }
-      }
-      list_next( &i );
-   }
-   // Arrays.
-   list_iter_init( &i, &task->module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim ) {
-         if ( index < MAX_MAP_LOCATIONS ) {
-            var->index = index;
-            ++index;
-         }
-         // When an index can no longer be allocated, combine any remaining
-         // variables into an array.
-         else if ( var->type->is_str ) {
-            var->shared = true;
-            var->index_str = task->shared_size_str;
-            task->shared_size_str += var->size_str;
-         }
-         else  {
-            var->shared = true;
-            var->index = task->shared_size;
-            task->shared_size += var->size;
-         }
+         determine_shared( &shared, var );
       }
       list_next( &i );
    }
@@ -192,19 +124,117 @@ void alloc_index( struct task* task ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive &&
          ! var->dim ) {
-         if ( index < MAX_MAP_LOCATIONS ) {
+         determine_shared( &shared, var );
+      }
+      list_next( &i );
+   }
+   // Customs:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
+         determine_shared( &shared, var );
+      }
+      list_next( &i );
+   }
+   // Determine whether the shared arrays are needed.
+   // Allocate indexes.
+   int index = 0;
+   if ( shared.needed ) {
+      ++index;
+   }
+   if ( shared.needed_str ) {
+      ++index;
+   }
+   // Arrays:
+   // When allocating an index, arrays are given higher priority over scalars.
+   // Why? The off-by-one error check provided by the engine will be better
+   // utilized. If multiple arrays are combined into a single array, the check
+   // won't be useful to the individual arrays.
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
+         ! var->shared && ! var->shared_str ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Scalars:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive &&
+         ! var->dim && ! var->shared && ! var->shared_str ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Customs:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
+         if ( ! var->shared ) {
             var->index = index;
             ++index;
          }
-         else if ( var->type->is_str ) {
-            var->shared = true;
+         if ( ! var->shared_str ) {
+            var->index_str = index;
+            ++index;
+         }
+      }
+      list_next( &i );
+   }
+   // Any remaining variables are combined into an array.
+   // Scalars:
+   // Scalars are placed first to avoid being damaged by a buffer overflow.
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive &&
+         ! var->dim ) {
+         if ( var->shared ) {
+            var->index = task->shared_size;
+            task->shared_size += var->size;
+         }
+         else if ( var->shared_str ) {
             var->index_str = task->shared_size_str;
             task->shared_size_str += var->size_str;
          }
-         else  {
-            var->shared = true;
+      }
+      list_next( &i );
+   }
+   // Custom types:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
+         if ( var->shared ) {
             var->index = task->shared_size;
             task->shared_size += var->size;
+         }
+         if ( var->shared_str ) {
+            var->index_str = task->shared_size_str;
+            task->shared_size_str += var->size_str;
+         }
+      }
+      list_next( &i );
+   }
+   // Arrays:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim ) {
+         if ( var->shared ) {
+            var->index = task->shared_size;
+            task->shared_size += var->size;
+         }
+         else if ( var->shared_str ) {
+            var->index_str = task->shared_size_str;
+            task->shared_size_str += var->size_str;
          }
       }
       list_next( &i );
@@ -290,6 +320,80 @@ void alloc_index( struct task* task ) {
       impl->index = index;
       ++index;
       list_next( &i );
+   }
+}
+
+void init_shared( struct shared* shared, int left ) {
+   shared->last[ 0 ] = NULL;
+   shared->last[ 1 ] = NULL;
+   shared->last_str[ 0 ] = NULL;
+   shared->last_str[ 1 ] = NULL;
+   shared->left = left;
+   shared->needed = false;
+   shared->needed_str = false;
+}
+
+void determine_shared( struct shared* shared, struct var* var ) {
+   if ( var->type->size ) {
+      // Use an index when one is available.
+      if ( shared->left ) {
+         --shared->left;
+         shared->last[ 1 ] = shared->last[ 0 ];
+         shared->last[ 0 ] = var;
+      }
+      // Once all indexes are allocated, insert the variable in the shared
+      // array.
+      else if ( shared->needed ) {
+         var->shared = true;
+      }
+      // When no shared array exists, reuse the index of the last variable as
+      // the index of the shared array.
+      else if ( shared->last[ 0 ] ) {
+         shared->last[ 0 ]->shared = true;
+         shared->last[ 0 ] = shared->last[ 1 ];
+         shared->needed = true;
+         var->shared = true;
+      }
+      // When no variables are available, place one of the string variables
+      // into the shared array and reuse the index.
+      else if ( shared->needed_str ) {
+         shared->last_str[ 0 ]->shared_str = true;
+         shared->last[ 0 ] = var;
+      }
+      // When no string shared array exists, make one by combining two string
+      // variables. Then reuse the index.
+      else {
+         shared->last_str[ 0 ]->shared_str = true;
+         shared->last_str[ 1 ]->shared_str = true;
+         shared->needed_str = true;
+         shared->last[ 0 ] = var;
+      }
+   }
+   if ( var->type->size_str ) {
+      if ( shared->left ) {
+         --shared->left;
+         shared->last_str[ 1 ] = shared->last_str[ 0 ];
+         shared->last_str[ 0 ] = var;
+      }
+      else if ( shared->needed_str ) {
+         var->shared_str = true;
+      }
+      else if ( shared->last_str[ 0 ] ) {
+         shared->last_str[ 0 ]->shared_str = true;
+         shared->last_str[ 0 ] = shared->last_str[ 1 ];
+         shared->needed_str = true;
+         var->shared_str = true;
+      }
+      else if ( shared->needed ) {
+         shared->last[ 0 ]->shared = true;
+         shared->last_str[ 0 ] = var;
+      }
+      else {
+         shared->last[ 0 ]->shared = true;
+         shared->last[ 1 ]->shared = true;
+         shared->needed = true;
+         shared->last_str[ 0 ] = var;
+      }
    }
 }
 
@@ -472,8 +576,20 @@ void do_aray( struct task* task ) {
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->dim && ! var->shared ) {
-         ++count;
+      if ( var->storage == STORAGE_MAP ) {
+         if ( ! var->type->primitive ) {
+            if ( var->size && ! var->shared ) {
+               ++count;
+            }
+            if ( var->size_str && ! var->shared_str ) {
+               ++count;
+            }
+         }
+         else if ( var->dim ) {
+            if ( ! var->shared && ! var->shared_str ) {
+               ++count;
+            }
+         }
       }
       list_next( &i );
    }
@@ -499,13 +615,31 @@ void do_aray( struct task* task ) {
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->dim && ! var->shared ) {
-         entry.number = var->index;
-         entry.size = var->size;
-         if ( var->type->is_str ) {
-            entry.size = var->size_str;
+      if ( var->storage == STORAGE_MAP ) {
+         if ( ! var->type->primitive ) {
+            if ( var->size && ! var->shared ) {
+               entry.number = var->index;
+               entry.size = var->size;
+               t_add_sized( task, &entry, sizeof( entry ) );
+            }
+            if ( var->size_str && ! var->shared_str ) {
+               entry.number = var->index_str;
+               entry.size = var->size_str;
+               t_add_sized( task, &entry, sizeof( entry ) );
+            }
          }
-         t_add_sized( task, &entry, sizeof( entry ) );
+         else if ( var->dim ) {
+            if ( ! var->shared && ! var->shared_str ) {
+               entry.number = var->index;
+               if ( var->type->is_str ) {
+                  entry.size = var->size_str;
+               }
+               else {
+                  entry.size = var->size;
+               }
+               t_add_sized( task, &entry, sizeof( entry ) );
+            }
+         }
       }
       list_next( &i );
    }
@@ -520,7 +654,7 @@ void do_aini( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->initial && var->dim &&
-         ! var->shared ) {
+         ! var->shared && ! var->shared_str ) {
          if ( var->value_str ) {
             do_aini_basic_str( task, var );
          }
@@ -533,21 +667,13 @@ void do_aini( struct task* task ) {
 }
 
 void do_aini_shared_int( struct task* task ) {
+   int count = 0;
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
-   int count = 0;
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->shared && var->value ) {
-         struct value* value = var->value;
-         while ( value ) {
-            // Skip any value that is zero because the engine will initialize
-            // any unitialized element with a zero.
-            if ( value->expr->value ) {
-               count = var->index + value->index + 1;
-            }
-            value = value->next;
-         }
+      if ( var->storage == STORAGE_MAP && var->value && var->shared ) {
+         count_shared_values( var->value, var->index, &count );
       }
       list_next( &i );
    }
@@ -558,51 +684,90 @@ void do_aini_shared_int( struct task* task ) {
    t_add_int( task, sizeof( int ) + sizeof( int ) * count );
    t_add_int( task, SHARED_ARRAY );
    count = 0;
+   // Writing of values needs to follow the order of shared index assignment.
+   // Scalars:
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage != STORAGE_MAP || ! var->shared || ! var->value ) {
-         goto next;
+      if ( var->storage == STORAGE_MAP && var->type->primitive && ! var->dim &&
+         var->shared ) {
+         add_shared_values( task, var->value, var->index, &count );
       }
-      struct value* value = var->value;
-      while ( value ) {
-         if ( value->expr->value ) {
-            int index = var->index + value->index;
-            // Fill any skipped element with a zero.
-            if ( count < index ) {
-               t_add_int_zero( task, index - count );
-               count = index;
-            }
-            t_add_int( task, value->expr->value );
-            ++count;
-         }
-         value = value->next;
+      list_next( &i );
+   }
+   // Customs:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
+         var->shared ) {
+         add_shared_values( task, var->value, var->index, &count );
       }
-      next:
+      list_next( &i );
+   }
+   // Arrays:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
+         var->shared ) {
+         add_shared_values( task, var->value, var->index, &count );
+      }
       list_next( &i );
    }
 }
 
+void count_shared_values( struct value* value, int base, int* count ) {
+   while ( value ) {
+      int test = value->expr->value;
+      if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         test = usage->string->index;
+      }
+      // Skip any value that is zero because the engine will initialize
+      // any unitialized element with a zero.
+      if ( test ) {
+         int latest = base + value->index + 1;
+         if ( latest > *count ) {
+            *count = latest;
+         }
+      }
+      value = value->next;
+   }
+}
+
+void add_shared_values( struct task* task, struct value* value, int base,
+   int* count ) {
+   while ( value ) {
+      int output = value->expr->value;
+      if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         output = usage->string->index;
+      }
+      if ( output ) {
+         int index = base + value->index;
+         // Fill any skipped element with a zero.
+         if ( *count < index ) {
+            t_add_int_zero( task, index - *count );
+            *count = index;
+         }
+         t_add_int( task, output );
+         ++*count;
+      }
+      value = value->next;
+   }
+}
+
 void do_aini_shared_str( struct task* task ) {
+   int count = 0;
    list_iter_t i;
    list_iter_init( &i, &task->module->vars );
-   int count = 0;
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->shared && var->value_str ) {
-         struct value* value = var->value_str;
-         while ( value ) {
-            int test = value->expr->value;
-            if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
-               struct indexed_string_usage* usage =
-                  ( struct indexed_string_usage* ) value->expr->root;
-               test = usage->string->index;
-            }
-            if ( test ) {
-               count = var->index_str + value->index + 1;
-            }
-            value = value->next;
-         }
+      if ( var->storage == STORAGE_MAP && var->value_str && var->shared_str ) {
+         count_shared_values( var->value_str, var->index_str, &count );
       }
       list_next( &i );
    }
@@ -613,33 +778,34 @@ void do_aini_shared_str( struct task* task ) {
    t_add_int( task, sizeof( int ) + sizeof( int ) * count );
    t_add_int( task, SHARED_ARRAY_STR );
    count = 0;
+   // Scalars:
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage != STORAGE_MAP || ! var->shared || ! var->value_str ) {
-         goto next;
+      if ( var->storage == STORAGE_MAP && var->type->primitive && ! var->dim &&
+         var->shared_str ) {
+         add_shared_values( task, var->value_str, var->index_str, &count );
       }
-      struct value* value = var->value_str;
-      while ( value ) {
-         int output = value->expr->value;
-         if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
-            struct indexed_string_usage* usage =
-               ( struct indexed_string_usage* ) value->expr->root;
-            output = usage->string->index;
-         }
-         if ( output ) {
-            int index = var->index_str + value->index;
-            // Fill any skipped element with a zero.
-            if ( count < index ) {
-               t_add_int_zero( task, index - count );
-               count = index;
-            }
-            t_add_int( task, output );
-            ++count;
-         }
-         value = value->next;
+      list_next( &i );
+   }
+   // Customs:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
+         var->shared_str ) {
+         add_shared_values( task, var->value_str, var->index_str, &count );
       }
-      next:
+      list_next( &i );
+   }
+   // Arrays:
+   list_iter_init( &i, &task->module->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
+         var->shared_str ) {
+         add_shared_values( task, var->value_str, var->index_str, &count );
+      }
       list_next( &i );
    }
 }
@@ -724,7 +890,8 @@ void do_mini( struct task* task ) {
    list_iter_init( &i, &task->module->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim && ! var->shared ) {
+      if ( var->storage == STORAGE_MAP && ! var->dim && ! var->shared &&
+         ! var->shared_str ) {
          int test = 0;
          if ( var->initial ) {
             struct value* value = ( struct value* ) var->initial;
@@ -764,7 +931,8 @@ void do_mini( struct task* task ) {
    bool started = false;
    while ( ! list_end( &i ) && count ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim && ! var->shared ) {
+      if ( var->storage == STORAGE_MAP && ! var->dim && ! var->shared &&
+         ! var->shared_str  ) {
          int output = 0;
          if ( var->initial ) {
             struct value* value = ( struct value* ) var->initial;
@@ -995,8 +1163,11 @@ void do_fnam( struct task* task ) {
    list_iter_init( &i, &task->module->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      size += t_full_name_length( func->name ) + 1;
-      ++count;
+      struct func_user* impl = func->impl;
+      if ( ! impl->hidden ) {
+         size += t_full_name_length( func->name ) + 1;
+         ++count;
+      }
       list_next( &i );
    }
    if ( ! count ) {
@@ -1058,8 +1229,11 @@ void do_fnam( struct task* task ) {
    list_iter_init( &i, &task->module->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      t_add_int( task, offset );
-      offset += t_full_name_length( func->name ) + 1;
+      struct func_user* impl = func->impl;
+      if ( ! impl->hidden ) {
+         t_add_int( task, offset );
+         offset += t_full_name_length( func->name ) + 1;
+      }
       list_next( &i );
    }
    // Names:
@@ -1119,9 +1293,12 @@ void do_fnam( struct task* task ) {
    list_iter_init( &i, &task->module->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      t_copy_full_name( func->name, &task->str );
-      t_add_str( task, task->str.value );
-      t_add_byte( task, 0 );
+      struct func_user* impl = func->impl;
+      if ( ! impl->hidden ) {
+         t_copy_full_name( func->name, &task->str );
+         t_add_str( task, task->str.value );
+         t_add_byte( task, 0 );
+      }
       list_next( &i );
    }
 }
@@ -1155,7 +1332,7 @@ void do_mstr( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim && var->value_str &&
-         ! var->shared ) {
+         ! var->shared && ! var->shared_str ) {
          ++count;
       }
       list_next( &i );
@@ -1169,7 +1346,7 @@ void do_mstr( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim && var->value_str &&
-         ! var->shared ) {
+         ! var->shared && ! var->shared_str ) {
          t_add_int( task, var->index );
       }
       list_next( &i );
@@ -1186,7 +1363,7 @@ void do_astr( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->dim && var->value_str &&
-         ! var->shared ) {
+         ! var->shared && ! var->shared_str ) {
          ++count;
       }
       list_next( &i );
@@ -1203,7 +1380,7 @@ void do_astr( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->dim && var->value_str &&
-         ! var->shared ) {
+         ! var->shared && ! var->shared_str ) {
          t_add_int( task, var->index );
       }
       list_next( &i );

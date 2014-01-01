@@ -473,6 +473,9 @@ struct var {
    bool imported;
    bool hidden;
    bool shared;
+   bool shared_str;
+   bool state_read;
+   bool state_changed;
 };
 
 struct param {
@@ -554,6 +557,7 @@ struct func_user {
    int usage;
    int obj_pos;
    bool imported;
+   bool hidden;
 };
 
 struct func_intern {
@@ -736,6 +740,7 @@ struct dec {
    bool type_needed;
    bool storage_given;
    bool initial_str;
+   bool is_static;
 };
 
 struct stmt_read {

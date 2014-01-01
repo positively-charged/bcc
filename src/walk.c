@@ -862,13 +862,9 @@ void do_format_item( struct task* task, struct format_item* item ) {
       object.action = ACTION_PUSH_VAR;
       do_operand( task, &object, item->expr->root );
       if ( object.trigger == TRIGGER_FUNCTION ) {
-         int element = alloc_scalar( task );
-         t_add_opc( task, PC_ASSIGN_SCRIPT_VAR );
-         t_add_arg( task, element );
-         // Get element value.
-         int get_ch = t_tell( task );
-         t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, element );
+         int loop = t_tell( task );
+         t_add_opc( task, PC_DUP );
+         // Get value.
          if ( object.add_str_arg ) {
             t_add_opc( task, PC_PUSH_NUMBER );
             t_add_arg( task, ( int ) object.do_str );
@@ -882,17 +878,18 @@ void do_format_item( struct task* task, struct format_item* item ) {
          t_add_arg( task, 0 );
          t_add_opc( task, PC_PRINT_CHARACTER );
          // Next element.
-         t_add_opc( task, PC_INC_SCRIPT_VAR );
-         t_add_arg( task, element );
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, 1 );
+         t_add_opc( task, PC_ADD );
          t_add_opc( task, PC_GOTO );
-         t_add_arg( task, get_ch );
+         t_add_arg( task, loop );
          int done = t_tell( task );
+         t_add_opc( task, PC_DROP );
          t_seek( task, bail );
          t_add_opc( task, PC_CASE_GOTO );
          t_add_arg( task, 0 );
          t_add_arg( task, done );
          t_seek( task, OBJ_SEEK_END );
-         dealloc_last_scalar( task );
       }
       else {
          t_add_opc( task, PC_PUSH_NUMBER );
@@ -1058,20 +1055,6 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
          operand->index = var->index;
       }
    }
-   else if ( var->shared ) {
-      operand->method = METHOD_ELEMENT;
-      if ( var->dim && var->type->primitive && var->type->is_str ) {
-         operand->do_str = true;
-      }
-      if ( operand->do_str ) {
-         operand->index = SHARED_ARRAY_STR;
-         operand->base = var->index_str;
-      }
-      else {
-         operand->index = SHARED_ARRAY;
-         operand->base = var->index;
-      }
-   }
    else if ( ! var->type->primitive ) {
       operand->method = METHOD_ELEMENT;
       if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
@@ -1082,48 +1065,80 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
             operand->base = var->size;
          }
       }
+      // For map storage.
       else {
          if ( operand->do_str ) {
-            operand->index = SHARED_ARRAY_STR;
-            operand->base = var->index_str;
+            if ( var->shared_str ) {
+               operand->index = SHARED_ARRAY_STR;
+               operand->base = var->index_str;
+            }
+            else {
+               operand->index = var->index_str;
+            }
          }
          else {
-            operand->index = SHARED_ARRAY;
-            operand->base = var->index;
+            if ( var->shared ) {
+               operand->index = SHARED_ARRAY;
+               operand->base = var->index;
+            }
+            else {
+               operand->index = var->index;
+            }
          }
       }
    }
    else if ( var->dim ) {
       operand->method = METHOD_ELEMENT;
-      operand->index = var->index;
+      if ( var->shared ) {
+         operand->index = SHARED_ARRAY;
+         operand->base = var->index;
+      }
+      else if ( var->shared_str ) {
+         operand->index = SHARED_ARRAY_STR;
+         operand->base = var->index_str;
+      }
+      else {
+         operand->index = var->index;
+      }
    }
    else {
-      operand->method = METHOD_INDEXED;
-      operand->index = var->index;
+      if ( var->shared ) {
+         operand->method = METHOD_ELEMENT;
+         operand->index = SHARED_ARRAY;
+         operand->base = var->index;
+      }
+      else if ( var->shared_str ) {
+         operand->method = METHOD_ELEMENT;
+         operand->index = SHARED_ARRAY_STR;
+         operand->base = var->index_str;
+      }
+      else {
+         operand->method = METHOD_INDEXED;
+         operand->index = var->index;
+      }
    }
 }
 
 void do_var_name( struct task* task, struct operand* operand,
    struct var* var ) {
    set_var( task, operand, var );
-   // A variable that resides in an array needs an element index pushed. The
-   // element index is the start of the variable.
+   // For element-based variables, an index marking the start of the variable
+   // data needs to be on the stack.
    if ( operand->method == METHOD_ELEMENT ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, operand->base );
    }
-   if ( operand->action == ACTION_PUSH_VALUE ) {
-      if ( operand->trigger == TRIGGER_FUNCTION ) {
-         t_add_opc( task, PC_CALL );
-         t_add_arg( task, operand->func_get );
+   else {
+      if ( operand->action == ACTION_PUSH_VALUE ) {
+         if ( operand->trigger == TRIGGER_FUNCTION ) {
+            t_add_opc( task, PC_CALL );
+            t_add_arg( task, operand->func_get );
+         }
+         else {
+            push_indexed( task, operand->storage, operand->index );
+         }
+         operand->pushed = true;
       }
-      else if ( operand->method == METHOD_ELEMENT ) {
-         push_element( task, operand->storage, operand->index );
-      }
-      else {
-         push_indexed( task, operand->storage, operand->index );
-      }
-      operand->pushed = true;
    }
 }
 
@@ -1141,10 +1156,16 @@ void do_object( struct task* task, struct operand* operand,
       do_subscript( task, operand, ( struct subscript* ) node );
    }
    if ( operand->method == METHOD_ELEMENT ) {
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, operand->base );
       if ( operand->pushed_element ) {
-         t_add_opc( task, PC_ADD );
+         if ( operand->base ) {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, operand->base );
+            t_add_opc( task, PC_ADD );
+         }
+      }
+      else {
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, operand->base );
       }
    }
    if ( operand->action == ACTION_PUSH_VALUE &&

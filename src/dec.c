@@ -437,6 +437,7 @@ bool t_is_dec( struct task* task ) {
    case TK_STR:
    case TK_BOOL:
    case TK_FIXED:
+   case TK_VOID:
    case TK_WORLD:
    case TK_GLOBAL:
    case TK_STATIC:
@@ -459,6 +460,7 @@ void t_init_dec( struct dec* dec ) {
    dec->type_needed = false;
    dec->storage_given = false;
    dec->initial_str = false;
+   dec->is_static = false;
 }
 
 void t_read_dec( struct task* task, struct dec* dec ) {
@@ -475,14 +477,8 @@ void t_read_dec( struct task* task, struct dec* dec ) {
       t_read_tk( task );
    }
    // Static:
-   bool is_static = false;
    if ( task->tk == TK_STATIC ) {
       STATIC_ASSERT( DEC_TOTAL == 4 )
-      if ( dec->area == DEC_TOP ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
-            "`static` in top scope" );
-         bail();
-      }
       if ( dec->area == DEC_FOR ) {
          diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
             "`static` in for-loop initialization" );
@@ -493,7 +489,7 @@ void t_read_dec( struct task* task, struct dec* dec ) {
             "`static` in struct member declaration" );
          bail();
       }
-      is_static = true;
+      dec->is_static = true;
       t_read_tk( task );
    }
    // Storage:
@@ -511,7 +507,7 @@ void t_read_dec( struct task* task, struct dec* dec ) {
       dec->storage_given = true;
       t_read_tk( task );
    }
-   else if ( is_static ) {
+   else if ( dec->is_static ) {
       if ( dec->area == DEC_LOCAL ) {
          dec->storage = STORAGE_MAP;
          dec->storage_pos = task->tk_pos;
@@ -618,7 +614,7 @@ void t_read_dec( struct task* task, struct dec* dec ) {
       bail();
    }
    // Function:
-   if ( func ) {
+   if ( func || task->tk == TK_PAREN_L ) {
       read_func( task, dec );
       return;
    }
@@ -733,8 +729,9 @@ void t_read_dec( struct task* task, struct dec* dec ) {
       var->imported = false;
       var->hidden = false;
       var->shared = false;
+      var->shared_str = false;
       var->flags = 0;
-      if ( is_static ) {
+      if ( dec->is_static ) {
          var->hidden = true;
       }
       if ( dec->area == DEC_TOP ) {
@@ -1066,7 +1063,9 @@ void read_func( struct task* task, struct dec* dec ) {
    t_read_tk( task );
    struct params params;
    init_params( &params );
-   read_params( task, &params );
+   if ( task->tk != TK_PAREN_R ) {
+      read_params( task, &params );
+   }
    func->params = params.node;
    func->min_param = params.min;
    func->max_param = params.max;
@@ -1082,6 +1081,10 @@ void read_func( struct task* task, struct dec* dec ) {
       impl->usage = 0;
       impl->obj_pos = 0;
       impl->imported = false;
+      impl->hidden = false;
+      if ( dec->is_static ) {
+         impl->hidden = true;
+      }
       func->impl = impl;
       if ( task->importing ) {
          t_skip_block( task );
