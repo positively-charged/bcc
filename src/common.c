@@ -1,114 +1,113 @@
 #include <stdio.h>
 #include <setjmp.h>
-#include <stdarg.h>
 #include <string.h>
 
 #include "common.h"
+#include "task.h"
 
-typedef struct alloc_t {
-   struct alloc_t* prev;
-   struct alloc_t* next;
-} alloc_t;
+// Memory
+// NOTE: The functions below may be violating the strict-aliasing rule.
+// ==========================================================================
 
-static alloc_t* g_alloc = NULL;
-static alloc_t* g_alloc_tail = NULL;
+struct alloc {
+   struct alloc* next;
+};
+
+// Linked list of current allocations. The head is the most recent allocation.
+// This way, a short-term allocation can be found and removed quicker.
+static struct alloc* g_alloc = NULL;
+
+static void unlink_alloc( struct alloc* );
 
 void* mem_alloc( size_t size ) {
-   void* block = malloc( sizeof( alloc_t ) + size );
-   if ( g_alloc ) {
-      alloc_t* alloc = block;
-      alloc->next = NULL;
-      alloc->prev = g_alloc_tail;
-      g_alloc_tail->next = alloc;
-      g_alloc_tail = alloc;
-   }
-   else {
-      g_alloc = block;
-      g_alloc->next = NULL;
-      g_alloc->prev = NULL;
-      g_alloc_tail = g_alloc;
-   }
-   return ( char* ) block + sizeof( alloc_t );
+   return mem_realloc( NULL, size );
 }
 
 void* mem_realloc( void* block, size_t size ) {
+   struct alloc* alloc = NULL;
    if ( block ) {
-      block = realloc( ( alloc_t* ) block - 1, sizeof( alloc_t ) + size );
-      alloc_t* alloc = block;
-      if ( alloc->prev ) {
-         alloc->prev->next = alloc;
-      }
-      else {
-         g_alloc = alloc;
-      }
-      if ( alloc->next ) {
-         alloc->next->prev = alloc;
-      }
-      else {
-         g_alloc_tail = alloc;
-      }
-      return ( char* ) block + sizeof( alloc_t );
+      alloc = ( struct alloc* ) block - 1;
+      unlink_alloc( alloc );
+   }
+   // TODO: Bail on error.
+   alloc = realloc( alloc, sizeof( *alloc ) + size );
+   alloc->next = g_alloc;
+   g_alloc = alloc;
+   return alloc + 1;
+}
+
+void unlink_alloc( struct alloc* alloc ) {
+   struct alloc* curr = g_alloc;
+   struct alloc* prev = NULL;
+   while ( curr != alloc ) {
+      prev = curr;
+      curr = curr->next;
+   }
+   if ( prev ) {
+      prev->next = alloc->next;
    }
    else {
-      return mem_alloc( size );
+      g_alloc = alloc->next;
    }
 }
 
-void mem_deinit( void ) {
+void mem_free( void* block ) {
+   struct alloc* alloc = ( struct alloc* ) block - 1;
+   unlink_alloc( alloc );
+   free( alloc );
+}
+
+void mem_free_all( void ) {
    while ( g_alloc ) {
-      alloc_t* next = g_alloc->next;
+      struct alloc* next = g_alloc->next;
       free( g_alloc );
       g_alloc = next;
    }
 }
 
-int c_num_errs = 0;
-
-void diag( int flags, ... ) {
-   va_list args;
-   va_start( args, flags );
-   if ( flags & DIAG_FILE ) {
-      struct pos* pos = va_arg( args, struct pos* );
-      printf( "%s", pos->file->path.value );
-      if ( flags & DIAG_LINE ) {
-         printf( ":%d", pos->line );
-         if ( flags & DIAG_COLUMN ) {
-            printf( ":%d", pos->column );
-         }
-      }
-      printf( ": " );
-   }
-   if ( flags & DIAG_ERR ) {
-      printf( "error: " );
-      c_num_errs += 1;
-   }
-   else if ( flags & DIAG_WARN ) {
-      printf( "warning: " );
-   }
-   const char* format = va_arg( args, const char* );
-   vprintf( format, args );
-   printf( "\n" );
-   va_end( args );
-}
+// Str
+// ==========================================================================
 
 void str_init( struct str* str ) {
-   str->value = NULL;
    str->length = 0;
-   str->buff_length = 0;
+   str->buffer_length = 0;
+   str->value = NULL;
+}
+
+void str_deinit( struct str* str ) {
+   if ( str->value ) {
+      mem_free( str->value );
+   }
+}
+
+void str_copy( struct str* str, const char* value, int length ) {
+   if ( str->buffer_length <= length ) {
+      str_grow( str, length + 1 );
+   }
+   memcpy( str->value, value, length );
+   str->value[ length ] = 0;
+   str->length = length;
 }
 
 void str_grow( struct str* str, int length ) {
-   str->buff_length = length + 1;
-   str->value = mem_realloc( str->value, str->buff_length );
+   str->value = mem_realloc( str->value, length );
+   str->buffer_length = length;
 }
 
-void str_append( struct str* str, const char* cstr ) {
-   str_append_sub( str, cstr, strlen( cstr ) );
+void str_append( struct str* str, const char* value ) {
+   int length = strlen( value );
+   int new_length = str->length + length;
+   if ( str->buffer_length <= new_length ) {
+      str_grow( str, new_length + 1 );
+   }
+   memcpy( str->value + str->length, value, length );
+   str->value[ new_length ] = 0;
+   str->length = new_length;
 }
 
 void str_append_sub( struct str* str, const char* cstr, int length ) {
-   if ( str->buff_length - str->length - 1 < length ) {
-      str_grow( str, str->buff_length + length );
+   if ( str->buffer_length - str->length - 1 < length ) {
+      str_grow( str, str->buffer_length + length );
    }
    memcpy( str->value + str->length, cstr, length );
    str->length += length;
@@ -116,16 +115,14 @@ void str_append_sub( struct str* str, const char* cstr, int length ) {
 }
 
 void str_clear( struct str* str ) {
-   str->value[ 0 ] = '\0';
    str->length = 0;
-}
-
-void str_del( struct str* str ) {
    if ( str->value ) {
-      //mem_free( str->value );
-      str->value = NULL;
+      str->value[ 0 ] = 0;
    }
 }
+
+// Singly linked list
+// ==========================================================================
 
 void list_init( struct list* list ) {
    list->head = NULL;
@@ -144,10 +141,10 @@ void list_append( struct list* list, void* data ) {
       list->head = link;
    }
    list->tail = link;
-   list->size += 1;
+   ++list->size;
 }
 
-void list_append_h( struct list* list, void* data ) {
+void list_append_head( struct list* list, void* data ) {
    struct list_link* link = mem_alloc( sizeof( *link ) );
    link->data = data;
    link->next = list->head;
@@ -155,8 +152,20 @@ void list_append_h( struct list* list, void* data ) {
    if ( ! list->tail ) {
       list->tail = link;
    }
-   list->size += 1;
+   ++list->size;
 }
+
+void list_deinit( struct list* list ) {
+   struct list_link* link = list->head;
+   while ( link ) {
+      struct list_link* next = link->next;
+      mem_free( link );
+      link = next;
+   }
+}
+
+// Doubly linked list
+// ==========================================================================
 
 void d_list_init( struct d_list* list ) {
    list->head = NULL;
@@ -180,6 +189,9 @@ void d_list_append( struct d_list* list, void* data ) {
    }
    list->size += 1;
 }
+
+// Stack
+// ==========================================================================
 
 void stack_init( struct stack* entry ) {
    entry->prev = NULL;
@@ -212,3 +224,31 @@ void* stack_pop( struct stack* entry ) {
       return NULL;
    }
 }
+
+// File Identity
+// ==========================================================================
+
+#ifdef __WINDOWS__
+
+#else
+
+#include <sys/stat.h>
+
+bool c_read_identity( struct file_identity* identity, const char* path ) {
+   struct stat buff;
+   if ( stat( path, &buff ) == -1 ) {
+      return false;
+   }
+   identity->device = buff.st_dev;
+   identity->number = buff.st_ino;
+   return true;
+}
+
+bool c_same_identity( struct file_identity* first,
+   struct file_identity* other ) {
+   return (
+      first->device == other->device &&
+      first->number == other->number );
+}
+
+#endif

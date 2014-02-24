@@ -634,8 +634,8 @@ void t_flush( struct task* task ) {
       failure = true;
    }
    if ( failure ) {
-      diag( DIAG_ERR, "failed to write object file: %s",
+      t_diag( task, DIAG_ERR, "failed to write object file: %s",
          task->options->object_file );
-      bail();
+      t_bail( task );
    }
 }

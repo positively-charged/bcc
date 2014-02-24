@@ -1,148 +1,160 @@
 #include <stdio.h>
-#include <ctype.h>
 #include <string.h>
+#include <stdarg.h>
+#include <ctype.h>
 
 #include "task.h"
 
-struct paused {
-   struct file* file;
-   char* ch;
-   int line;
-   char* column;
-   char* first_column;
-   char* end;
-   char recover_ch;
-};
-
-static char* escape_ch( struct task*, char*, char* );
-static char hex_value( char );
+static enum tk peek( struct task*, int );
+static void read_token( struct task*, struct token* );
+static void read_ch( struct task* );
+static void add_line( struct module*, int );
+static void escape_ch( struct task*, char*, char**, bool );
 static const char* get_token_name( enum tk );
+static void make_pos( struct task*, struct pos*, struct file**, int*, int* );
 
-void t_init_fields_tk( struct task* task ) {
-   task->tk = TK_END;
-   task->tk_text = NULL;
-   task->tk_length = 0;
-   task->ch = NULL;
-   task->column = NULL;
-   task->first_column = NULL;
-   task->end = NULL;
-   task->recover_ch = 0;
-   stack_init( &task->paused );
-   list_init( &task->unloaded_files );
-   task->peeked_length = 0;
+struct module* t_load_module( struct task* task, const char* path,
+   const char* name ) {
+   // Load file.
+   FILE* fh = fopen( path, "rb" );
+   if ( ! fh ) {
+      return NULL;
+   }
+   struct file* file = mem_alloc( sizeof( *file ) );
+   str_init( &file->path );
+   str_append( &file->path, path );
+   fseek( fh, 0, SEEK_END );
+   size_t size = ftell( fh );
+   rewind( fh );
+   char* save_ch = mem_alloc( size + 1 + 1 );
+   char* ch = save_ch + 1;
+   int read = fread( ch, sizeof( char ), size, fh );
+   ch[ size ] = 0;
+   fclose( fh );
+   // Create module.
+   struct module* module = mem_alloc( sizeof( *module ) );
+   t_init_object( &module->object, NODE_MODULE );
+   module->object.resolved = true;
+   module->file = file;
+   module->ch = ch;
+   module->ch_start = ch;
+   module->ch_save = save_ch;
+   module->end = ch;
+   module->first_column = ch;
+   module->recover_ch = *ch;
+   module->line = 1;
+   module->lines.count_max = 128;
+   module->lines.columns = mem_alloc(
+      sizeof( int ) * module->lines.count_max );
+   // Column of the first line.
+   module->lines.columns[ 0 ] = 0;
+   module->lines.count = 1;
+   str_init( &module->name );
+   str_append( &module->name, name );
+   str_init( &module->package_name );
+   str_init( &module->lump );
+   module->id = list_size( &task->loaded_modules );
+   module->body = NULL;
+   module->body_struct = NULL;
+   module->body_import = NULL;
+   list_init( &module->vars );
+   list_init( &module->funcs );
+   list_init( &module->scripts );
+   list_init( &module->items );
+   list_init( &module->imports );
+   list_init( &module->imported );
+   module->links = NULL;
+   module->unresolved = NULL;
+   module->unresolved_tail = NULL;
+   module->ref_count = 0;
+   module->import_dirc = false;
+   module->publish = false;
+   module->visible = false;
+   module->dynamic = false;
+   module->dynamic_checked = false;
+   module->read = false;
+   module->used = false;
+   list_append( &task->loaded_modules, module );
+   return module;
 }
 
-bool t_load_file( struct task* task, const char* path ) {
-   bool direct = false;
-   struct list_link* include_path = task->options->includes.head;
-   struct str load_path;
-   str_init( &load_path );
-   while ( true ) {
-      if ( ! direct ) {
-         direct = true;
-         str_append( &load_path, path );
-      }
-      else if ( include_path ) {
-         str_clear( &load_path );
-         str_append( &load_path, include_path->data );
-         str_append( &load_path, "/" );
-         str_append( &load_path, path );
-         include_path = include_path->next;
-      }
-      else {
-         str_del( &load_path );
-         return false;
-      }
-      FILE* fh = fopen( load_path.value, "rb" );
-      if ( ! fh ) {
-         continue;
-      }
-      if ( task->ch ) {
-         struct paused* paused = mem_alloc( sizeof( *paused ) );
-         paused->file = task->file;
-         paused->ch = task->ch;
-         paused->line = task->line;
-         paused->column = task->column;
-         paused->first_column = task->first_column;
-         paused->end = task->end;
-         paused->recover_ch = task->recover_ch;
-         stack_push( &task->paused, paused );
-      }
-      struct file* file = mem_alloc( sizeof( *file ) );
-      file->load_path = load_path;
-      str_init( &file->path );
-      str_append( &file->path, path );
-      task->file = file;
-      fseek( fh, 0, SEEK_END );
-      size_t size = ftell( fh );
-      rewind( fh );
-      char* ch = mem_alloc( size + 1 + 1 );
-      ch += 1;
-      fread( ch, sizeof( char ), size, fh );
-      ch[ size ] = 0;
-      fclose( fh );
-      task->ch = ch;
-      task->text = ch;
-      task->end = ch;
-      task->first_column = ch;
-      task->recover_ch = *ch;
-      task->line = 1;
-      return true;
-   }
-}
-
-void t_unload_file( struct task* task, bool* more ) {
-   list_append( &task->unloaded_files, task->file );
-   struct paused* paused = stack_pop( &task->paused );
-   if ( paused ) {
-      task->file = paused->file;
-      task->ch = paused->ch;
-      task->line = paused->line;
-      task->column = paused->column;
-      task->first_column = paused->first_column;
-      task->end = paused->end;
-      task->recover_ch = paused->recover_ch;
-      t_read_tk( task );
-      *more = true;
-   }
+void t_set_module( struct task* task, struct module* module ) {
+   task->module = module;
+   // Start at a hidden character. This is done do simplify the implementation
+   // of the read_ch() function.
+   task->ch = ' ';
+   task->column = -1;
 }
 
 void t_read_tk( struct task* task ) {
-   *task->end = task->recover_ch;
-   char* ch = task->ch;
-   enum tk tk = TK_END;
-   int length = 0;
-   char* start;
-   char* end;
-   int line;
-   int column;
-
-   state_start: ;
-   // -----------------------------------------------------------------------
-   enum {
-      MULTI_WHITESPACE,
-      MULTI_LINE_COMMENT,
-      MULTI_BLOCK_COMMENT,
-      MULTI_STRING,
-      MULTI_STRING_CONCAT
-   } multi = MULTI_WHITESPACE;
-   goto state_multi;
-
-   state_text: ;
-   // -----------------------------------------------------------------------
-   start = ch;
-   end = NULL;
-   line = task->line;
-   column = ch - task->first_column;
-   // Identifier.
-   if ( isalpha( *ch ) || *ch == '_' ) {
-      char* id = start - 1;
-      while ( isalnum( *ch ) || *ch == '_' ) {
-         ch[ -1 ] = tolower( *ch );
-         ++ch;
+   struct token* token = NULL;
+   if ( task->tokens.peeked ) {
+      // When dequeuing, shift the queue elements. For now, this will suffice.
+      // In the future, maybe use a circular buffer.
+      int i = 0;
+      while ( i < task->tokens.peeked ) {
+         task->tokens.buffer[ i ] = task->tokens.buffer[ i + 1 ];
+         ++i;
       }
-      ch[ -1 ] = 0;
-      length = ch - start;
+      token = &task->tokens.buffer[ 0 ];
+      --task->tokens.peeked;
+   }
+   else {
+      token = &task->tokens.buffer[ 0 ];
+      read_token( task, token );
+   }
+   task->tk = token->type;
+   task->tk_text = token->text;
+   task->tk_pos = token->pos;
+   task->tk_length = token->length;
+}
+
+enum tk t_peek( struct task* task ) {
+   return peek( task, 1 );
+}
+
+enum tk t_peek_2nd( struct task* task ) {
+   return peek( task, 2 );
+}
+
+// NOTE: Make sure @pos is not more than ( TK_BUFFER_SIZE - 1 ).
+enum tk peek( struct task* task, int pos ) {
+   int i = 0;
+   while ( true ) {
+      // Peeked tokens begin at position 1.
+      struct token* token = &task->tokens.buffer[ i + 1 ];
+      if ( i == task->tokens.peeked ) {
+         read_token( task, token );
+         ++task->tokens.peeked;
+      }
+      ++i;
+      if ( i == pos ) {
+         return token->type;
+      }
+   }
+}
+
+void read_token( struct task* task, struct token* token ) {
+   char* save = task->module->ch_save;
+   enum tk tk = TK_END;
+   int column = 0;
+
+   state_start:
+   // -----------------------------------------------------------------------
+   while ( isspace( task->ch ) ) {
+      read_ch( task );
+   }
+   column = task->column;
+   // Identifier.
+   if ( isalpha( task->ch ) || task->ch == '_' ) {
+      char* id = save;
+      while ( isalnum( task->ch ) || task->ch == '_' ) {
+         *save = tolower( task->ch );
+         ++save;
+         read_ch( task );
+      }
+      *save = 0;
+      ++save;
       // NOTE: Reserved identifiers must be listed in ascending order.
       static const struct { const char* name; enum tk tk; }
       reserved[] = {
@@ -161,17 +173,22 @@ void t_read_tk( struct task* task ) {
          { "else", TK_ELSE },
          { "enter", TK_ENTER },
          { "enum", TK_ENUM },
-         { "fixed", TK_FIXED },
+         { "false", TK_FALSE },
+         // Maybe we'll add this as a type later.
+         { "fixed", TK_RESERVED },
          { "for", TK_FOR },
+         { "format", TK_FORMAT },
          { "function", TK_FUNCTION },
          { "global", TK_GLOBAL },
          { "goto", TK_GOTO },
          { "if", TK_IF },
+         { "import", TK_IMPORT },
          { "int", TK_INT },
          { "lightning", TK_LIGHTNING },
-         { "namespace", TK_NAMESPACE },
+         { "module", TK_MODULE },
          { "net", TK_NET },
          { "open", TK_OPEN },
+         { "pickup", TK_PICKUP },
          { "redreturn", TK_RED_RETURN },
          { "respawn", TK_RESPAWN },
          { "restart", TK_RESTART },
@@ -184,9 +201,9 @@ void t_read_tk( struct task* task ) {
          { "suspend", TK_SUSPEND },
          { "switch", TK_SWITCH },
          { "terminate", TK_TERMINATE },
+         { "true", TK_TRUE },
          { "unloading", TK_UNLOADING },
          { "until", TK_UNTIL },
-         { "using", TK_USING },
          { "void", TK_VOID },
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },
@@ -203,62 +220,71 @@ void t_read_tk( struct task* task ) {
          // Identifier.
          if ( reserved[ i ].name[ 0 ] > *id ) {
             tk = TK_ID;
-            start = id;
-            goto state_finish;
+            break;
          }
          // Reserved identifier.
-         else if ( strncmp( reserved[ i ].name, id, ch - start ) == 0 &&
-            reserved[ i ].name[ ch - start ] == 0 ) {
+         else if ( strcmp( reserved[ i ].name, id ) == 0 ) {
             tk = reserved[ i ].tk;
-            start = id;
-            goto state_finish;
+            break;
          }
          else {
-            i += 1;
+            ++i;
          }
       }
+      goto state_finish;
    }
-   else if ( *ch == '0' ) {
-      ch += 1;
+   else if ( task->ch == '0' ) {
+      read_ch( task );
       // Hexadecimal.
-      if ( *ch == 'x' || *ch == 'X' ) {
-         do {
-            ch += 1;
-         } while (
-            ( *ch >= '0' && *ch <= '9' ) ||
-            ( *ch >= 'a' && *ch <= 'f' ) ||
-            ( *ch >= 'A' && *ch <= 'F' ) );
-         start += 2;
+      if ( task->ch == 'x' || task->ch == 'X' ) {
+         read_ch( task );
+         while (
+            ( task->ch >= '0' && task->ch <= '9' ) ||
+            ( task->ch >= 'a' && task->ch <= 'f' ) ||
+            ( task->ch >= 'A' && task->ch <= 'F' ) ) {
+            *save = task->ch;
+            ++save;
+            read_ch( task );
+         }
          tk = TK_LIT_HEX;
       }
       // Fixed-point number.
-      else if ( *ch == '.' ) {
-         ++ch;
+      else if ( task->ch == '.' ) {
+         save[ 0 ] = '0';
+         save[ 1 ] = '.';
+         save += 2;
+         read_ch( task );
          goto state_fraction;
       }
+      // Octal.
+      else if ( task->ch >= '0' && task->ch <= '7' ) {
+         while ( task->ch >= '0' && task->ch <= '7' ) {
+            *save = task->ch;
+            ++save;
+            read_ch( task );
+         }
+         tk = TK_LIT_OCTAL;
+         goto state_finish;
+      }
+      // Decimal zero.
       else {
-         while ( *ch >= '0' && *ch <= '7' ) {
-            ++ch;
-         }
-         // Octal.
-         if ( ch - 1 != start ) {
-            tk = TK_LIT_OCTAL;
-            start += 1;
-         }
-         // Decimal zero.
-         else {
-            tk = TK_LIT_DECIMAL;
-         }
+         *save = '0';
+         ++save;
+         tk = TK_LIT_DECIMAL;
       }
       goto state_finish_number;
    }
-   else if ( isdigit( *ch ) ) {
-      do {
-         ch += 1;
-      } while ( isdigit( *ch ) );
+   else if ( isdigit( task->ch ) ) {
+      while ( isdigit( task->ch ) ) {
+         *save = task->ch;
+         ++save;
+         read_ch( task );
+      }
       // Fixed-point number.
-      if ( *ch == '.' ) {
-         ++ch;
+      if ( task->ch == '.' ) {
+         *save = task->ch;
+         ++save;
+         read_ch( task );
          goto state_fraction;
       }
       else {
@@ -266,122 +292,119 @@ void t_read_tk( struct task* task ) {
       }
       goto state_finish_number;
    }
-   else if ( *ch == '"' ) {
-      end = ch;
-      ++ch;
-      multi = MULTI_STRING;
-      goto state_multi;
+   else if ( task->ch == '"' ) {
+      read_ch( task );
+      goto state_string;
    }
-   else if ( *ch == '\'' ) {
-      ++ch;
-      if ( *ch == '\\' ) {
-         ch += 1;
-         end = ch;
-         ch = escape_ch( task, ch, end - 1 );
+   else if ( task->ch == '\'' ) {
+      read_ch( task );
+      if ( task->ch == '\\' ) {
+         read_ch( task );
+         if ( task->ch == '\'' ) {
+            *save = task->ch;
+            ++save;
+            read_ch( task );
+         }
+         else {
+            escape_ch( task, save, &save, false );
+         }
       }
-      else if ( *ch == '\'' || ! *ch ) {
-         struct pos pos = {
-            task->file,
-            task->line,
-            start - task->first_column };
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+      else if ( task->ch == '\'' || ! task->ch ) {
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = column;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
             "missing character in character literal" );
-         bail();
+         t_bail( task );
       }
       else {
-         ++ch;
+         save[ 0 ] = task->ch;
+         ++save;
+         read_ch( task );
       }
-      if ( *ch != '\'' ) {
-         struct pos pos = {
-            task->file,
-            task->line,
-            start - task->first_column };
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+      if ( task->ch != '\'' ) {
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = column;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
             "multiple characters in character literal" );
-         bail();
+         t_bail( task );
       }
-      ++start;
-      ch += 1;
+      read_ch( task );
       tk = TK_LIT_CHAR;
       goto state_finish;
    }
-   else if ( *ch == '/' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '/' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_ASSIGN_DIV;
-         ch += 1;
+         read_ch( task );
          goto state_finish;
       }
-      else if ( *ch == '/' ) {
-         multi = MULTI_LINE_COMMENT;
-         goto state_multi;
+      else if ( task->ch == '/' ) {
+         goto state_comment;
       }
-      else if ( *ch == '*' ) {
-         ch += 1;
-         multi = MULTI_BLOCK_COMMENT;
-         goto state_multi;
+      else if ( task->ch == '*' ) {
+         read_ch( task );
+         goto state_comment_m;
       }
       else {
          tk = TK_SLASH;
          goto state_finish;
       }
    }
-   else if ( *ch == '=' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '=' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_EQ;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_ASSIGN;
       }
       goto state_finish;
    }
-   else if ( *ch == '+' ) {
-      ch += 1;
-      if ( *ch == '+' ) {
+   else if ( task->ch == '+' ) {
+      read_ch( task );
+      if ( task->ch == '+' ) {
          tk = TK_INC;
-         ch += 1;
+         read_ch( task );
       }
-      else if ( *ch == '=' ) {
+      else if ( task->ch == '=' ) {
          tk = TK_ASSIGN_ADD;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_PLUS;
       }
       goto state_finish;
    }
-   else if ( *ch == '-' ) {
-      ch += 1;
-      if ( *ch == '-' ) {
+   else if ( task->ch == '-' ) {
+      read_ch( task );
+      if ( task->ch == '-' ) {
          tk = TK_DEC;
-         ch += 1;
+         read_ch( task );
       }
-      else if ( *ch == '=' ) {
+      else if ( task->ch == '=' ) {
          tk = TK_ASSIGN_SUB;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_MINUS;
       }
       goto state_finish;
    }
-   else if ( *ch == '<' ) {
-      ++ch;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '<' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_LTE;
-         ++ch;
+         read_ch( task );
       }
-      else if ( *ch == '<' ) {
-         ++ch;
-         if ( *ch == '=' ) {
+      else if ( task->ch == '<' ) {
+         read_ch( task );
+         if ( task->ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_L;
-            ++ch;
-         }
-         else if ( *ch == '<' ) {
-            tk = TK_INSERTION;
-            ++ch;
+            read_ch( task );
          }
          else {
             tk = TK_SHIFT_L;
@@ -392,17 +415,17 @@ void t_read_tk( struct task* task ) {
       }
       goto state_finish;
    }
-   else if ( *ch == '>' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '>' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_GTE;
-         ch += 1;
+         read_ch( task );
       }
-      else if ( *ch == '>' ) {
-         ch += 1;
-         if ( *ch == '=' ) {
+      else if ( task->ch == '>' ) {
+         read_ch( task );
+         if ( task->ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_R;
-            ch += 1;
+            read_ch( task );
             goto state_finish;
          }
          else {
@@ -415,82 +438,99 @@ void t_read_tk( struct task* task ) {
       }
       goto state_finish;
    }
-   else if ( *ch == '&' ) {
-      ch += 1;
-      if ( *ch == '&' ) {
+   else if ( task->ch == '&' ) {
+      read_ch( task );
+      if ( task->ch == '&' ) {
          tk = TK_LOG_AND;
-         ch += 1;
+         read_ch( task );
       }
-      else if ( *ch == '=' ) {
+      else if ( task->ch == '=' ) {
          tk = TK_ASSIGN_BIT_AND;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_BIT_AND;
       }
       goto state_finish;
    }
-   else if ( *ch == '|' ) {
-      ch += 1;
-      if ( *ch == '|' ) {
+   else if ( task->ch == '|' ) {
+      read_ch( task );
+      if ( task->ch == '|' ) {
          tk = TK_LOG_OR;
-         ch += 1;
+         read_ch( task );
       }
-      else if ( *ch == '=' ) {
+      else if ( task->ch == '=' ) {
          tk = TK_ASSIGN_BIT_OR;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_BIT_OR;
       }
       goto state_finish;
    }
-   else if ( *ch == '^' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '^' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_ASSIGN_BIT_XOR;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_BIT_XOR;
       }
       goto state_finish;
    }
-   else if ( *ch == '!' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '!' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_NEQ;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_LOG_NOT;
       }
       goto state_finish;
    }
-   else if ( *ch == '*' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '*' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_ASSIGN_MUL;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_STAR;
       }
       goto state_finish;
    }
-   else if ( *ch == '%' ) {
-      ch += 1;
-      if ( *ch == '=' ) {
+   else if ( task->ch == '%' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
          tk = TK_ASSIGN_MOD;
-         ch += 1;
+         read_ch( task );
       }
       else {
          tk = TK_MOD;
       }
       goto state_finish;
    }
+   else if ( task->ch == ':' ) {
+      read_ch( task );
+      if ( task->ch == '=' ) {
+         tk = TK_ASSIGN_COLON;
+         read_ch( task );
+      }
+      else {
+         tk = TK_COLON;
+      }
+      goto state_finish;
+   }
+   else if ( task->ch == '\\' ) {
+      struct pos pos = { task->module->id, column };
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+         "`\\` not followed with newline character" );
+      t_bail( task );
+   }
    // End.
-   else if ( ! *ch ) {
+   else if ( ! task->ch ) {
       tk = TK_END;
       goto state_finish;
    }
@@ -505,24 +545,22 @@ void t_read_tk( struct task* task ) {
          '}', TK_BRACE_R,
          '[', TK_BRACKET_L,
          ']', TK_BRACKET_R,
-         ':', TK_COLON,
          '~', TK_BIT_NOT,
          '.', TK_DOT,
          '#', TK_HASH,
          0 };
       int i = 0;
       while ( true ) {
-         if ( singles[ i ] == *ch ) {
+         if ( singles[ i ] == task->ch ) {
             tk = singles[ i + 1 ];
-            ch += 1;
+            read_ch( task );
             goto state_finish;
          }
          else if ( ! singles[ i ] ) {
-            struct pos pos = { task->file, line, column };
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
-               "invalid character '%c'", *ch );
-            ++ch;
-            goto state_start;
+            struct pos pos = { task->module->id, column };
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+               "invalid character `%c`", task->ch );
+            t_bail( task );
          }
          else {
             i += 2;
@@ -532,17 +570,18 @@ void t_read_tk( struct task* task ) {
 
    state_fraction:
    // -----------------------------------------------------------------------
-   if ( ! isdigit( *ch ) ) {               
-      struct pos pos = {
-         task->file,
-         task->line,
-         ch - task->first_column };
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+   if ( ! isdigit( task->ch ) ) {
+      struct pos pos;
+      pos.module = task->module->id;
+      pos.column = column;
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
          "fixed-point number missing fractional part" );
-      bail();
+      t_bail( task );
    }
-   while ( isdigit( *ch ) ) {
-      ++ch;
+   while ( isdigit( task->ch ) ) {
+      *save = task->ch;
+      ++save;
+      read_ch( task );
    }
    tk = TK_LIT_FIXED;
    goto state_finish_number;
@@ -550,208 +589,337 @@ void t_read_tk( struct task* task ) {
    state_finish_number:
    // -----------------------------------------------------------------------
    // Numbers need to be separated from identifiers.
-   if ( isalpha( *ch ) ) {
-      struct pos pos = {
-         task->file,
-         task->line,
-         ch - task->first_column };
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+   if ( isalpha( task->ch ) ) {
+      struct pos pos;
+      pos.module = task->module->id;
+      pos.column = column;
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
          "number combined with identifier" );
-      bail();
+      t_bail( task );
    }
    goto state_finish;
 
-   state_multi:
+   state_string:
    // -----------------------------------------------------------------------
    while ( true ) {
-      // TODO: Take care of testing for the platform-specific newline character.
-      if ( *ch == '\n' ) {
-         task->first_column = ch + 1;
-         ++task->line;
-         if ( multi == MULTI_LINE_COMMENT ) {
-            multi = MULTI_WHITESPACE;
+      if ( ! task->ch ) {
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = column;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+            "unterminated string" );
+         t_bail( task );
+      }
+      else if ( task->ch == '"' ) {
+         read_ch( task );
+         goto state_string_concat;
+      }
+      else if ( task->ch == '\\' ) {
+         read_ch( task );
+         if ( task->ch == '"' ) {
+            *save = task->ch;
+            ++save;
+            read_ch( task );
+         }
+         // Color codes are not parsed.
+         else if ( task->ch == 'c' || task->ch == 'C' ) {
+            save[ 0 ] = '\\';
+            save[ 1 ] = task->ch;
+            save += 2;
+            read_ch( task );
+         }
+         else {
+            escape_ch( task, save, &save, true );
          }
       }
-      switch ( multi ) {
-      case MULTI_WHITESPACE:
-         if ( ! isspace( *ch ) ) {
-            goto state_text;
+      else {
+         *save = task->ch;
+         ++save;
+         read_ch( task );
+      }
+   }
+
+   state_string_concat:
+   // -----------------------------------------------------------------------
+   while ( isspace( task->ch ) ) {
+      read_ch( task );
+   }
+   if ( task->ch == '"' ) {
+      read_ch( task );
+      goto state_string;
+   }
+   else {
+      *save = 0;
+      ++save;
+      tk = TK_LIT_STRING;
+      goto state_finish;
+   }
+
+   state_comment:
+   // -----------------------------------------------------------------------
+   while ( task->ch && task->ch != '\n' ) {
+      read_ch( task );
+   }
+   goto state_start;
+
+   state_comment_m:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( ! task->ch ) {
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = column;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+            "unterminated comment" );
+         t_bail( task );
+      }
+      else if ( task->ch == '*' ) {
+         read_ch( task );
+         if ( task->ch == '/' ) {
+            read_ch( task );
+            goto state_start;
          }
-         ++ch;
-         break;
-      case MULTI_LINE_COMMENT:
-         if ( ! *ch ) {
-            goto state_text;
-         }
-         ++ch;
-         break;
-      case MULTI_BLOCK_COMMENT:
-         if ( ! *ch ) {
-            struct pos pos = { task->file, line, column };
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
-               "comment not terminated" );
-            bail();
-         }
-         else if ( ch[ 0 ] == '*' && ch[ 1 ] == '/' ) {
-            multi = MULTI_WHITESPACE;
-            ch += 2;
-         }
-         else {
-            ++ch;
-         }
-         break;
-      case MULTI_STRING:
-         if ( ! *ch ) {
-            struct pos pos = { task->file, line, column };
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
-               "string not terminated" );
-            bail();
-         }
-         else if ( *ch == '"' ) {
-            multi = MULTI_STRING_CONCAT;
-            ++ch;
-         }
-         else if ( *ch == '\\' ) {
-            ++ch;
-            if ( *ch == '"' || *ch == '\\' ) {
-               *end = *ch;
-               ++end;
-               ++ch;
-            }
-            // Color codes are not parsed.
-            else if ( *ch == 'c' || *ch == 'C' ) {
-               end[ 0 ] = '\\';
-               end[ 1 ] = *ch;
-               end += 2;
-               ++ch;
-            }
-            else {
-               ch = escape_ch( task, ch, end );
-               ++end;
-            }
-         }
-         else {
-            *end = *ch;
-            ++end;
-            ++ch;
-         }
-         break;
-      case MULTI_STRING_CONCAT:
-         if ( isspace( *ch ) ) {
-            ++ch;
-         }
-         else if ( *ch == '"' ) {
-            line = task->line;
-            column = ch - task->first_column;
-            multi = MULTI_STRING;
-            ++ch;
-         }
-         else {
-            tk = TK_LIT_STRING;
-            goto state_finish;
-         }
+      }
+      else {
+         read_ch( task );
       }
    }
 
    state_finish:
    // -----------------------------------------------------------------------
-   task->ch = ch;
-   task->tk = tk;
-   task->tk_text = start;
-   if ( ! end ) {
-      end = ch;
-   }
-   // Terminate the token source with the NULL byte so it can be used as a
-   // string. Save the character so it can be recovered for the next token.
-   task->recover_ch = *end;
-   task->end = end;
-   *end = 0;
-   task->tk_pos.file = task->file;
-   task->tk_pos.line = line;
-   task->tk_pos.column = column;
-   task->tk_length = length;
-   if ( ! length ) {
-      task->tk_length = end - start;
-   }
-}
-
-char* escape_ch( struct task* task, char* ch, char* dest ) {
-   switch ( *ch ) {
-   case 'n':
-      *dest = '\n';
-      return ++ch;
-   case '\\':
-      *dest = '\\';
-      return ++ch;
-   case 't':
-      *dest = '\t';
-      return ++ch;
-   case '0':
-      *dest = '\0';
-      return ++ch;
-   }
-   if ( *ch == 'x' || *ch == 'X' ) {
-      ++ch;
-      char hex = hex_value( *ch );
-      if ( hex != -1 ) {
-         ++ch;
-         char hex2 = hex_value( *ch );
-         if ( hex2 != -1 ) {
-            hex = ( hex << 4 ) + hex2;
-            ++ch;
-         }
+   token->type = tk;
+   token->text = NULL;
+   token->length = 0;
+   if ( save != task->module->ch_save ) {
+      token->text = task->module->ch_save;
+      // Terminate the sequence when the last character is not NUL.
+      if ( save[ -1 ] ) {
+         token->length = save - task->module->ch_save;
+         *save = 0;
+         ++save;
       }
       else {
-         struct pos pos = {
-            task->file,
-            task->line,
-            ch - task->first_column };
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
-            "escape sequence missing hexadecimal digit" );
-         bail();
+         // When the NUL character is manually added, don't consider it as part
+         // of the length.
+         token->length = save - task->module->ch_save - 1;
       }
-      *dest = hex;
+      task->module->ch_save = save;
    }
-   // Else: unknown sequence. For now, don't print any message. The engine
-   // might support the escape sequence we don't.
-   return ch;
+   token->pos.module = task->module->id;
+   token->pos.column = column;
 }
 
-char hex_value( char ch ) {
-   if ( ch >= '0' && ch <= '9' ) {
-      return ch - '0';
+void read_ch( struct task* task ) {
+   // Calculate column position of the new character. Use the previous
+   // character to calculate the position.
+   if ( task->ch == '\t' ) {
+      int column = task->column -
+         task->module->lines.columns[ task->module->lines.count - 1 ];
+      task->column += task->options->tab_size -
+         ( ( column + task->options->tab_size ) % task->options->tab_size );
    }
    else {
-      ch = tolower( ch );
-      if ( ch >= 'a' && ch <= 'f' ) {
-         return ( ch - 'a' ) + 10;
-      }
-      else {
-         return -1;
+      ++task->column;
+      // Create a new line.
+      if ( task->ch == '\n' ) {
+         add_line( task->module, task->column );
       }
    }
+   // Concatenate lines.
+   char* ch = task->module->ch;
+   while ( ch[ 0 ] == '\\' ) {
+      // Linux.
+      if ( ch[ 1 ] == '\n' ) {
+         add_line( task->module, task->column );
+         ch += 2;
+      }
+      // Windows.
+      else if ( ch[ 1 ] == '\r' && ch[ 2 ] == '\n' ) {
+         add_line( task->module, task->column );
+         ch += 3;
+      }
+      else {
+         break;
+      }
+   }
+   task->module->ch = ch + 1;
+   task->ch = *ch;
+}
+
+void add_line( struct module* module, int column ) {
+   if ( module->lines.count == module->lines.count_max ) {
+      module->lines.count_max *= 2;
+      module->lines.columns = mem_realloc( module->lines.columns,
+         sizeof( int ) * module->lines.count_max );
+   }
+   module->lines.columns[ module->lines.count ] = column;
+   ++module->lines.count;
+}
+
+void escape_ch( struct task* task, char* save, char** save_update,
+   bool in_string ) {
+   if ( ! task->ch ) {
+      empty: ;
+      struct pos pos;
+      pos.module = task->module->id;
+      pos.column = task->column;
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+         "empty escape sequence" );
+      t_bail( task );
+   }
+   int slash = task->column - 1;
+   static const char singles[] = {
+      'a', '\a',
+      'b', '\b',
+      'f', '\f',
+      'n', '\n',
+      'r', '\r',
+      't', '\t',
+      'v', '\v',
+      0
+   };
+   int i = 0;
+   while ( singles[ i ] ) {
+      if ( singles[ i ] == task->ch ) {
+         *save = singles[ i + 1 ];
+         ++save;
+         read_ch( task );
+         goto finish;
+      }
+      i += 2;
+   }
+   // Octal notation.
+   char buffer[ 4 ];
+   int code = 0;
+   i = 0;
+   while ( task->ch >= '0' && task->ch <= '7' ) {
+      if ( i == 3 ) {
+         too_many_digits: ;
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = task->column;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+            "too many digits" );
+         t_bail( task );
+      }
+      buffer[ i ] = task->ch;
+      read_ch( task );
+      ++i;
+   }
+   if ( i ) {
+      buffer[ i ] = 0;
+      code = strtol( buffer, NULL, 8 );
+      goto save_ch;
+   }
+   if ( task->ch == '\\' ) {
+      // In a string context, like the NUL character, the backslash character
+      // must not be escaped.
+      if ( in_string ) {
+         save[ 0 ] = '\\';
+         save[ 1 ] = '\\';
+         save += 2;
+      }
+      else {
+         save[ 0 ] = '\\';
+         save += 1;
+      }
+      read_ch( task );
+   }
+   // Hexadecimal notation.
+   else if ( task->ch == 'x' || task->ch == 'X' ) {
+      read_ch( task );
+      i = 0;
+      while (
+         ( task->ch >= '0' && task->ch <= '9' ) ||
+         ( task->ch >= 'a' && task->ch <= 'f' ) ||
+         ( task->ch >= 'A' && task->ch <= 'F' ) ) {
+         if ( i == 2 ) {
+            goto too_many_digits;
+         }
+         buffer[ i ] = task->ch;
+         read_ch( task );
+         ++i;
+      }
+      if ( ! i ) {
+         goto empty;
+      }
+      buffer[ i ] = 0;
+      code = strtol( buffer, NULL, 16 );
+      goto save_ch;
+   }
+   else {
+      // In a string context, when encountering an unknown escape sequence,
+      // leave it for the engine to process.
+      if ( in_string ) {
+         // TODO: Merge this code and the code above. Both handle the newline
+         // character.
+         if ( task->ch == '\n' ) {
+            t_bail( task );
+         }
+         save[ 0 ] = '\\';
+         save[ 1 ] = task->ch;
+         save += 2;
+         read_ch( task );
+      }
+      else {
+         struct pos pos;
+         pos.module = task->module->id;
+         pos.column = slash;
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+            "unknown escape sequence" );
+         t_bail( task );
+      }
+   }
+   goto finish;
+
+   save_ch:
+   // -----------------------------------------------------------------------
+   // Code needs to be a valid character.
+   if ( code > 127 ) {
+      struct pos pos;
+      pos.module = task->module->id;
+      pos.column = slash;
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &pos,
+         "invalid character `\\%s`", buffer );
+      t_bail( task );
+   }
+   // In a string context, the NUL character must not be escaped. Leave it
+   // for the engine to process it.
+   if ( code == 0 && in_string ) {
+      save[ 0 ] = '\\';
+      save[ 1 ] = '0';
+      save += 2;
+   }
+   else {
+      *save = ( char ) code;
+      ++save;
+   }
+
+   finish:
+   // -----------------------------------------------------------------------
+   *save_update = save;
 }
 
 void t_test_tk( struct task* task, enum tk expected ) {
    if ( task->tk != expected ) {
       if ( task->tk == TK_END ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
-            "expecting %s but reached end of file",
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
+            "need %s but reached end of file",
             get_token_name( expected ) );
       }
       else if ( task->tk == TK_RESERVED ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
-            "%s is a reserved identifier that is not currently used",
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
+            "`%s` is a reserved identifier that is not currently used",
             task->tk_text );
       }
       else {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos, 
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos, 
             "unexpected token" );
-         diag( DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos, 
-            "expecting %s before %s token", get_token_name( expected ),
+         t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos, 
+            "need %s but got %s", get_token_name( expected ),
             get_token_name( task->tk ) );
       }
-      bail();
+      t_bail( task );
    }
 }
 
@@ -780,6 +948,7 @@ const char* get_token_name( enum tk tk ) {
       { TK_ASSIGN_BIT_AND, "`&=`" },
       { TK_ASSIGN_BIT_XOR, "`^=`" },
       { TK_ASSIGN_BIT_OR, "`|=`" },
+      { TK_ASSIGN_COLON, "`:=`" },
       { TK_EQ, "`==`" },
       { TK_NEQ, "`!=`" },
       { TK_LOG_NOT, "`!`" },
@@ -800,7 +969,6 @@ const char* get_token_name( enum tk tk ) {
       { TK_MOD, "`%`" },
       { TK_SHIFT_L, "`<<`" },
       { TK_SHIFT_R, "`>>`" },
-      { TK_INSERTION, "`<<<`" },
       { TK_HASH, "`#`" },
       { TK_BREAK, "`break`" },
       { TK_CASE, "`case`" },
@@ -843,10 +1011,13 @@ const char* get_token_name( enum tk tk ) {
       { TK_SUSPEND, "`suspend`" },
       { TK_TERMINATE, "`terminate`" },
       { TK_FUNCTION, "`function`" },
-      { TK_NAMESPACE, "`namespace`" },
-      { TK_USING, "`using`" },
+      { TK_MODULE, "`module`" },
+      { TK_IMPORT, "`import`" },
       { TK_GOTO, "`goto`" },
-      { TK_FIXED, "`fixed`" } };
+      { TK_TRUE, "`true`" },
+      { TK_FALSE, "`false`" },
+      { TK_FORMAT, "`format`" },
+      { TK_NL, "newline-character" } };
    switch ( tk ) {
    case TK_LIT_OCTAL:
    case TK_LIT_DECIMAL:
@@ -869,100 +1040,120 @@ const char* get_token_name( enum tk tk ) {
    }
 }
 
-char t_peek_usable_ch( struct task* task ) {
-   *task->end = task->recover_ch;
-   char* ch = task->ch;
-   while ( *ch && isspace( *ch ) ) {
-      ch += 1;
-   }
-   char usable = *ch;
-   *task->end = 0;
-   return usable;
-}
+static void diag_acc( struct task*, int, va_list* );
 
-void t_skip_past( struct task* task, char target ) {
-   char* ch = task->ch;
-   *ch = task->recover_ch;
-   while ( *ch ) {
-      if ( *ch == '\n' ) {
-         task->first_column = ch + 1;
-         task->line += 1;
-         ch += 1;
-      }
-      if ( *ch == target ) {
-         ch += 1;
-         t_read_tk( task );
-         break;
-      }
-      else {
-         ch += 1;
-      }
-   }
-   task->ch = ch;
-}
-
-bool t_is_dec_start( struct task* task ) {
-   bool result = false;
-   char* ch = task->ch;
-   *task->end = task->recover_ch;
-   if ( task->tk == TK_DOT ) {
-      goto read_name;
-   }
-   while ( true ) {
-      while ( isspace( *ch ) ) {
-         ch += 1;
-      }
-      if ( isalpha( *ch ) || *ch == '_' || isdigit( *ch ) ) {
-         result = true;
-         break;
-      }
-      if ( *ch != '.' ) {
-         break;
-      }
-      ++ch;
-      read_name:
-      while ( isspace( *ch ) ) {
-         ++ch;
-      }
-      char* start = ch;
-      while ( isalpha( *ch ) || *ch == '_' ) {
-         ++ch;
-      }
-      if ( ch == start ) {
-         break;
-      }
-   }
-   *task->end = 0;
-   return result;
-}
-
-bool t_coming_up_insertion_token( struct task* task ) {
-   if ( task->ch == task->end ) {
-      if ( isspace( task->recover_ch ) ) {
-         char* ch = task->ch + 1;
-         while ( *ch && isspace( *ch ) ) {
-            ++ch;
-         }
-         return
-            ch[ 0 ] == '<' &&
-            ch[ 1 ] == '<' &&
-            ch[ 2 ] == '<';
-      }
-      else {
-         return
-            task->recover_ch == '<' &&
-            task->ch[ 0 ] == '<' &&
-            task->ch[ 1 ] == '<';
-      }
+void t_diag( struct task* task, int flags, ... ) {
+   va_list args;
+   va_start( args, flags );
+   if ( task->options->acc_err ) {
+      diag_acc( task, flags, &args );
    }
    else {
-      char* ch = task->ch;
-      while ( *ch && isspace( *ch ) ) {
-         ++ch;
+      if ( flags & DIAG_FILE ) {
+         struct file* file = NULL;
+         int line = 0, column = 0;
+         make_pos( task, va_arg( args, struct pos* ), &file, &line, &column );
+         printf( "%s", file->path.value );
+         if ( flags & DIAG_LINE ) {
+            printf( ":%d", line );
+            if ( flags & DIAG_COLUMN ) {
+               // One-based column.
+               if ( task->options->one_column ) {
+                  ++column;
+               }
+               printf( ":%d", column );
+            }
+         }
+         printf( ": " );
       }
-      return
-         ch[ 0 ] == '<' &&
-         ch[ 1 ] == '<' &&
-         ch[ 2 ] == '<';
+      if ( flags & DIAG_ERR ) {
+         printf( "error: " );
+      }
+      else if ( flags & DIAG_WARN ) {
+         printf( "warning: " );
+      }
+      const char* format = va_arg( args, const char* );
+      vprintf( format, args );
+      printf( "\n" );
    }
+   va_end( args );
+}
+
+// Line format: <file>:<line>: <message>
+void diag_acc( struct task* task, int flags, va_list* args ) {
+   if ( ! task->err_file ) {
+      struct str str;
+      str_init( &str );
+      if ( task->module_main ) {
+         str_copy( &str, task->module_main->file->path.value,
+            task->module_main->file->path.length );
+         while ( true ) {
+            --str.length;
+            char ch = str.value[ str.length ];
+            str.value[ str.length ] = 0;
+            if ( ch == '/' ) {
+               break;
+            }
+         }
+         str_append( &str, "/" );
+      }
+      str_append( &str, "acs.err" );
+      task->err_file = fopen( str.value, "w" );
+      if ( ! task->err_file ) {
+         printf( "error: failed to load error output file: %s\n", str.value );
+         t_bail( task );
+      }
+      str_deinit( &str );
+   }
+   if ( flags & DIAG_FILE ) {
+      struct file* file = NULL;
+      int line = 0, column = 0;
+      make_pos( task, va_arg( *args, struct pos* ), &file, &line, &column );
+      fprintf( task->err_file, "%s:", file->path.value );
+      if ( flags & DIAG_LINE ) {
+         // For some reason, DB2 decrements the line number by one. Add one to
+         // make the number correct.
+         fprintf( task->err_file, "%d:", line + 1 );
+      }
+   }
+   fprintf( task->err_file, " " );
+   if ( flags & DIAG_ERR ) {
+      fprintf( task->err_file, "error: " );
+   }
+   else if ( flags & DIAG_WARN ) {
+      fprintf( task->err_file, "warning: " );
+   }
+   const char* message = va_arg( *args, const char* );
+   vfprintf( task->err_file, message, *args );
+   fprintf( task->err_file, "\n" );
+}
+
+void make_pos( struct task* task, struct pos* pos, struct file** file,
+   int* line, int* column ) {
+   // Find the module.
+   struct module* module = NULL;
+   list_iter_t i;
+   list_iter_init( &i, &task->loaded_modules );
+   while ( ! list_end( &i ) ) {
+      module = list_data( &i );
+      if ( module->id == pos->module ) {
+         break;
+      }
+      list_next( &i );
+   }
+   *file = module->file;
+   // Find the line that the column resides on.
+   int k = 0;
+   int k_last = 0;
+   while ( k < module->lines.count &&
+      pos->column >= module->lines.columns[ k ] ) {
+      k_last = k;
+      ++k;
+   }
+   *line = k;
+   *column = pos->column - module->lines.columns[ k_last ];
+}
+ 
+void t_bail( struct task* task ) {
+   longjmp( *task->bail, 1 );
 }

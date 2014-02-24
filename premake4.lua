@@ -11,6 +11,9 @@ solution 'bcc'
       '-Wno-unused',
       '-std=c99',
       '-pedantic',
+      '-Wstrict-aliasing',
+      '-Wstrict-aliasing=2',
+      '-D_BSD_SOURCE',
    }
 
    flags {

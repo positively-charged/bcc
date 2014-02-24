@@ -83,13 +83,14 @@ static void do_jump_target( struct task*, struct jump*, int );
 static void do_return( struct task*, struct return_stmt* );
 static void do_paltrans( struct task*, struct paltrans* );
 static void do_default_params( struct task*, struct func* );
+static void do_pcode( struct task*, struct pcode* );
 
 static const int g_aspec_code[] = {
    PC_LSPEC1, PC_LSPEC2, PC_LSPEC3, PC_LSPEC4, PC_LSPEC5 };
 
-void t_write_script_content( struct task* task ) {
+void t_write_script_content( struct task* task, struct list* scripts ) {
    list_iter_t i;
-   list_iter_init( &i, &task->module->scripts );
+   list_iter_init( &i, scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       script->offset = t_tell( task );
@@ -112,9 +113,9 @@ void t_write_script_content( struct task* task ) {
    }
 }
 
-void t_write_func_content( struct task* task ) {
+void t_write_func_content( struct task* task, struct module* module ) {
    list_iter_t i;
-   list_iter_init( &i, &task->module->funcs );
+   list_iter_init( &i, &module->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );   
       struct func_user* impl = func->impl;
@@ -283,6 +284,11 @@ void do_node( struct task* task, struct node* node ) {
    case NODE_EXPR:
       do_expr_stmt( task, ( struct expr* ) node );
       break;
+   case NODE_FORMAT_EXPR: {
+         struct format_expr* format_expr = ( struct format_expr* ) node;
+         do_expr_stmt( task, format_expr->expr );
+         break;
+      }
    case NODE_VAR:
       do_var( task, ( struct var* ) node );
       break;
@@ -314,6 +320,9 @@ void do_node( struct task* task, struct node* node ) {
    case NODE_PALTRANS:
       do_paltrans( task, ( struct paltrans* ) node );
       break;
+   case NODE_PCODE:
+      do_pcode( task, ( struct pcode* ) node );
+      break;
    default:
       break;
    }
@@ -341,6 +350,25 @@ void do_label( struct task* task, struct label* label ) {
          t_add_arg( task, label->obj_pos );
       }
       stmt = stmt->next;
+   }
+   list_iter_t i;
+   list_iter_init( &i, &label->users );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_PCODE_OFFSET ) {
+         struct pcode_offset* macro = ( struct pcode_offset* ) node;
+         t_seek( task, macro->obj_pos );
+         t_add_int( task, label->obj_pos );
+      }
+      else {
+         struct goto_stmt* stmt = ( struct goto_stmt* ) node;
+         if ( stmt->obj_pos ) {
+            t_seek( task, stmt->obj_pos );
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, label->obj_pos );
+         }
+      }
+      list_next( &i );
    }
    t_seek( task, OBJ_SEEK_END );
 }
@@ -398,9 +426,9 @@ void do_operand( struct task* task, struct operand* operand,
    if ( node->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) node;
       node = usage->object;
-      if ( node->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) node;
-         node = &shortcut->target->object->node;
+      if ( node->type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) node;
+         node = &alias->target->node;
       }
    }
    if ( node->type == NODE_LITERAL ) {
@@ -416,7 +444,7 @@ void do_operand( struct task* task, struct operand* operand,
          t_add_opc( task, PC_PUSH_NUMBER );
          t_add_arg( task, usage->string->index );
          // Strings in a library need to be tagged.
-         if ( task->module->name.value ) {
+         if ( task->module_main->visible ) {
             t_add_opc( task, PC_TAG_STRING );
          }
       }
@@ -462,6 +490,14 @@ void do_operand( struct task* task, struct operand* operand,
       struct paren* paren = ( struct paren* ) node;
       do_operand( task, operand, paren->inside );
    }
+   else if ( node->type == NODE_FUNC ) {
+      struct func* func = ( struct func* ) node;
+      if ( func->type == FUNC_ASPEC ) {
+         struct func_aspec* impl = func->impl;
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, impl->id );
+      }
+   }
 }
 
 void do_constant( struct task* task, struct operand* operand,
@@ -496,8 +532,12 @@ void do_unary( struct task* task, struct operand* operand,
       init_operand( &target );
       target.push = true;
       do_operand( task, &target, unary->operand );
-      int code = PC_UNARY_MINUS;
+      int code = PC_NONE;
       switch ( unary->op ) {
+      case UOP_MINUS:
+         code = PC_UNARY_MINUS;
+         break;
+      // Unary plus is ignored.
       case UOP_LOG_NOT:
          code = PC_NEGATE_LOGICAL;
          break;
@@ -507,7 +547,9 @@ void do_unary( struct task* task, struct operand* operand,
       default:
          break;
       }
-      t_add_opc( task, code );
+      if ( code ) {
+         t_add_opc( task, code );
+      }
       operand->pushed = true;
    }
 }
@@ -771,8 +813,9 @@ void do_call( struct task* task, struct operand* operand, struct call* call ) {
       list_iter_init( &i, &call->args );
       struct node* node = list_data( &i );
       // Format-block:
-      if ( node->type == NODE_BLOCK ) {
-         do_block( task, ( struct block* ) node );
+      if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
+         struct format_block_arg* arg = ( struct format_block_arg* ) node;
+         do_block( task, arg->format_block );
          list_next( &i );
       }
       // Format-list:
@@ -1036,7 +1079,7 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    operand->type = var->type;
    operand->dim = var->dim;
    operand->storage = var->storage;
-   if ( var->imported ) {
+   if ( var->use_interface ) {
       if ( var->dim || ! var->type->primitive ) {
          operand->method = METHOD_ELEMENT;
       }
@@ -1198,9 +1241,9 @@ void do_subscript( struct task* task, struct operand* operand,
    if ( lside->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) lside;
       lside = usage->object;
-      if ( lside->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) lside;
-         lside = &shortcut->target->object->node;
+      if ( lside->type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) lside;
+         lside = &alias->target->node;
       }
    }
    // Left side:
@@ -1259,9 +1302,9 @@ void do_access( struct task* task, struct operand* operand,
    if ( lside->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) lside;
       lside = usage->object;
-      if ( lside->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) lside;
-         lside = &shortcut->target->object->node;
+      if ( lside->type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) lside;
+         lside = &alias->target->node;
       }
    }
    // See if the left side is a namespace.
@@ -1269,17 +1312,17 @@ void do_access( struct task* task, struct operand* operand,
    if ( object->type == NODE_ACCESS ) {
       struct access* nested = ( struct access* ) object;
       object = nested->rside;
-      if ( object->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) object;
-         object = &shortcut->target->object->node;
+      if ( object->type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) object;
+         object = &alias->target->node;
       }
    }
-   // When the left side is a namespace, only process the right side.
-   if ( object->type == NODE_NAMESPACE ) {
+   // When the left side is a module, only process the right side.
+   if ( object->type == NODE_MODULE || object->type == NODE_MODULE_SELF ) {
       lside = access->rside;
-      if ( lside->type == NODE_SHORTCUT ) {
-         struct shortcut* shortcut = ( struct shortcut* ) lside;
-         lside = &shortcut->target->object->node;
+      if ( lside->type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) lside;
+         lside = &alias->target->node;
       }
       rside = NULL;
    }
@@ -1828,6 +1871,13 @@ void do_return( struct task* task, struct return_stmt* stmt ) {
       do_operand( task, &operand, stmt->expr->root );
       t_add_opc( task, PC_RETURN_VAL );
    }
+   else if ( stmt->expr_format ) {
+      struct operand operand;
+      init_operand( &operand );
+      operand.push = true;
+      do_operand( task, &operand, stmt->expr_format->expr->root );
+      t_add_opc( task, PC_RETURN_VAL );
+   }
    else {
       t_add_opc( task, PC_RETURN_VOID );
    }
@@ -1927,5 +1977,29 @@ void do_default_params( struct task* task, struct func* func ) {
       t_add_arg( task, 0 );
       t_add_opc( task, PC_ASSIGN_SCRIPT_VAR );
       t_add_arg( task, func->max_param );
+   }
+}
+
+void do_pcode( struct task* task, struct pcode* stmt ) {
+   t_add_opc( task, stmt->opcode->value );
+   list_iter_t i;
+   list_iter_init( &i, &stmt->args );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_PCODE_OFFSET ) {
+         struct pcode_offset* macro = ( struct pcode_offset* ) node;
+         if ( macro->label->obj_pos ) {
+            t_add_arg( task, macro->label->obj_pos );
+         }
+         else {
+            macro->obj_pos = t_tell( task );
+            t_add_arg( task, 0 );
+         }
+      }
+      else {
+         struct expr* arg = ( struct expr* ) node;
+         t_add_arg( task, arg->value );
+      }
+      list_next( &i );
    }
 }

@@ -1,6 +1,7 @@
 #ifndef TASK_H
 #define TASK_H
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <setjmp.h>
 
@@ -59,7 +60,7 @@ enum tk {
    TK_MOD,
    TK_SHIFT_L,
    TK_SHIFT_R,
-   TK_INSERTION,
+   TK_ASSIGN_COLON,
    TK_BREAK,
    TK_CASE,
    TK_CONST,
@@ -113,10 +114,26 @@ enum tk {
    TK_SUSPEND,
    TK_TERMINATE,
    TK_FUNCTION,
-   TK_FIXED,
-   TK_NAMESPACE,
-   TK_USING,
-   TK_GOTO
+   TK_NL,
+   TK_MODULE,
+   TK_IMPORT,
+   TK_GOTO,
+   TK_TRUE,
+   // 100
+   TK_FALSE,
+   TK_FORMAT
+};
+
+struct pos {
+   int module;
+   int column;
+};
+
+struct token {
+   char* text;
+   struct pos pos;
+   enum tk type;
+   int length;
 };
 
 struct node {
@@ -157,10 +174,17 @@ struct node {
       NODE_RETURN,
       NODE_PARAM,
       NODE_PALTRANS,
-      NODE_NAMESPACE,
-      NODE_NAMESPACE_LINK,
-      NODE_SHORTCUT,
-      NODE_NAME_USAGE
+      NODE_ALIAS,
+      NODE_MODULE,
+      NODE_MODULE_SELF,
+      NODE_IMPORT,
+      NODE_PACKAGE,
+      NODE_NAME_USAGE,
+      NODE_FORMAT_EXPR,
+      NODE_FORMAT_BLOCK,
+      NODE_FORMAT_BLOCK_ARG,
+      NODE_PCODE,
+      NODE_PCODE_OFFSET
    } type;
 };
 
@@ -169,7 +193,8 @@ struct object {
    short depth;
    bool resolved;
    struct pos pos;
-   struct object* link;
+   struct object* next;
+   struct object* next_scope;
 };
 
 struct name {
@@ -199,8 +224,6 @@ struct type {
    struct name* body;
    struct type_member* member;
    struct type_member* member_tail;
-   struct type_member* member_curr;
-   struct path* undef;
    struct pos pos;
    int size;
    int size_str;
@@ -240,6 +263,7 @@ struct unary {
    enum {
       UOP_NONE,
       UOP_MINUS,
+      UOP_PLUS,
       UOP_LOG_NOT,
       UOP_BIT_NOT,
       UOP_PRE_INC,
@@ -275,6 +299,7 @@ struct binary {
    } op;
    struct node* lside;
    struct node* rside;
+   struct pos pos;
 };
 
 struct assign {
@@ -301,6 +326,7 @@ struct subscript {
    struct node node;
    struct node* lside;
    struct node* index;
+   struct pos pos;
 };
 
 struct access {
@@ -357,6 +383,7 @@ struct script_jump {
 struct return_stmt {
    struct node node;
    struct expr* expr;
+   struct format_expr* expr_format;
    struct pos pos;
 };
 
@@ -466,16 +493,14 @@ struct var {
    int set;
    int get_offset;
    int set_offset;
-   enum {
-      VAR_FLAG_INTERFACE_GET_SET = 0x1
-   } flags;
    bool initial_zero;
-   bool imported;
    bool hidden;
    bool shared;
    bool shared_str;
-   bool state_read;
+   bool state_checked;
    bool state_changed;
+   bool has_interface;
+   bool use_interface;
 };
 
 struct param {
@@ -505,10 +530,12 @@ struct func {
    void* impl;
    int min_param;
    int max_param;
+   bool hidden;
 };
 
 struct func_aspec {
    int id;
+   bool script_callable;
 };
 
 // An extension function doesn't have a unique pcode reserved for it, but is
@@ -542,6 +569,25 @@ struct format_item {
    struct expr* expr;
 };
 
+struct format_expr {
+   struct node node;
+   struct expr* expr;
+   struct block* format_block;
+};
+
+struct format_block {
+   struct object object;
+   struct block* block;
+   struct name* name;
+};
+
+struct format_block_arg {
+   struct node node;
+   struct name* name;
+   struct block* format_block;
+   struct pos pos;
+};
+
 // Format functions are dedicated functions and have their first parameter
 // consisting of a list of format items.
 struct func_format {
@@ -556,8 +602,6 @@ struct func_user {
    int size;
    int usage;
    int obj_pos;
-   bool imported;
-   bool hidden;
 };
 
 struct func_intern {
@@ -601,6 +645,7 @@ struct label {
    struct pos pos;
    char* name;
    struct goto_stmt* stmts;
+   struct list users;
    struct block* format_block;
    bool defined;
 };
@@ -645,31 +690,9 @@ struct script {
    bool tested;
 };
 
-struct shortcut {
+struct alias {
    struct object object;
-   struct path* path;
-   struct name* alias;
-   struct name* target;
-   bool import_struct;
-};
-
-struct ns {
-   struct object object;
-   struct name* name;
-   struct name* body;
-   struct name* body_struct;
-   // Contains functions and scripts.
-   struct list items;
-   struct ns_link* ns_link;
-   struct object* unresolved;
-   struct object* unresolved_tail;
-};
-
-struct ns_link {
-   struct object object;
-   struct path* path;
-   struct ns* ns;
-   struct ns_link* next;
+   struct object* target;
 };
 
 struct constant {
@@ -678,6 +701,7 @@ struct constant {
    struct expr* expr;
    struct constant* next;
    int value;
+   bool visible;
 };
 
 struct constant_set {
@@ -706,11 +730,122 @@ struct str_table {
 };
 
 struct module {
+   struct object object;
+   struct file* file;
+   char* ch;
+   char* ch_start;
+   char* ch_save;
+   int line;
+   char* column;
+   char* first_column;
+   char* end;
+   struct {
+      int* columns;
+      int count;
+      int count_max;
+   } lines;
+   char recover_ch;
    struct str name;
+   struct str package_name;
+   struct str lump;
+   struct name* body;
+   struct name* body_struct;
+   struct name* body_import;
    struct list vars;
    struct list funcs;
    struct list scripts;
+   struct list items;
    struct list imports;
+   struct list imported;
+   struct module_link* links;
+   struct object* unresolved;
+   struct object* unresolved_tail;
+   int ref_count;
+   int id;
+   bool read;
+   bool import_dirc;
+   // States whether to output the module into the object file.
+   bool publish;
+   // States whether the objects of the module can be used by another module.
+   bool visible;
+   // States whether the module should be loaded at run time. This is the
+   // opposite of the "publish" field.
+   bool dynamic;
+   bool dynamic_checked;
+   bool used;
+};
+
+struct module_link {
+   struct module* module;
+   struct module_link* next;
+};
+
+struct module_self {
+   struct node node;
+   struct pos pos;
+};
+
+struct module_alias {
+   struct object object;
+   struct module* module;
+};
+
+struct package {
+   struct object object;
+   struct str path;
+   struct str init_path;
+   struct str filename;
+   struct name* name;
+   struct name* body;
+   struct package* next;
+   int ref_count;
+};
+
+struct import {
+   struct node node;
+   struct path* path;
+   struct path* alias;
+   struct import_item* items;
+   struct package* package;
+   struct package* package_last;
+   struct list modules;
+   struct import* next;
+   enum {
+      IMPORT_NONE,
+      IMPORT_SELF,
+      IMPORT_DIRECT,
+      IMPORT_ALIAS,
+      IMPORT_SELECTIVE,
+      IMPORT_LINK
+   } type;
+   bool self;
+   bool link;
+   bool local;
+   bool from_package;
+   bool path_file;
+};
+
+struct import_item {
+   struct import_item* next;
+   char* name;
+   char* alias;
+   struct pos pos;
+   struct pos name_pos;
+   struct pos alias_pos;
+   bool is_struct;
+   bool is_link;
+};
+
+struct pcode {
+   struct node node;
+   struct expr* opcode;
+   struct list args;
+};
+
+struct pcode_offset {
+   struct node node;
+   struct label* label;
+   int obj_pos;
 };
 
 struct dec {
@@ -722,13 +857,13 @@ struct dec {
       DEC_TOTAL
    } area;
    struct pos pos;
-   struct pos storage_index_pos;
    struct pos type_pos;
    struct pos storage_pos;
+   struct pos storage_index_pos;
    struct pos name_pos;
    const char* storage_name;
    struct type* type;
-   struct type* new_type;
+   struct type* type_make;
    struct path* type_path;
    struct name* name;
    struct name* name_offset;
@@ -759,6 +894,7 @@ struct stmt_test {
    struct case_label* case_default;
    struct jump* jump_break;
    struct jump* jump_continue;
+   struct import* imports;
    bool in_loop;
    bool in_switch;
    bool in_script;
@@ -776,6 +912,7 @@ struct read_expr {
 struct expr_test {
    jmp_buf bail;
    struct stmt_test* stmt_test;
+   struct block* format_block;
    struct pos pos;
    bool needed;
    bool has_string;
@@ -1157,35 +1294,39 @@ enum {
    PC_SAVE_STRING
 };
 
+#define TK_BUFFER_SIZE 5
+
 struct task {
    struct options* options;
+   char ch;
    enum tk tk;
    struct pos tk_pos;
+   // The text contains the character content of the token. The text and the
+   // length of the text are applicable only to a token that is an identifier,
+   // a string, a character literal, or any of the numbers. For the rest, the
+   // text will be NULL and the length will be zero.
    char* tk_text;
    int tk_length;
-   struct file* file;
-   char* text;
-   char* ch;
-   int line;
-   char* column;
-   char* first_column;
-   char* end;
-   char recover_ch;
    struct stack paused;
    struct list unloaded_files;
    int peeked_length;
-   struct ns* ns;
-   struct ns* ns_global;
-   struct d_list nss;
    struct str_table str_table;
    struct type* type_int;
    struct type* type_str;
    struct type* type_bool;
-   struct type* type_fixed;
+   // Module currently being worked on. Could be the main module, or an
+   // imported module.
    struct module* module;
+   struct module* module_importer;
+   // Module requested by the user to be compiled.
+   struct module* module_main;
+   struct name* root_name;
    struct name* anon_name;
+   struct list loaded_modules;
+   struct list scripts;
    struct str str;
    int depth;
+   int import_id;
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
@@ -1195,7 +1336,6 @@ struct task {
    struct buffer* buffer;
    bool compress;
    bool in_func;
-   bool importing;
    enum {
       FORMAT_ZERO,
       FORMAT_BIG_E,
@@ -1210,58 +1350,45 @@ struct task {
    bool push_immediate;
    struct block_walk* block_walk;
    struct block_walk* block_walk_free;
+   bool newline_tk;
+   struct {
+      struct token buffer[ TK_BUFFER_SIZE ];
+      struct str text;
+      int peeked;
+   } tokens;
+   jmp_buf* bail;
+   int column;
+   FILE* err_file;
 };
 
-void t_init( struct task*, struct options* );
-void t_init_fields_tk( struct task* );
+void t_init( struct task*, struct options*, jmp_buf* );
 void t_init_fields_dec( struct task* );
 void t_init_fields_chunk( struct task* );
 void t_init_fields_obj( struct task* );
-void t_read_module( struct task* );
-bool t_load_file( struct task*, const char* );
-void t_unload_file( struct task*, bool* );
+struct module* t_load_module( struct task*, const char*, const char* );
+void t_init_object( struct object*, int );
 void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
-char t_peek_usable_ch( struct task* );
+void t_read( struct task* );
+void t_unload_file( struct task*, bool* );
 void t_skip_past( struct task*, char );
 void t_skip_past_tk( struct task*, enum tk );
-bool t_coming_up_insertion_token( struct task* );
-bool t_is_dec_start( struct task* );
 void t_test( struct task* );
+void t_read_block( struct task*, struct stmt_read* );
 struct name* t_make_name( struct task*, const char*, struct name* );
 void t_use_name( struct name*, struct object* );
-void t_read_namespace( struct task* );
 void t_read_script( struct task* );
-void t_init_read_expr( struct read_expr* );
-void t_read_expr( struct task*, struct read_expr* );
 struct format_item* t_read_format_item( struct task*, enum tk sep );
-void t_init_expr_test( struct expr_test* );
-void t_test_expr( struct task*, struct expr_test*, struct expr* );
-bool t_is_dec( struct task* );
-void t_init_dec( struct dec* );
-void t_read_dec( struct task*, struct dec* );
-void t_read_enum( struct task* );
-void t_init_stmt_read( struct stmt_read* );
-void t_read_block( struct task*, struct stmt_read* );
-void t_read_using( struct task*, struct node** local );
 int t_read_literal( struct task* );
 void t_add_scope( struct task* );
 void t_pop_scope( struct task* );
-void t_init_stmt_test( struct stmt_test*, struct stmt_test* parent );
-void t_test_top_block( struct task*, struct stmt_test*, struct block* );
-void t_test_block( struct task*, struct stmt_test*, struct block* );
-void t_test_constant( struct task*, struct constant*, bool local,
-   bool undef_err );
-void t_test_constant_set( struct task*, struct constant_set*, bool local,
-   bool undef_err );
+void t_test_constant( struct task*, struct constant*, bool undef_err );
+void t_test_constant_set( struct task*, struct constant_set*, bool undef_err );
 void t_test_type( struct task*, struct type*, bool undef_err );
 void t_read_define( struct task* );
-void t_copy_name( struct name*, struct str*, char term );
-void t_copy_full_name( struct name*, struct str* );
+void t_copy_name( struct name*, bool, struct str* );
 int t_full_name_length( struct name* );
 void t_test_local_var( struct task*, struct var* );
-void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
-   struct name* name_offset );
 void t_skip_block( struct task* );
 void t_publish( struct task* );
 void t_add_byte( struct task*, char );
@@ -1277,10 +1404,43 @@ void t_seek( struct task*, int );
 int t_tell( struct task* );
 void t_flush( struct task* );
 void t_skip_to_tk( struct task*, enum tk );
-void t_test_ns_link( struct task*, struct ns_link*, bool undef_err );
-void t_test_shortcut( struct task*, struct shortcut*, bool undef_err );
 int t_get_script_number( struct script* );
-void t_write_func_content( struct task* );
-void t_write_script_content( struct task* );
+void t_write_func_content( struct task*, struct module* );
+void t_write_script_content( struct task*, struct list* );
+void t_init_read_expr( struct read_expr* );
+void t_read_expr( struct task*, struct read_expr* );
+bool t_is_dec( struct task* );
+void t_init_dec( struct dec* );
+void t_read_dec( struct task*, struct dec* );
+void t_init_expr_test( struct expr_test* );
+void t_test_expr( struct task*, struct expr_test*, struct expr* );
+void t_init_stmt_read( struct stmt_read* );
+void t_init_stmt_test( struct stmt_test*, struct stmt_test* );
+void t_test_top_block( struct task*, struct stmt_test*, struct block* );
+void t_test_block( struct task*, struct stmt_test*, struct block* );
+void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
+   struct name* name_offset, struct block* );
+struct object* t_get_module_object( struct task*, struct module*,
+   struct name* );
+void diag_dup( struct task*, const char* text, struct pos*, struct name* );
+void diag_dup_struct( struct task*, struct name*, struct pos* );
+struct path* t_read_path( struct task* );
+void t_use_local_name( struct task*, struct name*, struct object* );
+void t_add_scope_import( struct task*, struct import* );
+enum tk t_peek( struct task* );
+enum tk t_peek_2nd( struct task* );
+
+void t_print_name( struct name* );
+
+#define DIAG_NONE 0
+#define DIAG_FILE 0x1
+#define DIAG_LINE 0x2
+#define DIAG_COLUMN 0x4
+#define DIAG_WARN 0x8
+#define DIAG_ERR 0x10
+
+void t_diag( struct task*, int flags, ... );
+void t_bail( struct task* );
+void t_set_module( struct task*, struct module* );
 
 #endif

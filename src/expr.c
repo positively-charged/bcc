@@ -1,9 +1,6 @@
-#include <stdlib.h>
 #include <string.h>
 
 #include "task.h"
-
-#include <stdio.h>
 
 struct read {
    struct node* node;
@@ -14,7 +11,8 @@ struct operand {
    struct dim* dim;
    struct pos pos;
    struct name* name_offset;
-   struct ns* ns;
+   struct module* module;
+   struct package* package;
    struct type* type;
    int value;
    bool is_value;
@@ -30,6 +28,9 @@ static void read_primary( struct task*, struct read_expr*, struct read* );
 static void read_postfix( struct task*, struct read_expr*, struct read* );
 static void read_call( struct task*, struct read_expr*, struct read* );
 static void init_operand( struct operand*, struct name* );
+static void use_object( struct task*, struct operand*, struct object* );
+static void read_string( struct task*, struct read_expr*, struct read* );
+static void init_operand( struct operand*, struct name* );
 static void test_node( struct task*, struct expr_test*, struct operand*,
    struct node* );
 static void test_name_usage( struct task*, struct expr_test*, struct operand*,
@@ -39,7 +40,6 @@ static void test_call( struct task*, struct expr_test*, struct operand*,
    struct call* );
 static void test_access( struct task*, struct expr_test*, struct operand*,
    struct access* );
-static void read_string( struct task*, struct read_expr*, struct read* );
 
 void t_init_read_expr( struct read_expr* read ) {
    read->node = NULL;
@@ -333,6 +333,7 @@ void add_binary( struct read* lside, int op, struct pos* pos,
    binary->op = op;
    binary->lside = lside->node;
    binary->rside = rside->node;
+   binary->pos = *pos;
    lside->node = ( struct node* ) binary;
 }
 
@@ -344,6 +345,7 @@ void read_operand( struct task* task, struct read_expr* expr,
    case TK_INC: op = UOP_PRE_INC; break;
    case TK_DEC: op = UOP_PRE_DEC; break;
    case TK_MINUS: op = UOP_MINUS; break;
+   case TK_PLUS: op = UOP_PLUS; break;
    case TK_LOG_NOT: op = UOP_LOG_NOT; break;
    case TK_BIT_NOT: op = UOP_BIT_NOT; break;
    default: break;
@@ -372,8 +374,19 @@ void add_unary( struct read* operand, int op ) {
 
 void read_primary( struct task* task, struct read_expr* expr,
    struct read* operand ) {
-   // Access object in the global namespace.
-   if ( task->tk == TK_ID ) {
+   if ( task->tk == TK_MODULE ) {
+      static struct node node = { NODE_MODULE_SELF };
+      operand->node = &node;
+      t_read_tk( task );
+   }
+   // Inline import.
+   else if ( task->tk == TK_IMPORT ) {
+      t_read_tk( task );
+      t_test_tk( task, TK_DOT );
+      t_read_tk( task );
+      struct path* path = t_read_path( task );
+   }
+   else if ( task->tk == TK_ID ) {
       struct name_usage* usage = mem_alloc( sizeof( *usage ) );
       usage->node.type = NODE_NAME_USAGE;
       usage->text = task->tk_text;
@@ -392,6 +405,18 @@ void read_primary( struct task* task, struct read_expr* expr,
       t_read_tk( task );
       paren->inside = operand->node;
       operand->node = ( struct node* ) paren;
+   }
+   // For now, the boolean literals will just be aliases to numeric constants.
+   else if ( task->tk == TK_TRUE || task->tk == TK_FALSE ) {
+      struct literal* literal = mem_alloc( sizeof( *literal ) );
+      literal->node.type = NODE_LITERAL;
+      literal->pos = task->tk_pos;
+      literal->value = 0;
+      if ( task->tk == TK_TRUE ) {
+         literal->value = 1;
+      }
+      operand->node = &literal->node;
+      t_read_tk( task );
    }
    else if ( task->tk == TK_LIT_STRING ) {
       read_string( task, expr, operand );
@@ -432,7 +457,7 @@ void read_string( struct task* task, struct read_expr* expr,
       string->length = task->tk_length;
       string->index = 0;
       string->next = NULL;
-      string->usage = 1;
+      string->usage = 0;
       ++task->str_table.size;
       if ( prev ) {
          string->next = prev->next;
@@ -475,9 +500,9 @@ int t_read_literal( struct task* task ) {
       value = task->tk_text[ 0 ];
    }
    else {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
          "missing primary expression" );
-      bail();
+      t_bail( task );
    }
    t_read_tk( task );
    return value;
@@ -487,9 +512,10 @@ void read_postfix( struct task* task, struct read_expr* expr,
    struct read* operand ) {
    while ( true ) {
       if ( task->tk == TK_BRACKET_L ) {
-         t_read_tk( task );
          struct subscript* subscript = mem_alloc( sizeof( *subscript ) );
          subscript->node.type = NODE_SUBSCRIPT;
+         subscript->pos = task->tk_pos;
+         t_read_tk( task );
          struct read index;
          read_op( task, expr, &index );
          t_test_tk( task, TK_BRACKET_R );
@@ -536,7 +562,7 @@ void read_call( struct task* task, struct read_expr* expr,
    list_init( &args );
    int count = 0;
    // Format list:
-   if ( task->tk == TK_ID && t_peek_usable_ch( task ) == ':' ) {
+   if ( task->tk == TK_ID && t_peek( task ) == TK_COLON ) {
       while ( true ) {
          list_append( &args, t_read_format_item( task, TK_COLON ) );
          if ( task->tk == TK_COMMA ) {
@@ -566,33 +592,35 @@ void read_call( struct task* task, struct read_expr* expr,
       }
    }
    // Format block:
-   else if ( task->tk == TK_BRACE_L ) {
-      // For now, a format block can only appear in a function call that is
-      // part of a stand-alone expression.
-      if ( expr->stmt_read ) {
-         t_read_block( task, expr->stmt_read );
-         list_append( &args, expr->stmt_read->block );
-         if ( task->tk == TK_SEMICOLON ) {
-            t_read_tk( task );
-            while ( true ) {
-               struct read_expr arg;
-               t_init_read_expr( &arg );
-               t_read_expr( task, &arg );
-               list_append( &args, arg.node );
-               ++count;
-               if ( task->tk == TK_COMMA ) {
-                  t_read_tk( task );
-               }
-               else {
-                  break;
-               }
+   else if ( task->tk == TK_FORMAT ) {
+      struct format_block_arg* arg = mem_alloc( sizeof( *arg ) );
+      arg->node.type = NODE_FORMAT_BLOCK_ARG;
+      arg->name = NULL;
+      arg->format_block = NULL;
+      arg->pos = task->tk_pos;
+      t_read_tk( task );
+      // Named format block.
+      if ( task->tk == TK_ID ) {
+         arg->name = t_make_name( task, task->tk_text, task->module->body );
+         arg->pos = task->tk_pos;
+         t_read_tk( task );
+      }
+      list_append( &args, arg );
+      if ( task->tk == TK_SEMICOLON ) {
+         t_read_tk( task );
+         while ( true ) {
+            struct read_expr arg;
+            t_init_read_expr( &arg );
+            t_read_expr( task, &arg );
+            list_append( &args, arg.node );
+            ++count;
+            if ( task->tk == TK_COMMA ) {
+               t_read_tk( task );
+            }
+            else {
+               break;
             }
          }
-      }
-      else {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
-            "format block outside an expression statement" );
-         bail();
       }
    }
    else {
@@ -653,9 +681,9 @@ struct format_item* t_read_format_item( struct task* task, enum tk sep ) {
       break;
    }
    if ( unknown || task->tk_length != 1 ) {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &task->tk_pos, "unknown format cast '%s'", task->tk_text );
-      bail();
+      t_bail( task );
    }
    t_read_tk( task );
    t_test_tk( task, sep );
@@ -669,6 +697,7 @@ struct format_item* t_read_format_item( struct task* task, enum tk sep ) {
 
 void t_init_expr_test( struct expr_test* test ) {
    test->stmt_test = NULL;
+   test->format_block = NULL;
    test->needed = true;
    test->has_string = false;
    test->undef_err = false;
@@ -679,15 +708,15 @@ void t_test_expr( struct task* task, struct expr_test* test,
    struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
       struct operand operand;
-      init_operand( &operand, task->ns->body );
+      init_operand( &operand, task->module->body );
       test_node( task, test, &operand, expr->root );
       expr->folded = operand.folded;
       expr->value = operand.value;
       test->pos = operand.pos;
       if ( test->needed && ! operand.is_value ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &operand.pos,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &operand.pos,
             "expression does not produce a value" );
-         bail();
+         t_bail( task );
       }
    }
 }
@@ -696,7 +725,8 @@ void init_operand( struct operand* operand, struct name* offset ) {
    operand->func = NULL;
    operand->dim = NULL;
    operand->type = NULL;
-   operand->ns = NULL;
+   operand->module = NULL;
+   operand->package = NULL;
    operand->value = 0;
    operand->is_value = false;
    operand->is_space = false;
@@ -737,21 +767,24 @@ void test_node( struct task* task, struct expr_test* test,
             if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
                action = "decremented";
             }
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &target.pos, "operand cannot be %s", action );
-            bail();
+            t_bail( task );
          }
       }
       // Remaining operations require a value to work on.
       else if ( ! target.is_value ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &target.pos, "operand cannot be used in unary operation" );
-         bail();
+         t_bail( task );
       }
       if ( target.folded ) {
          switch ( unary->op ) {
          case UOP_MINUS:
             operand->value = ( - target.value );
+            break;
+         case UOP_PLUS:
+            operand->value = target.value;
             break;
          case UOP_LOG_NOT:
             operand->value = ( ! target.value );
@@ -773,9 +806,9 @@ void test_node( struct task* task, struct expr_test* test,
       init_operand( &target, operand->name_offset );
       test_node( task, test, &target, subscript->lside );
       if ( ! target.dim ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &target.pos,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &subscript->pos,
             "accessing something not an array" );
-         bail();
+         t_bail( task );
       }
       struct operand index;
       init_operand( &index, operand->name_offset );
@@ -797,28 +830,28 @@ void test_node( struct task* task, struct expr_test* test,
       init_operand( &lside, operand->name_offset );
       test_node( task, test, &lside, binary->lside );
       if ( ! lside.is_value ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lside.pos,
-            "left side of binary operation is not a value" );
-         bail();
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
+            "left side of binary operation not a value" );
+         t_bail( task );
       }
       struct operand rside;
       init_operand( &rside, operand->name_offset );
       test_node( task, test, &rside, binary->rside );
       if ( ! rside.is_value ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
-            "right side of binary operation is not a value" );
-         bail();
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
+            "right side of binary operation not a value" );
+         t_bail( task );
       }
-      operand->pos = lside.pos;
+      operand->pos = binary->pos;
       if ( lside.folded && rside.folded ) {
          int l = lside.value;
          int r = rside.value;
          // Division and modulo get special treatment because of the possibility
          // of a division by zero.
          if ( ( binary->op == BOP_DIV || binary->op == BOP_MOD ) && ! r ) {
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
                "division by zero" );
-            bail();
+            t_bail( task );
          }
          switch ( binary->op ) {
          case BOP_MOD: l %= r; break;
@@ -852,17 +885,17 @@ void test_node( struct task* task, struct expr_test* test,
       init_operand( &lside, operand->name_offset );
       test_node( task, test, &lside, assign->lside );
       if ( ! lside.is_space ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lside.pos,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lside.pos,
             "cannot assign to operand" );
-         bail();
+         t_bail( task );
       }
       struct operand rside;
       init_operand( &rside, operand->name_offset );
       test_node( task, test, &rside, assign->rside );
       if ( ! rside.is_value ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
             "right side of assignment is not a value" );
-         bail();
+         t_bail( task );
       }
       operand->is_value = true;
    }
@@ -874,28 +907,64 @@ void test_node( struct task* task, struct expr_test* test,
       test_node( task, test, operand, paren->inside );
       operand->pos = paren->pos;
    }
+   else if ( node->type == NODE_MODULE_SELF ) {
+      operand->module = task->module;
+   }
 }
 
 void test_name_usage( struct task* task, struct expr_test* test,
    struct operand* operand, struct name_usage* usage ) {
-   struct name* name = t_make_name( task, usage->text, task->ns->body );
-   // Try the linked namespaces.
-   if ( ! name->object ) {
-      struct ns_link* link = task->ns->ns_link;
-      while ( link && ! name->object ) {
-         name = t_make_name( task, usage->text, link->ns->body );
+   struct name* name = t_make_name( task, usage->text, task->module->body );
+   struct object* object = name->object;
+   // Try the linked modules.
+   if ( ! object ) {
+      struct module_link* link = task->module->links;
+      while ( link ) {
+         name = t_make_name( task, usage->text, link->module->body );
+         object = t_get_module_object( task, link->module, name );
+         link = link->next;
+         if ( object ) {
+            break;
+         }
+      }
+      // Make sure no other object with the same name can be found.
+      int dup = 0;
+      while ( link ) {
+         struct name* other_name = t_make_name( task, usage->text,
+            link->module->body );
+         if ( other_name->object ) {
+            if ( ! dup ) {
+               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+                  &usage->pos, "multiple objects with name `%s`",
+                  usage->text );
+               t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+                  &name->object->pos, "object found here" );
+            }
+            t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &other_name->object->pos, "object found here" );
+            ++dup;
+         }
          link = link->next;
       }
+      if ( dup ) {
+         t_bail( task );
+      }
    }
-   if ( name->object && name->object->resolved ) {
-      use_object( task, operand, name->object );
-      usage->object = ( struct node* ) name->object;
+   if ( object && object->resolved ) {
+      use_object( task, operand, object );
+      usage->object = ( struct node* ) object;
       operand->pos = usage->pos;
    }
    else if ( test->undef_err ) {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &usage->pos,
-         "'%s' is undefined", usage->text );
-      bail();
+      if ( ! object ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &usage->pos,
+            "`%s` not found", usage->text );
+      }
+      else {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &usage->pos,
+            "`%s` undefined", usage->text );
+      }
+      t_bail( task );
    }
    else {
       test->undef_erred = true;
@@ -905,8 +974,8 @@ void test_name_usage( struct task* task, struct expr_test* test,
 
 void use_object( struct task* task, struct operand* operand,
    struct object* object ) {
-   if ( object->node.type == NODE_NAMESPACE ) {
-      operand->ns = ( struct ns* ) object;
+   if ( object->node.type == NODE_MODULE ) {
+      operand->module = ( struct module* ) object;
    }
    else if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
@@ -940,6 +1009,14 @@ void use_object( struct task* task, struct operand* operand,
    }
    else if ( object->node.type == NODE_FUNC ) {
       operand->func = ( struct func* ) object;
+      if ( operand->func->type == FUNC_USER ) {
+         struct func_user* impl = operand->func->impl;
+         ++impl->usage;
+      }
+      // When just using the name of an action special, its ID is returned.
+      else if ( operand->func->type == FUNC_ASPEC ) {
+         operand->is_value = true;
+      }
    }
    else if ( object->node.type == NODE_PARAM ) {
       struct param* param = ( struct param* ) object;
@@ -947,9 +1024,15 @@ void use_object( struct task* task, struct operand* operand,
       operand->is_value = true;
       operand->is_space = true;
    }
-   else if ( object->node.type == NODE_SHORTCUT ) {
-      struct shortcut* shortcut = ( struct shortcut* ) object;
-      use_object( task, operand, shortcut->target->object );
+   else if ( object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) object;
+      use_object( task, operand, alias->target );
+   }
+   else if ( object->node.type == NODE_MODULE ) {
+      operand->module = ( struct module* ) object;
+   }
+   else if ( object->node.type == NODE_PACKAGE ) {
+      operand->package = ( struct package* ) object;
    }
 }
 
@@ -959,9 +1042,21 @@ void test_call( struct task* task, struct expr_test* test,
    init_operand( &callee, operand->name_offset );
    test_node( task, test, &callee, call->func_tree );
    if ( ! callee.func ) {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
          "calling something not a function" );
-      bail();
+      t_bail( task );
+   }
+   // Some action specials cannot be used in a script.
+   if ( callee.func->type == FUNC_ASPEC ) {
+      struct func_aspec* impl = callee.func->impl;
+      if ( ! impl->script_callable ) {
+         struct str str;
+         str_init( &str );
+         t_copy_name( callee.func->name, false, &str );
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
+            "action-special `%s` called from script", str.value );
+         t_bail( task );
+      }
    }
    int count = 0;
    list_iter_t i;
@@ -972,16 +1067,38 @@ void test_call( struct task* task, struct expr_test* test,
          node = list_data( &i );
       }
       if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
-         node->type != NODE_BLOCK ) ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
+         node->type != NODE_FORMAT_BLOCK_ARG ) ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
             "function call missing format argument" );
-         bail();
+         t_bail( task );
       }
       // Format-block:
-      if ( node->type == NODE_BLOCK ) {
+      if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
+         struct format_block_arg* arg = ( struct format_block_arg* ) node;
+         // Named format-block.
+         if ( arg->name ) {
+            if ( ! arg->name->object ||
+               arg->name->object->node.type != NODE_FORMAT_BLOCK ) {
+               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &arg->pos,
+                  "format block not found" );
+               t_bail( task );
+            }
+            struct format_block* format_block =
+               ( struct format_block* ) arg->name->object;
+            arg->format_block = format_block->block;
+         }
+         // Format-block attached to expression.
+         else {
+            arg->format_block = test->format_block;
+            if ( ! arg->format_block ) {
+               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+                  &call->pos, "function call missing format block" );
+               t_bail( task );
+            }
+         }
          struct stmt_test stmt_test;
          t_init_stmt_test( &stmt_test, test->stmt_test );
-         stmt_test.format_block = ( struct block* ) node;
+         stmt_test.format_block = arg->format_block;
          t_test_block( task, &stmt_test, stmt_test.format_block );
          list_next( &i );
       }
@@ -991,7 +1108,7 @@ void test_call( struct task* task, struct expr_test* test,
             struct node* node = list_data( &i );
             if ( node->type == NODE_FORMAT_ITEM ) {
                t_test_format_item( task, ( struct format_item* ) node,
-                  test->stmt_test, operand->name_offset );
+                  test->stmt_test, operand->name_offset, test->format_block );
                list_next( &i );
             }
             else {
@@ -1001,13 +1118,22 @@ void test_call( struct task* task, struct expr_test* test,
       }
       ++count;
    }
-   else if ( list_size( &call->args ) ) {
-      struct node* node = list_data( &i );
-      if ( node->type == NODE_FORMAT_ITEM ) {
-         struct format_item* item = ( struct format_item* ) node;
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &item->pos,
-            "passing format-list argument to non-format function" );
-         bail();
+   else {
+      if ( list_size( &call->args ) ) {
+         struct node* node = list_data( &i );
+         if ( node->type == NODE_FORMAT_ITEM ) {
+            struct format_item* item = ( struct format_item* ) node;
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &item->pos,
+               "passing format item to non-format function" );
+            t_bail( task );
+         }
+         else if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
+            struct format_block_arg* arg = ( struct format_block_arg* ) node;
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &arg->pos, "passing format block to non-format function" );
+            t_bail( task );
+         }
       }
    }
    // Arguments:
@@ -1016,12 +1142,13 @@ void test_call( struct task* task, struct expr_test* test,
       t_init_expr_test( &arg );
       arg.undef_err = true;
       arg.needed = true;
+      arg.format_block = test->format_block;
       t_test_expr( task, &arg, list_data( &i ) );
       list_next( &i );
       ++count;
    }
    if ( count < callee.func->min_param ) {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
          "not enough arguments in function call" );
       const char* at_least = "";
       if ( callee.func->min_param != callee.func->max_param ) {
@@ -1031,13 +1158,13 @@ void test_call( struct task* task, struct expr_test* test,
       if ( callee.func->min_param != 1 ) {
          s = "s";
       }
-      t_copy_name( callee.func->name, &task->str, '.' );
-      diag( DIAG_FILE, &call->pos, "function '%s' needs %s%d argument%s",
+      t_copy_name( callee.func->name, false, &task->str );
+      t_diag( task, DIAG_FILE, &call->pos, "function `%s` needs %s%d argument%s",
          task->str.value, at_least, callee.func->min_param, s );
-      bail();
+      t_bail( task );
    }
    else if ( count > callee.func->max_param ) {
-      diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
          "too many arguments in function call" );
       const char* up_to = "";
       if ( callee.func->min_param != callee.func->max_param ) {
@@ -1047,23 +1174,23 @@ void test_call( struct task* task, struct expr_test* test,
       if ( callee.func->max_param != 1 ) {
          s = "s";
       }
-      t_copy_name( callee.func->name, &task->str, '.' );
-      diag( DIAG_FILE, &call->pos,
-         "function '%s' takes %s%d argument%s",
+      t_copy_name( callee.func->name, false, &task->str );
+      t_diag( task, DIAG_FILE, &call->pos,
+         "function `%s` takes %s%d argument%s",
          task->str.value, up_to, callee.func->max_param, s );
-      bail();
+      t_bail( task );
    }
    // Call to a latent function cannot appear in a function or a format block.
    if ( callee.func->type == FUNC_DED ) {
       struct func_ded* impl = callee.func->impl;
       if ( impl->latent && task->in_func ) {
-         t_copy_name( callee.func->name, &task->str, '.' );
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
+         t_copy_name( callee.func->name, false, &task->str );
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
             "calling a latent function inside a function" );
-         diag( DIAG_FILE, &callee.pos,
-         "waiting functions like '%s' can only be called inside a script",
+         t_diag( task, DIAG_FILE, &callee.pos,
+         "waiting functions like `%s` can only be called inside a script",
          task->str.value );
-         bail();
+         t_bail( task );
       }
    }
    call->func = callee.func;
@@ -1075,81 +1202,106 @@ void test_call( struct task* task, struct expr_test* test,
 }
 
 void t_test_format_item( struct task* task, struct format_item* item,
-   struct stmt_test* stmt_test, struct name* name_offset ) {
+   struct stmt_test* stmt_test, struct name* name_offset,
+   struct block* format_block ) {
    struct expr_test expr_test;
    t_init_expr_test( &expr_test );
    expr_test.stmt_test = stmt_test;
    expr_test.undef_err = true;
+   expr_test.format_block = format_block;
+   expr_test.needed = true;
    struct operand arg;
    init_operand( &arg, name_offset );
    test_node( task, &expr_test, &arg, item->expr->root );
    if ( item->cast == FCAST_ARRAY ) {
       if ( ! arg.dim ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &arg.pos, "argument not an array" );
-         bail();
+         t_bail( task );
       }
       else if ( arg.dim->next ) {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &arg.pos, "array argument not of a single dimension" );
-         bail();
+         t_bail( task );
       }
    }
+}
+
+struct name* t_make_module_name( struct task* task, struct module* module,
+   char* text, struct name* offset ) {
+   struct name* name = t_make_name( task, text, offset );
+   if ( name->object ) {
+      // Imported objects are not visible from outside a module.
+      if ( name->object->node.type == NODE_ALIAS ) {
+         if ( module != task->module ) {
+            return NULL;
+         }
+      }
+      // Constant made through #define is not visible to another module.
+      else if ( name->object->node.type == NODE_CONSTANT ) {
+         struct constant* constant = ( struct constant* ) name->object;
+         if ( ! constant->visible ) {
+            return NULL;
+         }
+      }
+   }
+   return name;
 }
 
 void test_access( struct task* task, struct expr_test* test,
    struct operand* operand, struct access* access ) {
    struct type* type = NULL;
-   struct ns* ns = NULL;
-   if ( access->lside ) {
-      struct operand object;
-      init_operand( &object, operand->name_offset );
-      test_node( task, test, &object, access->lside );
-      if ( object.ns ) {
-         ns = object.ns;
-      }
-      else if ( object.type && ! object.dim ) {
-         type = object.type;
-      }
-      else {
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object.pos,
-            "using . on something not a struct or a namespace" );
-         bail();
-      }
+   struct module* module = NULL;
+   struct package* package = NULL;
+   struct operand lside;
+   init_operand( &lside, operand->name_offset );
+   test_node( task, test, &lside, access->lside );
+   if ( lside.module ) {
+      module = lside.module;
+   }
+   else if ( lside.package ) {
+      package = lside.package;
+   }
+   else if ( lside.type && ! lside.dim ) {
+      type = lside.type;
    }
    else {
-      ns = task->ns_global;
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
+         "object does not supported the . operator" );
+      t_bail( task );
    }
    struct name* name_offset = NULL;
    if ( type ) {
       name_offset = type->body;
    }
+   else if ( package ) {
+      name_offset = package->body;
+   }
    else {
-      name_offset = ns->body;
+      name_offset = module->body;
    }
    struct name* name = t_make_name( task, access->name, name_offset );
    struct object* object = name->object;
-   if ( ns ) {
-      while ( object && object->link ) {
-         object = object->link;
+   if ( module || package ) {
+      if ( ! module ) {
+         module = task->module;
       }
+      object = t_get_module_object( task, module, name );
    }
    if ( ! object ) {
       if ( ! test->undef_err ) {
          test->undef_erred = true;
          longjmp( test->bail, 0 );
       }
-      if ( ns ) {
-         if ( ns == task->ns_global ) {
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
-               "'%s' not found in global namespace", access->name );
-         }
-         else {
-            t_copy_name( ns->name, &task->str, '.' );
-            diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
-               "'%s' not found in namespace '%s'", access->name,
-               task->str.value );
-         }
+      if ( package ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
+            "`%s` not found in package", access->name );
+         t_bail( task );
+      }
+      else if ( module ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
+            "`%s` not found in module", access->name );
+         t_bail( task );
       }
       else if ( type ) {
          // TODO: Remember to implement for anonynous structs!
@@ -1157,12 +1309,16 @@ void test_access( struct task* task, struct expr_test* test,
          if ( ! type->primitive ) {
             subject = "struct";
          }
-         t_copy_name( type->name, &task->str, '.' );
-         diag( DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
-            "%s `%s` has no member named `%s`", subject, task->str.value,
-            access->name );
+         t_copy_name( type->name, false, &task->str );
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
+            "member `%s` not found in %s `%s`", access->name, subject,
+            task->str.value );
+         t_bail( task );
       }
-      bail();
+   }
+   if ( ! object->resolved ) {
+      test->undef_erred = true;
+      longjmp( test->bail, 1 );
    }
    use_object( task, operand, object );
    access->rside = ( struct node* ) object;

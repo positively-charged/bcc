@@ -6,7 +6,8 @@
 
 void* mem_alloc( size_t );
 void* mem_realloc( void*, size_t );
-void mem_deinit( void );
+void mem_free( void* );
+void mem_free_all( void );
 
 #define ARRAY_SIZE( a ) ( sizeof( a ) / sizeof( a[ 0 ] ) )
 #define STATIC_ASSERT( cond ) switch ( 0 ) { case 0: case cond: ; }
@@ -14,15 +15,16 @@ void mem_deinit( void );
 struct str {
    char* value;
    int length;
-   int buff_length;
+   int buffer_length;
 };
 
 void str_init( struct str* );
+void str_deinit( struct str* );
+void str_copy( struct str*, const char* value, int length );
 void str_grow( struct str*, int length );
 void str_append( struct str*, const char* cstr );
 void str_append_sub( struct str*, const char* cstr, int length );
 void str_clear( struct str* );
-void str_del( struct str* );
 
 enum {
    STORAGE_LOCAL,
@@ -30,27 +32,6 @@ enum {
    STORAGE_WORLD,
    STORAGE_GLOBAL
 };
-
-struct file {
-   struct str path;
-   struct str load_path;
-};
-
-struct pos {
-   struct file* file;
-   int line;
-   int column;
-};
-
-#define DIAG_NONE 0
-#define DIAG_FILE 0x1
-#define DIAG_LINE 0x2
-#define DIAG_COLUMN 0x4
-#define DIAG_WARN 0x8
-#define DIAG_ERR 0x10
-
-void diag( int flags, ... );
-void bail( void );
 
 // Linked list.
 struct list_link {
@@ -71,10 +52,12 @@ typedef struct list_link* list_iter_t;
 #define list_data( i ) ( ( *i )->data )
 #define list_next( i ) ( ( *i ) = ( *i )->next )
 #define list_size( list ) ( ( list )->size )
+#define list_head( list ) ( ( list )->head->data )
 
 void list_init( struct list* );
 void list_append( struct list*, void* );
-void list_append_h( struct list*, void* );
+void list_append_head( struct list*, void* );
+void list_deinit( struct list* );
 
 // Doubly-linked list.
 struct d_list_link {
@@ -114,10 +97,36 @@ struct options {
    struct list includes;
    const char* source_file;
    const char* object_file;
+   int tab_size;
    bool encrypt_str;
-   bool err_file;
+   bool acc_err;
+   bool one_column;
 };
 
 extern int c_num_errs;
+
+#ifdef __WINDOWS__
+
+#else
+
+#include <sys/types.h>
+
+struct file_identity {
+   dev_t device;
+   ino_t number;
+};
+
+#endif
+
+bool c_read_identity( struct file_identity*, const char* path );
+bool c_same_identity( struct file_identity*, struct file_identity* );
+
+struct file {
+   struct file* prev;
+   struct str path;
+   struct str load_path;
+   struct file_identity identity;
+   bool one_copy;
+};
 
 #endif
