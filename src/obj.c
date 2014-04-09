@@ -99,15 +99,62 @@ void t_add_opc( struct task* task, int code ) {
          goto fold;
       }
    }
-   // Constant folding:
+   // Unary constant folding:
    // -----------------------------------------------------------------------
    fold: {
       switch ( code ) {
+      case PC_UNARY_MINUS:
+      case PC_NEGATE_LOGICAL:
+      case PC_NEGATE_BINARY:
+         if ( task->immediate_count ) {
+            break;
+         }
+         // FALLTHROUGH
+      default:
+         goto binary_fold;
+      }
+      switch ( code ) {
+      case PC_UNARY_MINUS:
+         task->immediate_tail->value = ( - task->immediate_tail->value );
+         break;
+      case PC_NEGATE_LOGICAL:
+         task->immediate_tail->value = ( ! task->immediate_tail->value );
+         break;
+      case PC_NEGATE_BINARY:
+         task->immediate_tail->value = ( ~ task->immediate_tail->value );
+         break;
+      default:
+         break;
+      }
+      goto finish;
+   }
+   // Binary constant folding:
+   // -----------------------------------------------------------------------
+   binary_fold: {
+      switch ( code ) {
+      // TODO: Implement support for the logical operators.
+      case PC_OR_LOGICAL:
+      case PC_AND_LOGICAL:
+      case PC_OR_BITWISE:
+      case PC_EOR_BITWISE:
+      case PC_AND_BITWISE:
+      case PC_EQ:
+      case PC_NE:
+      case PC_LT:
+      case PC_LE:
+      case PC_GT:
+      case PC_GE:
+      case PC_LSHIFT:
+      case PC_RSHIFT:
       case PC_ADD:
+      case PC_SUB:
       case PC_MUL:
+      case PC_DIV:
+      case PC_MOD:
          if ( task->immediate_count >= 2 ) {
             break;
          }
+         // FALLTHROUGH
       default:
          goto direct;
       }
@@ -126,8 +173,24 @@ void t_add_opc( struct task* task, int code ) {
       last->next = NULL;
       task->immediate_tail = last;
       switch ( code ) {
+      // case PC_OR_LOGICAL: last->value = ( l || r ); break;
+      // case PC_AND_LOGICAL: last->value = ( l && r ); break;
+      case PC_OR_BITWISE: last->value = l | r; break;
+      case PC_EOR_BITWISE: last->value = l ^ r; break;
+      case PC_AND_BITWISE: last->value = l & r; break;
+      case PC_EQ: last->value = ( l == r ); break;
+      case PC_NE: last->value = ( l != r ); break;
+      case PC_LT: last->value = ( l < r ); break;
+      case PC_LE: last->value = ( l <= r ); break;
+      case PC_GT: last->value = ( l > r ); break;
+      case PC_GE: last->value = ( l >= r ); break;
+      case PC_LSHIFT: last->value = l << r; break;
+      case PC_RSHIFT: last->value = l >> r; break;
       case PC_ADD: last->value = l + r; break;
+      case PC_SUB: last->value = l - r; break;
       case PC_MUL: last->value = l * r; break;
+      case PC_DIV: last->value = l / r; break;
+      case PC_MOD: last->value = l % r; break;
       default: break;
       }
       goto finish;
@@ -441,10 +504,12 @@ void write_arg( struct task* task, int arg ) {
    case PC_CASE_GOTO_SORTED:
       // The arguments need to be 4-byte aligned.
       if ( task->opc_args == 0 ) {
-         int padding = 4 - ( t_tell( task ) % 4 );
-         while ( padding ) {
-            t_add_byte( task, 0 );
-            --padding;
+         int i = t_tell( task ) % 4;
+         if ( i ) {
+            while ( i < 4 ) {
+               t_add_byte( task, 0 );
+               ++i;
+            }
          }
       }
       t_add_int( task, arg );
@@ -615,9 +680,39 @@ void t_seek( struct task* task, int pos ) {
    }
 }
 
+void t_pad4align( struct task* task ) {
+   int i = t_tell( task ) % 4;
+   if ( i ) {
+      while ( i < 4 ) {
+         t_add_byte( task, 0 );
+         ++i;
+      }
+   }
+}
+
 void t_flush( struct task* task ) {
+   // Don't overwrite the object file unless it's an ACS object file, or the
+   // file doesn't exist. This is a basic check done to help prevent the user
+   // from accidently killing their other files. Maybe add a command-line
+   // argument to force the overwrite, like --force-object-overwrite?
+   FILE* fh = fopen( task->options->object_file, "rb" );
+   if ( fh ) {
+      char id[ 4 ];
+      bool proceed = false;
+      if ( fread( id, 1, 4, fh ) == 4 &&
+         id[ 0 ] == 'A' && id[ 1 ] == 'C' && id[ 2 ] == 'S' &&
+         ( id[ 3 ] == '\0' || id[ 3 ] == 'E' || id[ 3 ] == 'e' ) ) {
+         proceed = true;
+      }
+      fclose( fh );
+      if ( ! proceed ) {
+         t_diag( task, DIAG_ERR, "trying to overwrite unknown file: %s",
+            task->options->object_file );
+         t_bail( task );
+      }
+   }
    bool failure = false;
-   FILE* fh = fopen( task->options->object_file, "wb" );
+   fh = fopen( task->options->object_file, "wb" );
    if ( fh ) {
       struct buffer* buffer = task->buffer_head;
       while ( buffer ) {

@@ -33,6 +33,7 @@ struct operand {
 
 struct block_walk {
    struct block_walk* prev;
+   struct format_block_usage* format_block_usage;
    int size;
    int size_high;
 };
@@ -50,13 +51,15 @@ static void do_label( struct task*, struct label* );
 static void do_goto( struct task*, struct goto_stmt* );
 static void init_operand( struct operand* );
 static void push_expr( struct task*, struct expr*, bool );
-static void do_expr_stmt( struct task*, struct expr* );
+static void do_expr( struct task*, struct expr* );
+static void do_expr_stmt( struct task*, struct packed_expr* );
 static void do_operand( struct task*, struct operand*, struct node* );
 static void do_constant( struct task*, struct operand*, struct constant* );
 static void do_unary( struct task*, struct operand*, struct unary* );
 static void do_pre_inc( struct task*, struct operand*, struct unary* );
 static void do_post_inc( struct task*, struct operand*, struct unary* );
 static void do_call( struct task*, struct operand*, struct call* );
+static void do_format_call( struct task*, struct call*, struct func* );
 static void do_format_item( struct task*, struct format_item* );
 static void do_binary( struct task*, struct operand*, struct binary* );
 static void do_assign( struct task*, struct operand*, struct assign* );
@@ -83,12 +86,11 @@ static void do_jump_target( struct task*, struct jump*, int );
 static void do_return( struct task*, struct return_stmt* );
 static void do_paltrans( struct task*, struct paltrans* );
 static void do_default_params( struct task*, struct func* );
-static void do_pcode( struct task*, struct pcode* );
 
 static const int g_aspec_code[] = {
    PC_LSPEC1, PC_LSPEC2, PC_LSPEC3, PC_LSPEC4, PC_LSPEC5 };
 
-void t_write_script_content( struct task* task, struct list* scripts ) {
+void t_publish_scripts( struct task* task, struct list* scripts ) {
    list_iter_t i;
    list_iter_init( &i, scripts );
    while ( ! list_end( &i ) ) {
@@ -113,9 +115,9 @@ void t_write_script_content( struct task* task, struct list* scripts ) {
    }
 }
 
-void t_write_func_content( struct task* task, struct module* module ) {
+void t_publish_funcs( struct task* task, struct list* funcs ) {
    list_iter_t i;
-   list_iter_init( &i, &module->funcs );
+   list_iter_init( &i, funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );   
       struct func_user* impl = func->impl;
@@ -162,6 +164,7 @@ void add_block_walk( struct task* task ) {
    }
    walk->prev = task->block_walk;
    task->block_walk = walk;
+   walk->format_block_usage = NULL;
    walk->size = 0;
    walk->size_high = 0;
    if ( walk->prev ) {
@@ -199,7 +202,7 @@ void do_var( struct task* task, struct var* var ) {
          var->index = alloc_scalar( task );
       }
       if ( var->initial ) {
-         if ( var->initial->is_initz ) {
+         if ( var->initial->multi ) {
             if ( var->storage == STORAGE_WORLD ||
                var->storage == STORAGE_GLOBAL ) {
                do_world_global_init( task, var );
@@ -252,14 +255,8 @@ void do_world_global_init( struct task* task, struct var* var ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, var->size + value->index );
       t_add_opc( task, PC_PUSH_NUMBER );
-      int string_index = 0;
-      if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         string_index = usage->string->index;
-      }
-      t_add_arg( task, string_index );
-      if ( task->module->name.value ) {
+      t_add_arg( task, value->expr->value );
+      if ( task->library_main->visible ) {
          t_add_opc( task, PC_TAG_STRING );
       }
       update_element( task, var->storage, var->index, AOP_NONE );
@@ -281,14 +278,9 @@ void do_node( struct task* task, struct node* node ) {
    case NODE_GOTO:
       do_goto( task, ( struct goto_stmt* ) node );
       break;
-   case NODE_EXPR:
-      do_expr_stmt( task, ( struct expr* ) node );
+   case NODE_PACKED_EXPR:
+      do_expr_stmt( task, ( struct packed_expr* ) node );
       break;
-   case NODE_FORMAT_EXPR: {
-         struct format_expr* format_expr = ( struct format_expr* ) node;
-         do_expr_stmt( task, format_expr->expr );
-         break;
-      }
    case NODE_VAR:
       do_var( task, ( struct var* ) node );
       break;
@@ -319,9 +311,6 @@ void do_node( struct task* task, struct node* node ) {
       break;
    case NODE_PALTRANS:
       do_paltrans( task, ( struct paltrans* ) node );
-      break;
-   case NODE_PCODE:
-      do_pcode( task, ( struct pcode* ) node );
       break;
    default:
       break;
@@ -354,19 +343,11 @@ void do_label( struct task* task, struct label* label ) {
    list_iter_t i;
    list_iter_init( &i, &label->users );
    while ( ! list_end( &i ) ) {
-      struct node* node = list_data( &i );
-      if ( node->type == NODE_PCODE_OFFSET ) {
-         struct pcode_offset* macro = ( struct pcode_offset* ) node;
-         t_seek( task, macro->obj_pos );
-         t_add_int( task, label->obj_pos );
-      }
-      else {
-         struct goto_stmt* stmt = ( struct goto_stmt* ) node;
-         if ( stmt->obj_pos ) {
-            t_seek( task, stmt->obj_pos );
-            t_add_opc( task, PC_GOTO );
-            t_add_arg( task, label->obj_pos );
-         }
+      struct goto_stmt* stmt = list_data( &i );
+      if ( stmt->obj_pos ) {
+         t_seek( task, stmt->obj_pos );
+         t_add_opc( task, PC_GOTO );
+         t_add_arg( task, label->obj_pos );
       }
       list_next( &i );
    }
@@ -385,13 +366,17 @@ void do_goto( struct task* task, struct goto_stmt* stmt ) {
    }
 }
 
-void do_expr_stmt( struct task* task, struct expr* expr ) {
+void do_expr( struct task* task, struct expr* expr ) {
    struct operand operand;
    init_operand( &operand );
    do_operand( task, &operand, expr->root );
    if ( operand.pushed ) {
       t_add_opc( task, PC_DROP );
    }
+}
+
+void do_expr_stmt( struct task* task, struct packed_expr* stmt ) {
+   do_expr( task, stmt->expr );
 }
 
 void init_operand( struct operand* operand ) {
@@ -440,17 +425,11 @@ void do_operand( struct task* task, struct operand* operand,
    else if ( node->type == NODE_INDEXED_STRING_USAGE ) {
       struct indexed_string_usage* usage =
          ( struct indexed_string_usage* ) node;
-      if ( usage->string->usage ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, usage->string->index );
-         // Strings in a library need to be tagged.
-         if ( task->module_main->visible ) {
-            t_add_opc( task, PC_TAG_STRING );
-         }
-      }
-      else {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, 0 );
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, usage->string->index );
+      // Strings in a library need to be tagged.
+      if ( task->library_main->visible ) {
+         t_add_opc( task, PC_TAG_STRING );
       }
       operand->pushed = true;
    }
@@ -502,19 +481,11 @@ void do_operand( struct task* task, struct operand* operand,
 
 void do_constant( struct task* task, struct operand* operand,
    struct constant* constant ) {
-   if ( constant->expr &&
-      constant->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
-      struct indexed_string_usage* usage =
-         ( struct indexed_string_usage* ) constant->expr->root;
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, usage->string->index );
-      if ( task->module->name.value ) {
-         t_add_opc( task, PC_TAG_STRING );
-      }
-   }
-   else {
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, constant->value );
+   t_add_opc( task, PC_PUSH_NUMBER );
+   t_add_arg( task, constant->value );
+   if ( constant->expr && constant->expr->has_str &&
+      task->library_main->visible ) {
+      t_add_opc( task, PC_TAG_STRING );
    }
    operand->pushed = true;
 }
@@ -808,44 +779,7 @@ void do_call( struct task* task, struct operand* operand, struct call* call ) {
       }
    }
    else if ( func->type == FUNC_FORMAT ) {
-      t_add_opc( task, PC_BEGIN_PRINT );
-      list_iter_t i;
-      list_iter_init( &i, &call->args );
-      struct node* node = list_data( &i );
-      // Format-block:
-      if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
-         struct format_block_arg* arg = ( struct format_block_arg* ) node;
-         do_block( task, arg->format_block );
-         list_next( &i );
-      }
-      // Format-list:
-      else {
-         while ( ! list_end( &i ) ) {
-            struct node* node = list_data( &i );
-            if ( node->type == NODE_FORMAT_ITEM ) {
-               do_format_item( task, ( struct format_item* ) node );
-               list_next( &i );
-            }
-            else {
-               break;
-            }
-         }
-      }
-      // Other arguments.
-      if ( func->max_param > 1 ) {
-         t_add_opc( task, PC_MORE_HUD_MESSAGE );
-         int param = 1;
-         while ( ! list_end( &i ) ) {
-            if ( param == func->min_param ) {
-               t_add_opc( task, PC_OPT_HUD_MESSAGE );
-            }
-            push_expr( task, list_data( &i ), false );
-            ++param;
-            list_next( &i );
-         }
-      }
-      struct func_format* format = func->impl;
-      t_add_opc( task, format->opcode );
+      do_format_call( task, call, func );
    }
    else if ( func->type == FUNC_USER ) {
       list_iter_t i;
@@ -887,6 +821,11 @@ void do_call( struct task* task, struct operand* operand, struct call* call ) {
          push_expr( task, list_data( &i ), false );
          t_add_opc( task, PC_DUP );
          list_next( &i );
+         // Second argument unused.
+         list_next( &i );
+         // Second argument to Acs_Execute is 0--the current map.
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, 0 );
          while ( ! list_end( &i ) ) {
             push_expr( task, list_data( &i ), true );
             list_next( &i );
@@ -895,76 +834,172 @@ void do_call( struct task* task, struct operand* operand, struct call* call ) {
          t_add_arg( task, 80 );
          t_add_opc( task, PC_SCRIPT_WAIT );
       }
+      else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
+         do_operand( task, operand, call->func_tree );
+         t_add_opc( task, PC_STRLEN );
+      }
+      else if ( impl->id == INTERN_FUNC_STR_AT ) {
+         do_operand( task, operand, call->func_tree );
+         push_expr( task, list_head( &call->args ), true );
+         t_add_opc( task, PC_CALL_FUNC );
+         t_add_arg( task, 2 );
+         t_add_arg( task, 15 );
+      }
    }
 }
 
-void do_format_item( struct task* task, struct format_item* item ) {
-   if ( item->cast == FCAST_ARRAY ) {
-      struct operand object;
-      init_operand( &object );
-      object.action = ACTION_PUSH_VAR;
-      do_operand( task, &object, item->expr->root );
-      if ( object.trigger == TRIGGER_FUNCTION ) {
-         int loop = t_tell( task );
-         t_add_opc( task, PC_DUP );
-         // Get value.
-         if ( object.add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) object.do_str );
-         }
-         t_add_opc( task, PC_CALL );
-         t_add_arg( task, object.func_get );
-         // Bail out on NUL character.
-         int bail = t_tell( task );
-         t_add_opc( task, PC_CASE_GOTO );
-         t_add_arg( task, 0 );
-         t_add_arg( task, 0 );
-         t_add_opc( task, PC_PRINT_CHARACTER );
-         // Next element.
+void do_format_call( struct task* task, struct call* call,
+   struct func* func ) {
+   t_add_opc( task, PC_BEGIN_PRINT );
+   list_iter_t i;
+   list_iter_init( &i, &call->args );
+   struct node* node = list_data( &i );
+   // Format-block:
+   if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
+      struct format_block_usage* usage =
+         ( struct format_block_usage* ) node;
+      // When a format block is used more than once in the same expression,
+      // instead of duplicating the code, use a goto instruction to enter the
+      // format block. At each usage except the last, before the format block
+      // is used, a unique number is pushed. This number is used to determine
+      // the return location. 
+      if ( usage->next ) {
+         usage->obj_pos = t_tell( task );
          t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, 1 );
-         t_add_opc( task, PC_ADD );
-         t_add_opc( task, PC_GOTO );
-         t_add_arg( task, loop );
-         int done = t_tell( task );
-         t_add_opc( task, PC_DROP );
-         t_seek( task, bail );
-         t_add_opc( task, PC_CASE_GOTO );
          t_add_arg( task, 0 );
-         t_add_arg( task, done );
-         t_seek( task, OBJ_SEEK_END );
+         t_add_opc( task, PC_GOTO );
+         t_add_arg( task, 0 );
+         if ( ! task->block_walk->format_block_usage ) {
+            task->block_walk->format_block_usage = usage;
+         }
       }
       else {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, object.index );
-         int code = PC_PRINT_MAP_CHAR_ARRAY;
-         switch ( object.storage ) {
-         case STORAGE_WORLD:
-            code = PC_PRINT_WORLD_CHAR_ARRAY;
-            break;
-         case STORAGE_GLOBAL:
-            code = PC_PRINT_GLOBAL_CHAR_ARRAY;
-            break;
-         default:
-            break;
+         int block_pos = t_tell( task );
+         do_block( task, usage->block );
+         usage = task->block_walk->format_block_usage;
+         if ( usage ) {
+            // Update block jumps.
+            int count = 0;
+            while ( usage->next ) {
+               t_seek( task, usage->obj_pos );
+               t_add_opc( task, PC_PUSH_NUMBER );
+               t_add_arg( task, count );
+               t_add_opc( task, PC_GOTO );
+               t_add_arg( task, block_pos );
+               usage->obj_pos = t_tell( task );
+               usage = usage->next;
+               ++count;
+            }
+            // Publish return jumps. A sorted-case-goto can be used here, but a
+            // case-goto will suffice for now.
+            t_seek( task, OBJ_SEEK_END );
+            usage = task->block_walk->format_block_usage;
+            count = 0;
+            while ( usage->next ) {
+               t_add_opc( task, PC_CASE_GOTO );
+               t_add_arg( task, count );
+               t_add_arg( task, usage->obj_pos );
+               usage = usage->next;
+               ++count;
+            }
+            t_add_opc( task, PC_DROP );
+            task->block_walk->format_block_usage = NULL;
          }
-         t_add_opc( task, code );
+      }
+      list_next( &i );
+   }
+   // Format-list:
+   else {
+      do_format_item( task, list_data( &i ) );
+      list_next( &i );
+   }
+   // Other arguments.
+   if ( func->max_param > 1 ) {
+      t_add_opc( task, PC_MORE_HUD_MESSAGE );
+      int param = 1;
+      while ( ! list_end( &i ) ) {
+         if ( param == func->min_param ) {
+            t_add_opc( task, PC_OPT_HUD_MESSAGE );
+         }
+         push_expr( task, list_data( &i ), false );
+         ++param;
+         list_next( &i );
       }
    }
-   else {
-      static const int casts[] = {
-         PC_PRINT_BINARY,
-         PC_PRINT_CHARACTER,
-         PC_PRINT_NUMBER,
-         PC_PRINT_FIXED,
-         PC_PRINT_BIND,
-         PC_PRINT_LOCALIZED,
-         PC_PRINT_NAME,
-         PC_PRINT_STRING,
-         PC_PRINT_HEX };
-      STATIC_ASSERT( FCAST_TOTAL == 10 );
-      push_expr( task, item->expr, false );
-      t_add_opc( task, casts[ item->cast - 1 ] );
+   struct func_format* format = func->impl;
+   t_add_opc( task, format->opcode );
+} 
+
+void do_format_item( struct task* task, struct format_item* item ) {
+   while ( item ) {
+      if ( item->cast == FCAST_ARRAY ) {
+         struct operand object;
+         init_operand( &object );
+         object.action = ACTION_PUSH_VAR;
+         do_operand( task, &object, item->expr->root );
+         if ( object.trigger == TRIGGER_FUNCTION ) {
+            int loop = t_tell( task );
+            t_add_opc( task, PC_DUP );
+            // Get value.
+            if ( object.add_str_arg ) {
+               t_add_opc( task, PC_PUSH_NUMBER );
+               t_add_arg( task, ( int ) object.do_str );
+            }
+            t_add_opc( task, PC_CALL );
+            t_add_arg( task, object.func_get );
+            // Bail out on NUL character.
+            int bail = t_tell( task );
+            t_add_opc( task, PC_CASE_GOTO );
+            t_add_arg( task, 0 );
+            t_add_arg( task, 0 );
+            t_add_opc( task, PC_PRINT_CHARACTER );
+            // Next element.
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, 1 );
+            t_add_opc( task, PC_ADD );
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, loop );
+            int done = t_tell( task );
+            t_add_opc( task, PC_DROP );
+            t_seek( task, bail );
+            t_add_opc( task, PC_CASE_GOTO );
+            t_add_arg( task, 0 );
+            t_add_arg( task, done );
+            t_seek( task, OBJ_SEEK_END );
+         }
+         else {
+            t_add_opc( task, PC_PUSH_NUMBER );
+            t_add_arg( task, object.index );
+            int code = PC_PRINT_MAP_CHAR_ARRAY;
+            switch ( object.storage ) {
+            case STORAGE_WORLD:
+               code = PC_PRINT_WORLD_CHAR_ARRAY;
+               break;
+            case STORAGE_GLOBAL:
+               code = PC_PRINT_GLOBAL_CHAR_ARRAY;
+               break;
+            default:
+               break;
+            }
+            t_add_opc( task, code );
+         }
+      }
+      else {
+         static const int casts[] = {
+            PC_PRINT_BINARY,
+            PC_PRINT_CHARACTER,
+            PC_PRINT_NUMBER,
+            PC_PRINT_FIXED,
+            PC_PRINT_BIND,
+            PC_PRINT_LOCALIZED,
+            PC_PRINT_NAME,
+            PC_PRINT_STRING,
+            PC_PRINT_HEX };
+         STATIC_ASSERT( FCAST_TOTAL == 10 );
+         push_expr( task, item->expr, false );
+         t_add_opc( task, casts[ item->cast - 1 ] );
+      }
+      item = item->next;
    }
 }
 
@@ -1265,10 +1300,10 @@ void do_subscript( struct task* task, struct operand* operand,
    if ( operand->dim->next ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       if ( operand->do_str ) {
-         t_add_arg( task, operand->dim->size_str );
+         t_add_arg( task, operand->dim->element_size_str );
       }
       else {
-         t_add_arg( task, operand->dim->size );
+         t_add_arg( task, operand->dim->element_size );
       }
       t_add_opc( task, PC_MUL );
    }
@@ -1318,7 +1353,8 @@ void do_access( struct task* task, struct operand* operand,
       }
    }
    // When the left side is a module, only process the right side.
-   if ( object->type == NODE_MODULE || object->type == NODE_MODULE_SELF ) {
+   if ( object->type == NODE_REGION || object->type == NODE_REGION_SELF ||
+      object->type == NODE_REGION_UPMOST ) {
       lside = access->rside;
       if ( lside->type == NODE_ALIAS ) {
          struct alias* alias = ( struct alias* ) lside;
@@ -1338,6 +1374,9 @@ void do_access( struct task* task, struct operand* operand,
    }
    else if ( lside->type == NODE_SUBSCRIPT ) {
       do_subscript( task, operand, ( struct subscript* ) lside );
+   }
+   else {
+      do_operand( task, operand, lside );
    }
    // Right side:
    if ( rside && rside->type == NODE_TYPE_MEMBER ) {
@@ -1776,7 +1815,7 @@ void do_for( struct task* task, struct for_stmt* stmt ) {
    if ( stmt->init ) {
       struct expr_link* link = stmt->init;
       while ( link ) {
-         do_expr_stmt( task, link->expr );
+         do_expr( task, link->expr );
          link = link->next;
       }
    }
@@ -1809,7 +1848,7 @@ void do_for( struct task* task, struct for_stmt* stmt ) {
    if ( stmt->post ) {
       struct expr_link* link = stmt->post;
       while ( link ) {
-         do_expr_stmt( task, link->expr );
+         do_expr( task, link->expr );
          link = link->next;
       }
    }
@@ -1864,18 +1903,11 @@ void do_jump_target( struct task* task, struct jump* jump, int pos ) {
 }
 
 void do_return( struct task* task, struct return_stmt* stmt ) {
-   if ( stmt->expr ) {
+   if ( stmt->packed_expr ) {
       struct operand operand;
       init_operand( &operand );
       operand.push = true;
-      do_operand( task, &operand, stmt->expr->root );
-      t_add_opc( task, PC_RETURN_VAL );
-   }
-   else if ( stmt->expr_format ) {
-      struct operand operand;
-      init_operand( &operand );
-      operand.push = true;
-      do_operand( task, &operand, stmt->expr_format->expr->root );
+      do_operand( task, &operand, stmt->packed_expr->expr->root );
       t_add_opc( task, PC_RETURN_VAL );
    }
    else {
@@ -1977,29 +2009,5 @@ void do_default_params( struct task* task, struct func* func ) {
       t_add_arg( task, 0 );
       t_add_opc( task, PC_ASSIGN_SCRIPT_VAR );
       t_add_arg( task, func->max_param );
-   }
-}
-
-void do_pcode( struct task* task, struct pcode* stmt ) {
-   t_add_opc( task, stmt->opcode->value );
-   list_iter_t i;
-   list_iter_init( &i, &stmt->args );
-   while ( ! list_end( &i ) ) {
-      struct node* node = list_data( &i );
-      if ( node->type == NODE_PCODE_OFFSET ) {
-         struct pcode_offset* macro = ( struct pcode_offset* ) node;
-         if ( macro->label->obj_pos ) {
-            t_add_arg( task, macro->label->obj_pos );
-         }
-         else {
-            macro->obj_pos = t_tell( task );
-            t_add_arg( task, 0 );
-         }
-      }
-      else {
-         struct expr* arg = ( struct expr* ) node;
-         t_add_arg( task, arg->value );
-      }
-      list_next( &i );
    }
 }

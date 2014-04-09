@@ -9,13 +9,36 @@
 // NOTE: The functions below may be violating the strict-aliasing rule.
 // ==========================================================================
 
-struct alloc {
-   struct alloc* next;
-};
-
 // Linked list of current allocations. The head is the most recent allocation.
 // This way, a short-term allocation can be found and removed quicker.
-static struct alloc* g_alloc = NULL;
+static struct alloc {
+   struct alloc* next;
+}* g_alloc = NULL;
+// Bulk allocations.
+static struct {
+   int alloc_size;
+   int quantity;
+   char* slot;
+   int size;   
+   struct free_slot {
+      struct free_slot* next;
+   }* free_slot;
+} store[] = {
+   { 8, 256 },  // struct func_aspec
+   { 16, 256 }, // struct list_link
+   { 24, 256 }, // struct expr
+                // struct indexed_string_usage
+   { 32, 256 }, // struct binary
+                // struct name_usage
+                // struct literal
+                // struct block
+   { 40, 256 }, // struct name
+   { 56, 256 }, // struct call
+   { 64, 256 }, // struct constant
+   { 80, 256 }, // struct param
+   { 88, 128 }, // struct func
+   { 0 }
+};
 
 static void unlink_alloc( struct alloc* );
 
@@ -51,10 +74,50 @@ void unlink_alloc( struct alloc* alloc ) {
    }
 }
 
+void* mem_slot_alloc( size_t size ) {
+   int i = 0;
+   while ( store[ i ].alloc_size ) {
+      if ( store[ i ].alloc_size == size ) {
+         // Reuse a previously allocated block.
+         if ( store[ i ].free_slot ) {
+            struct free_slot* slot = store[ i ].free_slot;
+            store[ i ].free_slot = slot->next;
+            return slot;
+         }
+         // Allocate a series of blocks in one allocation.
+         if ( ! store[ i ].size ) {
+            store[ i ].size = store[ i ].quantity;
+            store[ i ].slot = mem_alloc( store[ i ].alloc_size *
+               store[ i ].quantity );
+         }
+         char* block = store[ i ].slot;
+         store[ i ].slot += store[ i ].alloc_size;
+         store[ i ].size -= 1;
+         return block;
+      }
+      ++i;
+   }
+   return mem_alloc( size );
+}
+
 void mem_free( void* block ) {
    struct alloc* alloc = ( struct alloc* ) block - 1;
    unlink_alloc( alloc );
    free( alloc );
+}
+
+void mem_slot_free( void* block, size_t size ) {
+   int i = 0;
+   while ( store[ i ].alloc_size ) {
+      if ( store[ i ].alloc_size == size ) {
+         struct free_slot* slot = block;
+         slot->next = store[ i ].free_slot;
+         store[ i ].free_slot = slot;
+         return;
+      }
+      ++i;
+   }
+   mem_free( block );
 }
 
 void mem_free_all( void ) {
@@ -131,7 +194,7 @@ void list_init( struct list* list ) {
 }
 
 void list_append( struct list* list, void* data ) {
-   struct list_link* link = mem_alloc( sizeof( *link ) );
+   struct list_link* link = mem_slot_alloc( sizeof( *link ) );
    link->data = data;
    link->next = NULL;
    if ( list->head ) {
@@ -145,7 +208,7 @@ void list_append( struct list* list, void* data ) {
 }
 
 void list_append_head( struct list* list, void* data ) {
-   struct list_link* link = mem_alloc( sizeof( *link ) );
+   struct list_link* link = mem_slot_alloc( sizeof( *link ) );
    link->data = data;
    link->next = list->head;
    list->head = link;
@@ -159,7 +222,7 @@ void list_deinit( struct list* list ) {
    struct list_link* link = list->head;
    while ( link ) {
       struct list_link* next = link->next;
-      mem_free( link );
+      mem_slot_free( link, sizeof( *link ) );
       link = next;
    }
 }
@@ -228,7 +291,7 @@ void* stack_pop( struct stack* entry ) {
 // File Identity
 // ==========================================================================
 
-#ifdef __WINDOWS__
+#if defined( _WIN32 ) || defined( _WIN64 )
 
 #else
 
@@ -252,3 +315,13 @@ bool c_same_identity( struct file_identity* first,
 }
 
 #endif
+
+int alignpad( int size, int align_size ) {
+   int i = size % align_size;
+   if ( i ) {
+      return align_size - i;
+   }
+   else {
+      return 0;
+   }
+}

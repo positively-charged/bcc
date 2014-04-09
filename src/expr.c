@@ -10,10 +10,13 @@ struct operand {
    struct func* func;
    struct dim* dim;
    struct pos pos;
-   struct name* name_offset;
-   struct module* module;
-   struct package* package;
+   struct region* region;
    struct type* type;
+   struct name* name_offset;
+   enum {
+      STATE_CHECK,
+      STATE_CHANGE
+   } state;
    int value;
    bool is_value;
    bool is_space;
@@ -36,8 +39,18 @@ static void test_node( struct task*, struct expr_test*, struct operand*,
 static void test_name_usage( struct task*, struct expr_test*, struct operand*,
    struct name_usage* );
 static void use_object( struct task*, struct operand*, struct object* );
+static void test_unary( struct task*, struct expr_test*, struct operand*,
+   struct unary* );
+static void test_subscript( struct task*, struct expr_test*, struct operand*,
+   struct subscript* );
 static void test_call( struct task*, struct expr_test*, struct operand*,
    struct call* );
+static void test_binary( struct task*, struct expr_test*, struct operand*,
+   struct binary* );
+static void test_assign( struct task*, struct expr_test*, struct operand*,
+   struct assign* );
+static void test_format_block_usage( struct task*, struct expr_test*,
+   struct call*, struct format_block_usage* );
 static void test_access( struct task*, struct expr_test*, struct operand*,
    struct access* );
 
@@ -52,9 +65,12 @@ void t_init_read_expr( struct read_expr* read ) {
 void t_read_expr( struct task* task, struct read_expr* read ) {
    struct read operand;
    read_op( task, read, &operand );
-   struct expr* expr = mem_alloc( sizeof( *expr ) );
+   struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
    expr->node.type = NODE_EXPR;
    expr->root = operand.node;
+   expr->value = 0;
+   expr->folded = false;
+   expr->has_str = read->has_str;
    read->node = expr;
 }
 
@@ -316,7 +332,7 @@ void read_op( struct task* task, struct read_expr* read,
       }
       t_read_tk( task );
       struct pos rside_pos = task->tk_pos;
-      read_op( task, read, &rside ); 
+      read_op( task, read, &rside );
       struct assign* assign = mem_alloc( sizeof( *assign ) );
       assign->node.type = NODE_ASSIGN;
       assign->op = op;
@@ -328,7 +344,7 @@ void read_op( struct task* task, struct read_expr* read,
 
 void add_binary( struct read* lside, int op, struct pos* pos,
    struct read* rside ) {
-   struct binary* binary = mem_alloc( sizeof( *binary ) );
+   struct binary* binary = mem_slot_alloc( sizeof( *binary ) );
    binary->node.type = NODE_BINARY;
    binary->op = op;
    binary->lside = lside->node;
@@ -374,20 +390,20 @@ void add_unary( struct read* operand, int op ) {
 
 void read_primary( struct task* task, struct read_expr* expr,
    struct read* operand ) {
-   if ( task->tk == TK_MODULE ) {
-      static struct node node = { NODE_MODULE_SELF };
+   // Current region.
+   if ( task->tk == TK_REGION ) {
+      static struct node node = { NODE_REGION_SELF };
       operand->node = &node;
       t_read_tk( task );
    }
-   // Inline import.
-   else if ( task->tk == TK_IMPORT ) {
+   // Global region.
+   else if ( task->tk == TK_UPMOST ) {
+      static struct node node = { NODE_REGION_UPMOST };
+      operand->node = &node;
       t_read_tk( task );
-      t_test_tk( task, TK_DOT );
-      t_read_tk( task );
-      struct path* path = t_read_path( task );
    }
    else if ( task->tk == TK_ID ) {
-      struct name_usage* usage = mem_alloc( sizeof( *usage ) );
+      struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
       usage->node.type = NODE_NAME_USAGE;
       usage->text = task->tk_text;
       usage->pos = task->tk_pos;
@@ -408,10 +424,11 @@ void read_primary( struct task* task, struct read_expr* expr,
    }
    // For now, the boolean literals will just be aliases to numeric constants.
    else if ( task->tk == TK_TRUE || task->tk == TK_FALSE ) {
-      struct literal* literal = mem_alloc( sizeof( *literal ) );
+      struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
       literal->node.type = NODE_LITERAL;
       literal->pos = task->tk_pos;
       literal->value = 0;
+      literal->is_bool = true;
       if ( task->tk == TK_TRUE ) {
          literal->value = 1;
       }
@@ -422,10 +439,11 @@ void read_primary( struct task* task, struct read_expr* expr,
       read_string( task, expr, operand );
    }
    else {
-      struct literal* literal = mem_alloc( sizeof( *literal ) );
+      struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
       literal->node.type = NODE_LITERAL;
       literal->pos = task->tk_pos;
       literal->value = t_read_literal( task );
+      literal->is_bool = false;
       operand->node = ( struct node* ) literal;
    }
 }
@@ -434,18 +452,20 @@ void read_string( struct task* task, struct read_expr* expr,
    struct read* operand ) {
    t_test_tk( task, TK_LIT_STRING );
    struct indexed_string* prev = NULL;
-   struct indexed_string* string = task->str_table.head;
+   struct indexed_string* string = task->str_table.head_sorted;
    while ( string ) {
-      int cmp = strcmp( string->value, task->tk_text );
-      if ( cmp == 0 ) {
+      int result = strcmp( string->value, task->tk_text );
+      if ( result == 0 ) {
          break;
       }
-      else if ( cmp > 0 ) {
+      else if ( result > 0 ) {
          string = NULL;
          break;
       }
-      prev = string;
-      string = string->next;
+      else {
+         prev = string;
+         string = string->next_sorted;
+      }
    }
    if ( ! string ) {
       void* block = mem_alloc(
@@ -455,24 +475,34 @@ void read_string( struct task* task, struct read_expr* expr,
       memcpy( string->value, task->tk_text, task->tk_length );
       string->value[ task->tk_length ] = 0;
       string->length = task->tk_length;
-      string->index = 0;
+      string->index = task->str_table.size;
       string->next = NULL;
-      string->usage = 0;
+      string->next_sorted = NULL;
+      string->used = false;
       ++task->str_table.size;
-      if ( prev ) {
-         string->next = prev->next;
-         prev->next = string;
+      // Normal insert.
+      if ( task->str_table.head ) {
+         task->str_table.tail->next = string;
       }
       else {
-         string->next = task->str_table.head;
          task->str_table.head = string;
       }
+      task->str_table.tail = string;
+      // Sorted insert.
+      if ( prev ) {
+         string->next_sorted = prev->next_sorted;
+         prev->next_sorted = string;
+      }
+      else {
+         string->next_sorted = task->str_table.head_sorted;
+         task->str_table.head_sorted = string;
+      }
    }
-   struct indexed_string_usage* usage = mem_alloc( sizeof( *usage ) );
+   struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
    usage->node.type = NODE_INDEXED_STRING_USAGE;
    usage->pos = task->tk_pos;
    usage->string = string;
-   operand->node = ( struct node* ) usage;
+   operand->node = &usage->node;
    expr->has_str = true;
    t_read_tk( task );
 }
@@ -563,16 +593,7 @@ void read_call( struct task* task, struct read_expr* expr,
    int count = 0;
    // Format list:
    if ( task->tk == TK_ID && t_peek( task ) == TK_COLON ) {
-      while ( true ) {
-         list_append( &args, t_read_format_item( task, TK_COLON ) );
-         if ( task->tk == TK_COMMA ) {
-            t_read_tk( task );
-         }
-         else {
-            break;
-         }
-      }
-      // All format items count as a single argument.
+      list_append( &args, t_read_format_item( task, true ) );
       ++count;
       if ( task->tk == TK_SEMICOLON ) {
          t_read_tk( task );
@@ -592,20 +613,17 @@ void read_call( struct task* task, struct read_expr* expr,
       }
    }
    // Format block:
-   else if ( task->tk == TK_FORMAT ) {
-      struct format_block_arg* arg = mem_alloc( sizeof( *arg ) );
-      arg->node.type = NODE_FORMAT_BLOCK_ARG;
-      arg->name = NULL;
-      arg->format_block = NULL;
-      arg->pos = task->tk_pos;
+   else if ( task->tk == TK_BRACE_L ) {
+      struct format_block_usage* usage = mem_alloc( sizeof( *usage ) );
+      usage->node.type = NODE_FORMAT_BLOCK_USAGE;
+      usage->block = NULL;
+      usage->next = NULL;
+      usage->pos = task->tk_pos;
+      usage->obj_pos = 0;
+      list_append( &args, usage );
       t_read_tk( task );
-      // Named format block.
-      if ( task->tk == TK_ID ) {
-         arg->name = t_make_name( task, task->tk_text, task->module->body );
-         arg->pos = task->tk_pos;
-         t_read_tk( task );
-      }
-      list_append( &args, arg );
+      t_test_tk( task, TK_BRACE_R );
+      t_read_tk( task );
       if ( task->tk == TK_SEMICOLON ) {
          t_read_tk( task );
          while ( true ) {
@@ -658,46 +676,74 @@ void read_call( struct task* task, struct read_expr* expr,
    operand->node = ( struct node* ) call;
 }
 
-struct format_item* t_read_format_item( struct task* task, enum tk sep ) {
-   t_test_tk( task, TK_ID );
-   struct format_item* item = mem_alloc( sizeof( *item ) );
-   item->node.type = NODE_FORMAT_ITEM;
-   item->pos = task->tk_pos;
-   bool unknown = false;
-   switch ( task->tk_text[ 0 ] ) {
-   case 'a': item->cast = FCAST_ARRAY; break;
-   case 'b': item->cast = FCAST_BINARY; break;
-   case 'c': item->cast = FCAST_CHAR; break;
-   case 'd':
-   case 'i': item->cast = FCAST_DECIMAL; break;
-   case 'f': item->cast = FCAST_FIXED; break;
-   case 'k': item->cast = FCAST_KEY; break;
-   case 'l': item->cast = FCAST_LOCAL_STRING; break;
-   case 'n': item->cast = FCAST_NAME; break;
-   case 's': item->cast = FCAST_STRING; break;
-   case 'x': item->cast = FCAST_HEX; break;
-   default:
-      unknown = true;
-      break;
+struct format_item* t_read_format_item( struct task* task, bool colon ) {
+   struct format_item* head = NULL;
+   struct format_item* tail;
+   while ( true ) {
+      t_test_tk( task, TK_ID );
+      struct format_item* item = mem_alloc( sizeof( *item ) );
+      item->node.type = NODE_FORMAT_ITEM;
+      item->cast = FCAST_DECIMAL;
+      item->pos = task->tk_pos;
+      item->next = NULL;
+      item->expr = NULL;
+      bool unknown = false;
+      switch ( task->tk_text[ 0 ] ) {
+      case 'a': item->cast = FCAST_ARRAY; break;
+      case 'b': item->cast = FCAST_BINARY; break;
+      case 'c': item->cast = FCAST_CHAR; break;
+      case 'd':
+      case 'i': break;
+      case 'f': item->cast = FCAST_FIXED; break;
+      case 'k': item->cast = FCAST_KEY; break;
+      case 'l': item->cast = FCAST_LOCAL_STRING; break;
+      case 'n': item->cast = FCAST_NAME; break;
+      case 's': item->cast = FCAST_STRING; break;
+      case 'x': item->cast = FCAST_HEX; break;
+      default:
+         unknown = true;
+         break;
+      }
+      if ( unknown || task->tk_length != 1 ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &task->tk_pos, "unknown format cast `%s`", task->tk_text );
+         t_bail( task );
+      }
+      t_read_tk( task );
+      // In a format block, only the `:=` separator is allowed, because `:`
+      // will conflict with a goto label.
+      if ( colon ) {
+         t_test_tk( task, TK_COLON );
+         t_read_tk( task );
+      }
+      else {
+         t_test_tk( task, TK_ASSIGN_COLON );
+         t_read_tk( task );
+      }
+      struct read_expr expr;
+      t_init_read_expr( &expr );
+      t_read_expr( task, &expr );
+      item->expr = expr.node;
+      if ( head ) {
+         tail->next = item;
+      }
+      else {
+         head = item;
+      }
+      tail = item;
+      if ( task->tk == TK_COMMA ) {
+         t_read_tk( task );
+      }
+      else {
+         return head;
+      }
    }
-   if ( unknown || task->tk_length != 1 ) {
-      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &task->tk_pos, "unknown format cast '%s'", task->tk_text );
-      t_bail( task );
-   }
-   t_read_tk( task );
-   t_test_tk( task, sep );
-   t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   item->expr = expr.node;
-   return item;
 }
 
 void t_init_expr_test( struct expr_test* test ) {
    test->stmt_test = NULL;
    test->format_block = NULL;
+   test->format_block_usage = NULL;
    test->needed = true;
    test->has_string = false;
    test->undef_err = false;
@@ -708,14 +754,14 @@ void t_test_expr( struct task* task, struct expr_test* test,
    struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
       struct operand operand;
-      init_operand( &operand, task->module->body );
+      init_operand( &operand, task->region->body );
       test_node( task, test, &operand, expr->root );
       expr->folded = operand.folded;
       expr->value = operand.value;
       test->pos = operand.pos;
       if ( test->needed && ! operand.is_value ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &operand.pos,
-            "expression does not produce a value" );
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &operand.pos, "expression does not produce a value" );
          t_bail( task );
       }
    }
@@ -725,13 +771,13 @@ void init_operand( struct operand* operand, struct name* offset ) {
    operand->func = NULL;
    operand->dim = NULL;
    operand->type = NULL;
-   operand->module = NULL;
-   operand->package = NULL;
+   operand->region = NULL;
+   operand->name_offset = offset;
+   operand->state = STATE_CHECK;
    operand->value = 0;
    operand->is_value = false;
    operand->is_space = false;
    operand->folded = false;
-   operand->name_offset = offset;
 }
 
 void test_node( struct task* task, struct expr_test* test,
@@ -742,186 +788,65 @@ void test_node( struct task* task, struct expr_test* test,
       operand->folded = true;
       operand->value = literal->value;
       operand->is_value = true;
+      operand->type = task->type_int;
+      if ( literal->is_bool ) {
+         operand->type = task->type_bool;
+      }
    }
    else if ( node->type == NODE_INDEXED_STRING_USAGE ) {
       struct indexed_string_usage* usage =
          ( struct indexed_string_usage* ) node;
       operand->pos = usage->pos;
       operand->folded = true;
-      operand->value = 0;
+      operand->value = usage->string->index;
       operand->is_value = true;
+      operand->type = task->type_str;
+      test->has_string = true;
    }
    else if ( node->type == NODE_NAME_USAGE ) {
       test_name_usage( task, test, operand, ( struct name_usage* ) node );
    }
    else if ( node->type == NODE_UNARY ) {
-      struct unary* unary = ( struct unary* ) node;
-      struct operand target;
-      init_operand( &target, operand->name_offset );
-      test_node( task, test, &target, unary->operand );
-      if ( unary->op == UOP_PRE_INC || unary->op == UOP_PRE_DEC ||
-         unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
-         // Only an l-value can be incremented.
-         if ( ! target.is_space ) {
-            const char* action = "incremented";
-            if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
-               action = "decremented";
-            }
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &target.pos, "operand cannot be %s", action );
-            t_bail( task );
-         }
-      }
-      // Remaining operations require a value to work on.
-      else if ( ! target.is_value ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &target.pos, "operand cannot be used in unary operation" );
-         t_bail( task );
-      }
-      if ( target.folded ) {
-         switch ( unary->op ) {
-         case UOP_MINUS:
-            operand->value = ( - target.value );
-            break;
-         case UOP_PLUS:
-            operand->value = target.value;
-            break;
-         case UOP_LOG_NOT:
-            operand->value = ( ! target.value );
-            break;
-         case UOP_BIT_NOT:
-            operand->value = ( ~ target.value );
-            break;
-         default:
-            break;
-         }
-         operand->folded = true;
-      }
-      operand->pos = target.pos;
-      operand->is_value = true;
+      test_unary( task, test, operand, ( struct unary* ) node );
    }
    else if ( node->type == NODE_SUBSCRIPT ) {
-      struct subscript* subscript = ( struct subscript* ) node;
-      struct operand target;
-      init_operand( &target, operand->name_offset );
-      test_node( task, test, &target, subscript->lside );
-      if ( ! target.dim ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &subscript->pos,
-            "accessing something not an array" );
-         t_bail( task );
-      }
-      struct operand index;
-      init_operand( &index, operand->name_offset );
-      test_node( task, test, &index, subscript->index );
-      operand->pos = target.pos;
-      operand->type = target.type;
-      operand->dim = target.dim->next;
-      if ( ! operand->dim ) {
-         operand->is_space = true;
-         operand->is_value = true;
-      }
+      test_subscript( task, test, operand, ( struct subscript* ) node );
    }
    else if ( node->type == NODE_CALL ) {
       test_call( task, test, operand, ( struct call* ) node );
    }
    else if ( node->type == NODE_BINARY ) {
-      struct binary* binary = ( struct binary* ) node;
-      struct operand lside;
-      init_operand( &lside, operand->name_offset );
-      test_node( task, test, &lside, binary->lside );
-      if ( ! lside.is_value ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
-            "left side of binary operation not a value" );
-         t_bail( task );
-      }
-      struct operand rside;
-      init_operand( &rside, operand->name_offset );
-      test_node( task, test, &rside, binary->rside );
-      if ( ! rside.is_value ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
-            "right side of binary operation not a value" );
-         t_bail( task );
-      }
-      operand->pos = binary->pos;
-      if ( lside.folded && rside.folded ) {
-         int l = lside.value;
-         int r = rside.value;
-         // Division and modulo get special treatment because of the possibility
-         // of a division by zero.
-         if ( ( binary->op == BOP_DIV || binary->op == BOP_MOD ) && ! r ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
-               "division by zero" );
-            t_bail( task );
-         }
-         switch ( binary->op ) {
-         case BOP_MOD: l %= r; break;
-         case BOP_MUL: l *= r; break;
-         case BOP_DIV: l /= r; break;
-         case BOP_ADD: l += r; break;
-         case BOP_SUB: l -= r; break;
-         case BOP_SHIFT_R: l >>= r; break;
-         case BOP_SHIFT_L: l <<= r; break;
-         case BOP_GTE: l = l >= r; break;
-         case BOP_GT: l = l > r; break;
-         case BOP_LTE: l = l <= r; break;
-         case BOP_LT: l = l < r; break;
-         case BOP_NEQ: l = l != r; break;
-         case BOP_EQ: l = l == r; break;
-         case BOP_BIT_AND: l = l & r; break;
-         case BOP_BIT_XOR: l = l ^ r; break;
-         case BOP_BIT_OR: l = l | r; break;
-         case BOP_LOG_AND: l = l && r; break;
-         case BOP_LOG_OR: l = l || r; break;
-         default: break;
-         }
-         operand->value = l;
-         operand->folded = true;
-      }
-      operand->is_value = true;
+      test_binary( task, test, operand, ( struct binary* ) node );
    }
    else if ( node->type == NODE_ASSIGN ) {
-      struct assign* assign = ( struct assign* ) node;
-      struct operand lside;
-      init_operand( &lside, operand->name_offset );
-      test_node( task, test, &lside, assign->lside );
-      if ( ! lside.is_space ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lside.pos,
-            "cannot assign to operand" );
-         t_bail( task );
-      }
-      struct operand rside;
-      init_operand( &rside, operand->name_offset );
-      test_node( task, test, &rside, assign->rside );
-      if ( ! rside.is_value ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
-            "right side of assignment is not a value" );
-         t_bail( task );
-      }
-      operand->is_value = true;
+      test_assign( task, test, operand, ( struct assign* ) node );
    }
    else if ( node->type == NODE_ACCESS ) {
       test_access( task, test, operand, ( struct access* ) node );
+   }
+   else if ( node->type == NODE_REGION_SELF ) {
+      operand->region = task->region;
+   }
+   else if ( node->type == NODE_REGION_UPMOST ) {
+      operand->region = task->region_global;
    }
    else if ( node->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) node;
       test_node( task, test, operand, paren->inside );
       operand->pos = paren->pos;
    }
-   else if ( node->type == NODE_MODULE_SELF ) {
-      operand->module = task->module;
-   }
 }
 
 void test_name_usage( struct task* task, struct expr_test* test,
    struct operand* operand, struct name_usage* usage ) {
-   struct name* name = t_make_name( task, usage->text, task->module->body );
+   struct name* name = t_make_name( task, usage->text, task->region->body );
    struct object* object = name->object;
    // Try the linked modules.
    if ( ! object ) {
-      struct module_link* link = task->module->links;
+      struct region_link* link = task->region->link;
       while ( link ) {
-         name = t_make_name( task, usage->text, link->module->body );
-         object = t_get_module_object( task, link->module, name );
+         name = t_make_name( task, usage->text, link->region->body );
+         object = t_get_region_object( task, link->region, name );
          link = link->next;
          if ( object ) {
             break;
@@ -931,7 +856,7 @@ void test_name_usage( struct task* task, struct expr_test* test,
       int dup = 0;
       while ( link ) {
          struct name* other_name = t_make_name( task, usage->text,
-            link->module->body );
+            link->region->body );
          if ( other_name->object ) {
             if ( ! dup ) {
                t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
@@ -974,8 +899,8 @@ void test_name_usage( struct task* task, struct expr_test* test,
 
 void use_object( struct task* task, struct operand* operand,
    struct object* object ) {
-   if ( object->node.type == NODE_MODULE ) {
-      operand->module = ( struct module* ) object;
+   if ( object->node.type == NODE_REGION ) {
+      operand->region = ( struct region* ) object;
    }
    else if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
@@ -994,6 +919,13 @@ void use_object( struct task* task, struct operand* operand,
       else if ( var->type->primitive ) {
          operand->is_value = true;
          operand->is_space = true;
+      }
+      // Keep track of how the variable is used.
+      if ( operand->state == STATE_CHECK ) {
+         var->state_checked = true;
+      }
+      else {
+         var->state_changed = true;
       }
    }
    else if ( object->node.type == NODE_TYPE_MEMBER ) {
@@ -1028,11 +960,79 @@ void use_object( struct task* task, struct operand* operand,
       struct alias* alias = ( struct alias* ) object;
       use_object( task, operand, alias->target );
    }
-   else if ( object->node.type == NODE_MODULE ) {
-      operand->module = ( struct module* ) object;
+}
+
+void test_unary( struct task* task, struct expr_test* test,
+   struct operand* operand, struct unary* unary ) {
+   struct operand target;
+   init_operand( &target, operand->name_offset );
+   target.state = STATE_CHANGE;
+   // target.state_access = true;
+   // target.state_update = true;
+   test_node( task, test, &target, unary->operand );
+   if ( unary->op == UOP_PRE_INC || unary->op == UOP_PRE_DEC ||
+      unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
+      // Only an l-value can be incremented.
+      if ( ! target.is_space ) {
+         const char* action = "incremented";
+         if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
+            action = "decremented";
+         }
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &target.pos, "operand cannot be %s", action );
+         t_bail( task );
+      }
    }
-   else if ( object->node.type == NODE_PACKAGE ) {
-      operand->package = ( struct package* ) object;
+   else {
+      // Remaining operations require a value to work on.
+      if ( ! target.is_value ) {
+         t_diag( task, DIAG_POS_ERR, &target.pos,
+            "operand cannot be used in unary operation" );
+         t_bail( task );
+      }
+   }
+   if ( target.folded ) {
+      switch ( unary->op ) {
+      case UOP_MINUS:
+         operand->value = ( - target.value );
+         break;
+      case UOP_PLUS:
+         operand->value = target.value;
+         break;
+      case UOP_LOG_NOT:
+         operand->value = ( ! target.value );
+         break;
+      case UOP_BIT_NOT:
+         operand->value = ( ~ target.value );
+         break;
+      default:
+         break;
+      }
+      operand->folded = true;
+   }
+   operand->pos = target.pos;
+   operand->is_value = true;
+}
+
+void test_subscript( struct task* task, struct expr_test* test,
+   struct operand* operand, struct subscript* subscript ) {
+   struct operand target;
+   init_operand( &target, operand->name_offset );
+   test_node( task, test, &target, subscript->lside );
+   if ( ! target.dim ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &subscript->pos,
+         "accessing something not an array" );
+      t_bail( task );
+   }
+   struct operand index;
+   init_operand( &index, operand->name_offset );
+   test_node( task, test, &index, subscript->index );
+   operand->pos = target.pos;
+   operand->type = target.type;
+   operand->dim = target.dim->next;
+   if ( ! operand->dim ) {
+      operand->is_space = true;
+      operand->is_value = true;
    }
 }
 
@@ -1067,39 +1067,31 @@ void test_call( struct task* task, struct expr_test* test,
          node = list_data( &i );
       }
       if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
-         node->type != NODE_FORMAT_BLOCK_ARG ) ) {
+         node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &call->pos,
             "function call missing format argument" );
          t_bail( task );
       }
       // Format-block:
-      if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
-         struct format_block_arg* arg = ( struct format_block_arg* ) node;
-         // Named format-block.
-         if ( arg->name ) {
-            if ( ! arg->name->object ||
-               arg->name->object->node.type != NODE_FORMAT_BLOCK ) {
-               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &arg->pos,
-                  "format block not found" );
-               t_bail( task );
-            }
-            struct format_block* format_block =
-               ( struct format_block* ) arg->name->object;
-            arg->format_block = format_block->block;
+      if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
+         if ( ! test->format_block ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &call->pos, "function call missing format block" );
+            t_bail( task );
          }
-         // Format-block attached to expression.
+         struct format_block_usage* usage =
+            ( struct format_block_usage* ) node;
+         usage->block = test->format_block;
+         struct format_block_usage* prev = test->format_block_usage;
+         while ( prev && prev->next ) {
+            prev = prev->next;
+         }
+         if ( prev ) {
+            prev->next = usage;
+         }
          else {
-            arg->format_block = test->format_block;
-            if ( ! arg->format_block ) {
-               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-                  &call->pos, "function call missing format block" );
-               t_bail( task );
-            }
+            test->format_block_usage = usage;
          }
-         struct stmt_test stmt_test;
-         t_init_stmt_test( &stmt_test, test->stmt_test );
-         stmt_test.format_block = arg->format_block;
-         t_test_block( task, &stmt_test, stmt_test.format_block );
          list_next( &i );
       }
       // Format-list:
@@ -1128,10 +1120,11 @@ void test_call( struct task* task, struct expr_test* test,
                "passing format item to non-format function" );
             t_bail( task );
          }
-         else if ( node->type == NODE_FORMAT_BLOCK_ARG ) {
-            struct format_block_arg* arg = ( struct format_block_arg* ) node;
+         else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
+            struct format_block_usage* usage =
+               ( struct format_block_usage* ) node;
             t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &arg->pos, "passing format block to non-format function" );
+               &usage->pos, "passing format block to non-format function" );
             t_bail( task );
          }
       }
@@ -1158,9 +1151,11 @@ void test_call( struct task* task, struct expr_test* test,
       if ( callee.func->min_param != 1 ) {
          s = "s";
       }
-      t_copy_name( callee.func->name, false, &task->str );
+      struct str str;
+      str_init( &str );
+      t_copy_name( callee.func->name, false, &str );
       t_diag( task, DIAG_FILE, &call->pos, "function `%s` needs %s%d argument%s",
-         task->str.value, at_least, callee.func->min_param, s );
+         str.value, at_least, callee.func->min_param, s );
       t_bail( task );
    }
    else if ( count > callee.func->max_param ) {
@@ -1174,23 +1169,41 @@ void test_call( struct task* task, struct expr_test* test,
       if ( callee.func->max_param != 1 ) {
          s = "s";
       }
-      t_copy_name( callee.func->name, false, &task->str );
+      struct str str;
+      str_init( &str );
+      t_copy_name( callee.func->name, false, &str );
       t_diag( task, DIAG_FILE, &call->pos,
          "function `%s` takes %s%d argument%s",
-         task->str.value, up_to, callee.func->max_param, s );
+         str.value, up_to, callee.func->max_param, s );
       t_bail( task );
    }
-   // Call to a latent function cannot appear in a function or a format block.
+   // Call to a latent function cannot occur in a function or a format block.
    if ( callee.func->type == FUNC_DED ) {
       struct func_ded* impl = callee.func->impl;
-      if ( impl->latent && task->in_func ) {
-         t_copy_name( callee.func->name, false, &task->str );
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &callee.pos,
-            "calling a latent function inside a function" );
-         t_diag( task, DIAG_FILE, &callee.pos,
-         "waiting functions like `%s` can only be called inside a script",
-         task->str.value );
-         t_bail( task );
+      if ( impl->latent ) {
+         if ( task->in_func ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &callee.pos,
+               "calling latent function inside function body" );       
+            struct str str;
+            str_init( &str );
+            t_copy_name( callee.func->name, false, &str );
+            t_diag( task, DIAG_FILE, &callee.pos,
+               "waiting functions like `%s` can only be called inside a script",
+               str.value );
+            t_bail( task );
+         }
+         // Waiting function cannot be called from inside a format block.
+         struct stmt_test* stmt = test->stmt_test;
+         while ( stmt && ! stmt->format_block ) {
+            stmt = stmt->parent;
+         }
+         if ( stmt ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &callee.pos,
+               "calling latent function inside format block" );  
+            t_bail( task ); 
+         }
       }
    }
    call->func = callee.func;
@@ -1201,29 +1214,111 @@ void test_call( struct task* task, struct expr_test* test,
    }
 }
 
+void test_binary( struct task* task, struct expr_test* test,
+   struct operand* operand, struct binary* binary ) {
+   struct operand lside;
+   init_operand( &lside, operand->name_offset );
+   test_node( task, test, &lside, binary->lside );
+   if ( ! lside.is_value ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
+         "left side of binary operation not a value" );
+      t_bail( task );
+   }
+   struct operand rside;
+   init_operand( &rside, operand->name_offset );
+   test_node( task, test, &rside, binary->rside );
+   if ( ! rside.is_value ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &binary->pos,
+         "right side of binary operation not a value" );
+      t_bail( task );
+   }
+   operand->pos = binary->pos;
+   if ( lside.folded && rside.folded ) {
+      int l = lside.value;
+      int r = rside.value;
+      // Division and modulo get special treatment because of the possibility
+      // of a division by zero.
+      if ( ( binary->op == BOP_DIV || binary->op == BOP_MOD ) && ! r ) {
+         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
+            "division by zero" );
+         t_bail( task );
+      }
+      switch ( binary->op ) {
+      case BOP_MOD: l %= r; break;
+      case BOP_MUL: l *= r; break;
+      case BOP_DIV: l /= r; break;
+      case BOP_ADD: l += r; break;
+      case BOP_SUB: l -= r; break;
+      case BOP_SHIFT_R: l >>= r; break;
+      case BOP_SHIFT_L: l <<= r; break;
+      case BOP_GTE: l = l >= r; break;
+      case BOP_GT: l = l > r; break;
+      case BOP_LTE: l = l <= r; break;
+      case BOP_LT: l = l < r; break;
+      case BOP_NEQ: l = l != r; break;
+      case BOP_EQ: l = l == r; break;
+      case BOP_BIT_AND: l = l & r; break;
+      case BOP_BIT_XOR: l = l ^ r; break;
+      case BOP_BIT_OR: l = l | r; break;
+      case BOP_LOG_AND: l = l && r; break;
+      case BOP_LOG_OR: l = l || r; break;
+      default: break;
+      }
+      operand->value = l;
+      operand->folded = true;
+   }
+   operand->is_value = true;
+}
+
+void test_assign( struct task* task, struct expr_test* test,
+   struct operand* operand, struct assign* assign ) {
+   struct operand lside;
+   init_operand( &lside, operand->name_offset );
+   lside.state = STATE_CHANGE;
+   test_node( task, test, &lside, assign->lside );
+   if ( ! lside.is_space ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lside.pos,
+         "cannot assign to operand" );
+      t_bail( task );
+   }
+   struct operand rside;
+   init_operand( &rside, operand->name_offset );
+   test_node( task, test, &rside, assign->rside );
+   if ( ! rside.is_value ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &rside.pos,
+         "right side of assignment is not a value" );
+      t_bail( task );
+   }
+   operand->is_value = true;
+   operand->type = lside.type;
+}
+
 void t_test_format_item( struct task* task, struct format_item* item,
    struct stmt_test* stmt_test, struct name* name_offset,
    struct block* format_block ) {
-   struct expr_test expr_test;
-   t_init_expr_test( &expr_test );
-   expr_test.stmt_test = stmt_test;
-   expr_test.undef_err = true;
-   expr_test.format_block = format_block;
-   expr_test.needed = true;
-   struct operand arg;
-   init_operand( &arg, name_offset );
-   test_node( task, &expr_test, &arg, item->expr->root );
-   if ( item->cast == FCAST_ARRAY ) {
-      if ( ! arg.dim ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &arg.pos, "argument not an array" );
-         t_bail( task );
+   while ( item ) {
+      struct expr_test expr_test;
+      t_init_expr_test( &expr_test );
+      expr_test.stmt_test = stmt_test;
+      expr_test.undef_err = true;
+      expr_test.format_block = format_block;
+      expr_test.needed = true;
+      struct operand arg;
+      init_operand( &arg, name_offset );
+      test_node( task, &expr_test, &arg, item->expr->root );
+      if ( item->cast == FCAST_ARRAY ) {
+         if ( ! arg.dim ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &arg.pos, "argument not an array" );
+            t_bail( task );
+         }
+         else if ( arg.dim->next ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &arg.pos, "array argument not of a single dimension" );
+            t_bail( task );
+         }
       }
-      else if ( arg.dim->next ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &arg.pos, "array argument not of a single dimension" );
-         t_bail( task );
-      }
+      item = item->next;
    }
 }
 
@@ -1251,16 +1346,12 @@ struct name* t_make_module_name( struct task* task, struct module* module,
 void test_access( struct task* task, struct expr_test* test,
    struct operand* operand, struct access* access ) {
    struct type* type = NULL;
-   struct module* module = NULL;
-   struct package* package = NULL;
+   struct region* region = NULL;
    struct operand lside;
    init_operand( &lside, operand->name_offset );
    test_node( task, test, &lside, access->lside );
-   if ( lside.module ) {
-      module = lside.module;
-   }
-   else if ( lside.package ) {
-      package = lside.package;
+   if ( lside.region ) {
+      region = lside.region;
    }
    else if ( lside.type && ! lside.dim ) {
       type = lside.type;
@@ -1274,33 +1365,22 @@ void test_access( struct task* task, struct expr_test* test,
    if ( type ) {
       name_offset = type->body;
    }
-   else if ( package ) {
-      name_offset = package->body;
-   }
    else {
-      name_offset = module->body;
+      name_offset = region->body;
    }
    struct name* name = t_make_name( task, access->name, name_offset );
    struct object* object = name->object;
-   if ( module || package ) {
-      if ( ! module ) {
-         module = task->module;
-      }
-      object = t_get_module_object( task, module, name );
+   if ( region ) {
+      object = t_get_region_object( task, region, name );
    }
    if ( ! object ) {
       if ( ! test->undef_err ) {
          test->undef_erred = true;
          longjmp( test->bail, 0 );
       }
-      if ( package ) {
+      if ( region ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
-            "`%s` not found in package", access->name );
-         t_bail( task );
-      }
-      else if ( module ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
-            "`%s` not found in module", access->name );
+            "`%s` not found in region", access->name );
          t_bail( task );
       }
       else if ( type ) {
@@ -1309,10 +1389,12 @@ void test_access( struct task* task, struct expr_test* test,
          if ( ! type->primitive ) {
             subject = "struct";
          }
-         t_copy_name( type->name, false, &task->str );
+         struct str str;
+         str_init( &str );
+         t_copy_name( type->name, false, &str );
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &access->pos,
             "member `%s` not found in %s `%s`", access->name, subject,
-            task->str.value );
+            str.value );
          t_bail( task );
       }
    }

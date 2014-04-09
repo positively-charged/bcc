@@ -6,6 +6,7 @@
 
 void* mem_alloc( size_t );
 void* mem_realloc( void*, size_t );
+void* mem_slot_alloc( size_t );
 void mem_free( void* );
 void mem_free_all( void );
 
@@ -122,11 +123,11 @@ bool c_read_identity( struct file_identity*, const char* path );
 bool c_same_identity( struct file_identity*, struct file_identity* );
 
 struct file {
-   struct file* prev;
    struct str path;
-   struct str load_path;
    struct file_identity identity;
-   bool one_copy;
+int a;
 };
+
+int alignpad( int size, int align_size );
 
 #endif

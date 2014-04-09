@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+#define MAX_MODULE_NAME_LENGTH 8
+
 // Token types.
 enum tk {
    // 0
@@ -114,14 +116,13 @@ enum tk {
    TK_SUSPEND,
    TK_TERMINATE,
    TK_FUNCTION,
-   TK_NL,
-   TK_MODULE,
    TK_IMPORT,
+   TK_REGION,
+   TK_UPMOST,
    TK_GOTO,
    TK_TRUE,
    // 100
-   TK_FALSE,
-   TK_FORMAT
+   TK_FALSE
 };
 
 struct pos {
@@ -152,7 +153,7 @@ struct node {
       NODE_FOR,
       NODE_CALL,
       NODE_FORMAT_ITEM,
-      NODE_INDEXED_STRING_USAGE,
+      NODE_FORMAT_BLOCK_USAGE,
       NODE_FUNC,
       NODE_ACCESS,
       NODE_PAREN,
@@ -176,15 +177,15 @@ struct node {
       NODE_PALTRANS,
       NODE_ALIAS,
       NODE_MODULE,
-      NODE_MODULE_SELF,
       NODE_IMPORT,
-      NODE_PACKAGE,
       NODE_NAME_USAGE,
-      NODE_FORMAT_EXPR,
-      NODE_FORMAT_BLOCK,
-      NODE_FORMAT_BLOCK_ARG,
-      NODE_PCODE,
-      NODE_PCODE_OFFSET
+      NODE_REGION,
+      NODE_REGION_SELF,
+      NODE_REGION_UPMOST,
+      // 40
+      NODE_SCRIPT,
+      NODE_PACKED_EXPR,
+      NODE_INDEXED_STRING_USAGE,
    } type;
 };
 
@@ -216,6 +217,8 @@ struct path {
    struct path* next;
    char* text;
    struct pos pos;
+   bool is_region;
+   bool is_upmost;
 };
 
 struct type {
@@ -224,7 +227,6 @@ struct type {
    struct name* body;
    struct type_member* member;
    struct type_member* member_tail;
-   struct pos pos;
    int size;
    int size_str;
    bool primitive;
@@ -256,6 +258,7 @@ struct literal {
    struct pos pos;
    struct type* type;
    int value;
+   bool is_bool;
 };
 
 struct unary {
@@ -350,12 +353,19 @@ struct expr {
    struct node* root;
    int value;
    bool folded;
+   bool has_str;
 };
 
 struct expr_link {
    struct node node;
    struct expr_link* next;
    struct expr* expr;
+};
+
+struct packed_expr {
+   struct node node;
+   struct expr* expr;
+   struct block* block;
 };
 
 struct jump {
@@ -382,14 +392,14 @@ struct script_jump {
 
 struct return_stmt {
    struct node node;
-   struct expr* expr;
-   struct format_expr* expr_format;
+   struct packed_expr* packed_expr;
    struct pos pos;
 };
 
 struct block {
    struct node node;
    struct list stmts;
+   struct pos pos;
 };
 
 struct if_stmt {
@@ -445,16 +455,17 @@ struct for_stmt {
 
 struct dim {
    struct dim* next;
+   // Number of elements.
+   struct expr* size_expr;
    int size;
-   int size_str;
-   int count;
-   struct expr* count_expr;
+   int element_size;
+   int element_size_str;
    struct pos pos;
 };
 
 struct initial {
    struct initial* next;
-   bool is_initz;
+   bool multi;
    bool tested;
 };
 
@@ -465,10 +476,9 @@ struct value {
    int index;
 };
 
-struct initz {
+struct multi_value {
    struct initial initial;
    struct initial* body;
-   struct initial* body_curr;
    struct pos pos;
    int padding;
    int padding_str;
@@ -493,7 +503,7 @@ struct var {
    int set;
    int get_offset;
    int set_offset;
-   bool initial_zero;
+   bool initz_zero;
    bool hidden;
    bool shared;
    bool shared_str;
@@ -501,6 +511,7 @@ struct var {
    bool state_changed;
    bool has_interface;
    bool use_interface;
+   bool initial_has_str;
 };
 
 struct param {
@@ -566,26 +577,16 @@ struct format_item {
       FCAST_TOTAL
    } cast;
    struct pos pos;
+   struct format_item* next;
    struct expr* expr;
 };
 
-struct format_expr {
+struct format_block_usage {
    struct node node;
-   struct expr* expr;
-   struct block* format_block;
-};
-
-struct format_block {
-   struct object object;
    struct block* block;
-   struct name* name;
-};
-
-struct format_block_arg {
-   struct node node;
-   struct name* name;
-   struct block* format_block;
+   struct format_block_usage* next;
    struct pos pos;
+   int obj_pos;
 };
 
 // Format functions are dedicated functions and have their first parameter
@@ -602,12 +603,16 @@ struct func_user {
    int size;
    int usage;
    int obj_pos;
+   bool publish;
 };
 
 struct func_intern {
    enum {
       INTERN_FUNC_ACS_EXECWAIT,
-      INTERN_FUNC_TOTAL
+      INTERN_FUNC_STANDALONE_TOTAL,
+      INTERN_FUNC_STR_LENGTH = INTERN_FUNC_STANDALONE_TOTAL,
+      INTERN_FUNC_STR_AT,
+      INTERN_FUNC_MEMBER_TOTAL
    } id;
 };
 
@@ -660,6 +665,7 @@ struct goto_stmt {
 };
 
 struct script {
+   struct node node;
    struct pos pos;
    struct expr* number;
    enum {
@@ -688,6 +694,7 @@ struct script {
    int offset;
    int size;
    bool tested;
+   bool publish;
 };
 
 struct alias {
@@ -711,10 +718,11 @@ struct constant_set {
 
 struct indexed_string {
    struct indexed_string* next;
+   struct indexed_string* next_sorted;
    char* value;
    int length;
    int index;
-   int usage;
+   bool used;
 };
 
 struct indexed_string_usage {
@@ -725,8 +733,25 @@ struct indexed_string_usage {
 
 struct str_table {
    struct indexed_string* head;
+   struct indexed_string* head_sorted;
    struct indexed_string* tail;
    int size;
+};
+
+struct region {
+   struct object object;
+   struct name* name;
+   struct name* body;
+   struct name* body_struct;
+   struct region_link {
+      struct region_link* next;
+      struct region* region;
+      struct pos pos;
+   }* link;
+   struct object* unresolved;
+   struct object* unresolved_tail;
+   struct list imports;
+   struct list items;
 };
 
 struct module {
@@ -745,39 +770,25 @@ struct module {
       int count_max;
    } lines;
    char recover_ch;
+   struct file_identity identity;
+   struct str file_path;
+   struct list included;
+   int id;
+   bool read;
+};
+
+struct library {
    struct str name;
-   struct str package_name;
-   struct str lump;
-   struct name* body;
-   struct name* body_struct;
-   struct name* body_import;
+   struct list modules;
    struct list vars;
    struct list funcs;
    struct list scripts;
-   struct list items;
-   struct list imports;
-   struct list imported;
-   struct module_link* links;
-   struct object* unresolved;
-   struct object* unresolved_tail;
-   int ref_count;
-   int id;
-   bool read;
-   bool import_dirc;
-   // States whether to output the module into the object file.
+   // #included/#imported libraries.
+   struct list dynamic;
+   // Whether to output the library into the object file.
    bool publish;
-   // States whether the objects of the module can be used by another module.
+   // Whether the objects of the library can be used by another library.
    bool visible;
-   // States whether the module should be loaded at run time. This is the
-   // opposite of the "publish" field.
-   bool dynamic;
-   bool dynamic_checked;
-   bool used;
-};
-
-struct module_link {
-   struct module* module;
-   struct module_link* next;
 };
 
 struct module_self {
@@ -785,44 +796,14 @@ struct module_self {
    struct pos pos;
 };
 
-struct module_alias {
-   struct object object;
-   struct module* module;
-};
-
-struct package {
-   struct object object;
-   struct str path;
-   struct str init_path;
-   struct str filename;
-   struct name* name;
-   struct name* body;
-   struct package* next;
-   int ref_count;
-};
-
 struct import {
    struct node node;
+   struct pos pos;
+   // When NULL, use global region.
    struct path* path;
-   struct path* alias;
-   struct import_item* items;
-   struct package* package;
-   struct package* package_last;
-   struct list modules;
+   // When NULL, it means make region link.
+   struct import_item* item;
    struct import* next;
-   enum {
-      IMPORT_NONE,
-      IMPORT_SELF,
-      IMPORT_DIRECT,
-      IMPORT_ALIAS,
-      IMPORT_SELECTIVE,
-      IMPORT_LINK
-   } type;
-   bool self;
-   bool link;
-   bool local;
-   bool from_package;
-   bool path_file;
 };
 
 struct import_item {
@@ -836,18 +817,6 @@ struct import_item {
    bool is_link;
 };
 
-struct pcode {
-   struct node node;
-   struct expr* opcode;
-   struct list args;
-};
-
-struct pcode_offset {
-   struct node node;
-   struct label* label;
-   int obj_pos;
-};
-
 struct dec {
    enum {
       DEC_TOP,
@@ -859,7 +828,6 @@ struct dec {
    struct pos pos;
    struct pos type_pos;
    struct pos storage_pos;
-   struct pos storage_index_pos;
    struct pos name_pos;
    const char* storage_name;
    struct type* type;
@@ -869,19 +837,22 @@ struct dec {
    struct name* name_offset;
    struct dim* dim;
    struct initial* initial;
+   struct stmt_read* stmt_read;
    struct list* vars;
    int storage;
    int storage_index;
    bool type_needed;
-   bool storage_given;
-   bool initial_str;
+   bool type_void;
+   bool type_struct;
+   bool initz_str;
    bool is_static;
+   bool leave;
 };
 
 struct stmt_read {
+   struct list* labels;
    struct block* block;
    struct node* node;
-   struct list* labels;
    int depth;
 };
 
@@ -894,7 +865,7 @@ struct stmt_test {
    struct case_label* case_default;
    struct jump* jump_break;
    struct jump* jump_continue;
-   struct import* imports;
+   struct import2* import;
    bool in_loop;
    bool in_switch;
    bool in_script;
@@ -913,6 +884,7 @@ struct expr_test {
    jmp_buf bail;
    struct stmt_test* stmt_test;
    struct block* format_block;
+   struct format_block_usage* format_block_usage;
    struct pos pos;
    bool needed;
    bool has_string;
@@ -1222,7 +1194,7 @@ enum {
    PC_SPAWN_PROJECTILE,
    PC_GET_SECTOR_LIGHT_LEVEL,
    PC_GET_ACTOR_CEILING_Z,
-   PC_GET_ACTOR_POSITION_Z,
+   PC_SET_ACTOR_POSITION,
    PC_CLEAR_ACTOR_INVENTORY,
    PC_GIVE_ACTOR_INVENTORY,
    PC_TAKE_ACTOR_INVENTORY,
@@ -1298,6 +1270,14 @@ enum {
 
 struct task {
    struct options* options;
+   FILE* err_file;
+   jmp_buf* bail;
+   int column;
+   struct {
+      struct token buffer[ TK_BUFFER_SIZE ];
+      struct str text;
+      int peeked;
+   } tokens;
    char ch;
    enum tk tk;
    struct pos tk_pos;
@@ -1307,26 +1287,26 @@ struct task {
    // text will be NULL and the length will be zero.
    char* tk_text;
    int tk_length;
-   struct stack paused;
-   struct list unloaded_files;
-   int peeked_length;
    struct str_table str_table;
    struct type* type_int;
    struct type* type_str;
    struct type* type_bool;
+   struct region* region;
+   struct region* region_global;
    // Module currently being worked on. Could be the main module, or an
    // imported module.
    struct module* module;
-   struct module* module_importer;
    // Module requested by the user to be compiled.
    struct module* module_main;
+   struct library* library;
+   struct library* library_main;
+   struct list libraries;
    struct name* root_name;
    struct name* anon_name;
    struct list loaded_modules;
+   struct list regions;
    struct list scripts;
-   struct str str;
    int depth;
-   int import_id;
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
@@ -1350,22 +1330,21 @@ struct task {
    bool push_immediate;
    struct block_walk* block_walk;
    struct block_walk* block_walk_free;
-   bool newline_tk;
-   struct {
-      struct token buffer[ TK_BUFFER_SIZE ];
-      struct str text;
-      int peeked;
-   } tokens;
-   jmp_buf* bail;
+};
+
+struct paused {
+   struct module* module;
+   char ch;
    int column;
-   FILE* err_file;
+   enum tk tk;
 };
 
 void t_init( struct task*, struct options*, jmp_buf* );
 void t_init_fields_dec( struct task* );
 void t_init_fields_chunk( struct task* );
 void t_init_fields_obj( struct task* );
-struct module* t_load_module( struct task*, const char*, const char* );
+struct module* t_load_module( struct task*, const char*, struct paused* );
+void t_resume_module( struct task*, struct paused* );
 void t_init_object( struct object*, int );
 void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
@@ -1378,7 +1357,7 @@ void t_read_block( struct task*, struct stmt_read* );
 struct name* t_make_name( struct task*, const char*, struct name* );
 void t_use_name( struct name*, struct object* );
 void t_read_script( struct task* );
-struct format_item* t_read_format_item( struct task*, enum tk sep );
+struct format_item* t_read_format_item( struct task*, bool colon );
 int t_read_literal( struct task* );
 void t_add_scope( struct task* );
 void t_pop_scope( struct task* );
@@ -1395,7 +1374,7 @@ void t_add_byte( struct task*, char );
 void t_add_short( struct task*, short );
 void t_add_int( struct task*, int );
 void t_add_int_zero( struct task*, int );
-// NOTE: Does not include the null character.
+// NOTE: Does not include the NUL character.
 void t_add_str( struct task*, const char* );
 void t_add_sized( struct task*, const void*, int size );
 void t_add_opc( struct task*, int );
@@ -1405,8 +1384,9 @@ int t_tell( struct task* );
 void t_flush( struct task* );
 void t_skip_to_tk( struct task*, enum tk );
 int t_get_script_number( struct script* );
-void t_write_func_content( struct task*, struct module* );
-void t_write_script_content( struct task*, struct list* );
+void t_publish_scripts( struct task*, struct list* );
+void t_publish_funcs( struct task*, struct list* );
+void t_pad4align( struct task* );
 void t_init_read_expr( struct read_expr* );
 void t_read_expr( struct task*, struct read_expr* );
 bool t_is_dec( struct task* );
@@ -1420,13 +1400,12 @@ void t_test_top_block( struct task*, struct stmt_test*, struct block* );
 void t_test_block( struct task*, struct stmt_test*, struct block* );
 void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
    struct name* name_offset, struct block* );
-struct object* t_get_module_object( struct task*, struct module*,
+struct object* t_get_region_object( struct task*, struct region*,
    struct name* );
 void diag_dup( struct task*, const char* text, struct pos*, struct name* );
 void diag_dup_struct( struct task*, struct name*, struct pos* );
 struct path* t_read_path( struct task* );
 void t_use_local_name( struct task*, struct name*, struct object* );
-void t_add_scope_import( struct task*, struct import* );
 enum tk t_peek( struct task* );
 enum tk t_peek_2nd( struct task* );
 
@@ -1438,9 +1417,12 @@ void t_print_name( struct name* );
 #define DIAG_COLUMN 0x4
 #define DIAG_WARN 0x8
 #define DIAG_ERR 0x10
+#define DIAG_POS_ERR DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 
 void t_diag( struct task*, int flags, ... );
 void t_bail( struct task* );
-void t_set_module( struct task*, struct module* );
+void t_read_region( struct task* );
+void t_read_import( struct task*, struct list* );
+void t_import( struct task*, struct import* );
 
 #endif

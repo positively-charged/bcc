@@ -5,6 +5,8 @@
 
 #include "task.h"
 
+static bool get_full_path( const char*, struct str* );
+static void get_dirname( struct str* );
 static enum tk peek( struct task*, int );
 static void read_token( struct task*, struct token* );
 static void read_ch( struct task* );
@@ -14,11 +16,58 @@ static const char* get_token_name( enum tk );
 static void make_pos( struct task*, struct pos*, struct file**, int*, int* );
 
 struct module* t_load_module( struct task* task, const char* path,
-   const char* name ) {
+   struct paused* paused ) {
+   struct module* module = NULL;
+   // Try path directly.
+   struct str file_path;
+   str_init( &file_path );
+   str_append( &file_path, path );
+   struct file_identity identity;
+   if ( c_read_identity( &identity, file_path.value ) ) {
+      goto load_file;
+   }
+   // Try directory of current file.
+   if ( task->module ) {
+      str_copy( &file_path, task->module->file_path.value,
+         task->module->file_path.length );
+      get_dirname( &file_path );
+      str_append( &file_path, "/" );
+      str_append( &file_path, path );
+      if ( c_read_identity( &identity, file_path.value ) ) {
+         goto load_file;
+      }
+   }
+   // Try user-specified directories.
+   list_iter_t i;
+   list_iter_init( &i, &task->options->includes );
+   while ( ! list_end( &i ) ) {
+      char* include = list_data( &i ); 
+      str_clear( &file_path );
+      str_append( &file_path, include );
+      str_append( &file_path, "/" );
+      str_append( &file_path, path );
+      if ( c_read_identity( &identity, file_path.value ) ) {
+         goto load_file;
+      }
+      list_next( &i );
+   }
+   // Error:
+   goto finish;
+   load_file:
+   // File should be loaded only once.
+   list_iter_init( &i, &task->loaded_modules );
+   while ( ! list_end( &i ) ) {
+      struct module* loaded = list_data( &i );
+      if ( c_same_identity( &identity, &loaded->identity ) ) {
+         module = loaded;
+         goto finish;
+      }
+      list_next( &i );
+   }
    // Load file.
-   FILE* fh = fopen( path, "rb" );
+   FILE* fh = fopen( file_path.value, "rb" );
    if ( ! fh ) {
-      return NULL;
+      goto finish;
    }
    struct file* file = mem_alloc( sizeof( *file ) );
    str_init( &file->path );
@@ -32,10 +81,14 @@ struct module* t_load_module( struct task* task, const char* path,
    ch[ size ] = 0;
    fclose( fh );
    // Create module.
-   struct module* module = mem_alloc( sizeof( *module ) );
+   module = mem_alloc( sizeof( *module ) );
    t_init_object( &module->object, NODE_MODULE );
    module->object.resolved = true;
+   module->identity = identity;
    module->file = file;
+   str_init( &module->file_path );
+   get_full_path( file_path.value, &module->file_path );
+   list_init( &module->included );
    module->ch = ch;
    module->ch_start = ch;
    module->ch_save = save_ch;
@@ -49,41 +102,87 @@ struct module* t_load_module( struct task* task, const char* path,
    // Column of the first line.
    module->lines.columns[ 0 ] = 0;
    module->lines.count = 1;
-   str_init( &module->name );
-   str_append( &module->name, name );
-   str_init( &module->package_name );
-   str_init( &module->lump );
    module->id = list_size( &task->loaded_modules );
-   module->body = NULL;
-   module->body_struct = NULL;
-   module->body_import = NULL;
-   list_init( &module->vars );
-   list_init( &module->funcs );
-   list_init( &module->scripts );
-   list_init( &module->items );
-   list_init( &module->imports );
-   list_init( &module->imported );
-   module->links = NULL;
-   module->unresolved = NULL;
-   module->unresolved_tail = NULL;
-   module->ref_count = 0;
-   module->import_dirc = false;
-   module->publish = false;
-   module->visible = false;
-   module->dynamic = false;
-   module->dynamic_checked = false;
    module->read = false;
-   module->used = false;
    list_append( &task->loaded_modules, module );
-   return module;
-}
-
-void t_set_module( struct task* task, struct module* module ) {
+   if ( paused ) {
+      paused->module = task->module;
+      paused->ch = task->ch;
+      paused->column = task->column;
+      paused->tk = task->tk;
+   }
    task->module = module;
    // Start at a hidden character. This is done do simplify the implementation
    // of the read_ch() function.
    task->ch = ' ';
    task->column = -1;
+   finish:
+   str_deinit( &file_path );
+   return module;
+}
+
+#if defined( _WIN32 ) || defined( _WIN64 )
+
+#include <windows.h>
+
+bool get_full_path( const char* path, struct str* str ) {
+   const int max_path = MAX_PATH + 1;
+   if ( str->buffer_length < max_path ) { 
+      str_grow( str, max_path );
+   }
+   str->length = GetFullPathName( path, max_path, str->value, NULL );
+   if ( GetFileAttributes( str->value ) != INVALID_FILE_ATTRIBUTES ) {
+      int i = 0;
+      while ( str->value[ i ] ) {
+         if ( str->value[ i ] == '\\' ) {
+            str->value[ i ] = '/';
+         }
+         ++i;
+      }
+      return true;
+   }
+   else {
+      return false;
+   }
+}
+
+#else
+
+#include <dirent.h>
+#include <sys/stat.h>
+
+bool get_full_path( const char* path, struct str* str ) {
+   str_grow( str, PATH_MAX + 1 );
+   if ( realpath( path, str->value ) ) {
+      str->length = strlen( str->value );
+      return true;
+   }
+   else {
+      return false;
+   }
+}
+
+#endif
+
+void get_dirname( struct str* path ) {
+   while ( true ) {
+      if ( path->length == 0 ) {
+         break;
+      }
+      --path->length;
+      char ch = path->value[ path->length ];
+      path->value[ path->length ] = 0;
+      if ( ch == '/' ) {
+         break;
+      }
+   }
+}
+
+void t_resume_module( struct task* task, struct paused* paused ) {
+   task->module = paused->module;
+   task->ch = paused->ch;
+   task->column = paused->column;
+   task->tk = paused->tk;
 }
 
 void t_read_tk( struct task* task ) {
@@ -177,7 +276,6 @@ void read_token( struct task* task, struct token* token ) {
          // Maybe we'll add this as a type later.
          { "fixed", TK_RESERVED },
          { "for", TK_FOR },
-         { "format", TK_FORMAT },
          { "function", TK_FUNCTION },
          { "global", TK_GLOBAL },
          { "goto", TK_GOTO },
@@ -185,11 +283,11 @@ void read_token( struct task* task, struct token* token ) {
          { "import", TK_IMPORT },
          { "int", TK_INT },
          { "lightning", TK_LIGHTNING },
-         { "module", TK_MODULE },
          { "net", TK_NET },
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },
          { "redreturn", TK_RED_RETURN },
+         { "region", TK_REGION },
          { "respawn", TK_RESPAWN },
          { "restart", TK_RESTART },
          { "return", TK_RETURN },
@@ -204,6 +302,7 @@ void read_token( struct task* task, struct token* token ) {
          { "true", TK_TRUE },
          { "unloading", TK_UNLOADING },
          { "until", TK_UNTIL },
+         { "upmost", TK_UPMOST },
          { "void", TK_VOID },
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },
@@ -1011,19 +1110,18 @@ const char* get_token_name( enum tk tk ) {
       { TK_SUSPEND, "`suspend`" },
       { TK_TERMINATE, "`terminate`" },
       { TK_FUNCTION, "`function`" },
-      { TK_MODULE, "`module`" },
       { TK_IMPORT, "`import`" },
       { TK_GOTO, "`goto`" },
       { TK_TRUE, "`true`" },
       { TK_FALSE, "`false`" },
-      { TK_FORMAT, "`format`" },
-      { TK_NL, "newline-character" } };
+      { TK_IMPORT, "`import`" },
+      { TK_REGION, "`region`" },
+      { TK_UPMOST, "`upmost`" },
+      { TK_LIT_OCTAL, "octal number" },
+      { TK_LIT_DECIMAL, "decimal number" },
+      { TK_LIT_HEX, "hexadecimal number" },
+      { TK_LIT_FIXED, "fixed-point number" } };
    switch ( tk ) {
-   case TK_LIT_OCTAL:
-   case TK_LIT_DECIMAL:
-   case TK_LIT_HEX:
-   case TK_LIT_FIXED:
-      return "number";
    case TK_LIT_STRING:
       return "string";
    case TK_LIT_CHAR:
@@ -1156,4 +1254,67 @@ void make_pos( struct task* task, struct pos* pos, struct file** file,
  
 void t_bail( struct task* task ) {
    longjmp( *task->bail, 1 );
+}
+
+void t_skip_semicolon( struct task* task ) {
+   while ( task->tk != TK_SEMICOLON ) {
+      t_read_tk( task );
+   }
+   t_read_tk( task );
+}
+
+void t_skip_past_tk( struct task* task, enum tk needed ) {
+   while ( true ) {
+      if ( task->tk == needed ) {
+         t_read_tk( task );
+         break;
+      }
+      else if ( task->tk == TK_END ) {
+         t_bail( task );
+      }
+      else {
+         t_read_tk( task );
+      }
+   }
+}
+
+void t_skip_block( struct task* task ) {
+   while ( task->tk != TK_END && task->tk != TK_BRACE_L ) {
+      t_read_tk( task );
+   }
+   t_test_tk( task, TK_BRACE_L );
+   t_read_tk( task );
+   int depth = 0;
+   while ( true ) {
+      if ( task->tk == TK_BRACE_L ) {
+         ++depth;
+         t_read_tk( task );
+      }
+      else if ( task->tk == TK_BRACE_R ) {
+         if ( depth ) {
+            --depth;
+            t_read_tk( task );
+         }
+         else {
+            break;
+         }
+      }
+      else if ( task->tk == TK_END ) {
+         break;
+      }
+      else {
+         t_read_tk( task );
+      }
+   }
+   t_test_tk( task, TK_BRACE_R );
+   t_read_tk( task );
+}
+
+void t_skip_to_tk( struct task* task, enum tk tk ) {
+   while ( true ) {
+      if ( task->tk == tk ) {
+         break;
+      }
+      t_read_tk( task );
+   }
 }
