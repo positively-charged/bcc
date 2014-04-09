@@ -212,3 +212,74 @@ script 1 open {
 A format block can contain function calls that themselves contain a format block.
 
 You cannot move into a format block with a goto statement, and you cannot move out of the format block with a break, continue, or goto statement. You must naturally enter and leave the format block.
+
+<h3>Miscellaneous</h3>
+
+There are new keywords: <strong>enum</strong>, <strong>false</strong>, <strong>fixed</strong>, <strong>goto</strong>, <strong>region</strong>, <strong>struct</strong>, <strong>true</strong>, and <strong>upmost</strong>. <strong>fixed</strong> is currently not used but is reserved.
+
+====
+
+It is not necessary to <code>#include</code> the zcommon.acs file in order to use the boolean literals. The boolean literals <strong>true</strong> and <strong>false</strong> are now keywords. <strong>true</strong> is the value 1, and <strong>false</strong> is the value 0.
+
+====
+
+When a script has no parameters, the <code>void</code> keyword is not necessary. The parentheses are not required either.
+
+```
+// These are all the same.
+script 1 ( void ) {}
+script 1 () {}
+script 1 {}
+```
+
+====
+
+When creating a function, the <code>function</code> keyword is not necessary. If the function has no parameters, the <code>void</code> keyword is not necessary.
+
+```
+// These are the same.
+function void f( void ) {}
+void f() {}
+```
+
+====
+
+When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but <em>don't</em> do this.)
+
+```
+// Get absolute value of number.
+int abs( int number ) {
+   if ( number < 0 ) {
+      return number * -1;
+   }
+   else {
+      return number;
+   }
+}
+```
+
+====
+
+World and global variables can be created inside a script, a function, or any other block statement.
+
+```
+void add_kill() {
+   global int 1:kills;
+   ++kills;
+}
+````
+
+====
+
+When creating an array, the size of the first dimension can be skipped. The size will be determined based on the number of values specified in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
+
+```
+// The size of this array is 5, because it is initialized with 5 strings.
+str names[] = {
+   "Positron",
+   "Hypnotoad",
+   "AC3",
+   "Frank",
+   ""
+};
+```
