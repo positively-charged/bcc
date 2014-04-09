@@ -1,5 +1,59 @@
 __Note:__ A feature described below might have influence from another language, but the characteristics of the feature, and the terminology used here, is not meant to follow the other language.
 
+<h3>enums</h3>
+
+An <code>enum</code> is used to create a group of constants.
+
+```
+enum {
+   CONSTANT_A, // 0
+   CONSTANT_B, // 1
+   CONSTANT_C  // 2
+};
+```
+
+The first constant has a value of 0, the next constant has a value of 1, and so on. The value increases by 1.
+
+```
+enum {
+   CONSTANT_A,      // 0
+   CONSTANT_B = 10, // 10
+   CONSTANT_C       // 11
+};
+```
+
+The value of a constant can be changed. The next value will increase starting from the new value.
+
+```
+enum CONSTANT_LONESOME = 123;
+```
+
+A single constant can also be created. This is similar to using <em>#define</em>.
+
+<h5>Other Details</h5>
+
+The last constant can have a comma after it. This is a convenience feature.
+
+```
+enum {
+   CONSTANT_A,
+   CONSTANT_B,
+   CONSTANT_C, // Comma here is allowed.
+};
+```
+
+An <code>enum</code> can appear in a script. The constants are only visible inside the script. An <code>enum</code> can also appear in a function, and in other block statements.
+
+```
+script 1 open {
+   enum { CONSTANT_A, CONSTANT_B, CONSTANT_C };
+   enum CONSTANT_LONESOME = 123;
+   // Constants can be used here...
+}
+
+// ...but not here.
+```
+
 <h3>structs</h3>
 
 Creating a structure is like creating a structure in C. A structure has a name and a list of members.
