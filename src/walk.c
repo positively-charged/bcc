@@ -123,12 +123,12 @@ void t_publish_funcs( struct task* task, struct list* funcs ) {
       struct func_user* impl = func->impl;
       impl->obj_pos = t_tell( task );
       add_block_walk( task );
-      do_default_params( task, func );
       struct param* param = func->params;
       while ( param ) {
          param->index = alloc_scalar( task );
          param = param->next;
       }
+      do_default_params( task, func );
       list_iter_t k;
       list_iter_init( &k, &impl->body->stmts );
       while ( ! list_end( &k ) ) {
