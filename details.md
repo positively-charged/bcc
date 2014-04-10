@@ -213,6 +213,51 @@ A format block can contain function calls that themselves contain a format block
 
 You cannot move into a format block with a goto statement, and you cannot move out of the format block with a break, continue, or goto statement. You must naturally enter and leave the format block.
 
+<h3>Optional Parameters</h3>
+
+```
+void print_string( str string = "Hello, World!" ) {
+   Print( s : string );
+}
+
+script 1 open {
+   print_string( "Hello, Fine Fella!" ); // Output: Hello, Fine Fella!
+   print_string();                       // Output: Hello, World!
+}
+```
+
+If you call print_string() with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the <code>"Hello, World!"</code> string.
+
+A script cannot have optional parameters.
+
+====
+
+You can have multiple optional parameters.
+
+```
+void print_numbers( int a = 111, int b = 999 ) {
+   Print( s : "a ", i : a, s : ", b ", i : b );
+}
+
+script 1 open {
+   print_numbers( 5, 35 ); // Output: a 5, b 35
+   print_numbers( 5 );     // Output: a 5, b 999
+   print_numbers();        // Output: a 111, b 999
+}
+```
+
+====
+
+You can have required parameters and optional parameters in the same function. The optional parameters must follow the required parameters. So the required parameters appear first, then come the optional parameters.
+
+```
+// Correct.
+void printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0 ) {}
+
+// Incorrect.
+void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
+```
+
 <h3>Miscellaneous</h3>
 
 There are new keywords: <strong>enum</strong>, <strong>false</strong>, <strong>fixed</strong>, <strong>goto</strong>, <strong>region</strong>, <strong>struct</strong>, <strong>true</strong>, and <strong>upmost</strong>. <strong>fixed</strong> is currently not used but is reserved.
@@ -255,6 +300,20 @@ int abs( int number ) {
    else {
       return number;
    }
+}
+```
+
+====
+
+The name of a function or script parameter is not required. You still need to pass an argument, but you won't be able to use such a parameter. This can be used to indicate a parameter is no longer used.
+
+```
+int sum( int used1, int, int used2 ) {
+   return used1 + used2;
+}
+
+script 1 open {
+   Print( i : sum( 100, 0, 200 ) ); // Output: 300
 }
 ```
 
