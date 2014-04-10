@@ -271,7 +271,7 @@ void add_kill() {
 
 ====
 
-When creating an array, the size of the first dimension can be skipped. The size will be determined based on the number of values specified in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
+When creating an array, the size of the <em>first dimension</em> can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
 
 ```
 // The size of this array is 5, because it is initialized with 5 strings.
@@ -282,4 +282,70 @@ str names[] = {
    "Frank",
    ""
 };
+```
+
+====
+
+When creating a library, the <code>#library</code> directive must appear at the very top, before any other code, except for comments.
+
+```
+// File: nice_library.acs
+#library "lumpname"
+#include "zcommon.acs"
+
+// File: not_so_nice_library.acs
+#include "zcommon.acs"
+#library "lumpname"
+```
+
+====
+
+The assignment operation now returns a value. The value returned is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
+
+```
+script 1 open {
+   int a, b, c;
+   a = b = c = 123; // a, b, and c now have the value 123.
+   // First a random number is generated. Then the random number
+   // is assigned to `a`. Then `a` is checked if it's not 3.
+   while ( ( a = random( 0, 10 ) ) != 3 ) {
+      Print( s : "Bad number: ", i : a );
+   }
+}
+```
+
+====
+
+There are two functions that are associated with the <code>str</code> type: at() and length(). These functions can only be called on a value or a variable of <code>str</code> type. at() returns the character found at the specified location, and length() returns the length of the string.
+
+```
+script 1 open {
+   Print( c : "Hello, World!".at( 7 ) );  // Output: W
+   Print( i : "Hello, World!".length() ); // Output: 13
+}
+```
+
+====
+
+Optional string parameters now work with builtin functions. This means you can use the MorthActor() function with one argument.
+
+```
+script 1 enter {
+   // These are the same.
+   MorphActor( 0 );
+   MorphActor( 0, "", "", 0, 0, "", "" );
+}
+```
+
+====
+
+A line of code can be broken up into multiple lines. To break up a line, position your cursor somewhere in the line, type in a backslash character, then press Enter. Make sure no other characters follow the backslash.
+
+```
+script 1 open {
+   str reallyniceintro = "Hello, World!";
+   Print( s : really\
+nice\
+intro );
+}
 ```
