@@ -68,7 +68,6 @@ struct player {
 ```
 
 ```
-
 // Create variable of a structure type.
 struct player player;
 
@@ -82,8 +81,86 @@ script 1 enter {
 script 2 death {
    player.deaths = player.deaths + 1;
 }
+```
+
+<h3>regions</h3>
+
+A region is a group of functions, scripts, variables, constants, and other code. Regions are similar to namespaces, found in other programming languages.
 
 ```
+script 1 open {
+   my_region.v = my_region.c;
+   my_region.f();
+}
+
+// ==========================================================================
+region my_region;
+// ==========================================================================
+
+int v = 0;
+enum c = 123;
+void f() {}
+```
+
+Here we have a region called \`my_region\`. It contains a variable, a constant, and a function.
+
+A region is created by using the <code>region</code> keyword, followed by the name of the region. Any code that follows will be part of the region.
+
+To use an item of a region, you specify the region name, followed by the item you want to use. In script 1, we first select the constant from the region, then assign it to the variable found in the same region. Finally, we call the function.
+
+====
+
+You can have as many regions as you want.
+
+Items of one region don't conflict with the items of another region. This means you can have a function called \`f()\` in one region and a function called \`f()\` in another region. They are different functions with the same name, but can exist because they are in different regions.
+
+```
+script 1 open {
+   my_region.f();
+   my_other_region.f();
+}
+
+// ==========================================================================
+region my_region;
+// ==========================================================================
+
+void f() {}
+
+// ==========================================================================
+region my_other_region;
+// ==========================================================================
+
+void f() {}
+```
+
+====
+
+A region can contain other regions. The region that contains the other region is called the parent region, and the region being contained is called the child region, or a nested region.
+
+```
+script 1 open {
+   parent.f();
+   parent.child.f();
+}
+
+// ==========================================================================
+region parent;
+// ==========================================================================
+
+void f() {}
+
+// ==========================================================================
+region parent.child;
+// ==========================================================================
+
+void f() {}
+```
+
+You access the item of a child region like any other item. In the above example, from the \`parent\` region you select the \`child\`, then from the \`child\` region you select the \`f()\` function.
+
+====
+
+Inside a region, only the items of the region are visible. To use an item from elsewhere, there are multiple ways of getting a hold of the item.
 
 <h3>Proper Scoping</h3>
 In bcc, names of objects follow scoping rules.
