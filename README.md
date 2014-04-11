@@ -4,9 +4,9 @@ The Zandronum engine is used when developing the compiler, so the addition of a 
 
 New features include:
 
-* structs
 * enums
-* namespaces
+* structs
+* regions
 * Proper scoping
 * Optional function parameters
 * __&&__ and __||__ operators now use short-circuit evaluation
