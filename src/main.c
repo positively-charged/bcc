@@ -9,13 +9,29 @@
 
 static void init_options( struct options* );
 static bool read_options( struct options*, char** );
+static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
+static void print_usage( char* );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
+   // When no options are given, show the help information.
+   if ( argc == 1 ) {
+      print_usage( argv[ 0 ] );
+      result = EXIT_SUCCESS;
+      goto deinit_mem;
+   }
    struct options options;
    init_options( &options );
-   if ( ! read_options( &options, argv ) ) {
+   if ( read_options( &options, argv ) ) {
+      // No need to continue when help is requested.
+      if ( options.help ) {
+         print_usage( argv[ 0 ] );
+         result = EXIT_SUCCESS;
+         goto deinit_mem;
+      }
+   }
+   else {
       goto deinit_mem;
    }
    // When no object file is explicitly specified, create the object file in
@@ -50,13 +66,6 @@ int main( int argc, char* argv[] ) {
    if ( setjmp( bail ) == 0 ) {
       t_read( &task );
       t_test( &task );
-/*
-      struct indexed_string* string = task.str_table.head;
-      while ( string ) {
-         printf( "%d \"%s\"\n", string->usage, string->value );
-         string = string->next;
-      }
-*/
       t_publish( &task );
       result = EXIT_SUCCESS;
    }
@@ -79,13 +88,27 @@ void init_options( struct options* options ) {
    options->encrypt_str = false;
    options->acc_err = false;
    options->one_column = false;
+   options->help = false;
 }
 
-bool read_options( struct options* options, char** args ) {
+bool read_options( struct options* options, char** argv ) {
    // Program path not needed.
-   ++args;
+   char** args = argv + 1;
+   // Process the help option first.
+   while ( *args ) {
+      char* option = *args;
+      if ( *option == '-' && strcmp( option + 1, "h" ) == 0 ) {
+         options->help = true;
+         return true;
+      }
+      ++args;
+   }
+   // Process rest of the options.
+   args = argv + 1;
    while ( true ) {
-      const char* option = *args;
+      // Select option.
+      const char* option_arg = *args;
+      const char* option = option_arg;
       if ( option && *option == '-' ) {
          ++option;
          ++args;
@@ -93,25 +116,22 @@ bool read_options( struct options* options, char** args ) {
       else {
          break;
       }
-      // For now, only look at the first character of the option.
-      if ( strcmp( option, "i" ) == 0 || strcmp( option, "I" ) == 0 ) {
+      // Process option.
+      if (
+         strcmp( option, "i" ) == 0 ||
+         strcmp( option, "I" ) == 0 ) {
          if ( *args ) {
+            strip_rslash( *args );
             list_append( &options->includes, *args );
-            // Strip following slashes or backslashes.
-            char* ch = *args;
-            int i = strlen( ch ) - 1;
-            while ( i >= 0 && ( ch[ i ] == '/' || ch[ i ] == '\\' ) ) {
-               ch[ i ] = 0;
-               --i;
-            }
             ++args;
          }
          else {
-            printf( "error: missing path for include-path option\n" );
+            printf( "error: missing directory path in %s option\n",
+               option_arg );
             return false;
          }
       }
-      else if ( strcmp( option, "tabsize" ) == 0 ) {
+      else if ( strcmp( option, "tab-size" ) == 0 ) {
          if ( *args ) {
             int size = atoi( *args );
             // Set some limits on the size.
@@ -130,10 +150,10 @@ bool read_options( struct options* options, char** args ) {
             return false;
          }
       }
-      else if ( strcmp( option, "onecolumn" ) == 0 ) {
+      else if ( strcmp( option, "one-column" ) == 0 ) {
          options->one_column = true;
       }
-      else if ( strcmp( option, "accerrfile" ) == 0 ) {
+      else if ( strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
       }
       else {
@@ -156,6 +176,14 @@ bool read_options( struct options* options, char** args ) {
    return true;
 }
 
+void strip_rslash( char* ch ) {
+   int i = strlen( ch ) - 1;
+   while ( i >= 0 && ( ch[ i ] == '/' || ch[ i ] == '\\' ) ) {
+      ch[ i ] = 0;
+      --i;
+   }
+}
+
 bool source_object_files_same( struct options* options ) {
    struct file_identity source;
    struct file_identity object;
@@ -165,4 +193,18 @@ bool source_object_files_same( struct options* options ) {
       return false;
    }
    return c_same_identity( &source, &object );
+}
+
+void print_usage( char* path ) {
+   printf(
+      "Usage: %s [options] <source-file> [object-file]\n"
+      "Options: \n"
+      "  -acc-err-file        On error, create an error file like one\n"
+      "                       created by the acc compiler\n"
+      "  -h                   Show this help information\n"
+      "  -i <directory>       Add a directory to search in for files\n"
+      "  -I <directory>       Same as -i\n"
+      "  -one-column          Start column position at 1. Default is 0\n"
+      "  -tab-size <size>     Select the size of the tab character\n",
+      path );
 }

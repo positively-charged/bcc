@@ -31,6 +31,7 @@ static void read_palrange_rgb_field( struct task*, struct expr**,
    struct expr**, struct expr** );
 static void read_packed_expr( struct task*, struct stmt_read* );
 static struct label* new_label( char*, struct pos );
+static void link_usable_strings( struct task* );
 static void test_block_item( struct task*, struct stmt_test*, struct node* );
 static void test_case( struct task*, struct stmt_test*, struct case_label* );
 static void test_default_case( struct task*, struct stmt_test*,
@@ -69,8 +70,8 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    list_init( &task->libraries );
    task->str_table.head = NULL;
    task->str_table.head_sorted = NULL;
+   task->str_table.head_usable = NULL;
    task->str_table.tail = NULL;
-   task->str_table.size = 0;
    task->format = FORMAT_BIG_E;
    t_init_fields_chunk( task );
    t_init_fields_obj( task );
@@ -87,11 +88,10 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
 void t_read( struct task* task ) {
    task->library = add_library( task );
    task->library_main = task->library;
-   task->library_main->publish = true;
    struct module* module = t_load_module( task, task->options->source_file,
       NULL );
    if ( ! module ) {
-      t_diag( task, DIAG_ERR, "failed to load module: %s",
+      t_diag( task, DIAG_ERR, "failed to load source file: %s",
          task->options->source_file );
       t_bail( task );
    }
@@ -99,6 +99,7 @@ void t_read( struct task* task ) {
    t_read_tk( task );
    module->read = true;
    read_module( task );
+   link_usable_strings( task );
 }
 
 struct library* add_library( struct task* task ) {
@@ -110,8 +111,8 @@ struct library* add_library( struct task* task ) {
    list_init( &lib->funcs );
    list_init( &lib->scripts );
    list_init( &lib->dynamic );
-   lib->publish = false;
    lib->visible = false;
+   lib->imported = false;
    list_append( &task->libraries, lib );
    return lib;
 }
@@ -182,6 +183,7 @@ void handle_module_name( struct task* task ) {
          lib = add_library( task );
          str_copy( &lib->name, task->tk_text, task->tk_length );
          lib->visible = true;
+         lib->imported = true;
       }
       task->library = lib;
    }
@@ -196,7 +198,7 @@ void read_module_body( struct task* task ) {
          t_read_dec( task, &dec );
       }
       else if ( task->tk == TK_SCRIPT ) {
-         if ( task->library->publish ) {
+         if ( ! task->library->imported ) {
             t_read_script( task );
          }
          else {
@@ -1025,6 +1027,54 @@ struct label* new_label( char* name, struct pos pos ) {
    label->format_block = NULL;
    list_init( &label->users );
    return label;
+}
+
+void link_usable_strings( struct task* task ) {
+   // Link together the strings that have the potential to be used. To reduce
+   // the number of unused indexes that have to be published, we want used
+   // strings to appear first. This is to try and prevent the case where you
+   // have a string with index, say, 20 that is used, and all strings before
+   // are not, but you still have to publish the other 20 indexes because it
+   // is required by the format of the STRL chunk.
+   struct indexed_string* head = NULL;
+   struct indexed_string* tail;
+   // Strings of the current library appear first.
+   struct indexed_string* string = task->str_table.head;
+   while ( string ) {
+      if ( ! string->imported ) {
+         if ( head ) {
+            tail->next_usable = string;
+         }
+         else {
+            head = string;
+         }
+         tail = string;
+      }
+      string = string->next;
+   }
+   // In imported libraries, only strings in a constant are useful.
+   string = task->str_table.head;
+   while ( string ) { 
+      if ( string->imported && string->in_constant ) {
+         if ( head ) {
+            tail->next_usable = string;
+         }
+         else {
+            head = string;
+         }
+         tail = string;
+      }
+      string = string->next;
+   }
+   task->str_table.head_usable = head;
+   // Allocate string indexes.
+   int index = 0;
+   string = head;
+   while ( string ) {
+      string->index = index;
+      ++index;
+      string = string->next_usable;
+   }
 }
 
 void t_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {

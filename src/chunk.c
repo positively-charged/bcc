@@ -60,6 +60,7 @@ void t_init_fields_chunk( struct task* task ) {
 
 void t_publish( struct task* task ) {
    alloc_index( task );
+task->format = FORMAT_BIG_E;
    if ( task->format == FORMAT_LITTLE_E ) {
       task->compress = true;
    }
@@ -734,7 +735,7 @@ void do_strl( struct task* task ) {
    int i = 0;
    int count = 0;
    int size = 0;
-   struct indexed_string* string = task->str_table.head;
+   struct indexed_string* string = task->str_table.head_usable;
    while ( string ) {
       ++i;
       if ( string->used ) {
@@ -742,7 +743,7 @@ void do_strl( struct task* task ) {
          size += string->length + 1;
          count = i;
       }
-      string = string->next;
+      string = string->next_usable;
    }
    if ( ! count ) {
       return;
@@ -766,7 +767,7 @@ void do_strl( struct task* task ) {
    t_add_int( task, 0 );
    // Offsets.
    i = 0;
-   string = task->str_table.head;
+   string = task->str_table.head_usable;
    while ( i < count ) {
       if ( string->used ) {
          t_add_int( task, offset );
@@ -776,12 +777,12 @@ void do_strl( struct task* task ) {
       else {
          t_add_int( task, 0 );
       }
-      string = string->next;
+      string = string->next_usable;
       ++i;
    }
    // Strings.
    offset = offset_initial;
-   string = task->str_table.head;
+   string = task->str_table.head_usable;
    while ( string ) {
       if ( string->used ) {
          if ( task->options->encrypt_str ) {
@@ -799,7 +800,7 @@ void do_strl( struct task* task ) {
             t_add_sized( task, string->value, string->length + 1 );
          }
       }
-      string = string->next;
+      string = string->next_usable;
    }
    // Padding.
    i = 0;

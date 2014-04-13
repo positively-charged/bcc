@@ -732,6 +732,7 @@ void read_enum( struct task* task, struct dec* dec ) {
             t_read_tk( task );
             struct read_expr expr;
             t_init_read_expr( &expr );
+            expr.in_constant = true;
             t_read_expr( task, &expr );
             constant->expr = expr.node;
          }
@@ -788,6 +789,7 @@ void read_enum( struct task* task, struct dec* dec ) {
       t_read_tk( task );
       struct read_expr expr;
       t_init_read_expr( &expr );
+      expr.in_constant = true;
       t_read_expr( task, &expr );
       constant->expr = expr.node;
       if ( dec->vars ) {
@@ -1235,7 +1237,7 @@ void read_func( struct task* task, struct dec* dec ) {
       impl->publish = false;
       func->impl = impl;
       // Only read the function body when it is needed.
-      if ( task->library->publish ) {
+      if ( ! task->library->imported ) {
          struct stmt_read stmt_read;
          t_init_stmt_read( &stmt_read );
          stmt_read.labels = &impl->labels;
@@ -1635,6 +1637,7 @@ void t_read_define( struct task* task ) {
    t_read_tk( task );
    struct read_expr expr;
    t_init_read_expr( &expr );
+   expr.in_constant = true;
    t_read_expr( task, &expr );
    constant->expr = expr.node;
    constant->value = 0;

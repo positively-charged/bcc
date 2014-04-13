@@ -58,6 +58,7 @@ void t_init_read_expr( struct read_expr* read ) {
    read->node = NULL;
    read->stmt_read = NULL;
    read->has_str = false;
+   read->in_constant = false;
    read->skip_assign = false;
    read->skip_function_call = false;
 }
@@ -467,6 +468,7 @@ void read_string( struct task* task, struct read_expr* expr,
          string = string->next_sorted;
       }
    }
+   // Allocate a new string.
    if ( ! string ) {
       void* block = mem_alloc(
          sizeof( struct indexed_string ) + task->tk_length + 1 );
@@ -475,12 +477,16 @@ void read_string( struct task* task, struct read_expr* expr,
       memcpy( string->value, task->tk_text, task->tk_length );
       string->value[ task->tk_length ] = 0;
       string->length = task->tk_length;
-      string->index = task->str_table.size;
+      string->index = 0;
       string->next = NULL;
       string->next_sorted = NULL;
+      string->in_constant = expr->in_constant;
       string->used = false;
-      ++task->str_table.size;
-      // Normal insert.
+      string->imported = false;
+      if ( task->library->imported ) {
+         string->imported = true;
+      }
+      // Appearance insert.
       if ( task->str_table.head ) {
          task->str_table.tail->next = string;
       }
@@ -496,6 +502,13 @@ void read_string( struct task* task, struct read_expr* expr,
       else {
          string->next_sorted = task->str_table.head_sorted;
          task->str_table.head_sorted = string;
+      }
+   }
+   else {
+      // If the imported string is found in the main library, then the string
+      // doesn't need to be marked as "imported."
+      if ( ! task->library->imported ) {
+         string->imported = false;
       }
    }
    struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
@@ -1308,13 +1321,12 @@ void t_test_format_item( struct task* task, struct format_item* item,
       test_node( task, &expr_test, &arg, item->expr->root );
       if ( item->cast == FCAST_ARRAY ) {
          if ( ! arg.dim ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &arg.pos, "argument not an array" );
+            t_diag( task, DIAG_POS_ERR, &arg.pos, "argument not an array" );
             t_bail( task );
          }
-         else if ( arg.dim->next ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &arg.pos, "array argument not of a single dimension" );
+         if ( arg.dim->next ) {
+            t_diag( task, DIAG_POS_ERR, &arg.pos,
+               "array argument not of single dimension" );
             t_bail( task );
          }
       }

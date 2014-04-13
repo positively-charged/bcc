@@ -102,6 +102,7 @@ struct options {
    bool encrypt_str;
    bool acc_err;
    bool one_column;
+   bool help;
 };
 
 extern int c_num_errs;

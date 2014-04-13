@@ -719,9 +719,12 @@ struct constant_set {
 struct indexed_string {
    struct indexed_string* next;
    struct indexed_string* next_sorted;
+   struct indexed_string* next_usable;
    char* value;
    int length;
    int index;
+   bool in_constant;
+   bool imported;
    bool used;
 };
 
@@ -734,8 +737,8 @@ struct indexed_string_usage {
 struct str_table {
    struct indexed_string* head;
    struct indexed_string* head_sorted;
+   struct indexed_string* head_usable;
    struct indexed_string* tail;
-   int size;
 };
 
 struct region {
@@ -785,10 +788,9 @@ struct library {
    struct list scripts;
    // #included/#imported libraries.
    struct list dynamic;
-   // Whether to output the library into the object file.
-   bool publish;
    // Whether the objects of the library can be used by another library.
    bool visible;
+   bool imported;
 };
 
 struct module_self {
@@ -876,6 +878,7 @@ struct read_expr {
    struct expr* node;
    struct stmt_read* stmt_read;
    bool has_str;
+   bool in_constant;
    bool skip_assign;
    bool skip_function_call;
 };
