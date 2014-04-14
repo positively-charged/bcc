@@ -28,7 +28,7 @@ The value of a constant can be changed. The next value will increase starting fr
 enum CONSTANT_LONESOME = 123;
 ```
 
-A single constant can also be created. This is similar to using <em>#define</em>.
+A single constant can also be created. This is similar to using <code>#define</code>.
 
 <h5>Other Details</h5>
 
@@ -335,6 +335,28 @@ void printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0 ) {}
 void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
 ```
 
+<h3>Loading Files</h3>
+
+<code>#include</code> and <code>#import</code> perform the same action. These directives tell the compiler to load a file. Each file is loaded once; a request to load a file again will be ignored. Every <code>#include</code> and <code>#import</code> is processed, even in libraries.
+
+If a file starts with a <code>#library</code> directive, the file is a library. The <code>#library</code> directive must appear at the very top, before any other code except for comments:
+
+```
+// File: nice_library.acs
+#library "lumpname"
+#include "zcommon.acs"
+
+// File: not_so_nice_library.acs
+#include "zcommon.acs"
+#library "lumpname"
+```
+
+If multiple libraries have the same name, the libraries are merged into one. This allows you to break up a library into multiple files, then load each file separately, as needed.
+
+If library-A loads library-B, and library-B loads library-C, library-A can use the objects of library-C. The compiler will try and figure out which libraries to load at run-time based on the objects you use. (It is not recommended you do this. If you want to use an object from a library, explicitly load the library with an <code>#include</code> or an <code>#import</code> directive.)
+
+If a map loads your library and this library has an array, you can change the size of the array and recompile the library. The map will still be able to use this array, but now with a new size.
+
 <h3>Miscellaneous</h3>
 
 There are new keywords: <code>enum</code>, <code>false</code>, <code>fixed</code>, <code>region</code>, <code>struct</code>, <code>true</code>, and <code>upmost</code>. <code>fixed</code> is currently reserved but is not used. In acc, the <code>goto</code> keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
@@ -344,6 +366,14 @@ In acc, there are keywords that are not used in bcc: <code>define</code>, <code>
 ====
 
 It is not necessary to <code>#include "zcommon.acs"</code> in order to use the boolean literals. The boolean literals <code>true</code> and <code>false</code> are now keywords. <code>true</code> is the value 1, and <code>false</code> is the value 0.
+
+====
+
+The following directives are not supported: <code>#wadauthor</code>, <code>#nowadauthor</code>, and <code>#nocompact</code>.
+
+====
+
+Some limitations have been removed. You can now have more than 128 map variables. You can also have more than 256 functions.
 
 ====
 
@@ -424,20 +454,6 @@ str names[] = {
 
 ====
 
-When creating a library, the <code>#library</code> directive must appear at the very top, before any other code, except for comments.
-
-```
-// File: nice_library.acs
-#library "lumpname"
-#include "zcommon.acs"
-
-// File: not_so_nice_library.acs
-#include "zcommon.acs"
-#library "lumpname"
-```
-
-====
-
 The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
 
 ```
@@ -493,6 +509,16 @@ script 1 enter {
 
 ====
 
+When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
+
+```
+script 1 open {
+   Print( s : "Hello, " "World" "!" ); // Output: Hello, World!
+}
+```
+
+====
+
 A line of code can be broken up into multiple lines. To break up a line, position your cursor somewhere in the line, type in a backslash character, then press Enter. Make sure no other characters follow the backslash.
 
 ```
@@ -501,15 +527,5 @@ script 1 open {
    Print( s : really\
 nice\
 intro );
-}
-```
-
-====
-
-When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
-
-```
-script 1 open {
-   Print( s : "Hello, " "World" "!" ); // Output: Hello, World!
 }
 ```
