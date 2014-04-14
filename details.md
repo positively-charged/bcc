@@ -337,11 +337,13 @@ void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
 
 <h3>Miscellaneous</h3>
 
-There are new keywords: <strong>enum</strong>, <strong>false</strong>, <strong>fixed</strong>, <strong>goto</strong>, <strong>region</strong>, <strong>struct</strong>, <strong>true</strong>, and <strong>upmost</strong>. <strong>fixed</strong> is currently not used but is reserved.
+There are new keywords: <code>enum</code>, <code>false</code>, <code>fixed</code>, <code>region</code>, <code>struct</code>, <code>true</code>, and <code>upmost</code>. <code>fixed</code> is currently reserved but is not used. In acc, the <code>goto</code> keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
+
+In acc, there are keywords that are not used in bcc: <code>define</code>, <code>include</code>, <code>print</code>, <code>printbold</code>, <code>log</code>, <code>hudmessage</code>, <code>hudmessagebold</code>, <code>nocompact</code>, <code>wadauthor</code>, <code>nowadauthor</code>, <code>acs_executewait</code>, <code>encryptstrings</code>, <code>library</code>, <code>libdefine</code>, <code>strparam</code>, and <code>strcpy</code>. You can use these identifiers as names for your own objects.
 
 ====
 
-It is not necessary to <code>#include</code> the zcommon.acs file in order to use the boolean literals. The boolean literals <strong>true</strong> and <strong>false</strong> are now keywords. <strong>true</strong> is the value 1, and <strong>false</strong> is the value 0.
+It is not necessary to <code>#include "zcommon.acs"</code> in order to use the boolean literals. The boolean literals <code>true</code> and <code>false</code> are now keywords. <code>true</code> is the value 1, and <code>false</code> is the value 0.
 
 ====
 
@@ -366,7 +368,7 @@ void f() {}
 
 ====
 
-When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but <em>don't</em> do this.)
+When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but <strong>don't</strong> do this.)
 
 ```
 // Get absolute value of number.
@@ -436,14 +438,30 @@ When creating a library, the <code>#library</code> directive must appear at the 
 
 ====
 
-The assignment operation now returns a value. The value returned is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
+The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
+
+```
+script 1 open {
+   v = c;
+   f(); // Output: 123
+}
+
+int v = 0;
+enum c = 123;
+void f() { Print( i : v ); }
+```
+
+====
+
+The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
 
 ```
 script 1 open {
    int a, b, c;
    a = b = c = 123; // a, b, and c now have the value 123.
-   // First a random number is generated. Then the random number
-   // is assigned to `a`. Then `a` is checked if it's not 3.
+   // First a random number is generated. Then the random number is assigned to
+   // variable `a`. The result of the assignment, which is the random number,
+   // is then checked if it's not 3.
    while ( ( a = random( 0, 10 ) ) != 3 ) {
       Print( s : "Bad number: ", i : a );
    }
@@ -483,5 +501,15 @@ script 1 open {
    Print( s : really\
 nice\
 intro );
+}
+```
+
+====
+
+When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
+
+```
+script 1 open {
+   Print( s : "Hello, " "World" "!" ); // Output: Hello, World!
 }
 ```
