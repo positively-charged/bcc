@@ -303,7 +303,7 @@ script 1 open {
 }
 ```
 
-If you call print_string() with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the <code>"Hello, World!"</code> string.
+If you call <code>print_string()</code> with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the <code>"Hello, World!"</code> string.
 
 A script cannot have optional parameters.
 
@@ -333,6 +333,18 @@ void printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0 ) {}
 
 // Incorrect.
 void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
+```
+
+====
+
+Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the <code>MorthActor()</code> function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
+
+```
+script 1 enter {
+   // These are the same.
+   MorphActor( 0 );
+   MorphActor( 0, "", "", 0, 0, "", "" );
+}
 ```
 
 <h3>Loading Files</h3>
@@ -486,24 +498,12 @@ script 1 open {
 
 ====
 
-There are two functions that are associated with the <code>str</code> type: at() and length(). These functions can only be called on a value or a variable of <code>str</code> type. at() returns the character found at the specified location, and length() returns the length of the string.
+There are two functions that are associated with the <code>str</code> type: at() and length(). These functions can only be called on a value or a variable of <code>str</code> type. at() returns the character found at the specified index, and length() returns the length of the string.
 
 ```
 script 1 open {
    Print( c : "Hello, World!".at( 7 ) );  // Output: W
    Print( i : "Hello, World!".length() ); // Output: 13
-}
-```
-
-====
-
-Optional string parameters now work with builtin functions. This means you can use the MorthActor() function with one argument.
-
-```
-script 1 enter {
-   // These are the same.
-   MorphActor( 0 );
-   MorphActor( 0, "", "", 0, 0, "", "" );
 }
 ```
 
