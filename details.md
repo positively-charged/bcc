@@ -337,7 +337,7 @@ void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
 
 ====
 
-Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the <code>MorthActor()</code> function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
+Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the <code>MorphActor()</code> function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
 
 ```
 script 1 enter {
