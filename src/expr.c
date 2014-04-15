@@ -480,6 +480,7 @@ void read_string( struct task* task, struct read_expr* expr,
       string->index = 0;
       string->next = NULL;
       string->next_sorted = NULL;
+      string->next_usable = NULL;
       string->in_constant = expr->in_constant;
       string->used = false;
       string->imported = false;

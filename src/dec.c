@@ -1018,7 +1018,7 @@ void read_init( struct task* task, struct dec* dec ) {
       t_read_tk( task );
       if ( task->tk == TK_BRACE_L ) {
          read_multi_init( task, dec, NULL );
-         if ( ! dec->dim && dec->type->primitive ) {
+         if ( ! dec->dim && ( dec->type && dec->type->primitive ) ) {
             struct multi_value* multi_value =
                ( struct multi_value* ) dec->initial;
             t_diag( task, DIAG_POS_ERR, &multi_value->pos,
