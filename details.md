@@ -56,32 +56,89 @@ script 1 open {
 
 <h3>structs</h3>
 
-Creating a structure is like creating a structure in C. A structure has a name and a list of members.
+A structure is a group of data. It has a name and a list of members. The members are the actual data. In code, the <code>struct</code> keyword is used to represent a structure:
 
-```acs
-// This is a structure. The name of the structure is "player", and the members
-// are "number" and "name".
-struct player {
-   int number;
+```
+struct boss {
+   int id;
    str name;
 };
 ```
 
-```
-// Create variable of a structure type.
-struct player player;
+Here, the structure is named <code>boss</code>. It contains two members: an integer named <code>id</code> and a string named <code>name</code>.
 
-script 1 enter {
-   // Use structure.
-   player.number = playerNumber();
-   player.kills = 0;
-   player.deaths = 0;
-}
+====
 
-script 2 death {
-   player.deaths = player.deaths + 1;
+A structure is used as a variable type. When you create a variable of a structure type, the variable will contain every member of the structure. If you create multiple variables with the same structure type, each variable will have its own copy of the members.
+
+```
+struct boss big_boss;
+```
+
+In the example above, we create a variable named <code>big\_boss</code>. The type of this variable is <code>struct boss</code>, the structure we made earlier. When specifying the type, notice we use the <code>struct</code> keyword plus the name of the structure we want to use.
+
+====
+
+The dot operator is used to access a member. A member can be modified like any other variable.
+
+```
+struct boss big_boss;
+
+script 1 open {
+   // Modify members:
+   big_boss.id = 123;
+   big_boss.name = "Really Mean Boss";
+   // View members:
+   Print( s : "Boss ID is ", i : big_boss.id );     // Output: Boss ID is 123
+   Print( s : "Boss name is ", s : big_boss.name ); // Output: Boss name is Really Mean Boss
 }
 ```
+
+In the example above, we use the dot operator to access the <code>id</code> member and change its value to 123. We do the same for the <code>name</code> member, changing its value to <code>"Really Mean Boss"</code>. We then print the values of the members, using the dot operator to access each member.
+
+====
+
+To initialize a variable of a structure type, the brace initializer is used. The first value in the initializer will be the starting value of the first member, the second value will be the starting value of the second member, and so on.
+
+```
+struct boss big_boss = { 123, "Really Mean Boss" };
+
+script 1 open {
+   // View members:
+   Print( s : "Boss ID is ", i : big_boss.id );     // Output: Boss ID is 123
+   Print( s : "Boss name is ", s : big_boss.name ); // Output: Boss name is Really Mean Boss
+}
+```
+
+The example above and the example in the previous section are similar. The difference is how the members get their values. In the example above, we assign the values of the members when we create the variable. In the example in the previous section, we first create the variable, and later assign the values.
+
+====
+
+A member can be an array or a structure, or both.
+
+```
+struct boss_list {
+   struct boss bosses[ 10 ];
+   int count;
+};
+
+// `list` initialized with a single boss.
+struct boss_list list = {
+   { { 123, "Really Mean Boss" } },
+   1
+};
+
+script 1 open {
+   // Add second boss:
+   list.bosses[ 1 ].id = 321;
+   list.bosses[ 1 ].name = "Spooky Boss";
+   ++list.count;
+}
+```
+
+In the example above, we create a structure named <code>boss_list</code>. This structure has a member named <code>bosses</code> that is an array, and this array can hold 10 <code>boss</code> elements. The next member is an integer member named <code>count</code>, the number of bosses.
+
+We create a variable named <code>list</code> using this new structure. The outermost braces initialize the <code>list</code> variable. Th middle braces initialize the <code>bosses</code> member, an array. The innermost braces initialize the first element of the array, a <code>boss</code> structure.
 
 <h3>regions</h3>
 
@@ -102,7 +159,7 @@ enum c = 123;
 void f() {}
 ```
 
-Here we have a region called \`my_region\`. It contains a variable, a constant, and a function.
+Here we have a region called <code>my_region</code>. It contains a variable, a constant, and a function.
 
 A region is created by using the <code>region</code> keyword, followed by the name of the region. Any code that follows will be part of the region.
 
@@ -112,7 +169,7 @@ To use an item of a region, you specify the region name, followed by the item yo
 
 You can have as many regions as you want.
 
-Items of one region don't conflict with the items of another region. This means you can have a function called \`f()\` in one region and a function called \`f()\` in another region. They are different functions with the same name, but can exist because they are in different regions.
+Items of one region don't conflict with the items of another region. This means you can have a function called <code>f()</code> in one region and a function called <code>f()</code> in another region. They are different functions with the same name, but can exist because they are in different regions.
 
 ```
 script 1 open {
@@ -156,7 +213,7 @@ region parent.child;
 void f() {}
 ```
 
-You access the item of a child region like any other item. In the above example, from the \`parent\` region you select the \`child\`, then from the \`child\` region you select the \`f()\` function.
+You access the item of a child region like any other item. In the above example, from the <code>parent</code> region you select the <code>child</code>, then from the <code>child</code> region you select the <code>f()</code> function.
 
 ====
 
@@ -448,6 +505,17 @@ void add_kill() {
    ++kills;
 }
 ````
+
+You can specify the size of a dimension of world and global arrays. World and global arrays can be multidimensional.
+
+```
+script 1 open {
+   global int 1:array[ 10 ];
+   global int 2:multi_array[ 10 ][ 20 ];
+   array[ 0 ] = 123;
+   multi_array[ 0 ][ 1 ] = 321;
+}
+```
 
 ====
 
