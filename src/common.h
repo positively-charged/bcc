@@ -107,7 +107,19 @@ struct options {
 
 extern int c_num_errs;
 
-#ifdef __WINDOWS__
+#if defined( _WIN32 ) || defined( _WIN64 )
+#   define OS_WINDOWS 1
+#else
+#   define OS_WINDOWS 0
+#endif
+
+#if OS_WINDOWS
+
+// NOTE: Volume information is not included. Maybe add it later.
+struct file_identity {
+   int id_high;
+   int id_low;
+};
 
 #else
 

@@ -291,7 +291,37 @@ void* stack_pop( struct stack* entry ) {
 // File Identity
 // ==========================================================================
 
-#if defined( _WIN32 ) || defined( _WIN64 )
+#if OS_WINDOWS
+
+#include <windows.h>
+
+bool c_read_identity( struct file_identity* identity, const char* path ) {
+   HANDLE fh = CreateFile( path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0,
+      NULL );
+   if ( fh != INVALID_HANDLE_VALUE ) {
+      BY_HANDLE_FILE_INFORMATION detail;
+      if ( GetFileInformationByHandle( fh, &detail ) ) {
+         identity->id_high = detail.nFileIndexHigh;
+         identity->id_low = detail.nFileIndexLow;
+         CloseHandle( fh );
+         return true;
+      }
+      else {
+         CloseHandle( fh );
+         return false;
+      }
+   }
+   else {
+      return false;
+   }
+}
+
+bool c_same_identity( struct file_identity* first,
+   struct file_identity* other ) {
+   return (
+      first->id_high == other->id_high &&
+      first->id_low == other->id_low );
+}
 
 #else
 
