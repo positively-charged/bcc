@@ -10,7 +10,6 @@ static void read_module_header( struct task* );
 static void handle_module_name( struct task* );
 static void read_module_body( struct task* );
 static struct path* alloc_path( struct pos );
-static void read_dirc( struct task*, struct pos* );
 static void read_include_dirc( struct task*, struct pos* );
 static void read_case( struct task*, struct stmt_read* );
 static void read_default_case( struct task*, struct stmt_read* );
@@ -120,7 +119,7 @@ struct library* add_library( struct task* task ) {
 void read_module( struct task* task ) {
    struct library* library = task->library;
    read_module_header( task );
-   read_module_body( task );
+   t_read_region_body( task, false );
    task->library = library;
 }
 
@@ -142,7 +141,7 @@ void read_module_header( struct task* task ) {
    // Add module to the library.
    list_append( &task->library->modules, task->module );
    if ( dirc ) {
-      read_dirc( task, &pos );
+      t_read_dirc( task, &pos );
    }
 }
 
@@ -189,46 +188,6 @@ void handle_module_name( struct task* task ) {
    }
 }
 
-void read_module_body( struct task* task ) {
-   while ( true ) {
-      if ( t_is_dec( task ) ) {
-         struct dec dec;
-         t_init_dec( &dec );
-         dec.name_offset = task->region->body;
-         t_read_dec( task, &dec );
-      }
-      else if ( task->tk == TK_SCRIPT ) {
-         if ( ! task->library->imported ) {
-            t_read_script( task );
-         }
-         else {
-            t_skip_block( task );
-         }
-      }
-      else if ( task->tk == TK_REGION ) {
-         t_read_region( task );
-      }
-      else if ( task->tk == TK_IMPORT ) {
-         t_read_import( task, NULL );
-      }
-      else if ( task->tk == TK_HASH ) {
-         struct pos pos = task->tk_pos;
-         t_read_tk( task );
-         read_dirc( task, &pos );
-      }
-      else if ( task->tk == TK_SEMICOLON ) {
-         t_read_tk( task );
-      }
-      else if ( task->tk == TK_END ) {
-         break;
-      }
-      else {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unexpected token" );
-         t_bail( task );
-      }
-   }
-}
-
 struct path* t_read_path( struct task* task ) {
    // Head of path.
    struct path* path = alloc_path( task->tk_pos );
@@ -248,7 +207,7 @@ struct path* t_read_path( struct task* task ) {
    // Tail of path.
    struct path* head = path;
    struct path* tail = head;
-   while ( task->tk == TK_DOT ) {
+   while ( task->tk == TK_COLON2 ) {
       t_read_tk( task );
       t_test_tk( task, TK_ID );
       path = alloc_path( task->tk_pos );
@@ -301,10 +260,10 @@ struct object* t_get_region_object( struct task* task, struct region* region,
    return object;
 }
 
-void read_dirc( struct task* task, struct pos* pos ) {
+void t_read_dirc( struct task* task, struct pos* pos ) {
    // Directives can only be used in the global region.
    if ( task->region != task->region_global ) {
-      t_diag( task, DIAG_POS_ERR, pos, "directive used in nested region" );
+      t_diag( task, DIAG_POS_ERR, pos, "directive in non-upmost region" );
       t_bail( task );
    }
    // In this compiler, #include and #import do the same thing, that being
@@ -332,11 +291,8 @@ void read_dirc( struct task* task, struct pos* pos ) {
       t_read_tk( task );
       t_test_tk( task, TK_LIT_STRING );
       t_read_tk( task );
-      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-         "#library directive after other code" );
-      t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-         "#library directive must appear at the very top, "
-         "before any other code" );
+      t_diag( task, DIAG_POS_ERR, pos,
+         "#library directive not at the very top" );
       t_bail( task );
    }
    else if ( strcmp( task->tk_text, "encryptstrings" ) == 0 ) {
@@ -635,11 +591,20 @@ void read_if( struct task* task, struct stmt_read* read ) {
    stmt->expr = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
+   // It is assumed that a semicolon is the empty statement.
+   if ( task->tk == TK_SEMICOLON ) {
+      t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &task->tk_pos, "body of `if` statement is empty (`;`)" );
+   }
    read_stmt( task, read );
    stmt->body = read->node;
    stmt->else_body = NULL;
    if ( task->tk == TK_ELSE ) {
       t_read_tk( task );
+      if ( task->tk == TK_SEMICOLON ) {
+         t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &task->tk_pos, "body of `else` is empty (`;`)" );
+      }
       read_stmt( task, read );
       stmt->else_body = read->node;
    }
@@ -1321,7 +1286,7 @@ void test_for( struct task* task, struct stmt_test* test,
          struct expr_test expr;
          t_init_expr_test( &expr );
          expr.undef_err = true;
-         expr.needed = false;
+         expr.need_value = false;
          t_test_expr( task, &expr, link->expr );
          link = link->next;
       }
@@ -1349,7 +1314,7 @@ void test_for( struct task* task, struct stmt_test* test,
          struct expr_test expr;
          t_init_expr_test( &expr );
          expr.undef_err = true;
-         expr.needed = false;
+         expr.need_value = false;
          t_test_expr( task, &expr, link->expr );
          link = link->next;
       }
@@ -1540,7 +1505,7 @@ void test_paltrans( struct task* task, struct stmt_test* test,
 
 void test_format_item( struct task* task, struct stmt_test* test,
    struct format_item* item ) {
-   t_test_format_item( task, item, test, task->region->body, NULL );
+   t_test_format_item( task, item, test, NULL, task->region->body, NULL );
    struct stmt_test* target = test;
    while ( target && ! target->format_block ) {
       target = target->parent;
@@ -1559,7 +1524,7 @@ void test_packed_expr( struct task* task, struct stmt_test* test,
    t_init_expr_test( &expr_test );
    expr_test.stmt_test = test;
    expr_test.undef_err = true;
-   expr_test.needed = false;
+   expr_test.need_value = false;
    expr_test.format_block = packed->block;
    t_test_expr( task, &expr_test, packed->expr );
    if ( expr_pos ) {
@@ -1584,16 +1549,24 @@ void test_goto_in_format_block( struct task* task, struct list* labels ) {
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       if ( label->format_block ) {
-         struct goto_stmt* stmt = label->stmts;
-         while ( stmt ) {
-            if ( stmt->format_block != label->format_block ) {
-               t_diag( task, DIAG_POS_ERR, &stmt->pos,
-                  "entering format block with a goto statement" );
-               t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
-                  "point of entry is here" ); 
-               t_bail( task );
+         if ( label->stmts ) {
+            struct goto_stmt* stmt = label->stmts;
+            while ( stmt ) {
+               if ( stmt->format_block != label->format_block ) {
+                  t_diag( task, DIAG_POS_ERR, &stmt->pos,
+                     "entering format block with a goto statement" );
+                  t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+                     "point of entry is here" ); 
+                  t_bail( task );
+               }
+               stmt = stmt->next;
             }
-            stmt = stmt->next;
+         }
+         else {
+            // If a label is unused, the user might have used the syntax of a
+            // label to create a format-item.
+            t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &label->pos, "unused label in format block" );
          }
       }
       else {

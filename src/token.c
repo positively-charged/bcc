@@ -272,6 +272,7 @@ void read_token( struct task* task, struct token* token ) {
          { "else", TK_ELSE },
          { "enter", TK_ENTER },
          { "enum", TK_ENUM },
+         { "event", TK_EVENT },
          { "false", TK_FALSE },
          // Maybe we'll add this as a type later.
          { "fixed", TK_RESERVED },
@@ -615,6 +616,10 @@ void read_token( struct task* task, struct token* token ) {
       read_ch( task );
       if ( task->ch == '=' ) {
          tk = TK_ASSIGN_COLON;
+         read_ch( task );
+      }
+      else if ( task->ch == ':' ) {
+         tk = TK_COLON2;
          read_ch( task );
       }
       else {
@@ -1117,10 +1122,12 @@ const char* get_token_name( enum tk tk ) {
       { TK_IMPORT, "`import`" },
       { TK_REGION, "`region`" },
       { TK_UPMOST, "`upmost`" },
+      { TK_EVENT, "`event`" },
       { TK_LIT_OCTAL, "octal number" },
       { TK_LIT_DECIMAL, "decimal number" },
       { TK_LIT_HEX, "hexadecimal number" },
-      { TK_LIT_FIXED, "fixed-point number" } };
+      { TK_LIT_FIXED, "fixed-point number" },
+      { TK_COLON2, "`::`" } };
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string";

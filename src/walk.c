@@ -835,11 +835,11 @@ void do_call( struct task* task, struct operand* operand, struct call* call ) {
          t_add_opc( task, PC_SCRIPT_WAIT );
       }
       else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
-         do_operand( task, operand, call->func_tree );
+         do_operand( task, operand, call->operand );
          t_add_opc( task, PC_STRLEN );
       }
       else if ( impl->id == INTERN_FUNC_STR_AT ) {
-         do_operand( task, operand, call->func_tree );
+         do_operand( task, operand, call->operand );
          push_expr( task, list_head( &call->args ), true );
          t_add_opc( task, PC_CALL_FUNC );
          t_add_arg( task, 2 );
@@ -1296,7 +1296,7 @@ void do_subscript( struct task* task, struct operand* operand,
    init_operand( &index );
    index.push = true;
    index.push_temp = true;
-   do_operand( task, &index, subscript->index );
+   do_operand( task, &index, subscript->index->root );
    if ( operand->dim->next ) {
       t_add_opc( task, PC_PUSH_NUMBER );
       if ( operand->do_str ) {
@@ -1353,7 +1353,7 @@ void do_access( struct task* task, struct operand* operand,
       }
    }
    // When the left side is a module, only process the right side.
-   if ( object->type == NODE_REGION || object->type == NODE_REGION_SELF ||
+   if ( object->type == NODE_REGION || object->type == NODE_REGION_HOST ||
       object->type == NODE_REGION_UPMOST ) {
       lside = access->rside;
       if ( lside->type == NODE_ALIAS ) {

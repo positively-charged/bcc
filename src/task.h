@@ -122,7 +122,9 @@ enum tk {
    TK_GOTO,
    TK_TRUE,
    // 100
-   TK_FALSE
+   TK_FALSE,
+   TK_COLON2,
+   TK_EVENT
 };
 
 struct pos {
@@ -180,7 +182,7 @@ struct node {
       NODE_IMPORT,
       NODE_NAME_USAGE,
       NODE_REGION,
-      NODE_REGION_SELF,
+      NODE_REGION_HOST,
       NODE_REGION_UPMOST,
       // 40
       NODE_SCRIPT,
@@ -250,13 +252,10 @@ struct type_member {
 struct paren {
    struct node node;
    struct node* inside;
-   struct pos pos;
 };
 
 struct literal {
    struct node node;
-   struct pos pos;
-   struct type* type;
    int value;
    bool is_bool;
 };
@@ -275,6 +274,7 @@ struct unary {
       UOP_POST_DEC
    } op;
    struct node* operand;
+   struct pos pos;
 };
 
 struct binary {
@@ -323,12 +323,13 @@ struct assign {
    } op;
    struct node* lside;
    struct node* rside;
+   struct pos pos;
 };
 
 struct subscript {
    struct node node;
    struct node* lside;
-   struct node* index;
+   struct expr* index;
    struct pos pos;
 };
 
@@ -338,12 +339,13 @@ struct access {
    struct node* lside;
    struct node* rside;
    char* name;
+   bool is_region;
 };
 
 struct call {
    struct node node;
    struct pos pos;
-   struct node* func_tree;
+   struct node* operand;
    struct func* func;
    struct list args;
 };
@@ -351,6 +353,7 @@ struct call {
 struct expr {
    struct node node;
    struct node* root;
+   struct pos pos;
    int value;
    bool folded;
    bool has_str;
@@ -494,7 +497,6 @@ struct var {
    struct value* value;
    struct value* value_str;
    int storage;
-   int usage;
    int index;
    int index_str;
    int size;
@@ -507,8 +509,8 @@ struct var {
    bool hidden;
    bool shared;
    bool shared_str;
-   bool state_checked;
-   bool state_changed;
+   bool state_accessed;
+   bool state_modified;
    bool has_interface;
    bool use_interface;
    bool initial_has_str;
@@ -516,7 +518,6 @@ struct var {
 
 struct param {
    struct object object;
-   struct pos pos;
    struct type* type;
    struct param* next;
    struct name* name;
@@ -681,7 +682,8 @@ struct script {
       SCRIPT_TYPE_LIGHTNING = 12,
       SCRIPT_TYPE_UNLOADING,
       SCRIPT_TYPE_DISCONNECT,
-      SCRIPT_TYPE_RETURN
+      SCRIPT_TYPE_RETURN,
+      SCRIPT_TYPE_EVENT
    } type;
    enum {
       SCRIPT_FLAG_NET = 0x1,
@@ -731,7 +733,6 @@ struct indexed_string {
 struct indexed_string_usage {
    struct node node;
    struct indexed_string* string;
-   struct pos pos;
 };
 
 struct str_table {
@@ -889,10 +890,11 @@ struct expr_test {
    struct block* format_block;
    struct format_block_usage* format_block_usage;
    struct pos pos;
-   bool needed;
+   bool need_value;
    bool has_string;
    bool undef_err;
    bool undef_erred;
+   bool accept_array;
 };
 
 #define OBJ_SEEK_END -1
@@ -1402,7 +1404,7 @@ void t_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void t_test_top_block( struct task*, struct stmt_test*, struct block* );
 void t_test_block( struct task*, struct stmt_test*, struct block* );
 void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
-   struct name* name_offset, struct block* );
+   struct expr_test*, struct name* name_offset, struct block* );
 struct object* t_get_region_object( struct task*, struct region*,
    struct name* );
 void diag_dup( struct task*, const char* text, struct pos*, struct name* );
@@ -1411,6 +1413,8 @@ struct path* t_read_path( struct task* );
 void t_use_local_name( struct task*, struct name*, struct object* );
 enum tk t_peek( struct task* );
 enum tk t_peek_2nd( struct task* );
+void t_read_region_body( struct task*, bool is_brace );
+void t_read_dirc( struct task*, struct pos* );
 
 void t_print_name( struct name* );
 

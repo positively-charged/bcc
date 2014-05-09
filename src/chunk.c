@@ -40,7 +40,8 @@ static void do_aini_indexed( struct task*, struct value*, int );
 static void do_mini( struct task* );
 static void do_func( struct task* );
 static void add_func( struct task*, struct func*, struct func_user* );
-static void add_getter_setter( struct task*, struct var* );
+static void add_getter_entry( struct task*, struct var* );
+static void add_setter_entry( struct task*, struct var* );
 static void do_fnam( struct task* );
 static void do_load( struct task* );
 static void do_svct( struct task* );
@@ -60,7 +61,6 @@ void t_init_fields_chunk( struct task* task ) {
 
 void t_publish( struct task* task ) {
    alloc_index( task );
-task->format = FORMAT_BIG_E;
    if ( task->format == FORMAT_LITTLE_E ) {
       task->compress = true;
    }
@@ -299,12 +299,16 @@ void alloc_index( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
+         if ( var->storage == STORAGE_MAP ) {
             var->use_interface = true;
-            var->get = index;
-            ++index;
-            var->set = index;
-            ++index;
+            if ( var->state_accessed ) {
+               var->get = index;
+               ++index;
+            }
+            if ( var->state_modified ) {
+               var->set = index;
+               ++index;
+            }
          }
          list_next( &k );
       }
@@ -1184,8 +1188,13 @@ void do_func( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            count += 2;
+         if ( var->storage == STORAGE_MAP ) {
+            if ( var->state_accessed ) {
+               ++count;
+            }
+            if ( var->state_modified ) {
+               ++count;
+            }
          }
          list_next( &k );
       }
@@ -1215,8 +1224,13 @@ void do_func( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            add_getter_setter( task, var );
+         if ( var->storage == STORAGE_MAP ) {
+            if ( var->state_accessed ) {
+               add_getter_entry( task, var );
+            }
+            if ( var->state_modified ) {
+               add_setter_entry( task, var );
+            }
          }
          list_next( &k );
       }
@@ -1252,7 +1266,8 @@ void do_func( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->has_interface ) {
-         add_getter_setter( task, var );
+         add_getter_entry( task, var );
+         add_setter_entry( task, var );
       }
       list_next( &i );
    }
@@ -1276,8 +1291,7 @@ void do_func( struct task* task ) {
    }
 }
 
-void add_getter_setter( struct task* task, struct var* var ) {
-   // Getter:
+void add_getter_entry( struct task* task, struct var* var ) {
    struct func_entry entry;
    // Always zero.
    entry.padding = 0;
@@ -1297,7 +1311,11 @@ void add_getter_setter( struct task* task, struct var* var ) {
    entry.value = 1;
    entry.offset = var->get_offset;
    t_add_sized( task, &entry, sizeof( entry ) );
-   // Setter:
+}
+
+void add_setter_entry( struct task* task, struct var* var ) {
+   struct func_entry entry;
+   entry.padding = 0;
    if ( ! var->type->primitive ) {
       // Parameter 1: element
       // Parameter 2: updating string member or not
@@ -1346,10 +1364,15 @@ void do_fnam( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            size += t_full_name_length( var->name ) + 1 + 4;
-            size += t_full_name_length( var->name ) + 1 + 4;
-            count += 2;
+         if ( var->storage == STORAGE_MAP ) {
+            if ( var->state_accessed ) {
+               size += t_full_name_length( var->name ) + 1 + 4;
+               ++count;
+            }
+            if ( var->state_modified ) {
+               size += t_full_name_length( var->name ) + 1 + 4;
+               ++count;
+            }
          }
          list_next( &k );
       }
@@ -1415,11 +1438,15 @@ void do_fnam( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            t_add_int( task, offset );
-            offset += t_full_name_length( var->name ) + 1 + 4;
-            t_add_int( task, offset );
-            offset += t_full_name_length( var->name ) + 1 + 4;
+         if ( var->storage == STORAGE_MAP ) {
+            if ( var->state_accessed ) {
+               t_add_int( task, offset );
+               offset += t_full_name_length( var->name ) + 1 + 4;
+            }
+            if ( var->state_modified ) {
+               t_add_int( task, offset );
+               offset += t_full_name_length( var->name ) + 1 + 4;
+            }
          }
          list_next( &k );
       }
@@ -1478,14 +1505,19 @@ void do_fnam( struct task* task ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->usage ) {
-            t_copy_name( var->name, true, &str );
-            t_add_str( task, str.value );
-            t_add_str( task, "!get" );
-            t_add_byte( task, 0 );
-            t_add_str( task, str.value );
-            t_add_str( task, "!set" );
-            t_add_byte( task, 0 );
+         if ( var->storage == STORAGE_MAP ) {
+            if ( var->state_accessed ) {
+               t_copy_name( var->name, true, &str );
+               t_add_str( task, str.value );
+               t_add_str( task, "!get" );
+               t_add_byte( task, 0 );
+            }
+            if ( var->state_modified ) {
+               t_copy_name( var->name, true, &str );
+               t_add_str( task, str.value );
+               t_add_str( task, "!set" );
+               t_add_byte( task, 0 );
+            }
          }
          list_next( &k );
       }

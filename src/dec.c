@@ -231,7 +231,7 @@ struct name* t_make_name( struct task* task, const char* ch,
 
 void t_copy_name( struct name* start, bool full, struct str* str ) {
    int length = 0;
-   char term = '.';
+   char term = ':';
    if ( full ) {
       term = 0;
    }
@@ -288,7 +288,7 @@ struct type* new_type( struct task* task, struct name* name ) {
    struct type* type = mem_alloc( sizeof( *type ) );
    t_init_object( &type->object, NODE_TYPE );
    type->name = name;
-   type->body = t_make_name( task, ".", name );
+   type->body = t_make_name( task, "::", name );
    type->member = NULL;
    type->member_tail = NULL;
    type->size = 0;
@@ -346,38 +346,37 @@ struct type* get_type( struct task* task, int id ) {
 void t_read_region( struct task* task ) {
    t_test_tk( task, TK_REGION );
    t_read_tk( task );
-   task->region = task->region_global;
-   if ( task->tk == TK_UPMOST ) {
+   struct region* parent = task->region;
+   while ( true ) {
+      t_test_tk( task, TK_ID );
+      struct name* name = t_make_name( task, task->tk_text,
+         task->region->body );
+      if ( name->object ) {
+         // It is assumed the object will always be a region.
+         task->region = ( struct region* ) name->object;
+      }
+      else {
+         struct region* region = alloc_region( task, name, false );
+         region->object.pos = task->tk_pos;
+         region->object.resolved = true;
+         name->object = &region->object;
+         list_append( &task->regions, region );
+         task->region = region;
+      }
       t_read_tk( task );
-   }
-   else {
-      while ( true ) {
-         t_test_tk( task, TK_ID );
-         struct name* name = t_make_name( task, task->tk_text,
-            task->region->body );
-         if ( name->object ) {
-            // It is assumed the object will always be a region.
-            task->region = ( struct region* ) name->object;
-         }
-         else {
-            struct region* region = alloc_region( task, name, false );
-            region->object.pos = task->tk_pos;
-            region->object.resolved = true;
-            name->object = &region->object;
-            list_append( &task->regions, region );
-            task->region = region;
-         }
+      if ( task->tk == TK_COLON2 ) {
          t_read_tk( task );
-         if ( task->tk == TK_DOT ) {
-            t_read_tk( task );
-         }
-         else {
-            break;
-         }
+      }
+      else {
+         break;
       }
    }
-   t_test_tk( task, TK_SEMICOLON );
+   t_test_tk( task, TK_BRACE_L );
    t_read_tk( task );
+   t_read_region_body( task, true );
+   t_test_tk( task, TK_BRACE_R );
+   t_read_tk( task );
+   task->region = parent;
 }
 
 struct region* alloc_region( struct task* task, struct name* name,
@@ -387,11 +386,11 @@ struct region* alloc_region( struct task* task, struct name* name,
    region->name = name;
    if ( global ) {
       region->body = name;
-      region->body_struct = t_make_name( task, "struct.", name );
+      region->body_struct = t_make_name( task, "struct::", name );
    }
    else {
-      region->body = t_make_name( task, ".", name );
-      region->body_struct = t_make_name( task, ".struct.", name );
+      region->body = t_make_name( task, "::", name );
+      region->body_struct = t_make_name( task, "::struct::", name );
    }
    region->link = NULL;
    region->unresolved = NULL;
@@ -399,6 +398,47 @@ struct region* alloc_region( struct task* task, struct name* name,
    list_init( &region->imports );
    list_init( &region->items );
    return region;
+}
+
+void t_read_region_body( struct task* task, bool is_brace ) {
+   while ( true ) {
+      if ( t_is_dec( task ) ) {
+         struct dec dec;
+         t_init_dec( &dec );
+         dec.name_offset = task->region->body;
+         t_read_dec( task, &dec );
+      }
+      else if ( task->tk == TK_SCRIPT ) {
+         if ( ! task->library->imported ) {
+            t_read_script( task );
+         }
+         else {
+            t_skip_block( task );
+         }
+      }
+      else if ( task->tk == TK_REGION ) {
+         t_read_region( task );
+      }
+      else if ( task->tk == TK_IMPORT ) {
+         t_read_import( task, NULL );
+      }
+      else if ( task->tk == TK_HASH ) {
+         struct pos pos = task->tk_pos;
+         t_read_tk( task );
+         t_read_dirc( task, &pos );
+      }
+      else if ( task->tk == TK_SEMICOLON ) {
+         t_read_tk( task );
+      }
+      else if ( task->tk == TK_END ||
+         ( is_brace && task->tk == TK_BRACE_R ) ) {
+         break;
+      }
+      else {
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unexpected token" );
+         t_bail( task );
+      }
+   }
 }
 
 void t_init_object( struct object* object, int node_type ) {
@@ -441,11 +481,22 @@ void t_read_import( struct task* task, struct list* local ) {
       item->is_struct = false;
       item->is_link = false;
       // Link with another region.
-      if ( task->tk == TK_DEFAULT ) {
+      if ( task->tk == TK_REGION ) {
          t_read_tk( task );
-         t_test_tk( task, TK_REGION );
+         t_test_tk( task, TK_ASSIGN );
          t_read_tk( task );
          item->is_link = true;
+         // Link with child region of selected region.
+         if ( task->tk == TK_ID ) {
+            item->name = task->tk_text;
+            item->name_pos = task->tk_pos;
+            t_read_tk( task );
+         }
+         // Link with selected region.
+         else {
+            t_test_tk( task, TK_REGION );
+            t_read_tk( task );
+         }
       }
       else {
          // Import structure.
@@ -457,10 +508,6 @@ void t_read_import( struct task* task, struct list* local ) {
             item->name_pos = task->tk_pos;
             t_read_tk( task );
          }
-         // Import selected region.
-         else if ( task->tk == TK_REGION ) {
-            t_read_tk( task );
-         }
          // Import object.
          else {
             t_test_tk( task, TK_ID );
@@ -468,6 +515,7 @@ void t_read_import( struct task* task, struct list* local ) {
             item->name_pos = task->tk_pos;
             t_read_tk( task );
          }
+         // Alias for imported object.
          if ( task->tk == TK_ASSIGN ) {
             item->alias = item->name;
             item->alias_pos = item->name_pos;
@@ -1163,7 +1211,6 @@ void add_var( struct task* task, struct dec* dec ) {
    var->value = NULL;
    var->value_str = NULL;
    var->storage = dec->storage;
-   var->usage = 0;
    var->index = dec->storage_index;
    var->index_str = 0;
    var->size = 0;
@@ -1176,8 +1223,8 @@ void add_var( struct task* task, struct dec* dec ) {
    var->hidden = false;
    var->shared = false;
    var->shared_str = false;
-   var->state_checked = false;
-   var->state_changed = false;
+   var->state_accessed = false;
+   var->state_modified = false;
    var->has_interface = false;
    var->use_interface = false;
    var->initial_has_str = false;
@@ -1333,9 +1380,9 @@ void read_params( struct task* task, struct params* params ) {
             "script parameter not of `int` type" );
          t_bail( task );
       }
+      struct pos pos = task->tk_pos;
       struct param* param = mem_slot_alloc( sizeof( *param ) );
       t_init_object( &param->object, NODE_PARAM );
-      param->pos = task->tk_pos;
       param->type = type;
       param->next = NULL;
       param->name = NULL;
@@ -1358,14 +1405,13 @@ void read_params( struct task* task, struct params* params ) {
          t_read_expr( task, &expr );
          param->expr = expr.node;
          if ( params->script ) {
-            t_diag( task, DIAG_POS_ERR, &param->pos,
-               "default parameter in script" );
+            t_diag( task, DIAG_POS_ERR, &pos, "default parameter in script" );
             t_bail( task );
          }
       }
       else {
          if ( tail && tail->expr ) {
-            t_diag( task, DIAG_POS_ERR, &param->pos,
+            t_diag( task, DIAG_POS_ERR, &pos,
                "parameter missing default value" );
             t_bail( task );
          }
@@ -1557,6 +1603,7 @@ void read_script_type( struct task* task, struct script_read* read ) {
    case TK_DISCONNECT: read->type = SCRIPT_TYPE_DISCONNECT; break;
    case TK_UNLOADING: read->type = SCRIPT_TYPE_UNLOADING; break;
    case TK_RETURN: read->type = SCRIPT_TYPE_RETURN; break;
+   case TK_EVENT: read->type = SCRIPT_TYPE_EVENT; break;
    default: break;
    }
    if ( read->type == SCRIPT_TYPE_CLOSED ) {
@@ -1579,6 +1626,16 @@ void read_script_type( struct task* task, struct script_read* read ) {
             "too many parameters in disconnect script" );
          t_bail( task );
 
+      }
+      t_read_tk( task );
+   }
+   else if ( read->type == SCRIPT_TYPE_EVENT ) {
+      if ( read->num_param != 3 ) {
+         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+            "incorrect number of parameters in event script" );
+         t_diag( task, DIAG_FILE, &read->param_pos,
+            "an event script takes exactly 3 parameters" );
+         t_bail( task );
       }
       t_read_tk( task );
    }
@@ -1625,7 +1682,7 @@ void read_script_body( struct task* task, struct script_read* read ) {
 
 void t_read_define( struct task* task ) {
    bool visible = false;
-   if ( task->tk_text[ 0 ] == 'l' ) {
+   if ( task->tk_text[ 0 ] == 'l' || ! task->library->imported ) {
       visible = true;
    }
    t_read_tk( task );
@@ -1783,7 +1840,8 @@ void t_test( struct task* task ) {
             list_iter_init( &k, &lib->vars );
             while ( ! list_end( &k ) ) {
                struct var* var = list_data( &k );
-               if ( var->storage == STORAGE_MAP && var->usage ) {
+               if ( var->storage == STORAGE_MAP && (
+                  var->state_accessed || var->state_modified ) ) {
                   used = true;
                   break;
                }
@@ -1868,8 +1926,8 @@ void t_import( struct task* task, struct import* stmt ) {
    while ( path ) {
       struct name* name = t_make_name( task, path->text, region->body );
       if ( ! name->object || name->object->node.type != NODE_REGION ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &path->pos, "region `%s` not found", path->text );
+         t_diag( task, DIAG_POS_ERR, &path->pos,
+            "region `%s` not found", path->text );
          t_bail( task );
       }
       region = ( struct region* ) name->object;
@@ -1880,13 +1938,31 @@ void t_import( struct task* task, struct import* stmt ) {
    while ( item ) {
       // Make link to region.
       if ( item->is_link ) {
-         if ( region == task->region ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &item->pos, "region importing self as default region" );
+         struct region* linked_region = region;
+         if ( item->name ) {
+            struct name* name = t_make_name( task, item->name, region->body );
+            struct object* object = t_get_region_object( task, region, name );
+            // The object needs to exist.
+            if ( ! object ) {
+               t_diag( task, DIAG_POS_ERR, &item->name_pos,
+                  "`%s` not found", item->name );
+               t_bail( task );
+            }
+            // The object needs to be a region.
+            if ( object->node.type != NODE_REGION ) {
+               t_diag( task, DIAG_POS_ERR, &item->name_pos,
+                  "`%s` not a region", item->name );
+               t_bail( task );
+            }
+            linked_region = ( struct region* ) object;
+         }
+         if ( linked_region == task->region ) {
+            t_diag( task, DIAG_POS_ERR, &item->pos,
+               "region importing self as default region" );
             t_bail( task );
          }
          struct region_link* link = task->region->link;
-         while ( link && link->region != region ) {
+         while ( link && link->region != linked_region ) {
             link = link->next;
          }
          // Duplicate links are allowed in the source code.
@@ -1899,7 +1975,7 @@ void t_import( struct task* task, struct import* stmt ) {
          else {
             link = mem_alloc( sizeof( *link ) );
             link->next = task->region->link;
-            link->region = region;
+            link->region = linked_region;
             link->pos = item->pos;
             task->region->link = link;
          }
@@ -2066,7 +2142,7 @@ void t_test_constant( struct task* task, struct constant* constant,
       }
       else {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &expr.pos, "expression not constant" );
+            &constant->expr->pos, "expression not constant" );
          t_bail( task );
       }
    }
@@ -3299,7 +3375,7 @@ void count_string_usage_node( struct node* node ) {
    }
    else if ( node->type == NODE_CALL ) {
       struct call* call = ( struct call* ) node;
-      count_string_usage_node( call->func_tree );
+      count_string_usage_node( call->operand );
       list_iter_t i;
       list_iter_init( &i, &call->args );
       // Format arguments:
