@@ -1,2846 +1,2792 @@
 #library "jm"
-#include "zcommon.acs"
+#include "std.acs"
 
-// ==========================================================================
-region jm;
-// ==========================================================================
+region jm {
+   import region: r = region;
+   import upmost: region = std;
 
-import zcommon: default region;
+   enum MODE_COOP = 0;
+   enum MODE_SVMZ = 1;
+   enum MAP_SOLO = 0;
+   enum MAP_TEAM = 1;
+   enum F_MANUAL_TIMER = 0x1;
 
-enum MODE_COOP = 0;
-enum MODE_SVMZ = 1;
-enum MAP_SOLO = 0;
-enum MAP_TEAM = 1;
-enum F_MANUAL_TIMER = 0x1;
+   int mode = MODE_COOP;
+   int map_type = MAP_SOLO;
+   int flags = 0;
+   str par = 0;
+   int points = 0;
 
-int mode = MODE_COOP;
-int map_type = MAP_SOLO;
-int flags = 0;
-str par = 0;
-int points = 0;
-
-void init_solo( str par ) {
-   init( MAP_SOLO, par );
-}
-
-void init_team( str par, int points ) {
-   init( MAP_TEAM, par );
-   region.points = points;
-}
-
-void init( int map_type, str par ) {
-   utility.init();
-   region.map_type = map_type;
-   region.par = par;
-   if ( GetCvar( "survival" ) ) {
-      region.mode = MODE_SVMZ;
-      hs.disable();
-      if ( map_type == MAP_TEAM ) {
-         // Since the timer counts down in Survival Maze, it makes no sense to
-         // have the finish time. Replace the finish time with a custom finish
-         // message for when playing Survival Maze. 
-         team_ranker.end_message = "Maze Complete";
-      }
+   void init_solo( str par ) {
+      init( MAP_SOLO, par );
    }
-   // Coop.
-   else {
-      timer.set_par( par );
-      if ( GetCvar( "sv_disallowsuicide" ) ) {
-         ConsoleCommand( "sv_disallowsuicide false" );
-      }
+
+   void init_team( str par, int points ) {
+      init( MAP_TEAM, par );
+      r::points = points;
    }
-}
 
-void enable_flag( int flag ) {
-   region.flags |= flag;
-}
-
-void disable_flags( int flag ) {
-   region.flags ^= flag;
-}
-
-void run() {
-   if ( region.mode == MODE_COOP ) {
-      if ( region.flags & F_MANUAL_TIMER ) {
-         timer.show_time( 0 );
+   void init( int map_type, str par ) {
+      utility::init();
+      r::map_type = map_type;
+      r::par = par;
+      if ( GetCvar( "survival" ) ) {
+         r::mode = MODE_SVMZ;
+         hs::disable();
+         if ( map_type == MAP_TEAM ) {
+            team_ranker::end_message = "Maze Complete";
+         }
       }
       else {
-         timer.run();
-      }
-      if ( region.map_type == MAP_SOLO ) {
-         Acs_Execute( solo_ranker.SCRIPT_START, 0 );
-      }
-      else {
-         Acs_Execute( team_ranker.SCRIPT_START, 0, region.points );
+         timer::set_par( par );
+         if ( GetCvar( "sv_disallowsuicide" ) ) {
+            ConsoleCommand( "sv_disallowsuicide false" );
+         }
       }
    }
-   else {
-      run_svmz( "map map01" );
-   }
-}
 
-void run_svmz( str map_restart_command ) {
-   if ( svmz.init() ) {
-      ConsoleCommand( map_restart_command );
+   void enable_flag( int flag ) {
+      region::flags |= flag;
    }
-   if ( region.map_type == MAP_TEAM ) {
-      // Clear the points table from the previous round if the players failed
-      // to complete the map. If not done, the table from the previous round
-      // will overlap with the new one.
-      team_ranker.clear_points_table();
-      Acs_Execute( team_ranker.SCRIPT_START, 0, region.points );
-   }
-   Acs_Execute( 900, 0, region.par );
-}
 
-void start_timer() {
-   if ( region.flags & F_MANUAL_TIMER ) {
-      timer.run();
+   void disable_flags( int flag ) {
+      region::flags ^= flag;
    }
-   else {
-      PrintBold(
-         s : "\cjm.start_timer() error: timer is not set to manual" );
-   }
-}
 
-void set_map_message( str name, str author, int skill ) {
-   map_msg.set( name, author, skill, region.par );
-}
-
-void add_point() {
-   if ( region.map_type == MAP_TEAM ) {
-      Acs_ExecuteAlways( team_ranker.SCRIPT_POINT, 0 );
-   }
-   else {
-      PrintBold( s : "\ciCan't give a point on a non-team map" );
-   }
-}
-
-void finish_line() {
-   if ( region.mode == MODE_COOP ) {
-      if ( region.map_type == MAP_SOLO ) {
-         solo_ranker.finish();
+   void run() {
+      if ( region::mode == MODE_COOP ) {
+         if ( region::flags & F_MANUAL_TIMER ) {
+            timer::show_time( 0 );
+         }
+         else {
+            timer::run();
+         }
+         if ( region::map_type == MAP_SOLO ) {
+            Acs_Execute( solo_ranker::SCRIPT_START, 0 );
+         }
+         else {
+            Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
+         }
       }
       else {
-         add_point();
+         run_svmz( "map map01" );
       }
    }
-   else {
-      svmz.make_escapee();
-      if ( region.map_type == MAP_TEAM ) {
-         add_point();
+
+   void run_svmz( str map_restart_command ) {
+      if ( svmz::init() ) {
+         ConsoleCommand( map_restart_command );
       }
+      if ( region::map_type == MAP_TEAM ) {
+         // Clear the points table from the previous round if the players
+         // failed to complete the map. If not done, the table from the
+         // previous round will overlap with the new one.
+         team_ranker::clear_points_table();
+         Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
+      }
+      Acs_Execute( 900, 0, region::par );
    }
-}
 
-void disallow_hs( int player ) {
-   hs.cheated[ player ] = true;
-}
-
-void exit() {
-   if ( region.mode != MODE_SVMZ || svmz.validate_exit() ) {
-      who_exited.show_and_exit();
-   }
-}
-
-bool is_valid_exit() {
-   if ( region.mode == MODE_SVMZ ) {
-      return svmz.validate_exit();
-   }
-   else {
-      return true;
-   }
-}
-
-script 931 death {
-   if ( region.mode == MODE_COOP && ! GetCvar( "jm_disable_telepatch" ) ) {
-      // This function changes the activator of the script, so we better
-      // have this block of code as the last block of the script.
-      telepatch.on_death( PlayerNumber() );
-   }
-}
-
-script 932 respawn {
-   int player = PlayerNumber();
-   if ( region.mode == MODE_COOP ) {
-      telepatch.on_respawn( player );
-   }
-}
-
-script 933 ( int player ) disconnect {
-   if ( region.mode == MODE_COOP ) {
-      telepatch.on_disconnect( player );
-   }
-}
-
-// ==========================================================================
-region jm.config;
-// ==========================================================================
-
-enum TICS_IN_SECOND = 35;
-enum SECONDS_IN_MINUTE = 60;
-enum MAX_PLAYERS = 32;
-enum VALUE_NONE = -1;
-enum TOTAL_MONTHS = 12;
-
-// Looking at the screen, in Doom Builder 2, left is West and right is East.
-enum ANGLE_EAST = 0;
-enum ANGLE_NORTHEAST = 32;
-enum ANGLE_NORTH = 64;
-enum ANGLE_NORTHWEST = 96;
-enum ANGLE_WEST = 128;
-enum ANGLE_SOUTHWEST = 160;
-enum ANGLE_SOUTH = 192;
-enum ANGLE_SOUTHEAST = 224;
-
-// ==========================================================================
-region jm.utility;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config;
-
-void init() {
-   if ( GetCvar( "util_ishosted" ) == 0 ) {
-      if ( GameType() != GAME_SINGLE_PLAYER ) {
-         ConsoleCommand( "set util_ishosted 1" );
+   void start_timer() {
+      if ( region::flags & F_MANUAL_TIMER ) {
+         timer::run();
       }
       else {
-         ConsoleCommand( "set util_ishosted 2" );
+         PrintBold(
+            s : "\cjm.start_timer() error: timer is not set to manual" );
+      }
+   }
+
+   void set_map_message( str name, str author, int skill ) {
+      map_msg::set( name, author, skill, region::par );
+   }
+
+   void add_point() {
+      if ( region::map_type == MAP_TEAM ) {
+         Acs_ExecuteAlways( team_ranker::SCRIPT_POINT, 0 );
+      }
+      else {
+         PrintBold( s : "\ciCan't give a point on a non-team map" );
+      }
+   }
+
+   void finish_line() {
+      if ( region::mode == MODE_COOP ) {
+         if ( region::map_type == MAP_SOLO ) {
+            solo_ranker::finish();
+         }
+         else {
+            add_point();
+         }
+      }
+      else {
+         svmz::make_escapee();
+         if ( region::map_type == MAP_TEAM ) {
+            add_point();
+         }
+      }
+   }
+
+   void disallow_hs( int player ) {
+      hs::cheated[ player ] = true;
+   }
+
+   void exit() {
+      if ( region::mode != MODE_SVMZ || svmz::validate_exit() ) {
+         who_exited::show_and_exit();
+      }
+   }
+
+   bool is_valid_exit() {
+      if ( region::mode == MODE_SVMZ ) {
+         return svmz::validate_exit();
+      }
+      else {
+         return true;
+      }
+   }
+
+   script 931 death {
+      if ( region::mode == MODE_COOP && ! GetCvar( "jm_disable_telepatch" ) ) {
+         // This function changes the activator of the script, so we better
+         // have this block of code as the last block of the script.
+         telepatch::on_death( PlayerNumber() );
+      }
+   }
+
+   script 932 respawn {
+      int player = PlayerNumber();
+      if ( region::mode == MODE_COOP ) {
+         telepatch::on_respawn( player );
+      }
+   }
+
+   script 933 ( int player ) disconnect {
+      if ( region::mode == MODE_COOP ) {
+         telepatch::on_disconnect( player );
       }
    }
 }
 
-bool is_online() {
-   return GetCvar( "util_ishosted" ) == 1;
+region jm::config {
+   enum TICS_IN_SECOND = 35;
+   enum SECONDS_IN_MINUTE = 60;
+   enum MAX_PLAYERS = 32;
+   enum VALUE_NONE = -1;
+   enum TOTAL_MONTHS = 12;
+   // Looking at the screen, in Doom Builder 2, left is West and right is East.
+   enum ANGLE_EAST = 0;
+   enum ANGLE_NORTHEAST = 32;
+   enum ANGLE_NORTH = 64;
+   enum ANGLE_NORTHWEST = 96;
+   enum ANGLE_WEST = 128;
+   enum ANGLE_SOUTHWEST = 160;
+   enum ANGLE_SOUTH = 192;
+   enum ANGLE_SOUTHEAST = 224;
 }
 
-// Convert a par time string into seconds.
-int par_to_seconds( str par ) {
-   int index = strlen( par ) - 1;
-   int character;
-   // We are going to parse the par time backwards starting from
-   // the seconds field because it's easier to implement this way.
-   // Seconds:
-   int base = 1;
-   int seconds = 0;
-   while ( index >= 0 ) {
-      character = GetChar( par, index );
-      // We end the loop if we stumble upon a minute/second 
-      // field seperator.
-      if ( character == ':' ) {
-         break;
-      }
-      if ( character >= '0' && character <= '9' ) {
-         seconds += ( character - '0' ) * base;
-         base *= 10;
-      }
-      index -= 1;
-   }
-   // Minutes:
-   base = 1;
-   int minutes = 0;
-   while ( index >= 0 ) {
-      character = GetChar( par, index );
-      if ( character >= '0' && character <= '9' ) {
-         minutes += ( character - '0' ) * base;
-         base *= 10;
-      }
-      index -= 1;
-   }
-   return ( minutes * config.SECONDS_IN_MINUTE ) + seconds;
-}
+   region jm::utility {
+   import upmost: region = std;
+   import jm: config;
 
-str number_prefix( int number ) {
-   if ( number >= 0 && number <= 9 ) {
-      return "0";
-   }
-   else {
-      return "";
-   }
-}
-
-str ordinal_suffix( int value ) {
-   if ( value == 11 || value == 12 || value == 13 ) {
-      return "th";
-   }
-   switch ( value % 10 ) {
-   case 1: return "st";
-   case 2: return "nd";
-   case 3: return "rd";
-   case 4: return "th";
-   default: return "th";
-   }
-}
-
-void clear_message( int id ) {
-   HudMessage( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
-}
-
-void clear_message_bold( int id ) {
-   HudMessageBold( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
-}
-
-// Function to calculate the centiseconds from any remaining tics after
-// subtracting full seconds from the total tics.
-int cal_cseconds( int tics ) {
-   int centiseconds = 0;
-   if ( tics > 0 ) {
-      // TODO: Explain this algorithm better than this comment!
-      int percent = 10000 / ( ( config.TICS_IN_SECOND * 100 ) / tics );
-      centiseconds = ( 1000 * percent ) / 1000;
-   }
-   return centiseconds;
-}
-
-// This function converts a numeric month representation into
-// its corresponding string name.
-str conv_month_string( int month ) {
-   if ( month >= 1 && month <= config.TOTAL_MONTHS ) {
-      static str names[ config.TOTAL_MONTHS ] = {
-         "January", "February", "March", "April", "May", "June", 
-         "July", "August", "September", "October", "November", "December" };
-      return names[ month - 1 ];
-   }
-   else {
-      return "";
-   }
-}
-
-// ==========================================================================
-region jm.client;
-// ==========================================================================
-
-import zcommon: default region;
-
-// Player number retrival.
-// Thanks to Euranna for the solution and helping me understand it.
-// Source: http://www.skulltag.com/forum/viewtopic.php?p=310483#p310483
-
-// -2 indicates the library has not been initialized.
-int number = -2;
-
-script 940 open clientside {
-   // Force player to execute a script upon connecting to the server.
-   // Offline, this script takes more than one tic to execute, so any ENTER
-   // scripts should be aware of this behavior.
-   ConsoleCommand( "puke 941" );
-}
-
-script 941 net clientside {
-   // Player should be the activator of this script. We can now save their
-   // player number for later comparisons.
-   region.number = PlayerNumber();
-}
-
-int get_number() {
-   return region.number;
-}
-
-// Executes client-side script for player with given player number.
-void execute( int player, int number ) {
-   execute_arg( player, number, 0 );
-}
-
-// Same as ClientExecute(), but allows including script arguments. Currently,
-// only one script argument is supported.
-void execute_arg( int player, int number, int arg1 ) {
-   Acs_Execute( 943, 0, player, number, arg1 );
-}
-
-// NOTE: It's possible to combine the player and scriptNum variables into
-// a single variable so we can allow for an extra script argument.
-script 943 ( int player, int number, int arg1 ) clientside {
-   if ( player == region.number ) {
-      Acs_Execute( number, 0, arg1 );
-   }
-}
-
-// ==========================================================================
-region jm.map_msg;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: region, config, hs;
-
-enum {
-   SKILL_VARIED,
-   SKILL_VERY_EASY,
-   SKILL_EASY,
-   SKILL_MODERATE,
-   SKILL_HARD,
-   SKILL_VERY_HARD,
-   SKILL_TOTAL
-};
-// Seconds to wait for the record holder name to load before proceeding further.
-enum TIMEOUT = 2;
-// How long to display the map startup message on screen.
-enum DISPLAY_TIME = 3.0;
-
-// String versions with appropriate colors of the map skills available.
-str names[ SKILL_TOTAL ] = {
-   "\ccVaried\c-", "\cqVery Easy\c-", "\cdEasy\c-",
-   "\chModerate\c-", "\cgHard\c-", "\cmVery Hard\c-" };
-str author = "";
-str name = "";
-str skill = "";
-int number = config.VALUE_NONE;
-int par[ 10 ];
-bool is_set = false;
-
-void set( str name, str author, int skill, str par ) {
-   region.author = author;
-   region.name = name;
-   region.number = GetLevelInfo( LEVELINFO_LEVELNUM );
-   if ( skill < 0 || skill >= SKILL_TOTAL ) {
-      skill = SKILL_VARIED;
-   }
-   region.skill = region.names[ skill ];
-   set_par( par );
-   region.is_set = true;
-}
-
-script 980 enter {
-   Delay( 66 );
-   if ( ! region.is_set ) {
-      terminate;
-   }
-   // High score.
-   if ( hs.is_enabled() ) {
-      // Wait for the ranker to complete loading the high score.
-      if ( hs.load_status == hs.STATUS_WORKING ) {
-         ScriptWait( hs.load_script );
-      }
-      // Auto show high score details table if enabled. We put this code
-      // here so we can show the details table at the same time as the
-      // map message appears.
-      if ( hs.is_set() && hs.is_auto_show_details_table() ) {
-         hs.show_details( DISPLAY_TIME );
+   void init() {
+      if ( GetCvar( "util_ishosted" ) == 0 ) {
+         if ( GameType() != GAME_SINGLE_PLAYER ) {
+            ConsoleCommand( "set util_ishosted 1" );
+         }
+         else {
+            ConsoleCommand( "set util_ishosted 2" );
+         }
       }
    }
-   SetFont( "SMALLFONT" );
-   HudMessage( {}; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3,
-      DISPLAY_TIME, 1.0 ) := {
-      s := "\cf", s := region.name, s := " - ",
-      s := "MAP", s := jm.utility.number_prefix( region.number ),
-      i := region.number, s := " - ",
-      s := "Author: ", s := region.author, s := "\n\n",
-      s := "\ciLevel of Difficulty\n", s := region.skill, s := "\n\n",
-      s := "\ciPar Time\n", s := "\cn", a := region.par;
-      // We don't need to display the record holder's name in the map
-      // message if the record details auto show feature is enabled. This
-      // only applies to the solo ranker.
-      if ( jm.map_type == jm.MAP_SOLO && hs.is_set() &&
-         ! hs.is_auto_show_details_table() ) {
-         s := "\n\n\ciMap record set by:\c-\n",
-         a := jm.solo_ranker.hs_author;
+
+   bool is_online() {
+      return GetCvar( "util_ishosted" ) == 1;
+   }
+
+   // Convert a par time string into seconds.
+   int par_to_seconds( str par ) {
+      int index = strlen( par ) - 1;
+      int character;
+      // We are going to parse the par time backwards starting from
+      // the seconds field because it's easier to implement this way.
+      // Seconds:
+      int base = 1;
+      int seconds = 0;
+      while ( index >= 0 ) {
+         character = GetChar( par, index );
+         // We end the loop if we stumble upon a minute/second 
+         // field seperator.
+         if ( character == ':' ) {
+            break;
+         }
+         if ( character >= '0' && character <= '9' ) {
+            seconds += ( character - '0' ) * base;
+            base *= 10;
+         }
+         index -= 1;
+      }
+      // Minutes:
+      base = 1;
+      int minutes = 0;
+      while ( index >= 0 ) {
+         character = GetChar( par, index );
+         if ( character >= '0' && character <= '9' ) {
+            minutes += ( character - '0' ) * base;
+            base *= 10;
+         }
+         index -= 1;
+      }
+      return ( minutes * config::SECONDS_IN_MINUTE ) + seconds;
+   }
+
+   str number_prefix( int number ) {
+      if ( number >= 0 && number <= 9 ) {
+         return "0";
+      }
+      else {
+         return "";
+      }
+   }
+
+   str ordinal_suffix( int value ) {
+      if ( value == 11 || value == 12 || value == 13 ) {
+         return "th";
+      }
+      switch ( value % 10 ) {
+      case 1: return "st";
+      case 2: return "nd";
+      case 3: return "rd";
+      case 4: return "th";
+      default: return "th";
+      }
+   }
+
+   void clear_message( int id ) {
+      HudMessage( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
+   }
+
+   void clear_message_bold( int id ) {
+      HudMessageBold( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
+   }
+
+   // Function to calculate the centiseconds from any remaining tics after
+   // subtracting full seconds from the total tics.
+   int cal_cseconds( int tics ) {
+      int centiseconds = 0;
+      if ( tics > 0 ) {
+         // TODO: Explain this algorithm better than this comment!
+         int percent = 10000 / ( ( config::TICS_IN_SECOND * 100 ) / tics );
+         centiseconds = ( 1000 * percent ) / 1000;
+      }
+      return centiseconds;
+   }
+
+   // This function converts a numeric month representation into
+   // its corresponding string name.
+   str conv_month_string( int month ) {
+      if ( month >= 1 && month <= config::TOTAL_MONTHS ) {
+         static str names[ config::TOTAL_MONTHS ] = {
+            "January", "February", "March", "April", "May", "June", 
+            "July", "August", "September", "October", "November", "December" };
+         return names[ month - 1 ];
+      }
+      else {
+         return "";
       }
    }
 }
 
-// Removes the whitespace found in the par time, so it looks nicer when
-// shown in the map message.
-void set_par( str par ) {
-   int length = Strlen( par );
-   int pos = 0;
-   for ( int i = 0; i < length; ++i ) {
-      int ch = GetChar( par, i );
-      if ( ch != ' ' ) {
-         region.par[ pos ] = ch;
-         ++pos;
+region jm::client {
+   import upmost: region = std;
+
+   // Player number retrival.
+   // Thanks to Euranna for the solution and helping me understand it.
+   // Source: http://www.skulltag.com/forum/viewtopic.php?p=310483#p310483
+
+   // -2 indicates the library has not been initialized.
+   int number = -2;
+
+   script 940 open clientside {
+      // Force player to execute a script upon connecting to the server.
+      // Offline, this script takes more than one tic to execute, so any ENTER
+      // scripts should be aware of this behavior.
+      ConsoleCommand( "puke 941" );
+   }
+
+   script 941 net clientside {
+      // Player should be the activator of this script. We can now save their
+      // player number for later comparisons.
+      region::number = PlayerNumber();
+   }
+
+   int get_number() {
+      return region::number;
+   }
+
+   // Executes client-side script for player with given player number.
+   void execute( int player, int number ) {
+      execute_arg( player, number, 0 );
+   }
+
+   // Same as ClientExecute(), but allows including script arguments.
+   // Currently, only one script argument is supported.
+   void execute_arg( int player, int number, int arg1 ) {
+      Acs_Execute( 943, 0, player, number, arg1 );
+   }
+
+   // NOTE: It's possible to combine the player and scriptNum variables into
+   // a single variable so we can allow for an extra script argument.
+   script 943 ( int player, int number, int arg1 ) clientside {
+      if ( player == region::number ) {
+         Acs_Execute( number, 0, arg1 );
       }
    }
-   region.par[ pos ] = '\0';
 }
 
-// ==========================================================================
-region jm.timer;
-// ==========================================================================
+region jm::map_msg {
+   import upmost: region = std;
+   import jm: jm = region, config, hs;
 
-import zcommon: default region;
-import jm: config;
+   enum {
+      SKILL_VARIED,
+      SKILL_VERY_EASY,
+      SKILL_EASY,
+      SKILL_MODERATE,
+      SKILL_HARD,
+      SKILL_VERY_HARD,
+      SKILL_TOTAL
+   };
+   // Seconds to wait for the record holder name to load before proceeding
+   // further.
+   enum TIMEOUT = 2;
+   // How long to display the map startup message on screen.
+   enum DISPLAY_TIME = 3.0;
 
-str par = "";
-// Number of tics that passed before the timer is started. This is used to
-// adjust the finish times when the timer is started manually.
-int skipped = 0;
+   // String versions with appropriate colors of the map skills available.
+   str names[ SKILL_TOTAL ] = {
+      "\ccVaried\c-", "\cqVery Easy\c-", "\cdEasy\c-",
+      "\chModerate\c-", "\cgHard\c-", "\cmVery Hard\c-" };
+   str author = "";
+   str name = "";
+   str skill = "";
+   int number = config::VALUE_NONE;
+   int par[ 10 ];
+   bool is_set = false;
 
-void run() {
-   region.skipped = Timer();
-   Acs_Execute( 985, 0 );
-}
-
-void set_par( str par ) {
-   region.par = par;
-}
-
-script 985 {
-   int time = 0;
-   while ( true ) {
-      show_time( time );
-      ++time;
-      Delay( config.TICS_IN_SECOND );
+   void set( str name, str author, int skill, str par ) {
+      region::author = author;
+      region::name = name;
+      region::number = GetLevelInfo( LEVELINFO_LEVELNUM );
+      if ( skill < 0 || skill >= SKILL_TOTAL ) {
+         skill = SKILL_VARIED;
+      }
+      region::skill = region::names[ skill ];
+      set_par( par );
+      region::is_set = true;
    }
-}
 
-void show_time( int time ) {
-   SetFont( "BIGFONT" );
-   HudMessage(
-      i : time / config.SECONDS_IN_MINUTE,
-      s : "  :  ",
-      i : ( time % config.SECONDS_IN_MINUTE ) / 10,
-      s : "  ", i : time % 10 ;
-      HUDMSG_PLAIN, 985, CR_BLUE, 0.95, 0.95, 0 );
-}
-
-// Show par.
-script 986 open clientside {
-   Delay( 2 );
-   ConsoleCommand( "puke 987" );
-}
-
-script 987 net {
-   if ( region.par != "" ) {
-      SetFont( "BIGFONT" );
-      HudMessage(
-         s : region.par ;
-         HUDMSG_PLAIN, 986, CR_RED, 0.95, 0.90, 0 );
-   }
-}
-
-int get_tics() {
-   return Timer() - region.skipped;
-}
-
-// ==========================================================================
-region jm.who_exited;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: utility;
-
-void show() {
-   HudMessageBold( 
-      s : "\cc",
-      n : PlayerNumber() + 1,
-      s : "\cg exited the level" ;
-      HUDMSG_FADEINOUT | HUDMSG_LOG,
-      // Avoid displaying the message on screen by setting a long fade-in
-      // time.
-      0, 0, 0, 0, 1, 1000.0, 0 );
-}
-
-void show_and_exit() {
-   // Only show message in multi-player because it's already shown in
-   // single-player.
-   if ( utility.is_online() ) {
-      show();
-   }
-   Exit_Normal( 0 );
-}
-
-// ==========================================================================
-region jm.luk;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config;
-
-// Query delimiter.
-enum QEURY_DELIM = "\b";
-// Query identifier.
-enum QUERY_HEADER = "luk";
-// Timeout in seconds for luk replies.
-enum QUERY_TIMEOUT = 3;
-// RETRIEVE query types.
-enum {
-   RETQUERY_INT,
-   RETQUERY_STR,
-   RETQUERY_DATE
-};
-// Query execution results from luk.
-enum RESPONSE_OK = 0;
-enum RESPONSE_FAILED = 1;
-// Query execution results we will tell the user.
-enum RESULT_OK = 0;
-enum RESULT_FAILED = 1;
-enum RESULT_TIMEOUT = 2;
-enum RESULT_UNKNOWN = 3;
-// Because we will be encoding each character in three digits of
-// an integer value and the ASCII value of some characters is only
-// two digits, we will add a padding to the ASCII value of each
-// character we send and receieve. This padding will make sure that
-// even those characters with two digit ASCII values will have a
-// value of three digits.  
-enum ASCII_PADDING = 100;
-// Maximum size of a string that we will recieve.
-enum MAX_STR_VALUE_SIZE = 100;
-// Maximum characters per string segment transfer.
-enum MAX_STR_SEGMENT_CHARS = 3;
-// To help with readability when calling the retrieval scripts, we will
-// create a descriptive constant that contains the script number.
-enum RETSCRIPT = 970;
-enum LRETSCRIPT = 975;
-
-// We can only store a maximum of 3 characters in a 32-bit integer
-// value if each character is encoded as three.
-int segment_r[ MAX_STR_SEGMENT_CHARS ];
-// Array variable to store the complete string value.
-int str_value[ MAX_STR_VALUE_SIZE ];
-// Variable to store the luk response data.
-int data = config.VALUE_NONE;
-// Variables to hold unpacked date segments.
-int year = config.VALUE_NONE;
-int month = config.VALUE_NONE;
-int day = config.VALUE_NONE;
-// This variable will store the unique query ID that we will use
-// to check whether luk has responded.
-int query_id = 0;
-// This variable will contain the result of a query.
-int query_result = RESULT_UNKNOWN;
-
-// This script retrieves a value from luk.
-script 970 ( int type, int key ) {
-   if ( type == RETQUERY_INT ) {
-      Acs_ExecuteWait( 971, 0, retrieve( key ) );
-   }
-   else if ( type == RETQUERY_STR ) {
-      int query_id = init_string_transmission( key );
-      Acs_ExecuteWait( 971, 0, query_id );
-      if ( region.query_result != RESULT_OK ) {
+   script 980 enter {
+      Delay( 66 );
+      if ( ! region::is_set ) {
          terminate;
       }
-      int left = region.data;
-      int length = 0;
-      while ( left > 0 ) {
-         query_id = retrieve_string_segment();
+      // High score.
+      if ( hs::is_enabled() ) {
+         // Wait for the ranker to complete loading the high score.
+         if ( hs::load_status == hs::STATUS_WORKING ) {
+            ScriptWait( hs::load_script );
+         }
+         // Auto show high score details table if enabled. We put this code
+         // here so we can show the details table at the same time as the
+         // map message appears.
+         if ( hs::is_set() && hs::is_auto_show_details_table() ) {
+            hs::show_details( DISPLAY_TIME );
+         }
+      }
+      SetFont( "SMALLFONT" );
+      HudMessage( {}; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3,
+         DISPLAY_TIME, 1.0 ) := {
+         s := "\cf", s := region::name, s := " - ",
+         s := "MAP", s := jm::utility::number_prefix( region::number ),
+         i := region::number, s := " - ",
+         s := "Author: ", s := region::author, s := "\n\n",
+         s := "\ciLevel of Difficulty\n", s := region::skill, s := "\n\n",
+         s := "\ciPar Time\n", s := "\cn", a := region::par;
+         // We don't need to display the record holder's name in the map
+         // message if the record details auto show feature is enabled. This
+         // only applies to the solo ranker.
+         if ( jm::map_type == jm::MAP_SOLO && hs::is_set() &&
+            ! hs::is_auto_show_details_table() ) {
+            s := "\n\n\ciMap record set by:\c-\n",
+            a := jm::solo_ranker::hs_author;
+         }
+      }
+   }
+
+   // Removes the whitespace found in the par time, so it looks nicer when
+   // shown in the map message.
+   void set_par( str par ) {
+      int length = Strlen( par );
+      int pos = 0;
+      for ( int i = 0; i < length; ++i ) {
+         int ch = GetChar( par, i );
+         if ( ch != ' ' ) {
+            region::par[ pos ] = ch;
+            ++pos;
+         }
+      }
+      region::par[ pos ] = '\0';
+   }
+}
+
+region jm::timer {
+   import upmost: region = std;
+   import jm: config;
+
+   str par = "";
+   // Number of tics that passed before the timer is started. This is used to
+   // adjust the finish times when the timer is started manually.
+   int skipped = 0;
+
+   void run() {
+      region::skipped = Timer();
+      Acs_Execute( 985, 0 );
+   }
+
+   void set_par( str par ) {
+      region::par = par;
+   }
+
+   script 985 {
+      int time = 0;
+      while ( true ) {
+         show_time( time );
+         ++time;
+         Delay( config::TICS_IN_SECOND );
+      }
+   }
+
+   void show_time( int time ) {
+      SetFont( "BIGFONT" );
+      HudMessage(
+         i : time / config::SECONDS_IN_MINUTE,
+         s : "  :  ",
+         i : ( time % config::SECONDS_IN_MINUTE ) / 10,
+         s : "  ", i : time % 10 ;
+         HUDMSG_PLAIN, 985, CR_BLUE, 0.95, 0.95, 0 );
+   }
+
+   // Show par.
+   script 986 open clientside {
+      Delay( 2 );
+      ConsoleCommand( "puke 987" );
+   }
+
+   script 987 net {
+      if ( region::par != "" ) {
+         SetFont( "BIGFONT" );
+         HudMessage(
+            s : region::par ;
+            HUDMSG_PLAIN, 986, CR_RED, 0.95, 0.90, 0 );
+      }
+   }
+
+   int get_tics() {
+      return Timer() - region::skipped;
+   }
+}
+
+region jm::who_exited {
+   import upmost: region = std;
+   import jm: utility;
+
+   void show() {
+      HudMessageBold( 
+         s : "\cc",
+         n : PlayerNumber() + 1,
+         s : "\cg exited the level" ;
+         HUDMSG_FADEINOUT | HUDMSG_LOG,
+         // Avoid displaying the message on screen by setting a long fade-in
+         // time.
+         0, 0, 0, 0, 1, 1000.0, 0 );
+   }
+
+   void show_and_exit() {
+      // Only show message in multi-player because it's already shown in
+      // single-player.
+      if ( utility::is_online() ) {
+         show();
+      }
+      Exit_Normal( 0 );
+   }
+}
+
+region jm::luk {
+   import upmost: region = std;
+   import jm: config;
+
+   // Query delimiter.
+   enum QEURY_DELIM = "\b";
+   // Query identifier.
+   enum QUERY_HEADER = "luk";
+   // Timeout in seconds for luk replies.
+   enum QUERY_TIMEOUT = 3;
+   // RETRIEVE query types.
+   enum {
+      RETQUERY_INT,
+      RETQUERY_STR,
+      RETQUERY_DATE
+   };
+   // Query execution results from luk.
+   enum RESPONSE_OK = 0;
+   enum RESPONSE_FAILED = 1;
+   // Query execution results we will tell the user.
+   enum RESULT_OK = 0;
+   enum RESULT_FAILED = 1;
+   enum RESULT_TIMEOUT = 2;
+   enum RESULT_UNKNOWN = 3;
+   // Because we will be encoding each character in three digits of
+   // an integer value and the ASCII value of some characters is only
+   // two digits, we will add a padding to the ASCII value of each
+   // character we send and receieve. This padding will make sure that
+   // even those characters with two digit ASCII values will have a
+   // value of three digits.  
+   enum ASCII_PADDING = 100;
+   // Maximum size of a string that we will recieve.
+   enum MAX_STR_VALUE_SIZE = 100;
+   // Maximum characters per string segment transfer.
+   enum MAX_STR_SEGMENT_CHARS = 3;
+   // To help with readability when calling the retrieval scripts, we will
+   // create a descriptive constant that contains the script number.
+   enum RETSCRIPT = 970;
+   enum LRETSCRIPT = 975;
+
+   // We can only store a maximum of 3 characters in a 32-bit integer
+   // value if each character is encoded as three.
+   int segment_r[ MAX_STR_SEGMENT_CHARS ];
+   // Array variable to store the complete string value.
+   int str_value[ MAX_STR_VALUE_SIZE ];
+   // Variable to store the luk response data.
+   int data = config::VALUE_NONE;
+   // Variables to hold unpacked date segments.
+   int year = config::VALUE_NONE;
+   int month = config::VALUE_NONE;
+   int day = config::VALUE_NONE;
+   // This variable will store the unique query ID that we will use
+   // to check whether luk has responded.
+   int query_id = 0;
+   // This variable will contain the result of a query.
+   int query_result = RESULT_UNKNOWN;
+
+   // This script retrieves a value from luk.
+   script 970 ( int type, int key ) {
+      if ( type == RETQUERY_INT ) {
+         Acs_ExecuteWait( 971, 0, retrieve( key ) );
+      }
+      else if ( type == RETQUERY_STR ) {
+         int query_id = init_string_transmission( key );
          Acs_ExecuteWait( 971, 0, query_id );
-         if ( region.query_result != RESULT_OK ) {
+         if ( region::query_result != RESULT_OK ) {
             terminate;
          }
-         length += unpack_ascii( region.data, length );
-         --left;
+         int left = region::data;
+         int length = 0;
+         while ( left > 0 ) {
+            query_id = retrieve_string_segment();
+            Acs_ExecuteWait( 971, 0, query_id );
+            if ( region::query_result != RESULT_OK ) {
+               terminate;
+            }
+            length += unpack_ascii( region::data, length );
+            --left;
+            Delay( 1 );
+         }
+         region::str_value[ length ] = '\0';
+      }
+      // Date:
+      else {
+         Acs_ExecuteWait( 971, 0, retrieve_date( key ) );
+         if ( region::query_result == RESULT_OK ) {
+            // Format of data: YYYYMMDD
+            int data = region::data;
+            region::day = data % 100;
+            data /= 100;
+            region::month = data % 100;
+            data /= 100;
+            region::year = data;
+         }
+      }
+   }
+
+   script 971 ( int query_id ) {
+      int tics_left = config::TICS_IN_SECOND * QUERY_TIMEOUT;
+      bool is_answered = false;
+      while ( tics_left > 0 ) {
+         // A luk query is answered when luk sets the appropriate console
+         // variable to the query ID, indicating it successfully received the
+         // query and processed it.
+         if ( GetCvar( "luk_qid" ) == query_id ) {
+            is_answered = true;
+            break;
+         }
+         --tics_left;
          Delay( 1 );
       }
-      region.str_value[ length ] = '\0';
-   }
-   // Date:
-   else {
-      Acs_ExecuteWait( 971, 0, retrieve_date( key ) );
-      if ( region.query_result == RESULT_OK ) {
-         // Format of data: YYYYMMDD
-         int data = region.data;
-         region.day = data % 100;
-         data /= 100;
-         region.month = data % 100;
-         data /= 100;
-         region.year = data;
+      // Process the query response.
+      int result;
+      if ( is_answered ) {
+         // If the query was answered successfully, see what information
+         // luk said about the query.
+         switch ( GetCvar( "luk_qr" ) ) {
+         // OK, no errors, result:
+         case RESPONSE_OK:
+            // Save the data of the query response if the response is OK.
+            region::data = GetCvar( "luk_d" );
+            result = RESULT_OK;
+            break;
+         // The command failed to successfully execute.
+         case RESPONSE_FAILED:
+            result = RESULT_FAILED;
+            break;
+         default:
+            result = RESULT_UNKNOWN;
+            break;
+         }
       }
-   }
-}
-
-script 971 ( int query_id ) {
-   int tics_left = config.TICS_IN_SECOND * QUERY_TIMEOUT;
-   bool is_answered = false;
-   while ( tics_left > 0 ) {
-      // A luk query is answered when luk sets the appropriate console
-      // variable to the query ID, indicating it successfully received the
-      // query and processed it.
-      if ( GetCvar( "luk_qid" ) == query_id ) {
-         is_answered = true;
-         break;
-      }
-      --tics_left;
-      Delay( 1 );
-   }
-   // Process the query response.
-   int result;
-   if ( is_answered ) {
-      // If the query was answered successfully, see what information
-      // luk said about the query.
-      switch ( GetCvar( "luk_qr" ) ) {
-      // OK, no errors, result:
-      case RESPONSE_OK:
-         // Save the data of the query response if the response is OK.
-         region.data = GetCvar( "luk_d" );
-         result = RESULT_OK;
-         break;
-      // The command failed to successfully execute.
-      case RESPONSE_FAILED:
-         result = RESULT_FAILED;
-         break;
-      default:
-         result = RESULT_UNKNOWN;
-         break;
-      }
-   }
-   // Query timed out.
-   else {
-      result = RESULT_TIMEOUT;
-   }
-   // Save the result to let the user know the result of the query.
-   region.query_result = result;
-}
-
-// List version of the above script, allowing the key to be concatenated
-// with a number to form a new key that represents an item in a list. We
-// have to make this nearly duplicate script because of the inflexibility
-// of ACS. Things would have been so much simpler if ACS supported
-// dynamic creation of strings. This applies to the functions that send
-// the queries below, too.
-script 975 ( int type, int keyName, int keyNum ) {
-   switch( type ) {
-   case RETQUERY_INT:
-      Acs_ExecuteWait( 972, 0, retrieve_l( keyName, keyNum ) );
-      break;
-   case RETQUERY_STR:
-      Acs_ExecuteWait( 973, 0, init_string_transmission_l( keyName,
-         keyNum ) );
-      break;
-      // We don't have any functions and scripts to handle list values
-      // for dates because we don't need any at the moment.
-   }
-}
-
-int unpack_ascii( int packed, int length ) {
-   int sep = 1000;
-   int ch = 0;
-   // First, decode the luk-encoded ASCII package into real ASCII.
-   while ( packed > 0 ) {
-      region.segment_r[ ch ] = ( packed % sep ) - ASCII_PADDING;
-      packed /= sep;
-      ++ch;
-   }
-   int num_read = ch;
-   // At this stage, we have the data loaded into ACS, but it's
-   // reversed, so we'll have to reverse the characters to make
-   // it readable again.
-   int i = 0;
-   while ( ch > 0 ) {
-      region.str_value[ length + i ] = region.segment_r[ ch - 1 ];
-      --ch;
-      ++i;
-   }
-   return num_read;
-}
-
-bool is_enabled() {
-   return GetCvar( "luk_system" );
-}
-
-// The query ID is generated by incrementing the last given query ID.
-// luk will compare the current query ID with the last query ID 
-// it processed. If the current query ID is the same as or below the
-// last query ID, it will ignore the current query.
-int generate_query_id() {
-   static int id = 0;
-   return ++id;
-}
-
-// Query functions:
-//
-// These functions send retrieval queries to luk and return
-// the queries ID for further handling. 
-
-// This function is used for simple, numeric value retrievals.
-int retrieve( str key ) {
-   int id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : id,
-      s : " RETRIEVE ", 
-      s : key,
-      s : QEURY_DELIM );
-   return id;
-}
-
-int retrieve_date( str key ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " RETRIEVE_DATE ", s : key,
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int init_string_transmission( str key ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " RETRIEVE_STRING_INITIATE ",
-      s : key,
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int retrieve_string_segment() {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " RETRIEVE_STRING_SEGMENT ",
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int StoreInt( str key, int value ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE ", s : key, s : " ", i : value,
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int StoreStr( str key, str value ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE ", s : key, s : " {", s : value, s : "}",
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int StoreName( str key, int playerNum ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE ", s : key, s : " {", n : playerNum + 1, s : "}",
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int StoreDate( str key ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE_DATE ", s : key,
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-// These functions are the same as their above counterparts, but
-// allow the query key to be concatenated with a number. These
-// functions are useful for making a list of values by using
-// a single key name.
-int StoreNameL( str key, int keyNum, int playerNum ) {
-   int query_id = generate_query_id();
-   Log(
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE ", s : key, i : keyNum,
-      s : " {", n : playerNum + 1, s : "}",
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int StoreIntL( str key, int keyNum, int value ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " STORE ", s : key, i : keyNum,
-      s : " ", i : value,
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int retrieve_l( str key, int keyNum ) {
-   int query_id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : query_id,
-      s : " RETRIEVE ", 
-      s : key, i : keyNum, 
-      s : QEURY_DELIM );
-   return query_id;
-}
-
-int init_string_transmission_l( str key, int num ) {
-   int id = generate_query_id();
-   Log( 
-      s : QEURY_DELIM,
-      s : QUERY_HEADER,
-      s : " ", i : id,
-      s : " RETRIEVE_STRING_INITIATE ",
-      s : key, i : num, 
-      s : QEURY_DELIM );
-   return id;
-}
-
-// ==========================================================================
-region jm.hs;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, utility, luk;
-
-enum LINE_NOTICE = 27233;
-enum LINE_NOTICE_Y = 0.55;
-enum TBL_SHOW_TIME = 8.0;
-// High score loading status.
-enum {
-   STATUS_NONE,
-   STATUS_LOADED,
-   STATUS_WORKING,
-   STATUS_ERROR
-};
-
-int load_status = STATUS_NONE;
-// Stores a ranker's high score load script number so other files can wait
-// for the ranker to complete loading the high score.
-int load_script = 0;
-// Script of the ranker that shows the high score details table.
-int details_script = 0;
-bool cheated[ config.MAX_PLAYERS ];
-bool manual_disable = false;
-// High score finish time. We put some of the finish time handling here
-// because both rankers use the same code.
-int tics = config.VALUE_NONE;
-
-bool is_auto_show_details_table() {
-   return GetCvar( "jm_show_rdetails" );
-}
-
-bool is_cheater( int player ) {
-   return ( region.cheated[ player ] || is_cheats_enabled() );
-}
-
-bool is_cheats_enabled() {
-   return GetCvar( "sv_cheats" );
-}
-
-bool is_enabled() {
-   return ( utility.is_online() && luk.is_enabled() &&
-      ( ! region.manual_disable ) );
-}
-
-void disable() {
-   region.manual_disable = true;
-}
-
-int get_finish_time() {
-   return region.tics;
-}
-
-void set_finish_time( int tics ) {
-   region.tics = tics;
-}
-
-bool is_set() {
-   return region.tics != config.VALUE_NONE;
-}
-
-bool is_new( int time ) {
-   return ( region.tics == config.VALUE_NONE || time < region.tics );
-}
-
-script 999 net {
-   show_details( TBL_SHOW_TIME );
-}
-
-// Shows high score details table.
-void show_details( int show_time ) {
-   SetFont( "SMALLFONT" );
-   // High score disabled.
-   if ( ! is_enabled() ) {
-      HudMessage(
-         s : "\ciThe high score is disabled\c-" ;
-         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
-   }
-   // High score loading.
-   else if ( region.load_status != STATUS_LOADED ) {
-      // High score is loading.
-      if ( region.load_status == STATUS_WORKING ) {
-         HudMessage( 
-            s : "\ciThe high score is loading. Please retry in a bit\c-" ;
-            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
-      }
-      // Error.
+      // Query timed out.
       else {
-         HudMessage( 
-            s : "\ciThe high score failed to load\c-" ;
-            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+         result = RESULT_TIMEOUT;
+      }
+      // Save the result to let the user know the result of the query.
+      region::query_result = result;
+   }
+
+   // List version of the above script, allowing the key to be concatenated
+   // with a number to form a new key that represents an item in a list. We
+   // have to make this nearly duplicate script because of the inflexibility
+   // of ACS. Things would have been so much simpler if ACS supported
+   // dynamic creation of strings. This applies to the functions that send
+   // the queries below, too.
+   script 975 ( int type, int keyName, int keyNum ) {
+      switch( type ) {
+      case RETQUERY_INT:
+         Acs_ExecuteWait( 972, 0, retrieve_l( keyName, keyNum ) );
+         break;
+      case RETQUERY_STR:
+         Acs_ExecuteWait( 973, 0, init_string_transmission_l( keyName,
+            keyNum ) );
+         break;
+         // We don't have any functions and scripts to handle list values
+         // for dates because we don't need any at the moment.
       }
    }
-   // No high score set.
-   else if ( ! is_set() ) {
-      HudMessage( 
-         s : "\ciNo high score is set for the map\c-" ;
-         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+
+   int unpack_ascii( int packed, int length ) {
+      int sep = 1000;
+      int ch = 0;
+      // First, decode the luk-encoded ASCII package into real ASCII.
+      while ( packed > 0 ) {
+         region::segment_r[ ch ] = ( packed % sep ) - ASCII_PADDING;
+         packed /= sep;
+         ++ch;
+      }
+      int num_read = ch;
+      // At this stage, we have the data loaded into ACS, but it's
+      // reversed, so we'll have to reverse the characters to make
+      // it readable again.
+      int i = 0;
+      while ( ch > 0 ) {
+         region::str_value[ length + i ] = region::segment_r[ ch - 1 ];
+         --ch;
+         ++i;
+      }
+      return num_read;
    }
-   // Show.
-   else {
-      Acs_ExecuteAlways( region.details_script, 0, show_time );
+
+   bool is_enabled() {
+      return GetCvar( "luk_system" );
+   }
+
+   // The query ID is generated by incrementing the last given query ID.
+   // luk will compare the current query ID with the last query ID 
+   // it processed. If the current query ID is the same as or below the
+   // last query ID, it will ignore the current query.
+   int generate_query_id() {
+      static int id = 0;
+      return ++id;
+   }
+
+   // Query functions:
+   //
+   // These functions send retrieval queries to luk and return
+   // the queries ID for further handling. 
+
+   // This function is used for simple, numeric value retrievals.
+   int retrieve( str key ) {
+      int id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : id,
+         s : " RETRIEVE ", 
+         s : key,
+         s : QEURY_DELIM );
+      return id;
+   }
+
+   int retrieve_date( str key ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " RETRIEVE_DATE ", s : key,
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int init_string_transmission( str key ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " RETRIEVE_STRING_INITIATE ",
+         s : key,
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int retrieve_string_segment() {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " RETRIEVE_STRING_SEGMENT ",
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int StoreInt( str key, int value ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE ", s : key, s : " ", i : value,
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int StoreStr( str key, str value ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE ", s : key, s : " {", s : value, s : "}",
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int StoreName( str key, int playerNum ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE ", s : key, s : " {", n : playerNum + 1, s : "}",
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int StoreDate( str key ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE_DATE ", s : key,
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   // These functions are the same as their above counterparts, but
+   // allow the query key to be concatenated with a number. These
+   // functions are useful for making a list of values by using
+   // a single key name.
+   int StoreNameL( str key, int keyNum, int playerNum ) {
+      int query_id = generate_query_id();
+      Log(
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE ", s : key, i : keyNum,
+         s : " {", n : playerNum + 1, s : "}",
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int StoreIntL( str key, int keyNum, int value ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " STORE ", s : key, i : keyNum,
+         s : " ", i : value,
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int retrieve_l( str key, int keyNum ) {
+      int query_id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : query_id,
+         s : " RETRIEVE ", 
+         s : key, i : keyNum, 
+         s : QEURY_DELIM );
+      return query_id;
+   }
+
+   int init_string_transmission_l( str key, int num ) {
+      int id = generate_query_id();
+      Log( 
+         s : QEURY_DELIM,
+         s : QUERY_HEADER,
+         s : " ", i : id,
+         s : " RETRIEVE_STRING_INITIATE ",
+         s : key, i : num, 
+         s : QEURY_DELIM );
+      return id;
    }
 }
 
-// ==========================================================================
-region jm.solo_ranker;
-// ==========================================================================
+region jm::hs {
+   import upmost: region = std;
+   import jm: config, utility, luk;
 
-import zcommon: default region;
-import jm: config, utility, luk, hs;
+   enum LINE_NOTICE = 27233;
+   enum LINE_NOTICE_Y = 0.55;
+   enum TBL_SHOW_TIME = 8.0;
+   // High score loading status.
+   enum {
+      STATUS_NONE,
+      STATUS_LOADED,
+      STATUS_WORKING,
+      STATUS_ERROR
+   };
 
-// Start script number.
-enum SCRIPT_START = 950;
-// Time to wait in tics before displaying the updated table after a player
-// crosses the finish line.
-enum SHOW_DELAY_TIME = 16;
-enum INDI_TIME_LINEID = 732;
-// Time, in seconds, to wait before automatically showing record details.
-enum AUTO_SHOW_DELAY = 3;
-enum RANK_LIMIT_MIN = 3;
-enum RANK_LIMIT_MAX = 5;
-// The refresh time is the time in seconds it takes to re-display the table.
-// This is needed to reflect name changes if people who are ranked change 
-// their name. We set it to eight seconds to preserve bandwidth.
-enum TBL_REFRESH_TIME = 8;
-enum TBL_X = 250;
-enum TBL_Y = 45100;
-enum TBL_LINE_HEIGHT = 2900;
-// The offset is used to prevent ID conflicts in HudMessages from
-// other scripts.
-enum TBL_LINEID_OFFSET = 733;
+   int load_status = STATUS_NONE;
+   // Stores a ranker's high score load script number so other files can wait
+   // for the ranker to complete loading the high score.
+   int load_script = 0;
+   // Script of the ranker that shows the high score details table.
+   int details_script = 0;
+   bool cheated[ config::MAX_PLAYERS ];
+   bool manual_disable = false;
+   // High score finish time. We put some of the finish time handling here
+   // because both rankers use the same code.
+   int tics = config::VALUE_NONE;
 
-bool finished[ config.MAX_PLAYERS ];
-struct {
+   bool is_auto_show_details_table() {
+      return GetCvar( "jm_show_rdetails" );
+   }
+
+   bool is_cheater( int player ) {
+      return ( region::cheated[ player ] || is_cheats_enabled() );
+   }
+
+   bool is_cheats_enabled() {
+      return GetCvar( "sv_cheats" );
+   }
+
+   bool is_enabled() {
+      return ( utility::is_online() && luk::is_enabled() &&
+         ( ! region::manual_disable ) );
+   }
+
+   void disable() {
+      region::manual_disable = true;
+   }
+
+   int get_finish_time() {
+      return region::tics;
+   }
+
+   void set_finish_time( int tics ) {
+      region::tics = tics;
+   }
+
+   bool is_set() {
+      return ( region::tics != config::VALUE_NONE );
+   }
+
+   bool is_new( int time ) {
+      return ( region::tics == config::VALUE_NONE || time < region::tics );
+   }
+
+   script 999 net {
+      show_details( TBL_SHOW_TIME );
+   }
+
+   // Shows high score details table.
+   void show_details( int show_time ) {
+      SetFont( "SMALLFONT" );
+      // High score disabled.
+      if ( ! is_enabled() ) {
+         HudMessage(
+            s : "\ciThe high score is disabled\c-" ;
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+      // High score loading.
+      else if ( region::load_status != STATUS_LOADED ) {
+         // High score is loading.
+         if ( region::load_status == STATUS_WORKING ) {
+            HudMessage( 
+               s : "\ciThe high score is loading. Please retry in a bit\c-" ;
+               HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+         }
+         // Error.
+         else {
+            HudMessage( 
+               s : "\ciThe high score failed to load\c-" ;
+               HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+         }
+      }
+      // No high score set.
+      else if ( ! is_set() ) {
+         HudMessage( 
+            s : "\ciNo high score is set for the map\c-" ;
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+      // Show.
+      else {
+         Acs_ExecuteAlways( region::details_script, 0, show_time );
+      }
+   }
+}
+
+region jm::solo_ranker {
+   import upmost: region = std;
+   import jm: config, utility, luk, hs;
+
+   // Start script number.
+   enum SCRIPT_START = 950;
+   // Time to wait in tics before displaying the updated table after a player
+   // crosses the finish line.
+   enum SHOW_DELAY_TIME = 16;
+   enum INDI_TIME_LINEID = 732;
+   // Time, in seconds, to wait before automatically showing record details.
+   enum AUTO_SHOW_DELAY = 3;
+   enum RANK_LIMIT_MIN = 3;
+   enum RANK_LIMIT_MAX = 5;
+   // The refresh time is the time in seconds it takes to re-display the table.
+   // This is needed to reflect name changes if people who are ranked change 
+   // their name. We set it to eight seconds to preserve bandwidth.
+   enum TBL_REFRESH_TIME = 8;
+   enum TBL_X = 250;
+   enum TBL_Y = 45100;
+   enum TBL_LINE_HEIGHT = 2900;
+   // The offset is used to prevent ID conflicts in HudMessages from
+   // other scripts.
+   enum TBL_LINEID_OFFSET = 733;
+
+   bool finished[ config::MAX_PLAYERS ];
    struct {
-      int player;
-      int minutes;
-      int seconds;
-      int centiseconds;
-   } spots[ RANK_LIMIT_MAX ];
-   int size;
-} table;
-// This variable will store the amount of players to dispaly.
-int show_limit = RANK_LIMIT_MAX;
-// Rank number colors.
-int rank_colors[ RANK_LIMIT_MAX ] = {
-   "f", // Gold
-   "j", // Silver
-   "e", // Brown
-   "n", // Light blue
-   "t", // Purple
-};
+      struct {
+         int player;
+         int minutes;
+         int seconds;
+         int centiseconds;
+      } spots[ RANK_LIMIT_MAX ];
+      int size;
+   } table;
+   // This variable will store the amount of players to dispaly.
+   int show_limit = RANK_LIMIT_MAX;
+   // Rank number colors.
+   int rank_colors[ RANK_LIMIT_MAX ] = {
+      "f", // Gold
+      "j", // Silver
+      "e", // Brown
+      "n", // Light blue
+      "t", // Purple
+   };
 
-// Start.
-script SCRIPT_START {
-   if ( utility.is_online() ) {
-      if ( hs.is_enabled() ) {
-         hs.load_script = 955;
-         hs.details_script = 956;
-         Acs_ExecuteWait( 955, 0 );
-      }
-      Acs_Execute( 951, 0 );
-   }
-}
-
-// Table display refresh.
-script 951 {
-   int time_passed = 0;
-   int limit = 0;
-   while ( true ) {
-      limit = GetCvar( "jm_table_show_limit" );
-      if ( limit != region.show_limit && 
-         limit >= RANK_LIMIT_MIN && limit <= RANK_LIMIT_MAX ) {
-         clear_table();
-         region.show_limit = limit;
-         show_table();
-      }
-      else if ( time_passed % TBL_REFRESH_TIME == 0 ) {
-         show_table();
-      }
-      Delay( config.TICS_IN_SECOND );
-      ++time_passed;
-   }
-}
-
-script 954 enter {
-   clear_individual_time();
-}
-
-void finish() {
-   if ( PlayerNumber() >= 0 && ! finished[ PlayerNumber() ] ) {
-      finished[ PlayerNumber() ] = true;
-      if ( utility.is_online() ) {
-         Acs_ExecuteAlways( 952, 0, PlayerNumber(),
-            upmost.jm.timer.get_tics() );
-      }
-      else {
-         show_individual_time( upmost.jm.timer.get_tics() );
-      }
-   }
-}
-
-// Adds player to table.
-script 952 ( int player, int time ) {
-   bool is_added = false;
-   // Add player into table if spots are available.
-   if ( region.table.size < RANK_LIMIT_MAX ) {
-      save_in_table( player, time );
-      is_added = true;
-      // High score.
-      // Only first ranked player matters for high score.
-      if ( region.table.size == 1 ) {
-         // Confirm we have new record.
-         if ( hs.is_enabled() && hs.is_new( time ) ) {
-            // Make sure no cheating has occured.
-            if ( ! hs.is_cheater( player ) ) {
-               save_hs( player, time );
-               announce_hs();
-               // Reload high score from luk.
-               Acs_ExecuteWait( 955, 0 );
-            }
-            // Otherwise, tell everybody a nice message.
-            else {
-               announce_cheat();
-            }
+   // Start.
+   script SCRIPT_START {
+      if ( utility::is_online() ) {
+         if ( hs::is_enabled() ) {
+            hs::load_script = 955;
+            hs::details_script = 956;
+            Acs_ExecuteWait( 955, 0 );
          }
+         Acs_Execute( 951, 0 );
       }
    }
-   // Display.
-   // Small delay to replicate old script's delay effect.
-   Delay( SHOW_DELAY_TIME );
-   // Show updated table if modified and show-limit isn't passed.
-   if ( is_added && region.table.size <= region.show_limit ) {
-      show_table();
-   }
-   // Otherwise, show individual time for player.
-   else {
-      show_individual_time( time );
-   }
-}
 
-void save_in_table( int player, int tics ) {
-   table.spots[ table.size ].player = player;
-   int seconds = tics / config.TICS_IN_SECOND;
-   table.spots[ table.size ].minutes =
-      seconds / config.SECONDS_IN_MINUTE;
-   table.spots[ table.size ].seconds =
-      seconds % config.SECONDS_IN_MINUTE;
-   table.spots[ table.size ].centiseconds =
-      utility.cal_cseconds( tics % config.TICS_IN_SECOND );
-   table.size += 1;
-}
-
-int get_spot( int player ) {
-   for ( int i = 0; i < table.size; ++i ) {
-      if ( table.spots[ i ].player == player ) {
-         return i;
-      }
-   }
-   return config.VALUE_NONE;
-}
-
-script 953 ( int player ) disconnect {
-   if ( region.finished[ player ] ) {
-      region.finished[ player ] = false;
-      remove_from_table( player );
-      Delay( SHOW_DELAY_TIME );
-      show_table();
-   }
-}
-
-void remove_from_table( int player ) {
-   int spot = get_spot( player );
-   if ( spot != config.VALUE_NONE ) {
-      // We indicate that a player has disconnected by
-      // removing the player's number with a predefined value.
-      region.table.spots[ spot ].player = config.VALUE_NONE;
-   }
-}
-
-void show_table() {
-   // We need to set the font to small. Otherwise, the font will
-   // vary at different times due to the jumpmaze timer.
-   SetFont( "SMALLFONT" );
-   // Determine the starting height of the table based on the current
-   // rank limit.
-   int line_height = TBL_Y + 
-      ( ( RANK_LIMIT_MAX - region.show_limit ) * TBL_LINE_HEIGHT );
-   int line_id = TBL_LINEID_OFFSET;
-   // We only display the high score if we have one.
-   if ( hs.is_set() ) {
-      int record_line_height = line_height - TBL_LINE_HEIGHT;
-      show_hs_finish_time( line_id, record_line_height );
-      line_id += 1;
-   }
-   // Determine the amount of lines to display.
-   int places_to_display = region.table.size;
-   if ( places_to_display > region.show_limit ) {
-      places_to_display = region.show_limit;
-   }
-   for ( int i = 0; i < places_to_display; ++i ) {
-      int player = region.table.spots[ i ].player;
-      str suffix = utility.ordinal_suffix( i + 1 );
-      int minutes = region.table.spots[ i ].minutes;
-      str minutes_p = utility.number_prefix( minutes );
-      int seconds = region.table.spots[ i ].seconds;
-      str seconds_p = utility.number_prefix( seconds );
-      int centiseconds = region.table.spots[ i ].centiseconds;
-      str centiseconds_p = utility.number_prefix( centiseconds );
-      // Present players:
-      if ( player != config.VALUE_NONE ) {
-         HudMessageBold(
-            s : "\c", s : region.rank_colors[ i ],
-            i : i + 1, s : suffix, s : ":\c- ",
-            n : player + 1,
-            s : "\n\ciTime: \cb",
-            s : minutes_p, i : minutes, 
-            s : ":",
-            s : seconds_p, i : seconds,
-            s : "\cs.",
-            s : centiseconds_p, i : centiseconds,
-            s : "\c-" ;
-            HUDMSG_PLAIN, line_id, 0, TBL_X, line_height, 0 );
-      }
-      // Disconnected players:
-      else {
-         HudMessageBold( 
-            s : "\c", s : region.rank_colors[ i ],
-            i : i + 1, s : suffix, 
-            s : ": \cgDisconnected\c-\n",
-            s : "\ciTime: \cb",
-            s : minutes_p, i : minutes,
-            s : ":",
-            s : seconds_p, i : seconds,
-            s : "\cs.",
-            s : centiseconds_p, i : centiseconds,
-            s : "\c-" ;
-            HUDMSG_PLAIN, line_id, 0, TBL_X, line_height, 0 );
-      }
-      line_height += TBL_LINE_HEIGHT;
-      line_id += 1;
-   }
-}
-
-void clear_table() {
-   int lines_to_clear = region.show_limit;
-   // Clear the extra record time line.
-   if ( hs.is_set() ) {
-      lines_to_clear += 1;
-   }
-   for ( int line = 0; line < lines_to_clear; line += 1 ) {
-      // We clear the previous rendition by using the same
-      // message ID, but this time, using a blank string.
-      utility.clear_message_bold( TBL_LINEID_OFFSET + line );
-   }
-}
-
-void show_individual_time( int tics ) {
-   SetFont( "SMALLFONT" );
-   // Calculate the individual time to display:
-   int time = tics / config.TICS_IN_SECOND;
-   int minutes = time / config.SECONDS_IN_MINUTE;
-   int seconds = time % config.SECONDS_IN_MINUTE;
-   int centiseconds = utility.cal_cseconds( tics % config.TICS_IN_SECOND );
-   HudMessage(
-      s : "\crTime: \cc", 
-      s : utility.number_prefix( minutes ), i : minutes, 
-      s : ":", 
-      s : utility.number_prefix( seconds ), i : seconds,
-      s : "\cu.",
-      s : "", s : utility.number_prefix( centiseconds ), i : centiseconds, 
-      s : "\c-" ;
-      HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, 
-      TBL_Y + ( TBL_LINE_HEIGHT * RANK_LIMIT_MAX ), 0
-   );
-}
-
-void clear_individual_time() {
-   utility.clear_message( INDI_TIME_LINEID );
-}
-
-// High Score (luk-specific functions and scripts)
-// ---------------------------------------------------------------------------
-
-enum HS_TBL_X = -1.75;
-enum HS_TBL_Y = 0.7;
-enum HS_TBL_LINE = hs.LINE_NOTICE;
-enum HS_TBL_LINE_HEIGHT = 1000;
-enum HS_TBL_SHOW_TIME = 8.0;
-enum HS_RTIME = "jrs_hs_time";
-enum HS_RAUTHOR = "jrs_hs_author";
-enum HS_RDATE = "jrs_hs_rdate";
-
-int hs_author[ luk.MAX_STR_VALUE_SIZE ];
-int hs_minutes = config.VALUE_NONE;
-int hs_seconds = config.VALUE_NONE;
-int hs_centiseconds = config.VALUE_NONE;
-int hs_year = 0;
-int hs_month = 0;
-int hs_day = 0;
-
-// High score loading.
-script 955 {
-   hs.load_status = hs.STATUS_WORKING;
-   // Load high score finish time.
-   Acs_ExecuteWait( 970, 0, luk.RETQUERY_INT, HS_RTIME );
-   if ( luk.query_result != luk.RESULT_OK ) {
-      // If luk returns an error code, that means no high score is set.
-      if ( luk.query_result == luk.RESULT_FAILED ) {
-         hs.load_status = hs.STATUS_LOADED;
-      }
-      // Error.
-      else {
-         hs.load_status = hs.STATUS_ERROR;
-      }
-
-      terminate;
-   }
-   set_hs_finish_time( luk.data );
-   // Load author of high score.
-   Acs_ExecuteWait( 970, 0, luk.RETQUERY_STR, HS_RAUTHOR );
-   if ( luk.query_result != luk.RESULT_OK ) {
-      hs.load_status = hs.STATUS_ERROR;
-      terminate;
-   }
-   set_hs_author();
-   // Load date of high score.
-   Acs_ExecuteWait( 970, 0, luk.RETQUERY_DATE, HS_RDATE );
-   if ( luk.query_result != luk.RESULT_OK ) {
-      hs.load_status = hs.STATUS_ERROR;
-      terminate;
-   }
-   region.hs_year = luk.year;
-   region.hs_month = luk.month;
-   region.hs_day = luk.day;
-   hs.load_status = hs.STATUS_LOADED;
-}
-
-// Sets the finish time, in tics, of the high score and converts it into more
-// familiar units like minutes and seconds.
-void set_hs_finish_time( int tics ) {
-   if ( tics > 0 ) {
-      int seconds = tics / config.TICS_IN_SECOND;
-      region.hs_minutes = seconds / config.SECONDS_IN_MINUTE;
-      region.hs_seconds = seconds % config.SECONDS_IN_MINUTE;
-      region.hs_centiseconds = utility.cal_cseconds( tics % config.TICS_IN_SECOND );
-      set_hs_finish_time( tics );
-   }
-}
-
-// Sets the author of the high score by copying the name from luk library's
-// temporary buffer to ours.
-void set_hs_author() {
-   for ( int i = 0; i < luk.MAX_STR_VALUE_SIZE; ++i ) {
-      region.hs_author[ i ] = luk.str_value[ i ];
-      if ( luk.str_value[ i ] == '\0' ) {
-         break;
-      }
-   }
-}
-
-// Saves high score and all of its details in permanent storage.
-void save_hs( int player, int tics ) { 
-   luk.StoreName( HS_RAUTHOR, player );
-   luk.StoreInt( HS_RTIME, tics );
-   luk.StoreDate( HS_RDATE );
-}
-
-void show_hs_finish_time( int lineId, int lineHeight ) {
-   SetFont( "SMALLFONT" );
-   HudMessageBold(
-      s : "\cnRecord: \cb",
-      s : utility.number_prefix( region.hs_minutes ), i : region.hs_minutes,
-      s : ":", s : utility.number_prefix( region.hs_seconds ),
-      i : region.hs_seconds, s : "\cs.",
-      s : utility.number_prefix( region.hs_centiseconds ),
-      i : region.hs_centiseconds, s : "\c-" ;
-      HUDMSG_PLAIN, lineId, 0, TBL_X, lineHeight, 0 );
-}
-
-void announce_hs() {
-   SetFont( "SMALL" );
-   HudMessageBold(
-      s : "\cd", n : 0, s : "\cd set a new map record!\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
-   AmbientSound( "JM2HSWIN", 127 );
-}
-
-void announce_cheat() {
-   HudMessageBold( 
-      s : "\cgClever \cc", n : 0, s : "\cg tried to cheat to the ",
-      s : "high score\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
-   AmbientSound( "JM2HSLOS", 127 );
-}
-
-// Prints high score details table.
-script 956 ( int show_time ) {
-   int y = HS_TBL_Y;
-   int line_id = HS_TBL_LINE;
-   SetFont( "SMALLFONT" );
-   // Header:
-   HudMessage(
-      s : "\ciRecord details\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Record date:
-   HudMessage(
-      s : "\ckDate Set:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   HudMessage(
-      s : "\cc", s : utility.conv_month_string( region.hs_month ), 
-      s : " ", i : region.hs_day, s : ", ", i : region.hs_year, s : "\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Record time:
-   HudMessage(
-      s : "\ckFinish Time:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   HudMessage(
-      s : "\cb", s : utility.number_prefix( region.hs_minutes ),
-      i : region.hs_minutes, s : ":",
-      s : utility.number_prefix( region.hs_seconds ), i : region.hs_seconds,
-      s : "\cs.", s : utility.number_prefix( region.hs_centiseconds ),
-      i : region.hs_centiseconds,  s : "\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Record holder:
-   HudMessage(
-      s : "\ckRecord Holder:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   HudMessage(
-      s : "\cc", a : region.hs_author, s : "\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
-}
-
-// ==========================================================================
-region jm.team_ranker;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, utility, luk, hs;
-
-enum SCRIPT_START = 960;
-enum SCRIPT_POINT = 962;
-enum MAX_POINTS = 10;
-enum SHOW_DELAY_TIME = 16;
-enum TBL_X = 250;
-enum TBL_Y = 50000;
-enum TBL_START_POSITION = 52000;
-enum TBL_PLACE_HEIGHT = 1000;
-enum TBL_REFRESH_TIME = 8; // In seconds
-enum TBL_LINEID_OFFSET = 960;
-enum HS_LINE = ( TBL_LINEID_OFFSET + 2 + MAX_POINTS );
-
-struct table {
-   struct spot spots[ MAX_POINTS ];
-   int size;
-};
-
-struct spot {
-   int player;
-   int points;
-};
-
-struct table table;
-int points_left = MAX_POINTS;
-int points_total = MAX_POINTS;
-int minutes = 0;
-int seconds = 0;
-int centiseconds = 0;
-str end_message = "";
-
-// Start.
-script SCRIPT_START ( int points ) {
-   // Don't go over the maximum score points we can support.
-   if ( points <= MAX_POINTS ) {
-      region.points_left = points;
-      region.points_total = points;
-   }
-   if ( utility.is_online() ) {
-      // Load high score.
-      if ( hs.is_enabled() ) {
-         hs.load_script = 963;
-         hs.details_script = 965;
-         Acs_ExecuteWait( 963, 0 );
-      }
-      // Show the table periodically to reflect changes in players names.
+   // Table display refresh.
+   script 951 {
+      int time_passed = 0;
+      int limit = 0;
       while ( true ) {
-         show_table();
-         Delay( config.TICS_IN_SECOND * TBL_REFRESH_TIME );
+         limit = GetCvar( "jm_table_show_limit" );
+         if ( limit != region::show_limit && 
+            limit >= RANK_LIMIT_MIN && limit <= RANK_LIMIT_MAX ) {
+            clear_table();
+            region::show_limit = limit;
+            show_table();
+         }
+         else if ( time_passed % TBL_REFRESH_TIME == 0 ) {
+            show_table();
+         }
+         Delay( config::TICS_IN_SECOND );
+         ++time_passed;
       }
-   } 
-   else {
-      draw_goals();
    }
-}
 
-// Adds point to player.
-script SCRIPT_POINT {
-   if ( region.points_left > 0 ) {
-      add_point_to_player( PlayerNumber() );
-      // When all points have been awarded, calculate finish time.
-      if ( region.points_left == 0 ) {
-         int time = upmost.jm.timer.get_tics();
-         set_finish_time( time );
+   script 954 enter {
+      clear_individual_time();
+   }
+
+   void finish() {
+      if ( PlayerNumber() >= 0 && ! finished[ PlayerNumber() ] ) {
+         finished[ PlayerNumber() ] = true;
+         if ( utility::is_online() ) {
+            Acs_ExecuteAlways( 952, 0, PlayerNumber(),
+               upmost::jm::timer::get_tics() );
+         }
+         else {
+            show_individual_time( upmost::jm::timer::get_tics() );
+         }
+      }
+   }
+
+   // Adds player to table.
+   script 952 ( int player, int time ) {
+      bool is_added = false;
+      // Add player into table if spots are available.
+      if ( region::table.size < RANK_LIMIT_MAX ) {
+         save_in_table( player, time );
+         is_added = true;
          // High score.
-         if ( hs.is_enabled() && hs.is_new( time ) ) {
-            // Only proceed if map was completed without cheats.
-            if ( ! hs.is_cheats_enabled() ) {
-               save_hs( time );
-               announce_hs();
-               // Load new high score.
-               Acs_ExecuteWait( 963, 0 );
-            }
-            else {
-               announce_cheat();
+         // Only first ranked player matters for high score.
+         if ( region::table.size == 1 ) {
+            // Confirm we have new record.
+            if ( hs::is_enabled() && hs::is_new( time ) ) {
+               // Make sure no cheating has occured.
+               if ( ! hs::is_cheater( player ) ) {
+                  save_hs( player, time );
+                  announce_hs();
+                  // Reload high score from luk.
+                  Acs_ExecuteWait( 955, 0 );
+               }
+               // Otherwise, tell everybody a nice message.
+               else {
+                  announce_cheat();
+               }
             }
          }
       }
-      // Update display.
+      // Display.
+      // Small delay to replicate old script's delay effect.
       Delay( SHOW_DELAY_TIME );
-      if ( utility.is_online() ) {
+      // Show updated table if modified and show-limit isn't passed.
+      if ( is_added && region::table.size <= region::show_limit ) {
          show_table();
       }
+      // Otherwise, show individual time for player.
+      else {
+         show_individual_time( time );
+      }
+   }
+
+   void save_in_table( int player, int tics ) {
+      table.spots[ table.size ].player = player;
+      int seconds = tics / config::TICS_IN_SECOND;
+      table.spots[ table.size ].minutes =
+         seconds / config::SECONDS_IN_MINUTE;
+      table.spots[ table.size ].seconds =
+         seconds % config::SECONDS_IN_MINUTE;
+      table.spots[ table.size ].centiseconds = utility::cal_cseconds( tics % config::TICS_IN_SECOND );
+      table.size += 1;
+   }
+
+   int get_spot( int player ) {
+      for ( int i = 0; i < table.size; ++i ) {
+         if ( table.spots[ i ].player == player ) {
+            return i;
+         }
+      }
+      return config::VALUE_NONE;
+   }
+
+   script 953 ( int player ) disconnect {
+      if ( region::finished[ player ] ) {
+         region::finished[ player ] = false;
+         remove_from_table( player );
+         Delay( SHOW_DELAY_TIME );
+         show_table();
+      }
+   }
+
+   void remove_from_table( int player ) {
+      int spot = get_spot( player );
+      if ( spot != config::VALUE_NONE ) {
+         // We indicate that a player has disconnected by
+         // removing the player's number with a predefined value.
+         region::table.spots[ spot ].player = config::VALUE_NONE;
+      }
+   }
+
+   void show_table() {
+      // We need to set the font to small. Otherwise, the font will
+      // vary at different times due to the jumpmaze timer.
+      SetFont( "SMALLFONT" );
+      // Determine the starting height of the table based on the current
+      // rank limit.
+      int line_height = TBL_Y + 
+         ( ( RANK_LIMIT_MAX - region::show_limit ) * TBL_LINE_HEIGHT );
+      int line_id = TBL_LINEID_OFFSET;
+      // We only display the high score if we have one.
+      if ( hs::is_set() ) {
+         int record_line_height = line_height - TBL_LINE_HEIGHT;
+         show_hs_finish_time( line_id, record_line_height );
+         line_id += 1;
+      }
+      // Determine the amount of lines to display.
+      int places_to_display = region::table.size;
+      if ( places_to_display > region::show_limit ) {
+         places_to_display = region::show_limit;
+      }
+      for ( int i = 0; i < places_to_display; ++i ) {
+         HudMessageBold( {}; HUDMSG_PLAIN, line_id, 0, TBL_X, line_height,
+            0.0 ) := {
+            s := "\c", s := region::rank_colors[ i ],
+            i := i + 1, s := utility::ordinal_suffix( i + 1 ), s := ": ";
+            if ( region::table.spots[ i ].player != config::VALUE_NONE ) {
+               n := region::table.spots[ i ].player + 1;
+            }
+            else {
+               s := "\cgDisconnected";
+            }
+            s := "\n",
+            s := "\ciTime: \cb",
+            s := utility::number_prefix( table.spots[ i ].minutes ),
+            i := table.spots[ i ].minutes, s := ":",
+            s := utility::number_prefix( table.spots[ i ].seconds ),
+            i := table.spots[ i ].seconds, s := "\cs.",
+            s := utility::number_prefix( table.spots[ i ].centiseconds ),
+            i := table.spots[ i ].centiseconds;
+         }
+         line_height += TBL_LINE_HEIGHT;
+         line_id += 1;
+      }
+   }
+
+   void clear_table() {
+      int lines_to_clear = region::show_limit;
+      // Clear the extra record time line.
+      if ( hs::is_set() ) {
+         lines_to_clear += 1;
+      }
+      for ( int line = 0; line < lines_to_clear; line += 1 ) {
+         // We clear the previous rendition by using the same
+         // message ID, but this time, using a blank string.
+         utility::clear_message_bold( TBL_LINEID_OFFSET + line );
+      }
+   }
+
+   void show_individual_time( int tics ) {
+      SetFont( "SMALLFONT" );
+      // Calculate the individual time to display:
+      int time = tics / config::TICS_IN_SECOND;
+      int minutes = time / config::SECONDS_IN_MINUTE;
+      int seconds = time % config::SECONDS_IN_MINUTE;
+      int centiseconds = utility::cal_cseconds(
+         tics % config::TICS_IN_SECOND );
+      HudMessage(
+         s : "\crTime: \cc", 
+         s : utility::number_prefix( minutes ), i : minutes, 
+         s : ":", 
+         s : utility::number_prefix( seconds ), i : seconds,
+         s : "\cu.",
+         s : "", s : utility::number_prefix( centiseconds ), i : centiseconds,
+         s : "\c-" ;
+         HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, 
+         TBL_Y + ( TBL_LINE_HEIGHT * RANK_LIMIT_MAX ), 0
+      );
+   }
+
+   void clear_individual_time() {
+      utility::clear_message( INDI_TIME_LINEID );
+   }
+
+   // High Score (luk-specific functions and scripts)
+   // -----------------------------------------------------------------------
+
+   enum HS_TBL_X = -1.75;
+   enum HS_TBL_Y = 0.7;
+   enum HS_TBL_LINE = hs::LINE_NOTICE;
+   enum HS_TBL_LINE_HEIGHT = 1000;
+   enum HS_TBL_SHOW_TIME = 8.0;
+   enum HS_RTIME = "jrs_hs_time";
+   enum HS_RAUTHOR = "jrs_hs_author";
+   enum HS_RDATE = "jrs_hs_rdate";
+
+   int hs_author[ luk::MAX_STR_VALUE_SIZE ];
+   int hs_minutes = config::VALUE_NONE;
+   int hs_seconds = config::VALUE_NONE;
+   int hs_centiseconds = config::VALUE_NONE;
+   int hs_year = 0;
+   int hs_month = 0;
+   int hs_day = 0;
+
+   // High score loading.
+   script 955 {
+      hs::load_status = hs::STATUS_WORKING;
+      // Load high score finish time.
+      Acs_ExecuteWait( 970, 0, luk::RETQUERY_INT, HS_RTIME );
+      if ( luk::query_result != luk::RESULT_OK ) {
+         // If luk returns an error code, that means no high score is set.
+         if ( luk::query_result == luk::RESULT_FAILED ) {
+            hs::load_status = hs::STATUS_LOADED;
+         }
+         // Error.
+         else {
+            hs::load_status = hs::STATUS_ERROR;
+         }
+
+         terminate;
+      }
+      set_hs_finish_time( luk::data );
+      // Load author of high score.
+      Acs_ExecuteWait( 970, 0, luk::RETQUERY_STR, HS_RAUTHOR );
+      if ( luk::query_result != luk::RESULT_OK ) {
+         hs::load_status = hs::STATUS_ERROR;
+         terminate;
+      }
+      set_hs_author();
+      // Load date of high score.
+      Acs_ExecuteWait( 970, 0, luk::RETQUERY_DATE, HS_RDATE );
+      if ( luk::query_result != luk::RESULT_OK ) {
+         hs::load_status = hs::STATUS_ERROR;
+         terminate;
+      }
+      region::hs_year = luk::year;
+      region::hs_month = luk::month;
+      region::hs_day = luk::day;
+      hs::load_status = hs::STATUS_LOADED;
+   }
+
+   // Sets the finish time, in tics, of the high score and converts it into
+   // more familiar units like minutes and seconds.
+   void set_hs_finish_time( int tics ) {
+      if ( tics > 0 ) {
+         int seconds = tics / config::TICS_IN_SECOND;
+         region::hs_minutes = seconds / config::SECONDS_IN_MINUTE;
+         region::hs_seconds = seconds % config::SECONDS_IN_MINUTE;
+         region::hs_centiseconds = utility::cal_cseconds(
+            tics % config::TICS_IN_SECOND );
+         set_hs_finish_time( tics );
+      }
+   }
+
+   // Sets the author of the high score by copying the name from luk library's
+   // temporary buffer to ours.
+   void set_hs_author() {
+      for ( int i = 0; i < luk::MAX_STR_VALUE_SIZE; ++i ) {
+         region::hs_author[ i ] = luk::str_value[ i ];
+         if ( luk::str_value[ i ] == '\0' ) {
+            break;
+         }
+      }
+   }
+
+   // Saves high score and all of its details in permanent storage.
+   void save_hs( int player, int tics ) { 
+      luk::StoreName( HS_RAUTHOR, player );
+      luk::StoreInt( HS_RTIME, tics );
+      luk::StoreDate( HS_RDATE );
+   }
+
+   void show_hs_finish_time( int lineId, int lineHeight ) {
+      SetFont( "SMALLFONT" );
+      HudMessageBold(
+         s : "\cnRecord: \cb",
+         s : utility::number_prefix( region::hs_minutes ),
+         i : region::hs_minutes,
+         s : ":", s : utility::number_prefix( region::hs_seconds ),
+         i : region::hs_seconds, s : "\cs.",
+         s : utility::number_prefix( region::hs_centiseconds ),
+         i : region::hs_centiseconds, s : "\c-" ;
+         HUDMSG_PLAIN, lineId, 0, TBL_X, lineHeight, 0 );
+   }
+
+   void announce_hs() {
+      SetFont( "SMALL" );
+      HudMessageBold(
+         s : "\cd", n : 0, s : "\cd set a new map record!\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
+      AmbientSound( "JM2HSWIN", 127 );
+   }
+
+   void announce_cheat() {
+      HudMessageBold( 
+         s : "\cgClever \cc", n : 0, s : "\cg tried to cheat to the ",
+         s : "high score\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
+      AmbientSound( "JM2HSLOS", 127 );
+   }
+
+   // Prints high score details table.
+   script 956 ( int show_time ) {
+      int y = HS_TBL_Y;
+      int line_id = HS_TBL_LINE;
+      SetFont( "SMALLFONT" );
+      // Header:
+      HudMessage(
+         s : "\ciRecord details\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Record date:
+      HudMessage(
+         s : "\ckDate Set:\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT;
+      line_id += 1;
+      HudMessage(
+         s : "\cc", s : utility::conv_month_string( region::hs_month ), 
+         s : " ", i : region::hs_day, s : ", ", i : region::hs_year;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Record time:
+      HudMessage(
+         s : "\ckFinish Time:\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT;
+      line_id += 1;
+      HudMessage(
+         s : "\cb", s : utility::number_prefix( region::hs_minutes ),
+         i : region::hs_minutes, s : ":",
+         s : utility::number_prefix( region::hs_seconds ),
+         i : region::hs_seconds, s : "\cs.",
+         s : utility::number_prefix( region::hs_centiseconds ),
+         i : region::hs_centiseconds;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Record holder:
+      HudMessage(
+         s : "\ckRecord Holder:\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+      y += HS_TBL_LINE_HEIGHT;
+      line_id += 1;
+      HudMessage(
+         s : "\cc", a : region::hs_author, s : "\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, show_time, 1.0 );
+   }
+}
+
+region jm::team_ranker {
+   import upmost: region = std;
+   import jm: config, utility, luk, hs;
+
+   enum SCRIPT_START = 960;
+   enum SCRIPT_POINT = 962;
+   enum MAX_POINTS = 10;
+   enum SHOW_DELAY_TIME = 16;
+   enum TBL_X = 250;
+   enum TBL_Y = 50000;
+   enum TBL_START_POSITION = 52000;
+   enum TBL_PLACE_HEIGHT = 1000;
+   enum TBL_REFRESH_TIME = 8; // In seconds
+   enum TBL_LINEID_OFFSET = 960;
+   enum HS_LINE = ( TBL_LINEID_OFFSET + 2 + MAX_POINTS );
+
+   struct table {
+      struct spot spots[ MAX_POINTS ];
+      int size;
+   };
+
+   struct spot {
+      int player;
+      int points;
+   };
+
+   struct table table;
+   int points_left = MAX_POINTS;
+   int points_total = MAX_POINTS;
+   int minutes = 0;
+   int seconds = 0;
+   int centiseconds = 0;
+   str end_message = "";
+
+   // Start.
+   script SCRIPT_START ( int points ) {
+      // Don't go over the maximum score points we can support.
+      if ( points <= MAX_POINTS ) {
+         region::points_left = points;
+         region::points_total = points;
+      }
+      if ( utility::is_online() ) {
+         // Load high score.
+         if ( hs::is_enabled() ) {
+            hs::load_script = 963;
+            hs::details_script = 965;
+            Acs_ExecuteWait( 963, 0 );
+         }
+         // Show the table periodically to reflect changes in players names.
+         while ( true ) {
+            show_table();
+            Delay( config::TICS_IN_SECOND * TBL_REFRESH_TIME );
+         }
+      } 
       else {
          draw_goals();
       }
    }
-}
 
-void add_point_to_player( int player ) {
-   int spot = get_spot( player );
-   // Create a new space for first time players.
-   if ( spot == config.VALUE_NONE ) {
-      spot = region.table.size;
-      region.table.spots[ spot ].player = player;
-      region.table.size += 1;
-   }
-   region.table.spots[ spot ].points += 1;
-   region.points_left -= 1;
-}
-
-int get_spot( int player ) {
-   for ( int i = 0; i < region.table.size; i += 1 ) {
-      if ( player == region.table.spots[ i ].player ) {
-         return i;
+   // Adds point to player.
+   script SCRIPT_POINT {
+      if ( region::points_left > 0 ) {
+         add_point_to_player( PlayerNumber() );
+         // When all points have been awarded, calculate finish time.
+         if ( region::points_left == 0 ) {
+            int time = upmost::jm::timer::get_tics();
+            set_finish_time( time );
+            // High score.
+            if ( hs::is_enabled() && hs::is_new( time ) ) {
+               // Only proceed if map was completed without cheats.
+               if ( ! hs::is_cheats_enabled() ) {
+                  save_hs( time );
+                  announce_hs();
+                  // Load new high score.
+                  Acs_ExecuteWait( 963, 0 );
+               }
+               else {
+                  announce_cheat();
+               }
+            }
+         }
+         // Update display.
+         Delay( SHOW_DELAY_TIME );
+         if ( utility::is_online() ) {
+            show_table();
+         }
+         else {
+            draw_goals();
+         }
       }
    }
-   return config.VALUE_NONE;
-}
 
-void set_finish_time( int tics ) {
-   int seconds = tics / config.TICS_IN_SECOND;
-   region.minutes = seconds / config.SECONDS_IN_MINUTE; 
-   region.seconds = seconds % config.SECONDS_IN_MINUTE;
-   region.centiseconds = utility.cal_cseconds( tics % config.TICS_IN_SECOND );
-}
+   void add_point_to_player( int player ) {
+      int spot = get_spot( player );
+      // Create a new space for first time players.
+      if ( spot == config::VALUE_NONE ) {
+         spot = region::table.size;
+         region::table.spots[ spot ].player = player;
+         region::table.size += 1;
+      }
+      region::table.spots[ spot ].points += 1;
+      region::points_left -= 1;
+   }
 
-bool is_spot_active( int spot ) {
-   return ( region.table.spots[ spot ].player != config.VALUE_NONE );
-}
+   int get_spot( int player ) {
+      for ( int i = 0; i < region::table.size; i += 1 ) {
+         if ( player == region::table.spots[ i ].player ) {
+            return i;
+         }
+      }
+      return config::VALUE_NONE;
+   }
 
-script 961 ( int player ) disconnect {
-   int spot = get_spot( player );
-   // We update only those players that have scored.
-   if ( spot != config.VALUE_NONE ) {
-      region.table.spots[ spot ].player = config.VALUE_NONE;
-      Delay( SHOW_DELAY_TIME );
-      show_table();
+   void set_finish_time( int tics ) {
+      int seconds = tics / config::TICS_IN_SECOND;
+      region::minutes = seconds / config::SECONDS_IN_MINUTE; 
+      region::seconds = seconds % config::SECONDS_IN_MINUTE;
+      region::centiseconds = utility::cal_cseconds( tics %
+         config::TICS_IN_SECOND );
    }
-}
 
-void show_table() {
-   SetFont( "SMALLFONT" );
-   int table_y = TBL_Y;
-   int high_score_y = table_y;
-   int time_y = table_y + TBL_PLACE_HEIGHT;
-   // Move the high score time to the place where the completion time
-   // usually resides if we don't have a completion time yet.
-   if ( points_left > 0 ) {
-      high_score_y += TBL_PLACE_HEIGHT;
+   bool is_spot_active( int spot ) {
+      return ( region::table.spots[ spot ].player != config::VALUE_NONE );
    }
-   // Draw the high score finish time.
-   if ( hs.is_set() ) {
-      show_hs_finish_time( high_score_y );
+
+   script 961 ( int player ) disconnect {
+      int spot = get_spot( player );
+      // We update only those players that have scored.
+      if ( spot != config::VALUE_NONE ) {
+         region::table.spots[ spot ].player = config::VALUE_NONE;
+         Delay( SHOW_DELAY_TIME );
+         show_table();
+      }
    }
-   // Show finish time.
-   if ( points_left == 0 ) {
-      draw_time( time_y );
+
+   void show_table() {
+      SetFont( "SMALLFONT" );
+      int table_y = TBL_Y;
+      int high_score_y = table_y;
+      int time_y = table_y + TBL_PLACE_HEIGHT;
+      // Move the high score time to the place where the completion time
+      // usually resides if we don't have a completion time yet.
+      if ( points_left > 0 ) {
+         high_score_y += TBL_PLACE_HEIGHT;
+      }
+      // Draw the high score finish time.
+      if ( hs::is_set() ) {
+         show_hs_finish_time( high_score_y );
+      }
+      // Show finish time.
+      if ( points_left == 0 ) {
+         draw_time( time_y );
+      }
+      // Draw the main helpers label:
+      table_y += TBL_PLACE_HEIGHT * 2;
+      HudMessageBold( 
+         s : "\cfMain Helpers\c-" ;
+         HUDMSG_PLAIN, TBL_LINEID_OFFSET + 1, 0, TBL_X,
+         table_y, 0 );
+      // We add two because we already have two messages above.
+      int message_id = TBL_LINEID_OFFSET + 2;
+      table_y = TBL_START_POSITION + 
+         // We multiply by 4 because we want to give extra space
+         // for the 'say' command.
+         ( 4 * TBL_PLACE_HEIGHT );
+      for ( int pos = 0; pos < region::table.size; pos += 1 ) {
+         // For players that are still in game.
+         if ( region::table.spots[ pos ].player != config::VALUE_NONE ) {
+            HudMessageBold(
+               s : "\cc", n : region::table.spots[ pos ].player + 1,
+               s : "\c- \cd", i : region::table.spots[ pos ].points, 
+               s : "\c-" ;
+               HUDMSG_PLAIN, message_id, 0, TBL_X, table_y, 0 );
+         }
+         // For disconnected players.
+         else {
+            HudMessageBold( 
+               s : "\cgDisconnected\c-",
+               s : " \cd", i : region::table.spots[ pos ].points, 
+               s : "\c-" ;
+               HUDMSG_PLAIN, message_id, 0, TBL_X, table_y, 0
+            );
+         }
+         table_y += TBL_PLACE_HEIGHT;
+         message_id += 1;
+      }
    }
-   // Draw the main helpers label:
-   table_y += TBL_PLACE_HEIGHT * 2;
-   HudMessageBold( 
-      s : "\cfMain Helpers\c-" ;
-      HUDMSG_PLAIN, TBL_LINEID_OFFSET + 1, 0, TBL_X,
-      table_y, 0 );
-   // We add two because we already have two messages above.
-   int message_id = TBL_LINEID_OFFSET + 2;
-   table_y = TBL_START_POSITION + 
-      // We multiply by 4 because we want to give extra space
-      // for the 'say' command.
-      ( 4 * TBL_PLACE_HEIGHT );
-   for ( int pos = 0; pos < region.table.size; pos += 1 ) {
-      // For players that are still in game.
-      if ( region.table.spots[ pos ].player != config.VALUE_NONE ) {
+
+   void draw_time( int tableY ) {
+      // Select a label based on the game type.
+      str time_label = "\crTime: \c-";
+      if ( utility::is_online() ) {
+         time_label = "\ciTeamtime: \c-";
+      }
+      // Finish time end message.
+      if ( region::end_message == "" ) {
          HudMessageBold(
-            s : "\cc", n : region.table.spots[ pos ].player + 1,
-            s : "\c- \cd", i : region.table.spots[ pos ].points, 
-            s : "\c-" ;
-            HUDMSG_PLAIN, message_id, 0, TBL_X, table_y, 0 );
+            s : time_label, s : "\cb",
+            s : utility::number_prefix( region::minutes ), i : region::minutes, s : ":",
+            s : utility::number_prefix( region::seconds ), i : region::seconds,
+            s : "\cs.", s : utility::number_prefix( region::centiseconds ), 
+            i : region::centiseconds, s : "\c-" ;
+            HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, tableY, 0 );
       }
-      // For disconnected players.
+      // Custom end message.
       else {
          HudMessageBold( 
-            s : "\cgDisconnected\c-",
-            s : " \cd", i : region.table.spots[ pos ].points, 
-            s : "\c-" ;
-            HUDMSG_PLAIN, message_id, 0, TBL_X, table_y, 0
-         );
+            s : "\ci", s : region::end_message, s : "\c-" ;
+            HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, tableY, 0 );
       }
-      table_y += TBL_PLACE_HEIGHT;
-      message_id += 1;
    }
-}
 
-void draw_time( int tableY ) {
-   // Select a label based on the game type.
-   str time_label = "\crTime: \c-";
-   if ( utility.is_online() ) {
-      time_label = "\ciTeamtime: \c-";
-   }
-   // Finish time end message.
-   if ( region.end_message == "" ) {
-      HudMessageBold(
-         s : time_label, s : "\cb",
-         s : utility.number_prefix( region.minutes ), i : region.minutes, s : ":",
-         s : utility.number_prefix( region.seconds ), i : region.seconds,
-         s : "\cs.", s : utility.number_prefix( region.centiseconds ), 
-         i : region.centiseconds, s : "\c-" ;
-         HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, tableY, 0 );
-   }
-   // Custom end message.
-   else {
-      HudMessageBold( 
-         s : "\ci", s : region.end_message, s : "\c-" ;
-         HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, tableY, 0 );
-   }
-}
-
-void draw_goals() {
-   if ( region.points_left == 0 ) {
-      draw_time( TBL_Y );
-      draw_goals_line( "\cd", "\cq", "\cq", TBL_Y + TBL_PLACE_HEIGHT );
-   }
-   else {
-      draw_goals_line( "\cc", "\ck", "\ci", TBL_Y + TBL_PLACE_HEIGHT );
-   }
-}
-
-void draw_goals_line( str labelClr, str pointClr, str totalClr,
-   int tableY ) {
-   SetFont( "SMALLFONT" );
-   // For single player, there's only one player playing and therefore 
-   // always one place taken in the score table, which will be the first.
-   int current_score = region.table.spots[ 0 ].points;
-   // Even though there likely won't be any maps that will contain one point,
-   // we'll still choose the appropriate label based on the quantity 
-   // of the points.
-   str goals_label = "Goals";
-   if ( region.points_total == 1 ) {
-      goals_label = "Goal";
-   }
-   HudMessage( 
-      s : labelClr, s : goals_label, s : ": ", 
-      s : pointClr, i : current_score, 
-      s : labelClr, s : " / ", 
-      s : totalClr, i : region.points_total, s : "\c-" ;
-      HUDMSG_PLAIN, TBL_LINEID_OFFSET + 1, 0, TBL_X, tableY, 0 );
-}
-
-// This function is used to clear the table when
-void clear_points_table() {
-   // Clear all posssible player places and the table header
-   // with the finish time.
-   int lines_to_clear = MAX_POINTS + 2;
-   for ( int pos = 0; pos < lines_to_clear; pos += 1 ) {
-      utility.clear_message( TBL_LINEID_OFFSET + pos );
-   }
-}
-
-// High Score (luk-specific functions and scripts)
-// ---------------------------------------------------------------------------
-
-// luk database record keys.
-enum HS_RTIME = "jrt_hs_time";
-enum HS_RPLAYER_PREFIX = "jrt_hs_helper";
-enum HS_RPOINTS_PREFIX = "jrt_hs_points";
-enum HS_RTOTAL_PLAYERS = "jrt_hs_total_players";
-enum HS_RDATE = "jrt_hs_rdate";
-enum HS_TBL_X = -1.75;
-enum HS_TBL_Y = 0.7;
-enum HS_TBL_LINE = hs.LINE_NOTICE;
-enum HS_TBL_LINE_HEIGHT = 1000;
-
-// Finish time.
-int hs_minutes = -1;
-int hs_seconds = -1;
-int hs_centiseconds = -1;
-
-// Authors.
-int hs_helpers_total = config.VALUE_NONE;
-int hs_helpers_name[ MAX_POINTS ][ luk.MAX_STR_VALUE_SIZE ];
-int hs_helpers_points[ MAX_POINTS ];
-int hs_unaccounted_points = 0;
-
-// Date.
-int hs_year = 0;
-int hs_month = 0;
-int hs_day = 0;
-
-// High score loading.
-script 963 {
-   hs.load_status = hs.STATUS_WORKING;
-   // Finish time.
-   Acs_ExecuteWait( luk.RETSCRIPT, 0, luk.RETQUERY_INT, HS_RTIME );
-   // Bail out if we couldn't get the high score data.
-   if ( luk.query_result != luk.RESULT_OK ) {
-      // No high score is set:
-      if ( luk.query_result == luk.RESULT_FAILED ) {
-         hs.load_status = hs.STATUS_LOADED;
+   void draw_goals() {
+      if ( region::points_left == 0 ) {
+         draw_time( TBL_Y );
+         draw_goals_line( "\cd", "\cq", "\cq", TBL_Y + TBL_PLACE_HEIGHT );
       }
-      // Load error:
       else {
-         hs.load_status = hs.STATUS_ERROR;
+         draw_goals_line( "\cc", "\ck", "\ci", TBL_Y + TBL_PLACE_HEIGHT );
       }
-      terminate;
    }
-   set_hs_finish_time( luk.data );
+
+   void draw_goals_line( str labelClr, str pointClr, str totalClr,
+      int tableY ) {
+      SetFont( "SMALLFONT" );
+      // For single player, there's only one player playing and therefore 
+      // always one place taken in the score table, which will be the first.
+      int current_score = region::table.spots[ 0 ].points;
+      // Even though there likely won't be any maps that will contain one point,
+      // we'll still choose the appropriate label based on the quantity 
+      // of the points.
+      str goals_label = "Goals";
+      if ( region::points_total == 1 ) {
+         goals_label = "Goal";
+      }
+      HudMessage( 
+         s : labelClr, s : goals_label, s : ": ", 
+         s : pointClr, i : current_score, 
+         s : labelClr, s : " / ", 
+         s : totalClr, i : region::points_total, s : "\c-" ;
+         HUDMSG_PLAIN, TBL_LINEID_OFFSET + 1, 0, TBL_X, tableY, 0 );
+   }
+
+   // This function is used to clear the table when
+   void clear_points_table() {
+      // Clear all posssible player places and the table header
+      // with the finish time.
+      int lines_to_clear = MAX_POINTS + 2;
+      for ( int pos = 0; pos < lines_to_clear; pos += 1 ) {
+         utility::clear_message( TBL_LINEID_OFFSET + pos );
+      }
+   }
+
+   // High Score (luk-specific functions and scripts)
+   // ---------------------------------------------------------------------------
+
+   // luk database record keys.
+   enum HS_RTIME = "jrt_hs_time";
+   enum HS_RPLAYER_PREFIX = "jrt_hs_helper";
+   enum HS_RPOINTS_PREFIX = "jrt_hs_points";
+   enum HS_RTOTAL_PLAYERS = "jrt_hs_total_players";
+   enum HS_RDATE = "jrt_hs_rdate";
+   enum HS_TBL_X = -1.75;
+   enum HS_TBL_Y = 0.7;
+   enum HS_TBL_LINE = hs::LINE_NOTICE;
+   enum HS_TBL_LINE_HEIGHT = 1000;
+
+   // Finish time.
+   int hs_minutes = -1;
+   int hs_seconds = -1;
+   int hs_centiseconds = -1;
+
+   // Authors.
+   int hs_helpers_total = config::VALUE_NONE;
+   int hs_helpers_name[ MAX_POINTS ][ luk::MAX_STR_VALUE_SIZE ];
+   int hs_helpers_points[ MAX_POINTS ];
+   int hs_unaccounted_points = 0;
+
    // Date.
-   Acs_ExecuteWait( luk.RETSCRIPT, 0, luk.RETQUERY_DATE, HS_RDATE );
-   if ( luk.query_result != luk.RESULT_OK ) {
-      hs.load_status = hs.STATUS_ERROR;
-      terminate;
-   }
-   region.hs_year = luk.year;
-   region.hs_month = luk.month;
-   region.hs_day = luk.day;
-   // Load total players.
-   Acs_ExecuteWait( luk.RETSCRIPT, 0, luk.RETQUERY_INT, 
-      HS_RTOTAL_PLAYERS );
-   if ( luk.query_result != luk.RESULT_OK ) {
-      hs.load_status = hs.STATUS_ERROR;
-      terminate;
-   }
-   int total_players = luk.data;
-   // Get the names and points of each player.
-   int points_collected = 0;
-   int pos;
-   for ( pos = 0; pos < total_players; pos += 1 ) {
-      // Player name:
-      Acs_ExecuteWait( luk.LRETSCRIPT, 0, luk.RETQUERY_STR, 
-         HS_RPLAYER_PREFIX, pos + 1 );
-      if ( luk.query_result != luk.RESULT_OK ) {
-         break;
-      }
-      set_hs_helper_name( pos );
-      // Player points:
-      Acs_ExecuteWait( luk.LRETSCRIPT, 0, luk.RETQUERY_INT, 
-         HS_RPOINTS_PREFIX, pos + 1 );
-      if ( luk.query_result != luk.RESULT_OK ) {
-         break;
-      }
-      region.hs_helpers_points[ pos ] = luk.data;
-      points_collected += region.hs_helpers_points[ pos ];
-   }
-   if ( pos == total_players ) {
-      region.hs_helpers_total = total_players;
-      // Unaccounted points:
-      region.hs_unaccounted_points = 0;
-      if ( points_collected < region.points_total ) {
-         region.hs_unaccounted_points = region.points_total - points_collected;
-      }
-      hs.load_status = hs.STATUS_LOADED;
-   }
-   else {
-      hs.load_status = hs.STATUS_ERROR;
-      terminate;
-   }
-}
+   int hs_year = 0;
+   int hs_month = 0;
+   int hs_day = 0;
 
-void set_hs_finish_time( int tics ) {
-   if ( tics > 0 ) {
-      int seconds = tics / config.TICS_IN_SECOND;
-      region.hs_minutes = seconds / config.SECONDS_IN_MINUTE;
-      region.hs_seconds = seconds % config.SECONDS_IN_MINUTE;
-      region.hs_centiseconds = utility.cal_cseconds( tics % config.TICS_IN_SECOND );
-      hs.set_finish_time( tics );
-   }
-}
-
-// Copies a helper name from luk library buffer to ours.
-void set_hs_helper_name( int pos ) {
-   for ( int c = 0; c < luk.MAX_STR_VALUE_SIZE; c += 1 ) {
-      region.hs_helpers_name[ pos ][ c ] = luk.str_value[ c ];
-      if ( luk.str_value[ c ] == '\0' ) {
-         break;
+   // High score loading.
+   script 963 {
+      hs::load_status = hs::STATUS_WORKING;
+      // Finish time.
+      Acs_ExecuteWait( luk::RETSCRIPT, 0, luk::RETQUERY_INT, HS_RTIME );
+      // Bail out if we couldn't get the high score data.
+      if ( luk::query_result != luk::RESULT_OK ) {
+         // No high score is set:
+         if ( luk::query_result == luk::RESULT_FAILED ) {
+            hs::load_status = hs::STATUS_LOADED;
+         }
+         // Load error:
+         else {
+            hs::load_status = hs::STATUS_ERROR;
+         }
+         terminate;
       }
-   }
-}
-
-// Saves map run information as high score in permanent storage.
-void save_hs( int finishTime ) {
-   luk.StoreInt( HS_RTIME, finishTime );
-   luk.StoreDate( HS_RDATE );
-   // List index for forming list-like queries in luk.
-   int active = 0;
-   for ( int pos = 0; pos < region.table.size; pos += 1 ) {
-      // Only store players that are in-game.
-      if ( is_spot_active( pos ) ) {
-         active += 1;
-         // Player's name:
-         luk.StoreNameL( 
-            HS_RPLAYER_PREFIX, active, region.table.spots[ pos ].player );
-         // Player's points:
-         luk.StoreIntL( 
-            HS_RPOINTS_PREFIX, active, region.table.spots[ pos ].points );
+      set_hs_finish_time( luk::data );
+      // Date.
+      Acs_ExecuteWait( luk::RETSCRIPT, 0, luk::RETQUERY_DATE, HS_RDATE );
+      if ( luk::query_result != luk::RESULT_OK ) {
+         hs::load_status = hs::STATUS_ERROR;
+         terminate;
+      }
+      region::hs_year = luk::year;
+      region::hs_month = luk::month;
+      region::hs_day = luk::day;
+      // Load total players.
+      Acs_ExecuteWait( luk::RETSCRIPT, 0, luk::RETQUERY_INT, 
+         HS_RTOTAL_PLAYERS );
+      if ( luk::query_result != luk::RESULT_OK ) {
+         hs::load_status = hs::STATUS_ERROR;
+         terminate;
+      }
+      int total_players = luk::data;
+      // Get the names and points of each player.
+      int points_collected = 0;
+      int pos;
+      for ( pos = 0; pos < total_players; pos += 1 ) {
+         // Player name:
+         Acs_ExecuteWait( luk::LRETSCRIPT, 0, luk::RETQUERY_STR, 
+            HS_RPLAYER_PREFIX, pos + 1 );
+         if ( luk::query_result != luk::RESULT_OK ) {
+            break;
+         }
+         set_hs_helper_name( pos );
+         // Player points:
+         Acs_ExecuteWait( luk::LRETSCRIPT, 0, luk::RETQUERY_INT, 
+            HS_RPOINTS_PREFIX, pos + 1 );
+         if ( luk::query_result != luk::RESULT_OK ) {
+            break;
+         }
+         region::hs_helpers_points[ pos ] = luk::data;
+         points_collected += region::hs_helpers_points[ pos ];
+      }
+      if ( pos == total_players ) {
+         region::hs_helpers_total = total_players;
+         // Unaccounted points:
+         region::hs_unaccounted_points = 0;
+         if ( points_collected < region::points_total ) {
+            region::hs_unaccounted_points = region::points_total - points_collected;
+         }
+         hs::load_status = hs::STATUS_LOADED;
+      }
+      else {
+         hs::load_status = hs::STATUS_ERROR;
+         terminate;
       }
    }
-   luk.StoreInt( HS_RTOTAL_PLAYERS, active );
-}
 
-void show_hs_finish_time( int tableY ) {
-   SetFont( "SMALLFONT" );
-   HudMessageBold(
-      s : "\cnRecord: \cb",
-      s : utility.number_prefix( region.hs_minutes ), i : region.hs_minutes, 
-      s : ":", 
-      s : utility.number_prefix( region.hs_seconds ), i : region.hs_seconds, 
-      s : "\cs.",
-      s : utility.number_prefix( region.hs_centiseconds ), i : region.hs_centiseconds, 
-      s : "\c-" ;
-      HUDMSG_PLAIN, HS_LINE, 0, TBL_X, tableY, 0 );
-}
+   void set_hs_finish_time( int tics ) {
+      if ( tics > 0 ) {
+         int seconds = tics / config::TICS_IN_SECOND;
+         region::hs_minutes = seconds / config::SECONDS_IN_MINUTE;
+         region::hs_seconds = seconds % config::SECONDS_IN_MINUTE;
+         region::hs_centiseconds = utility::cal_cseconds( tics % config::TICS_IN_SECOND );
+         hs::set_finish_time( tics );
+      }
+   }
 
-void announce_hs() {
-   SetFont( "SMALL" );
-   HudMessageBold(
-      s : "\cdA new map record has been set!\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.14, 5.0, 1.0
-   );
-   AmbientSound( "JM2HSWIN", 127 );
-}
+   // Copies a helper name from luk library buffer to ours.
+   void set_hs_helper_name( int pos ) {
+      for ( int c = 0; c < luk::MAX_STR_VALUE_SIZE; c += 1 ) {
+         region::hs_helpers_name[ pos ][ c ] = luk::str_value[ c ];
+         if ( luk::str_value[ c ] == '\0' ) {
+            break;
+         }
+      }
+   }
 
-void announce_cheat() {
-   HudMessageBold( 
-      s : "\ccThis team of super marines is beyond the high score\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0
-   );
-   AmbientSound( "JM2HSLOS", 127 );
-}
+   // Saves map run information as high score in permanent storage.
+   void save_hs( int finishTime ) {
+      luk::StoreInt( HS_RTIME, finishTime );
+      luk::StoreDate( HS_RDATE );
+      // List index for forming list-like queries in luk.
+      int active = 0;
+      for ( int pos = 0; pos < region::table.size; pos += 1 ) {
+         // Only store players that are in-game.
+         if ( is_spot_active( pos ) ) {
+            active += 1;
+            // Player's name:
+            luk::StoreNameL( 
+               HS_RPLAYER_PREFIX, active, region::table.spots[ pos ].player );
+            // Player's points:
+            luk::StoreIntL( 
+               HS_RPOINTS_PREFIX, active, region::table.spots[ pos ].points );
+         }
+      }
+      luk::StoreInt( HS_RTOTAL_PLAYERS, active );
+   }
 
-// Prints high score details table.
-script 965 ( int showTime ) {
-   int y = HS_TBL_Y;
-   int line_id = HS_TBL_LINE;
-   SetFont( "SMALLFONT" );
-   // Header:
-   HudMessage(
-      s : "\ciRecord details\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Record date:
-   HudMessage(
-      s : "\ckDate Set:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   HudMessage(
-      s : "\cc", s : utility.conv_month_string( region.hs_month ), 
-      s : " ", i : region.hs_day, s : ", ", i : region.hs_year, s : "\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Record time:
-   HudMessage(
-      s : "\ckFinish Time:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   HudMessage(
-      s : "\cb", s : utility.number_prefix( region.hs_minutes ),
-      i : region.hs_minutes, s : ":",
-      s : utility.number_prefix( region.hs_seconds ), i : region.hs_seconds, 
-      s : "\cs.", s : utility.number_prefix( region.hs_centiseconds ),
-      i : region.hs_centiseconds, s : "\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0
-   );
-   y += HS_TBL_LINE_HEIGHT * 2;
-   line_id += 1;
-   // Main helpers:
-   HudMessage(
-      s : "\ckMain Helpers:\c-" ;
-      HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0
-   );
-   y += HS_TBL_LINE_HEIGHT;
-   line_id += 1;
-   for ( int helper = 0; helper < region.hs_helpers_total; helper += 1 ) {
+   void show_hs_finish_time( int tableY ) {
+      SetFont( "SMALLFONT" );
+      HudMessageBold(
+         s : "\cnRecord: \cb",
+         s : utility::number_prefix( region::hs_minutes ), i : region::hs_minutes, 
+         s : ":", 
+         s : utility::number_prefix( region::hs_seconds ), i : region::hs_seconds, 
+         s : "\cs.",
+         s : utility::number_prefix( region::hs_centiseconds ), i : region::hs_centiseconds, 
+         s : "\c-" ;
+         HUDMSG_PLAIN, HS_LINE, 0, TBL_X, tableY, 0 );
+   }
+
+   void announce_hs() {
+      SetFont( "SMALL" );
+      HudMessageBold(
+         s : "\cdA new map record has been set!\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.14, 5.0, 1.0
+      );
+      AmbientSound( "JM2HSWIN", 127 );
+   }
+
+   void announce_cheat() {
+      HudMessageBold( 
+         s : "\ccThis team of super marines is beyond the high score\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0
+      );
+      AmbientSound( "JM2HSLOS", 127 );
+   }
+
+   // Prints high score details table.
+   script 965 ( int showTime ) {
+      int y = HS_TBL_Y;
+      int line_id = HS_TBL_LINE;
+      SetFont( "SMALLFONT" );
+      // Header:
       HudMessage(
-         s : "\cc", a : region.hs_helpers_name[ helper ], s : " \cd",
-         i : region.hs_helpers_points[ helper ], s : "\c-" ;
+         s : "\ciRecord details\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Record date:
+      HudMessage(
+         s : "\ckDate Set:\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
+      y += HS_TBL_LINE_HEIGHT;
+      line_id += 1;
+      HudMessage(
+         s : "\cc", s : utility::conv_month_string( region::hs_month ), 
+         s : " ", i : region::hs_day, s : ", ", i : region::hs_year, s : "\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Record time:
+      HudMessage(
+         s : "\ckFinish Time:\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
+      y += HS_TBL_LINE_HEIGHT;
+      line_id += 1;
+      HudMessage(
+         s : "\cb", s : utility::number_prefix( region::hs_minutes ),
+         i : region::hs_minutes, s : ":",
+         s : utility::number_prefix( region::hs_seconds ), i : region::hs_seconds, 
+         s : "\cs.", s : utility::number_prefix( region::hs_centiseconds ),
+         i : region::hs_centiseconds, s : "\c-" ;
+         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0
+      );
+      y += HS_TBL_LINE_HEIGHT * 2;
+      line_id += 1;
+      // Main helpers:
+      HudMessage(
+         s : "\ckMain Helpers:\c-" ;
          HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0
       );
       y += HS_TBL_LINE_HEIGHT;
       line_id += 1;
-   }
-   if ( region.hs_unaccounted_points > 0 ) {
-      HudMessage(
-         s : "\cgUnaccounted \cd", 
-         i : region.hs_unaccounted_points, s : "\c-" ;
-         HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
-   }
-}
-
-// ==========================================================================
-region jm.telepatch;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config;
-
-enum TID_OFFSET = 28100;
-
-// Holds TIDs of temporary teleport destinations.
-int dest[ config.MAX_PLAYERS ];
-
-void on_death( int player ) {
-   // Change the activator of the script to the killer of the
-   // dead player to determine if the player got telefragged.
-   SetActivatorToTarget( 0 );
-   int killer = PlayerNumber();
-   if ( killer >= 0 && killer != player ) {
-      // Create a TID for a temporary teleport destination.
-      region.dest[ player ] = TID_OFFSET + player;
-      // Spawn the teleport destination at killer's coordinates.
-      Spawn( "TeleportDest2", GetActorX( 0 ),
-         GetActorY( 0 ), GetActorZ( 0 ), region.dest[ player ], 
-         GetActorAngle( 0 ) >> 8 );
+      for ( int helper = 0; helper < region::hs_helpers_total; helper += 1 ) {
+         HudMessage(
+            s : "\cc", a : region::hs_helpers_name[ helper ], s : " \cd",
+            i : region::hs_helpers_points[ helper ], s : "\c-" ;
+            HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0
+         );
+         y += HS_TBL_LINE_HEIGHT;
+         line_id += 1;
+      }
+      if ( region::hs_unaccounted_points > 0 ) {
+         HudMessage(
+            s : "\cgUnaccounted \cd", 
+            i : region::hs_unaccounted_points, s : "\c-" ;
+            HUDMSG_FADEOUT, line_id, 0, HS_TBL_X, y, showTime, 1.0 );
+      }
    }
 }
 
-void on_respawn( int player ) {
-   if ( region.dest[ player ] ) {
-      Teleport( region.dest[ player ], 0, 0 );
-      on_disconnect( player );
+region jm::telepatch {
+   import upmost: region = std;
+   import jm: config;
+
+   enum TID_OFFSET = 28100;
+
+   // Holds TIDs of temporary teleport destinations.
+   int dest[ config::MAX_PLAYERS ];
+
+   void on_death( int player ) {
+      // Change the activator of the script to the killer of the
+      // dead player to determine if the player got telefragged.
+      SetActivatorToTarget( 0 );
+      int killer = PlayerNumber();
+      if ( killer >= 0 && killer != player ) {
+         // Create a TID for a temporary teleport destination.
+         region::dest[ player ] = TID_OFFSET + player;
+         // Spawn the teleport destination at killer's coordinates.
+         Spawn( "TeleportDest2", GetActorX( 0 ),
+            GetActorY( 0 ), GetActorZ( 0 ), region::dest[ player ], 
+            GetActorAngle( 0 ) >> 8 );
+      }
+   }
+
+   void on_respawn( int player ) {
+      if ( region::dest[ player ] ) {
+         Teleport( region::dest[ player ], 0, 0 );
+         on_disconnect( player );
+      }
+   }
+
+   // Remove any temporary destinations that might have been left behind
+   // if a player disconnected while being dead.
+   void on_disconnect( int player ) {
+      if ( region::dest[ player ] ) {
+         Thing_Remove( region::dest[ player ] );
+         region::dest[ player ] = 0;
+      }
    }
 }
 
-// Remove any temporary destinations that might have been left behind
-// if a player disconnected while being dead.
-void on_disconnect( int player ) {
-   if ( region.dest[ player ] ) {
-      Thing_Remove( region.dest[ player ] );
-      region.dest[ player ] = 0;
+region jm::auto_fist {
+   import upmost: region = std;
+   import jm: client;
+
+   script 995 enter {
+      Acs_ExecuteAlways( 996, 0 );
+   }
+
+   script 996 respawn {
+      // Small delay to make sure the clearInventory() script has finished
+      // executing. I don't like this solution but it will do for now.
+      Delay( 2 );
+      client::execute( PlayerNumber(), 997 );
+   }
+
+   script 997 {
+      if ( GetCvar( "jm_auto_fist" ) ) {
+         ConsoleCommand( "use fist" );
+      }
    }
 }
 
-// ==========================================================================
-region jm.auto_fist;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: client;
-
-script 995 enter {
-   Acs_ExecuteAlways( 996, 0 );
-}
-
-script 996 respawn {
-   // Small delay to make sure the clearInventory() script has finished
-   // executing. I don't like this solution but it will do for now.
-   Delay( 2 );
-   client.execute( PlayerNumber(), 997 );
-}
-
-script 997 {
-   if ( GetCvar( "jm_auto_fist" ) ) {
-      ConsoleCommand( "use fist" );
-   }
-}
-
-// ==========================================================================
-region jm.rsd;
-// ==========================================================================
 // Resolution Sensitive Display is a client-side message display system that
 // breaks down a long string message into smaller segments that fit nicely on
 // a player's screens and shows them one at a time.
+region jm::rsd {
+   import upmost: region = std;
 
-import zcommon: default region;
+   enum RSD_START_SCRIPT = 945;
+   enum RSD_TICS_IN_SECOND = 35.71;
+   // Width of an individual character, in pixels. Note that not all characters
+   // are actually 8 pixels but most are.
+   enum RSD_CHARACTER_WIDTH = 8;
+   // A segment is a smaller section of a whole message. The size of a segment
+   // is the number of lines it contains. A line is a single, physical line of
+   // text that can fit on a player's screen.
+   enum RSD_SEGMENT_SIZE = 3;
+   enum RSD_DEFAULT_PADDING = 20;
+   enum RSD_MAX_PADDING = 100;
+   enum RSD_ELLIPSIS_COLOR = 'i';
+   // hudMessage() values for when displaying.
+   enum RSD_LINE = 11142;
+   enum RSD_Y = 0.60;
+   enum RSD_TYPETIME = 0.042;
+   enum RSD_FADETIME = 2.0;
+   enum RSD_MAX_DATA_SIZE = 1280;
+   enum RSD_MAX_ARGS = 3;
+   enum RSD_MAX_ARG_SIZE = 64;
 
-enum RSD_START_SCRIPT = 945;
-enum RSD_TICS_IN_SECOND = 35.71;
-// Width of an individual character, in pixels. Note that not all characters
-// are actually 8 pixels but most are.
-enum RSD_CHARACTER_WIDTH = 8;
-// A segment is a smaller section of a whole message. The size of a segment
-// is the number of lines it contains. A line is a single, physical line of
-// text that can fit on a player's screen.
-enum RSD_SEGMENT_SIZE = 3;
-enum RSD_DEFAULT_PADDING = 20;
-enum RSD_MAX_PADDING = 100;
-enum RSD_ELLIPSIS_COLOR = 'i';
-// hudMessage() values for when displaying.
-enum RSD_LINE = 11142;
-enum RSD_Y = 0.60;
-enum RSD_TYPETIME = 0.042;
-enum RSD_FADETIME = 2.0;
-enum RSD_MAX_DATA_SIZE = 1280;
-enum RSD_MAX_ARGS = 3;
-enum RSD_MAX_ARG_SIZE = 64;
+   // Contains data to show.
+   int _rsd_data[ RSD_MAX_DATA_SIZE + 1 ];
+   int _rsd_data_size = 0;
+   // First index of argument contains length of argument.
+   int _rsd_args[ RSD_MAX_ARGS ][ RSD_MAX_ARG_SIZE ];
+   int _rsd_args_size = 0;
+   // Percent of screen to pad both sides.
+   int _rsd_padding = RSD_DEFAULT_PADDING;
+   // Holds limit of line size.
+   int _rsd_line_max_size = 120;
+   // Contains data that will be shown.
+   int _rsd_segment[ RSD_MAX_DATA_SIZE ];
 
-// Contains data to show.
-int _rsd_data[ RSD_MAX_DATA_SIZE + 1 ];
-int _rsd_data_size = 0;
-// First index of argument contains length of argument.
-int _rsd_args[ RSD_MAX_ARGS ][ RSD_MAX_ARG_SIZE ];
-int _rsd_args_size = 0;
-// Percent of screen to pad both sides.
-int _rsd_padding = RSD_DEFAULT_PADDING;
-// Holds limit of line size.
-int _rsd_line_max_size = 120;
-// Contains data that will be shown.
-int _rsd_segment[ RSD_MAX_DATA_SIZE ];
-
-void RsdSetPadding( int padding ) {
-   if ( padding >= 0 && padding * 2 < RSD_MAX_PADDING ) {
-      _rsd_padding = padding;
+   void RsdSetPadding( int padding ) {
+      if ( padding >= 0 && padding * 2 < RSD_MAX_PADDING ) {
+         _rsd_padding = padding;
+      }
    }
-}
 
-// Set to 0 to remove maximum restriction.
-void RsdSetMaxLineSize( int size ) {
-   _rsd_line_max_size = size;
-}
+   // Set to 0 to remove maximum restriction.
+   void RsdSetMaxLineSize( int size ) {
+      _rsd_line_max_size = size;
+   }
 
-// Adds a number onto the arguments queue.
-void RsdAddNumArg( int num ) {
-   if ( _rsd_args_size < RSD_MAX_ARGS ) {
-      int size = 0;
+   // Adds a number onto the arguments queue.
+   void RsdAddNumArg( int num ) {
+      if ( _rsd_args_size < RSD_MAX_ARGS ) {
+         int size = 0;
 
-      // Convert number into a character string.
-      while ( num > 0 ) {
-         size += 1;
-         _rsd_args[ _rsd_args_size ][ size ] = '0' + ( num % 10 );
-         num /= 10;
+         // Convert number into a character string.
+         while ( num > 0 ) {
+            size += 1;
+            _rsd_args[ _rsd_args_size ][ size ] = '0' + ( num % 10 );
+            num /= 10;
+         }
+
+         // Add prefix of zero if necessary.
+         while ( size < 2 ) {
+            size += 1;
+            _rsd_args[ _rsd_args_size ][ size ] = '0';
+         }
+
+         // Reverse characters into correct order.
+         int mid_point = size / 2;
+         int pos = 0;
+
+         int left_c = 0;
+         int right_c = 0;
+
+         while ( pos < mid_point ) {
+            left_c = _rsd_args[ _rsd_args_size ][ pos + 1 ];
+            right_c = _rsd_args[ _rsd_args_size ][ size - pos ];
+
+            // Swap left side character with right side.
+            _rsd_args[ _rsd_args_size ][ pos + 1 ] = right_c;
+            _rsd_args[ _rsd_args_size ][ size - pos ] = left_c;
+
+            pos += 1;
+         }
+
+         _rsd_args[ _rsd_args_size ][ 0 ] = size;
+         _rsd_args_size += 1;
+      }
+   }
+
+   void RsdAddStrArg( str value ) {
+      int length = Strlen( value );
+
+      // Only proceed if we have enough space.
+      if ( _rsd_args_size < RSD_MAX_ARGS && length < RSD_MAX_ARG_SIZE ) {
+         for ( int pos = 0; pos < length; pos += 1 ) {
+            _rsd_args[ _rsd_args_size ][ pos + 1 ] = GetChar( value, pos );
+         }
+
+         _rsd_args[ _rsd_args_size ][ 0 ] = length;
+         _rsd_args_size += 1;
+      }
+   }
+
+   // Start.
+   script RSD_START_SCRIPT ( int msg, int holdTime ) {
+      // Terminate any running scripts before proceeding.
+      Acs_Terminate( 946, 0 );
+      Acs_Terminate( 947, 0 );
+      Acs_ExecuteWait( 946, 0, msg );
+      Acs_ExecuteWait( 947, 0, holdTime );
+   }
+
+   // Preprocessing.
+   script 946 ( int msg ) {
+      int msg_length = Strlen( msg );
+      int msg_pos = 0;
+
+      int arg_size = 0;
+      int arg_pos = 0;
+      int arg_num = 0;
+
+      int character = 0;
+      int data_pos = 0;
+
+      while ( true ) {
+         // Select character.
+         if ( arg_size > 0 ) {
+            character = _rsd_args[ arg_num ][ arg_pos + 1 ];
+            arg_pos += 1;
+
+            if ( arg_pos >= arg_size ) {
+               arg_pos = 0;
+               arg_size = 0;
+               arg_num += 1;
+            }
+         }
+         else {
+            // End process if no more characters are left.
+            if ( msg_pos >= msg_length ) {
+               break;
+            }
+
+            character = GetChar( msg, msg_pos );
+            msg_pos += 1;
+         }
+
+         // Expand place holders.
+         if ( character == '$' && _rsd_args_size > 0 ) {
+            arg_size = _rsd_args[ arg_num ][ 0 ];
+         }
+         else {
+            _rsd_data[ data_pos ] = character;
+            data_pos += 1;
+         }
       }
 
-      // Add prefix of zero if necessary.
-      while ( size < 2 ) {
-         size += 1;
-         _rsd_args[ _rsd_args_size ][ size ] = '0';
+      _rsd_data_size = data_pos;
+      _rsd_args_size = 0;
+   }
+
+   // Display.
+   script 947 ( int holdTime ) {
+      // No need to show an empty message.
+      if ( _rsd_data_size == 0 ) {
+         terminate;
       }
 
-      // Reverse characters into correct order.
-      int mid_point = size / 2;
+      int screen_w = GetScreenWidth();
+      int padding = screen_w * _rsd_padding / RSD_MAX_PADDING;
+      int free_space = screen_w - ( padding * 2 );
+
+      bool is_done = false;
+      int character = 0;
       int pos = 0;
+      int data_pos = 0;
 
-      int left_c = 0;
-      int right_c = 0;
-
-      while ( pos < mid_point ) {
-         left_c = _rsd_args[ _rsd_args_size ][ pos + 1 ];
-         right_c = _rsd_args[ _rsd_args_size ][ size - pos ];
-
-         // Swap left side character with right side.
-         _rsd_args[ _rsd_args_size ][ pos + 1 ] = right_c;
-         _rsd_args[ _rsd_args_size ][ size - pos ] = left_c;
-
-         pos += 1;
+      // Line.
+      int line_max_size = free_space / RSD_CHARACTER_WIDTH;
+      if ( _rsd_line_max_size > 0 && line_max_size > _rsd_line_max_size ) {
+         line_max_size = _rsd_line_max_size;
       }
+      int line_size = 0;
+      int line_color = 0;
+      bool line_is_continued = false;
 
-      _rsd_args[ _rsd_args_size ][ 0 ] = size;
-      _rsd_args_size += 1;
-   }
-}
+      // Segment.
+      int segment_pos = 0;
+      int segment_size = 0;
 
-void RsdAddStrArg( str value ) {
-   int length = Strlen( value );
+      // Break the message into segments and show them.
+      while ( ! is_done ) {
+         // Determine length of new line.
+         int next_line_start_pos = data_pos + line_max_size;
 
-   // Only proceed if we have enough space.
-   if ( _rsd_args_size < RSD_MAX_ARGS && length < RSD_MAX_ARG_SIZE ) {
-      for ( int pos = 0; pos < length; pos += 1 ) {
-         _rsd_args[ _rsd_args_size ][ pos + 1 ] = GetChar( value, pos );
-      }
+         if ( next_line_start_pos < _rsd_data_size ) {
+            line_size = line_max_size;
 
-      _rsd_args[ _rsd_args_size ][ 0 ] = length;
-      _rsd_args_size += 1;
-   }
-}
+            int next_line_character = _rsd_data[ next_line_start_pos ];
+            pos = next_line_start_pos - 1;
 
-// Start.
-script RSD_START_SCRIPT ( int msg, int holdTime ) {
-   // Terminate any running scripts before proceeding.
-   Acs_Terminate( 946, 0 );
-   Acs_Terminate( 947, 0 );
-   Acs_ExecuteWait( 946, 0, msg );
-   Acs_ExecuteWait( 947, 0, holdTime );
-}
+            while ( _rsd_data[ pos ] != ' ' && line_size > 0 ) {
+               line_size -= 1;
+               pos -= 1;
+            }
 
-// Preprocessing.
-script 946 ( int msg ) {
-   int msg_length = Strlen( msg );
-   int msg_pos = 0;
-
-   int arg_size = 0;
-   int arg_pos = 0;
-   int arg_num = 0;
-
-   int character = 0;
-   int data_pos = 0;
-
-   while ( true ) {
-      // Select character.
-      if ( arg_size > 0 ) {
-         character = _rsd_args[ arg_num ][ arg_pos + 1 ];
-         arg_pos += 1;
-
-         if ( arg_pos >= arg_size ) {
-            arg_pos = 0;
-            arg_size = 0;
-            arg_num += 1;
+            if ( line_size == 0 ) {
+               line_is_continued = true;
+               line_size = line_max_size - 1;
+            }
          }
-      }
-      else {
-         // End process if no more characters are left.
-         if ( msg_pos >= msg_length ) {
-            break;
+         else {
+            line_size = _rsd_data_size - data_pos;
+            is_done = true;
+         }
+         
+         // Add color code to new line if it's continued from previous line.
+         if ( line_color ) {
+            _rsd_segment[ segment_pos++ ] = '\\';
+            _rsd_segment[ segment_pos++ ] = 'c';
+            _rsd_segment[ segment_pos++ ] = line_color;
          }
 
-         character = GetChar( msg, msg_pos );
-         msg_pos += 1;
-      }
+         // Collect single line of segment.
+         pos = 0;
 
-      // Expand place holders.
-      if ( character == '$' && _rsd_args_size > 0 ) {
-         arg_size = _rsd_args[ arg_num ][ 0 ];
-      }
-      else {
-         _rsd_data[ data_pos ] = character;
-         data_pos += 1;
-      }
-   }
+         while ( pos < line_size ) {
+            character = _rsd_data[ data_pos ];
 
-   _rsd_data_size = data_pos;
-   _rsd_args_size = 0;
-}
-
-// Display.
-script 947 ( int holdTime ) {
-   // No need to show an empty message.
-   if ( _rsd_data_size == 0 ) {
-      terminate;
-   }
-
-   int screen_w = GetScreenWidth();
-   int padding = screen_w * _rsd_padding / RSD_MAX_PADDING;
-   int free_space = screen_w - ( padding * 2 );
-
-   bool is_done = false;
-   int character = 0;
-   int pos = 0;
-   int data_pos = 0;
-
-   // Line.
-   int line_max_size = free_space / RSD_CHARACTER_WIDTH;
-   if ( _rsd_line_max_size > 0 && line_max_size > _rsd_line_max_size ) {
-      line_max_size = _rsd_line_max_size;
-   }
-   int line_size = 0;
-   int line_color = 0;
-   bool line_is_continued = false;
-
-   // Segment.
-   int segment_pos = 0;
-   int segment_size = 0;
-
-   // Break the message into segments and show them.
-   while ( ! is_done ) {
-      // Determine length of new line.
-      int next_line_start_pos = data_pos + line_max_size;
-
-      if ( next_line_start_pos < _rsd_data_size ) {
-         line_size = line_max_size;
-
-         int next_line_character = _rsd_data[ next_line_start_pos ];
-         pos = next_line_start_pos - 1;
-
-         while ( _rsd_data[ pos ] != ' ' && line_size > 0 ) {
-            line_size -= 1;
-            pos -= 1;
-         }
-
-         if ( line_size == 0 ) {
-            line_is_continued = true;
-            line_size = line_max_size - 1;
-         }
-      }
-      else {
-         line_size = _rsd_data_size - data_pos;
-         is_done = true;
-      }
-      
-      // Add color code to new line if it's continued from previous line.
-      if ( line_color ) {
-         _rsd_segment[ segment_pos++ ] = '\\';
-         _rsd_segment[ segment_pos++ ] = 'c';
-         _rsd_segment[ segment_pos++ ] = line_color;
-      }
-
-      // Collect single line of segment.
-      pos = 0;
-
-      while ( pos < line_size ) {
-         character = _rsd_data[ data_pos ];
-
-         // Color codes.
-         if ( character == '\\' && data_pos + 2 <= _rsd_data_size ) {
-            if ( _rsd_data[ data_pos + 1 ] == 'c' ) {
-               line_color = _rsd_data[ data_pos + 2 ];
-               // Turn off color code for next line.
-               if ( line_color == '-' ) {
-                  line_color = 0;
+            // Color codes.
+            if ( character == '\\' && data_pos + 2 <= _rsd_data_size ) {
+               if ( _rsd_data[ data_pos + 1 ] == 'c' ) {
+                  line_color = _rsd_data[ data_pos + 2 ];
+                  // Turn off color code for next line.
+                  if ( line_color == '-' ) {
+                     line_color = 0;
+                  }
                }
+            }
+
+            _rsd_segment[ segment_pos++ ] = character;
+
+            data_pos += 1;
+            pos += 1;
+         }
+
+         // Add dash at end of line if data was too long.
+         if ( line_is_continued ) {
+            _rsd_segment[ segment_pos++ ] = '-';
+            line_is_continued = false;
+         }
+
+         // Append newline character to line.
+         _rsd_segment[ segment_pos++ ] = '\n';
+
+         // Once line is built, increase size of segment.
+         segment_size += 1;
+
+         // Fill segment before moving onwards.
+         if ( ! is_done ) {
+            // If the segment is full, add an ellipsis to indicate more
+            // segments to come.
+            if ( segment_size == RSD_SEGMENT_SIZE ) {
+               _rsd_segment[ segment_pos++ ] = '\n';
+
+               // Color code.
+               _rsd_segment[ segment_pos++ ] = '\\';
+               _rsd_segment[ segment_pos++ ] = 'c';
+               _rsd_segment[ segment_pos++ ] = RSD_ELLIPSIS_COLOR;
+
+               _rsd_segment[ segment_pos++ ] = '.';
+               _rsd_segment[ segment_pos++ ] = '.';
+               _rsd_segment[ segment_pos++ ] = '.';
+            }
+            // Otherwise, collect more lines.
+            else {
+               continue;
             }
          }
 
-         _rsd_segment[ segment_pos++ ] = character;
+         _rsd_segment[ segment_pos ] = '\0';
 
-         data_pos += 1;
-         pos += 1;
-      }
+         // Show segment.
 
-      // Add dash at end of line if data was too long.
-      if ( line_is_continued ) {
-         _rsd_segment[ segment_pos++ ] = '-';
-         line_is_continued = false;
-      }
+         // Hold portion of the message.
+         int hold_time = FixedDiv( segment_pos << 16, _rsd_data_size << 16 ) * 
+            holdTime;
+         // Total time the message is shown for.
+         int show_time = hold_time + ( RSD_TYPETIME * segment_pos );
+         int delay_time = FixedMul( show_time, RSD_TICS_IN_SECOND ) >> 16;
 
-      // Append newline character to line.
-      _rsd_segment[ segment_pos++ ] = '\n';
-
-      // Once line is built, increase size of segment.
-      segment_size += 1;
-
-      // Fill segment before moving onwards.
-      if ( ! is_done ) {
-         // If the segment is full, add an ellipsis to indicate more
-         // segments to come.
-         if ( segment_size == RSD_SEGMENT_SIZE ) {
-            _rsd_segment[ segment_pos++ ] = '\n';
-
-            // Color code.
-            _rsd_segment[ segment_pos++ ] = '\\';
-            _rsd_segment[ segment_pos++ ] = 'c';
-            _rsd_segment[ segment_pos++ ] = RSD_ELLIPSIS_COLOR;
-
-            _rsd_segment[ segment_pos++ ] = '.';
-            _rsd_segment[ segment_pos++ ] = '.';
-            _rsd_segment[ segment_pos++ ] = '.';
+         // Add fade time to last segment.
+         int fade_time = 0;
+         if ( is_done ) {
+            fade_time = RSD_FADETIME;
          }
-         // Otherwise, collect more lines.
-         else {
-            continue;
-         }
-      }
 
-      _rsd_segment[ segment_pos ] = '\0';
+         // Show.
+         SetFont( "SMALLFONT" );
+         HudMessage( 
+            a : _rsd_segment ; 
+            HUDMSG_TYPEON, RSD_LINE, CR_WHITE, 1.5, RSD_Y, hold_time, 
+            RSD_TYPETIME, fade_time );
+         Delay( delay_time );
 
-      // Show segment.
-
-      // Hold portion of the message.
-      int hold_time = FixedDiv( segment_pos << 16, _rsd_data_size << 16 ) * 
-         holdTime;
-      // Total time the message is shown for.
-      int show_time = hold_time + ( RSD_TYPETIME * segment_pos );
-      int delay_time = FixedMul( show_time, RSD_TICS_IN_SECOND ) >> 16;
-
-      // Add fade time to last segment.
-      int fade_time = 0;
-      if ( is_done ) {
-         fade_time = RSD_FADETIME;
-      }
-
-      // Show.
-      SetFont( "SMALLFONT" );
-      HudMessage( 
-         a : _rsd_segment ; 
-         HUDMSG_TYPEON, RSD_LINE, CR_WHITE, 1.5, RSD_Y, hold_time, 
-         RSD_TYPETIME, fade_time );
-      Delay( delay_time );
-
-      segment_pos = 0;
-      segment_size = 0;
-   }
-}
-
-// ==========================================================================
-region jm.svmz;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, utility;
-
-// The smallest minimum escapee requirement possible.
-enum ESCAPEE_MIN = 1;
-// Percentage of total players that will be used to determine
-// the minimum escapee requirement.
-enum REQ_PERCENT = 0.67;
-// The number of players that must be present on map start for 
-// extra time to be added for each extra player.
-enum EXTRA_TIME_PLAYERS_NEEDED = 1;
-// The number of seconds to add to the timer for each extra player.
-enum EXTRA_PLAYER_TIME = 12;
-// Minimum start time percentage of the par time.
-enum TIME_MIN_PERCENT = 0.15;
-// Extra times given by the Time Boost items.
-enum TIME_BOOST1 = 1;
-enum TIME_BOOST2 = 3;
-enum TIME_BOOST3 = 10;
-enum RESULT_NONE = 0;
-enum RESULT_LOSE = 1;
-enum RESULT_WIN = 2;
-// Hud message IDs:
-enum LINE_NOTICE = 17200;
-enum LINE_STATS = 17201;
-enum LINE_TIMER = 17202;
-enum STATS_REFRESH_TIME = 8;  // In seconds.
-
-int result = RESULT_NONE;
-int min_escapees = ESCAPEE_MIN;
-int is_alive[ config.MAX_PLAYERS ];
-
-bool is() {
-   return GetCvar( "survival" );
-}
-
-// Initializes the server to play Survival Maze.
-bool init() {
-   bool do_restart = false;
-   if ( ! GetCvar( "survival" ) ) {
-      ConsoleCommand( "survival true" );
-      do_restart = true;
-   }
-   // I would like to get rid of the countdown entirely but it can't
-   // be done at this time.
-   if ( GetCvar( "sv_survivalcountdowntime" ) != 3 ) {
-      ConsoleCommand( "sv_survivalcountdowntime 3" );
-      do_restart = true;
-   }
-   // Survival Maze is a one-life game for now.
-   if ( GetCvar( "sv_maxlives" ) != 1 ) {
-      ConsoleCommand( "sv_maxlives 1" );
-      do_restart = true;
-   }
-   return do_restart;
-}
-
-// Main game script.
-script 900 ( int par ) {
-   // Bail out if we don't have a single player playing, like on
-   // an empty server.
-   int num_players = PlayerCount();
-   if ( num_players == 0 ) {
-      terminate;
-   }
-   // Determine minimum escapee requirement.
-   choose_min_escapees();
-   // Display escapee statistics.
-   Acs_Execute( 901, 0 );
-   // Initialize timer.
-   timer.init( calc_start_time( par, num_players ) );
-   timer.display();
-   bool is_won = false;
-   int tics_passed = 0;
-   // Main game loop.
-   while ( true ) {
-      // Wining condition.
-      if ( escapee.get_count() == get_min_escapees() ) {
-         is_won = true;
-         break;
-      }
-      // Minimum-alive-players-needed check.
-      // We need two conditions here. The first condition checks the actual
-      // count of players currently alive. This is needed to prevent the game
-      // ending because of players getting telefragged at map start. The
-      // second condition is our own tracking of alive players. We adjust
-      // that count manually so we have a chance to readjust the minimum
-      // escapee requirement when an alive player disconnects. If we solely
-      // rely on the first condition, a race condition is created: the
-      // DISCONNECT script might not finish readjusting the minimum 
-      // requirement before this condition is checked.
-      if ( PlayerCount() < get_min_escapees() &&
-         get_num_alive() < get_min_escapees() ) {
-         // Print a message to all players indicating the failure.
-         if ( num_players >= 2 ) {
-            display_min_escapees_fail();
-         }
-         break;
-      }
-      // Update timer if we have time left.
-      if ( timer.get_time_left() > 0 ) {
-         if ( tics_passed == config.TICS_IN_SECOND ) {
-            tics_passed = 0;
-            timer.decrease();
-            timer.display();
-         }
-         tics_passed += 1;
-      }
-      // Otherwise, bail out.
-      else {
-         timer.display();
-         break;
-      }
-      // Loop every tic so we can check the above conditions quickly.
-      Delay( 1 );
-   }
-   // Win.
-   if ( is_won ) {
-      set_result( RESULT_WIN );
-      Acs_Execute( 908, 0 );
-   }
-   // Lose.
-   else {
-      set_result( RESULT_LOSE );
-      // If all players spectated or disconnected, remove the statistics
-      // display script.
-      if ( PlayerCount() == 0 ) {
-         Acs_Terminate( 901, 0 );
-         utility.clear_message_bold( LINE_STATS );
-         utility.clear_message_bold( LINE_TIMER );
+         segment_pos = 0;
+         segment_size = 0;
       }
    }
 }
 
-// Calculates initial time.
-int calc_start_time( str par, int totalPlayers ) {
-   // The starting time is based on the par time of the map.
-   int par_in_seconds = utility.par_to_seconds( par );
-   // To increase the challenge, we reduce the starting time by the total
-   // number of seconds we can get from collecting all of the
-   // Time Boost items to.
-   int total_boost_time = 
-      ThingCountName( "SvmzTimeBoost1", 0 ) * TIME_BOOST1 +
-      ThingCountName( "SvmzTimeBoost2", 0 ) * TIME_BOOST2 +
-      ThingCountName( "SvmzTimeBoost3", 0 ) * TIME_BOOST3;
-   int start_time = par_in_seconds - total_boost_time;
-   // Make sure we have a decent amount of time.
-   int min_time = ( par_in_seconds * TIME_MIN_PERCENT ) >> 16;
-   if ( start_time < min_time ) {
-      start_time = min_time;
-   }
-   // Add extra time for each extra player.
-   int extra_players = totalPlayers - EXTRA_TIME_PLAYERS_NEEDED;
-   if ( extra_players > 0 ) {
-      start_time += extra_players * EXTRA_PLAYER_TIME;
-   }
-   return start_time;
-}
+region jm::svmz {
+   import upmost: region = std;
+   import jm: config, utility;
 
-// Selects and sets the minimum escapee requirement.
-void choose_min_escapees() {
-   int num_escapees = 0;
-   int num_players = PlayerCount();
-   switch ( num_players ) {
-   case 0: break;
-   case 1: num_escapees = 1; break;
-   case 2: num_escapees = 2; break;
-   default:
-      num_escapees = ( num_players * REQ_PERCENT ) >> 16;
-      break;
+   // The smallest minimum escapee requirement possible.
+   enum ESCAPEE_MIN = 1;
+   // Percentage of total players that will be used to determine
+   // the minimum escapee requirement.
+   enum REQ_PERCENT = 0.67;
+   // The number of players that must be present on map start for 
+   // extra time to be added for each extra player.
+   enum EXTRA_TIME_PLAYERS_NEEDED = 1;
+   // The number of seconds to add to the timer for each extra player.
+   enum EXTRA_PLAYER_TIME = 12;
+   // Minimum start time percentage of the par time.
+   enum TIME_MIN_PERCENT = 0.15;
+   // Extra times given by the Time Boost items.
+   enum TIME_BOOST1 = 1;
+   enum TIME_BOOST2 = 3;
+   enum TIME_BOOST3 = 10;
+   enum RESULT_NONE = 0;
+   enum RESULT_LOSE = 1;
+   enum RESULT_WIN = 2;
+   // Hud message IDs:
+   enum LINE_NOTICE = 17200;
+   enum LINE_STATS = 17201;
+   enum LINE_TIMER = 17202;
+   enum STATS_REFRESH_TIME = 8;  // In seconds.
+
+   int result = RESULT_NONE;
+   int min_escapees = ESCAPEE_MIN;
+   int is_alive[ config::MAX_PLAYERS ];
+
+   bool is() {
+      return GetCvar( "survival" );
    }
-   // Take any Escapee Reduce items into account.
-   num_escapees -= item.get_num_impunity_picked();
-   set_min_escapees( num_escapees );
-}
 
-void set_min_escapees( int numEscapees ) {
-   if ( numEscapees >= ESCAPEE_MIN ) {
-      region.min_escapees = numEscapees;
-   }
-}
-
-// Returns minimum escapee requirement.
-int get_min_escapees() {
-   return region.min_escapees;
-}
-
-// Escapee statistics message display script.
-script 901 {
-   while ( true ) {
-      display_escapee_stats();
-      Delay( config.TICS_IN_SECOND * STATS_REFRESH_TIME );
-   }
-}
-
-script 902 enter {
-   if ( is() ) {
-      region.is_alive[ PlayerNumber() ] = true;
-      // Wait for the main game script to finish.
-      ScriptWait( 900 );
-      // Kill player if game was lost.
-      if ( get_result() == RESULT_LOSE ) {
-         DamageThing( 1000 );
+   // Initializes the server to play Survival Maze.
+   bool init() {
+      bool do_restart = false;
+      if ( ! GetCvar( "survival" ) ) {
+         ConsoleCommand( "survival true" );
+         do_restart = true;
       }
+      // I would like to get rid of the countdown entirely but it can't
+      // be done at this time.
+      if ( GetCvar( "sv_survivalcountdowntime" ) != 3 ) {
+         ConsoleCommand( "sv_survivalcountdowntime 3" );
+         do_restart = true;
+      }
+      // Survival Maze is a one-life game for now.
+      if ( GetCvar( "sv_maxlives" ) != 1 ) {
+         ConsoleCommand( "sv_maxlives 1" );
+         do_restart = true;
+      }
+      return do_restart;
    }
-}
 
-script 903 death {
-   if ( is() ) {
-      region.is_alive[ PlayerNumber() ] = false;
-   }
-}
-
-script 904 respawn {
-   if ( is() ) {
-      region.is_alive[ PlayerNumber() ] = true;
-   }
-}
-
-// If a player disconnects while a game is running, adjust the minimum escapee
-// requirement based on the existing players count. It's either I do this or I
-// kill all players and end the round because there won't be enough remaining
-// players to complete the original requirement.
-script 905 ( int player ) disconnect {
-   // Only proceed if the game is not finished yet.
-   if ( ! is() || get_result() != RESULT_NONE ) {
-      terminate;
-   }
-   // If the player was alive when they disconnected, readjust the minimum
-   // escapee requirement.
-   if ( region.is_alive[ player ] ) {
-      region.is_alive[ player ] = false;
+   // Main game script.
+   script 900 ( int par ) {
+      // Bail out if we don't have a single player playing, like on
+      // an empty server.
+      int num_players = PlayerCount();
+      if ( num_players == 0 ) {
+         terminate;
+      }
+      // Determine minimum escapee requirement.
       choose_min_escapees();
+      // Display escapee statistics.
+      Acs_Execute( 901, 0 );
+      // Initialize timer.
+      timer::init( calc_start_time( par, num_players ) );
+      timer::display();
+      bool is_won = false;
+      int tics_passed = 0;
+      // Main game loop.
+      while ( true ) {
+         // Wining condition.
+         if ( escapee::get_count() == get_min_escapees() ) {
+            is_won = true;
+            break;
+         }
+         // Minimum-alive-players-needed check.
+         // We need two conditions here. The first condition checks the actual
+         // count of players currently alive. This is needed to prevent the game
+         // ending because of players getting telefragged at map start. The
+         // second condition is our own tracking of alive players. We adjust
+         // that count manually so we have a chance to readjust the minimum
+         // escapee requirement when an alive player disconnects. If we solely
+         // rely on the first condition, a race condition is created: the
+         // DISCONNECT script might not finish readjusting the minimum 
+         // requirement before this condition is checked.
+         if ( PlayerCount() < get_min_escapees() &&
+            get_num_alive() < get_min_escapees() ) {
+            // Print a message to all players indicating the failure.
+            if ( num_players >= 2 ) {
+               display_min_escapees_fail();
+            }
+            break;
+         }
+         // Update timer if we have time left.
+         if ( timer::get_time_left() > 0 ) {
+            if ( tics_passed == config::TICS_IN_SECOND ) {
+               tics_passed = 0;
+               timer::decrease();
+               timer::display();
+            }
+            tics_passed += 1;
+         }
+         // Otherwise, bail out.
+         else {
+            timer::display();
+            break;
+         }
+         // Loop every tic so we can check the above conditions quickly.
+         Delay( 1 );
+      }
+      // Win.
+      if ( is_won ) {
+         set_result( RESULT_WIN );
+         Acs_Execute( 908, 0 );
+      }
+      // Lose.
+      else {
+         set_result( RESULT_LOSE );
+         // If all players spectated or disconnected, remove the statistics
+         // display script.
+         if ( PlayerCount() == 0 ) {
+            Acs_Terminate( 901, 0 );
+            utility::clear_message_bold( LINE_STATS );
+            utility::clear_message_bold( LINE_TIMER );
+         }
+      }
    }
-   if ( escapee.is( player ) ) {
-      escapee.remove( player );
+
+   // Calculates initial time.
+   int calc_start_time( str par, int totalPlayers ) {
+      // The starting time is based on the par time of the map.
+      int par_in_seconds = utility::par_to_seconds( par );
+      // To increase the challenge, we reduce the starting time by the total
+      // number of seconds we can get from collecting all of the
+      // Time Boost items to.
+      int total_boost_time = 
+         ThingCountName( "SvmzTimeBoost1", 0 ) * TIME_BOOST1 +
+         ThingCountName( "SvmzTimeBoost2", 0 ) * TIME_BOOST2 +
+         ThingCountName( "SvmzTimeBoost3", 0 ) * TIME_BOOST3;
+      int start_time = par_in_seconds - total_boost_time;
+      // Make sure we have a decent amount of time.
+      int min_time = ( par_in_seconds * TIME_MIN_PERCENT ) >> 16;
+      if ( start_time < min_time ) {
+         start_time = min_time;
+      }
+      // Add extra time for each extra player.
+      int extra_players = totalPlayers - EXTRA_TIME_PLAYERS_NEEDED;
+      if ( extra_players > 0 ) {
+         start_time += extra_players * EXTRA_PLAYER_TIME;
+      }
+      return start_time;
    }
-   display_escapee_stats();
-}
 
-void set_result( int result ) {
-   region.result = result;
-}
+   // Selects and sets the minimum escapee requirement.
+   void choose_min_escapees() {
+      int num_escapees = 0;
+      int num_players = PlayerCount();
+      switch ( num_players ) {
+      case 0: break;
+      case 1: num_escapees = 1; break;
+      case 2: num_escapees = 2; break;
+      default:
+         num_escapees = ( num_players * REQ_PERCENT ) >> 16;
+         break;
+      }
+      // Take any Escapee Reduce items into account.
+      num_escapees -= item::get_num_impunity_picked();
+      set_min_escapees( num_escapees );
+   }
 
-bool get_result() {
-   return region.result;
-}
+   void set_min_escapees( int numEscapees ) {
+      if ( numEscapees >= ESCAPEE_MIN ) {
+         region::min_escapees = numEscapees;
+      }
+   }
 
-// Escape line function, where a player is registered as escaped.
-void make_escapee() {
-   int player = PlayerNumber();
-   if ( ! escapee.is( player ) ) {
-      escapee.make( player );
+   // Returns minimum escapee requirement.
+   int get_min_escapees() {
+      return region::min_escapees;
+   }
+
+   // Escapee statistics message display script.
+   script 901 {
+      while ( true ) {
+         display_escapee_stats();
+         Delay( config::TICS_IN_SECOND * STATS_REFRESH_TIME );
+      }
+   }
+
+   script 902 enter {
+      if ( is() ) {
+         region::is_alive[ PlayerNumber() ] = true;
+         // Wait for the main game script to finish.
+         ScriptWait( 900 );
+         // Kill player if game was lost.
+         if ( get_result() == RESULT_LOSE ) {
+            DamageThing( 1000 );
+         }
+      }
+   }
+
+   script 903 death {
+      if ( is() ) {
+         region::is_alive[ PlayerNumber() ] = false;
+      }
+   }
+
+   script 904 respawn {
+      if ( is() ) {
+         region::is_alive[ PlayerNumber() ] = true;
+      }
+   }
+
+   // If a player disconnects while a game is running, adjust the minimum escapee
+   // requirement based on the existing players count. It's either I do this or I
+   // kill all players and end the round because there won't be enough remaining
+   // players to complete the original requirement.
+   script 905 ( int player ) disconnect {
+      // Only proceed if the game is not finished yet.
+      if ( ! is() || get_result() != RESULT_NONE ) {
+         terminate;
+      }
+      // If the player was alive when they disconnected, readjust the minimum
+      // escapee requirement.
+      if ( region::is_alive[ player ] ) {
+         region::is_alive[ player ] = false;
+         choose_min_escapees();
+      }
+      if ( escapee::is( player ) ) {
+         escapee::remove( player );
+      }
       display_escapee_stats();
    }
-}
 
-// Exit validation.
-bool validate_exit() {
-   bool to_exit = true;
-   if ( get_result() != RESULT_WIN ) {
-      to_exit = false;
+   void set_result( int result ) {
+      region::result = result;
+   }
+
+   bool get_result() {
+      return region::result;
+   }
+
+   // Escape line function, where a player is registered as escaped.
+   void make_escapee() {
+      int player = PlayerNumber();
+      if ( ! escapee::is( player ) ) {
+         escapee::make( player );
+         display_escapee_stats();
+      }
+   }
+
+   // Exit validation.
+   bool validate_exit() {
+      bool to_exit = true;
+      if ( get_result() != RESULT_WIN ) {
+         to_exit = false;
+         SetFont( "SMALLFONT" );
+         HudMessage(
+            s : "\ciNot enough escapees are present to exit\c-" ;
+            HUDMSG_FADEOUT, LINE_NOTICE, 0, 1.5, 0.15, 3.0, 0.6 );
+      }
+      return to_exit;
+   }
+
+   void display_min_escapees_fail() {
       SetFont( "SMALLFONT" );
-      HudMessage(
-         s : "\ciNot enough escapees are present to exit\c-" ;
-         HUDMSG_FADEOUT, LINE_NOTICE, 0, 1.5, 0.15, 3.0, 0.6 );
+      HudMessageBold(
+         s : "\cgMinimum players failed to escape the maze\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, LINE_NOTICE, 
+         0, 1.5, 0.15, 5.0, 0.6 );
    }
-   return to_exit;
-}
 
-void display_min_escapees_fail() {
-   SetFont( "SMALLFONT" );
-   HudMessageBold(
-      s : "\cgMinimum players failed to escape the maze\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, LINE_NOTICE, 
-      0, 1.5, 0.15, 5.0, 0.6 );
-}
-
-void display_escapee_stats() {
-   int min_escapees = get_min_escapees();
-   int num_escapees = escapee.get_count();
-   str message_color = "\cc";
-   str count_color = "\ck";
-   str min_color = "\ci";
-   str exit_message = "";
-   // Change the color of the statistic to green to indicate success.
-   if ( num_escapees >= min_escapees ) {
-      message_color = "\cd";
-      count_color = "\cq";
-      min_color = "\cq";
-      exit_message = "\n\ckExit enabled";
+   void display_escapee_stats() {
+      int min_escapees = get_min_escapees();
+      int num_escapees = escapee::get_count();
+      str message_color = "\cc";
+      str count_color = "\ck";
+      str min_color = "\ci";
+      str exit_message = "";
+      // Change the color of the statistic to green to indicate success.
+      if ( num_escapees >= min_escapees ) {
+         message_color = "\cd";
+         count_color = "\cq";
+         min_color = "\cq";
+         exit_message = "\n\ckExit enabled";
+      }
+      SetFont( "SMALLFONT" );
+      HudMessageBold(
+         s : message_color, s : "Escapees: ", 
+         s : count_color, i : num_escapees, 
+         s : message_color, s : " / ",
+         s : min_color, i : min_escapees,
+         s : exit_message,
+         s : "\c-" ;
+         HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0 );
    }
-   SetFont( "SMALLFONT" );
-   HudMessageBold(
-      s : message_color, s : "Escapees: ", 
-      s : count_color, i : num_escapees, 
-      s : message_color, s : " / ",
-      s : min_color, i : min_escapees,
-      s : exit_message,
-      s : "\c-" ;
-      HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0 );
+
+   int get_num_alive() {
+      int num_alive = 0;
+      for ( int num = 0; num < config::MAX_PLAYERS; num += 1 ) {
+         if ( region::is_alive[ num ] ) {
+            num_alive += 1;
+         }
+      }
+      return num_alive;
+   }
 }
 
-int get_num_alive() {
-   int num_alive = 0;
-   for ( int num = 0; num < config.MAX_PLAYERS; num += 1 ) {
-      if ( region.is_alive[ num ] ) {
-         num_alive += 1;
+region jm::svmz::escapee {
+   import upmost: region = std;
+   import jm: config, svmz;
+
+   bool escaped[ config::MAX_PLAYERS ];
+   int count = 0;
+
+   void make( int player ) {
+      region::escaped[ player ] = true;
+      ++region::count;
+      SetFont( "SMALLFONT" );
+      HudMessageBold( 
+         n : player + 1, s : "\cd escaped the maze\c-" ;
+         HUDMSG_FADEOUT | HUDMSG_LOG, svmz::LINE_NOTICE, 
+         0, 1.5, 0.15, 3.0, 0.6 );
+   }
+
+   bool is( int player ) {
+      return region::escaped[ player ];
+   }
+
+   void remove( int number ) {
+      region::escaped[ number ] = false;
+      --region::count;
+   }
+
+   int get_count() {
+      return region::count;
+   }
+}
+
+region jm::svmz::timer {
+   import upmost: region = std;
+   import jm: config, svmz;
+
+   enum WARNING_TIME = 10; // In seconds.
+   enum FINISH_TIME_REFRESH_TIME = 8; // In seconds.
+
+   int time_left = 0;
+
+   void init( int time ) {
+      region::time_left = time;
+   }
+
+   int get_time_left() {
+      return region::time_left;
+   }
+
+   void decrease() {
+      --region::time_left;
+   }
+
+   void extend( int seconds ) {
+      region::time_left += seconds;
+      // We cannot go below zero seconds. We need this check in case a
+      // Raging Bomb item lowers the time below zero.
+      if ( region::time_left < 0 ) {
+         region::time_left = 0;
       }
    }
-   return num_alive;
-}
 
-// ==========================================================================
-region jm.svmz.escapee;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, svmz;
-
-bool escaped[ config.MAX_PLAYERS ];
-int count = 0;
-
-void make( int player ) {
-   region.escaped[ player ] = true;
-   ++region.count;
-   SetFont( "SMALLFONT" );
-   HudMessageBold( 
-      n : player + 1, s : "\cd escaped the maze\c-" ;
-      HUDMSG_FADEOUT | HUDMSG_LOG, svmz.LINE_NOTICE, 
-      0, 1.5, 0.15, 3.0, 0.6 );
-}
-
-bool is( int player ) {
-   return region.escaped[ player ];
-}
-
-void remove( int number ) {
-   region.escaped[ number ] = false;
-   --region.count;
-}
-
-int get_count() {
-   return region.count;
-}
-
-// ==========================================================================
-region jm.svmz.timer;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, svmz;
-
-enum WARNING_TIME = 10; // In seconds.
-enum FINISH_TIME_REFRESH_TIME = 8; // In seconds.
-
-int time_left = 0;
-
-void init( int time ) {
-   region.time_left = time;
-}
-
-int get_time_left() {
-   return region.time_left;
-}
-
-void decrease() {
-   --region.time_left;
-}
-
-void extend( int seconds ) {
-   region.time_left += seconds;
-   // We cannot go below zero seconds. We need this check in case a
-   // Raging Bomb item lowers the time below zero.
-   if ( region.time_left < 0 ) {
-      region.time_left = 0;
+   // Displays current time.
+   void display() {
+      // If time is near expiration, change the color of the time to
+      // warn the players.
+      int color = "\ch";
+      if ( region::time_left <= WARNING_TIME ) {
+         color = "\cg";
+      }
+      display_time( region::time_left, color );
    }
-}
 
-// Displays current time.
-void display() {
-   // If time is near expiration, change the color of the time to
-   // warn the players.
-   int color = "\ch";
-   if ( region.time_left <= WARNING_TIME ) {
-      color = "\cg";
+   // Displays customizable time.
+   void display_time( int time, int color ) {
+      SetFont( "BIGFONT" );
+      HudMessageBold(
+         s : color,
+         d : time / config::SECONDS_IN_MINUTE, 
+         s : "  :  ", 
+         d : ( time % config::SECONDS_IN_MINUTE ) / 10, 
+         s : "  ", d : time % 10,
+         s : "\c-" ;
+         HUDMSG_PLAIN, svmz::LINE_TIMER, 0, 0.95, 0.95, 0
+      );
    }
-   display_time( region.time_left, color );
-}
 
-// Displays customizable time.
-void display_time( int time, int color ) {
-   SetFont( "BIGFONT" );
-   HudMessageBold(
-      s : color,
-      d : time / config.SECONDS_IN_MINUTE, 
-      s : "  :  ", 
-      d : ( time % config.SECONDS_IN_MINUTE ) / 10, 
-      s : "  ", d : time % 10,
-      s : "\c-" ;
-      HUDMSG_PLAIN, svmz.LINE_TIMER, 0, 0.95, 0.95, 0
-   );
-}
-
-// Displays finished time.
-script 908 {
-   int color = "\cn";
-   if ( region.time_left <= WARNING_TIME ) {
-      color = "\ci";
-   }
-   while ( true ) {
-      display_time( region.time_left, color );
-      Delay( config.TICS_IN_SECOND * FINISH_TIME_REFRESH_TIME );
-   }
-}
-
-// ==========================================================================
-region jm.svmz.item;
-// ==========================================================================
-
-import zcommon: default region;
-import jm: config, utility, svmz;
-
-// Item initialization script, executed from DECORATE.
-script 910 {
-   bool to_spawn = false;
-   if ( GetCvar( "survival" ) ) {
-      to_spawn = true;
-      // Spawn the item marker for the item only at map start.
-      if ( Timer() == 0 ) {
-         SetActorState( 0, "spawn_marker" );
+   // Displays finished time.
+   script 908 {
+      int color = "\cn";
+      if ( region::time_left <= WARNING_TIME ) {
+         color = "\ci";
+      }
+      while ( true ) {
+         display_time( region::time_left, color );
+         Delay( config::TICS_IN_SECOND * FINISH_TIME_REFRESH_TIME );
       }
    }
-   SetResultValue( to_spawn );
 }
 
-// Time extension items:
-// -----------------------------------------------------------------------
+region jm::svmz::item {
+   import upmost: region = std;
+   import jm: config, utility, svmz;
 
-enum TE_LIFETIME = 3;
-
-int te_accumulated_time = 0;
-int te_deadline = 0;
-
-// Time Boost:
-
-script 911 ( int extra_time ) {
-   Acs_ExecuteAlways( 912, 0, extra_time );
-   // Custom pickup flash effect.
-   FadeRange( 218, 165, 32, 0.10, 0, 0, 0, 0.0, 0.25 );
-}
-
-// Extends timer.
-script 912 ( int extra_time ) {
-   // Don't add extra time if map is already complete.
-   if ( svmz.get_result() != svmz.RESULT_NONE ) {
-      terminate;
-   }
-   svmz.timer.extend( extra_time );
-   // Time accumulation visual effect.
-   int current_time = Timer() / config.TICS_IN_SECOND;
-   // Reset accumulated time if the visual effect has expired.
-   if ( current_time > region.te_deadline ) {
-      region.te_accumulated_time = 0;
+   // Item initialization script, executed from DECORATE.
+   script 910 {
+      bool to_spawn = false;
+      if ( GetCvar( "survival" ) ) {
+         to_spawn = true;
+         // Spawn the item marker for the item only at map start.
+         if ( Timer() == 0 ) {
+            SetActorState( 0, "spawn_marker" );
+         }
+      }
+      SetResultValue( to_spawn );
    }
 
-   region.te_accumulated_time += extra_time;
-   region.te_deadline = current_time + TE_LIFETIME;
-   display_boost_time( region.te_accumulated_time );
-}
+   // Time extension items:
+   // -----------------------------------------------------------------------
 
-void display_boost_time( int time ) {
-   str sign = "+";
-   str color = "\ck";
-   if ( time < 0 ) {
-      sign = "-";
-      color = "\ci";
-      time *= -1;
+   enum TE_LIFETIME = 3;
+
+   int te_accumulated_time = 0;
+   int te_deadline = 0;
+
+   // Time Boost:
+
+   script 911 ( int extra_time ) {
+      Acs_ExecuteAlways( 912, 0, extra_time );
+      // Custom pickup flash effect.
+      FadeRange( 218, 165, 32, 0.10, 0, 0, 0, 0.0, 0.25 );
    }
-   SetFont( "BIGFONT" );
-   HudMessageBold(
-      s : color, s : " ", s : sign, s : " ",
-      d : time / config.SECONDS_IN_MINUTE, 
-      s : "  :  ", 
-      d : ( time % config.SECONDS_IN_MINUTE ) / 10, 
-      s : "  ", d : time % 10,
-      s : "\c-" ;
-      HUDMSG_FADEOUT, 12201, 0, 0.95, 0.90, 2.0, 1.0 
-   );
-}
 
-// Raging Bomb:
+   // Extends timer.
+   script 912 ( int extra_time ) {
+      // Don't add extra time if map is already complete.
+      if ( svmz::get_result() != svmz::RESULT_NONE ) {
+         terminate;
+      }
+      svmz::timer::extend( extra_time );
+      // Time accumulation visual effect.
+      int current_time = Timer() / config::TICS_IN_SECOND;
+      // Reset accumulated time if the visual effect has expired.
+      if ( current_time > region::te_deadline ) {
+         region::te_accumulated_time = 0;
+      }
 
-enum RB_DAMAGE_LOW = 30;
-enum RB_DAMAGE_HIGH = 38;
-
-script 913 ( int secondsToRemove ) {
-   // Randomize the damage to make things more interesting.
-   DamageThing( Random( RB_DAMAGE_LOW, RB_DAMAGE_HIGH ) );
-   // Reduce timer time.
-   Acs_ExecuteAlways( 912, 0, secondsToRemove * -1 );
-}
-
-// Impunity:
-// -----------------------------------------------------------------------
-
-// Number of players needed for the item to be available.
-enum IM_MIN_PLAYERS_NEEDED = 2;
-
-// Number of items picked up when recalculating minimum escapee
-// requirement if a player leaves.
-int im_num_picked = 0;
-
-script 915 {
-   SetResultValue( PlayerCount() >= IM_MIN_PLAYERS_NEEDED );
-}
-
-script 916 {
-   int min_escapees = svmz.get_min_escapees();
-   // This item cannot nullify the minimum escapee requirement.
-   if ( min_escapees <= svmz.ESCAPEE_MIN ) {
-      terminate;
+      region::te_accumulated_time += extra_time;
+      region::te_deadline = current_time + TE_LIFETIME;
+      display_boost_time( region::te_accumulated_time );
    }
-   svmz.set_min_escapees( min_escapees - 1 );
-   svmz.display_escapee_stats();
-   SetFont( "SMALLFONT" );
-   HudMessageBold( 
-      s : "\ck", n : 0, s : "\ck picked up an Impunity item\c-" ;
-      HUDMSG_PLAIN | HUDMSG_LOG, svmz.LINE_NOTICE, 0, 1.5, 0.15, 3.0
-   );
-   region.im_num_picked += 1;
-}
 
-int get_num_impunity_picked() {
-   return region.im_num_picked;
+   void display_boost_time( int time ) {
+      str sign = "+";
+      str color = "\ck";
+      if ( time < 0 ) {
+         sign = "-";
+         color = "\ci";
+         time *= -1;
+      }
+      SetFont( "BIGFONT" );
+      HudMessageBold(
+         s : color, s : " ", s : sign, s : " ",
+         d : time / config::SECONDS_IN_MINUTE, 
+         s : "  :  ", 
+         d : ( time % config::SECONDS_IN_MINUTE ) / 10, 
+         s : "  ", d : time % 10,
+         s : "\c-" ;
+         HUDMSG_FADEOUT, 12201, 0, 0.95, 0.90, 2.0, 1.0 
+      );
+   }
+
+   // Raging Bomb:
+
+   enum RB_DAMAGE_LOW = 30;
+   enum RB_DAMAGE_HIGH = 38;
+
+   script 913 ( int secondsToRemove ) {
+      // Randomize the damage to make things more interesting.
+      DamageThing( Random( RB_DAMAGE_LOW, RB_DAMAGE_HIGH ) );
+      // Reduce timer time.
+      Acs_ExecuteAlways( 912, 0, secondsToRemove * -1 );
+   }
+
+   // Impunity:
+   // -----------------------------------------------------------------------
+
+   // Number of players needed for the item to be available.
+   enum IM_MIN_PLAYERS_NEEDED = 2;
+
+   // Number of items picked up when recalculating minimum escapee
+   // requirement if a player leaves.
+   int im_num_picked = 0;
+
+   script 915 {
+      SetResultValue( PlayerCount() >= IM_MIN_PLAYERS_NEEDED );
+   }
+
+   script 916 {
+      int min_escapees = svmz::get_min_escapees();
+      // This item cannot nullify the minimum escapee requirement.
+      if ( min_escapees <= svmz::ESCAPEE_MIN ) {
+         terminate;
+      }
+      svmz::set_min_escapees( min_escapees - 1 );
+      svmz::display_escapee_stats();
+      SetFont( "SMALLFONT" );
+      HudMessageBold( 
+         s : "\ck", n : 0, s : "\ck picked up an Impunity item\c-" ;
+         HUDMSG_PLAIN | HUDMSG_LOG, svmz::LINE_NOTICE, 0, 1.5, 0.15, 3.0
+      );
+      region::im_num_picked += 1;
+   }
+
+   int get_num_impunity_picked() {
+      return region::im_num_picked;
+   }
 }
