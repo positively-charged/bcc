@@ -1192,15 +1192,11 @@ void diag_acc( struct task* task, int flags, va_list* args ) {
       if ( task->module_main ) {
          str_copy( &str, task->module_main->file->path.value,
             task->module_main->file->path.length );
-         while ( true ) {
+         while ( str.length && str.value[ str.length - 1 ] != '/' &&
+            str.value[ str.length - 1 ] != '\\' ) {
+            str.value[ str.length - 1 ] = 0;
             --str.length;
-            char ch = str.value[ str.length ];
-            str.value[ str.length ] = 0;
-            if ( ch == '/' ) {
-               break;
-            }
          }
-         str_append( &str, "/" );
       }
       str_append( &str, "acs.err" );
       task->err_file = fopen( str.value, "w" );
