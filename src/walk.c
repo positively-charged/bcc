@@ -433,6 +433,11 @@ void do_operand( struct task* task, struct operand* operand,
       }
       operand->pushed = true;
    }
+   else if ( node->type == NODE_BOOLEAN ) {
+      struct boolean* boolean = ( struct boolean* ) node;
+      t_add_opc( task, PC_PUSH_NUMBER );
+      t_add_arg( task, boolean->value );
+   }
    else if ( node->type == NODE_CONSTANT ) {
       do_constant( task, operand, ( struct constant* ) node );
    }

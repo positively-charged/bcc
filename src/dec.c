@@ -364,7 +364,7 @@ void t_read_region( struct task* task ) {
          task->region = region;
       }
       t_read_tk( task );
-      if ( task->tk == TK_COLON2 ) {
+      if ( task->tk == TK_COLON_2 ) {
          t_read_tk( task );
       }
       else {
@@ -957,7 +957,9 @@ void read_storage_index( struct task* task, struct dec* dec ) {
             "storage index specified for struct member" );
          t_bail( task );
       }
-      dec->storage_index = t_read_literal( task );
+      t_test_tk( task, TK_LIT_DECIMAL );
+      dec->storage_index = t_extract_literal_value( task );
+      t_read_tk( task );
       t_test_tk( task, TK_COLON );
       t_read_tk( task );
       int max = MAX_WORLD_LOCATIONS;
@@ -1445,15 +1447,17 @@ void read_bfunc( struct task* task, struct func* func ) {
       t_read_tk( task );
       struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
       t_test_tk( task, TK_LIT_DECIMAL );
-      impl->id = t_read_literal( task );
+      impl->id = t_extract_literal_value( task );
       impl->script_callable = false;
+      t_read_tk( task );
       t_test_tk( task, TK_COMMA );
       t_read_tk( task );
       t_test_tk( task, TK_LIT_DECIMAL );
-      if ( t_read_literal( task ) ) {
+      if ( t_extract_literal_value( task ) ) {
          impl->script_callable = true;
       }
       func->impl = impl;
+      t_read_tk( task );
    }
    // Extension function.
    else if ( task->tk == TK_ASSIGN_SUB ) {
@@ -1461,8 +1465,9 @@ void read_bfunc( struct task* task, struct func* func ) {
       func->type = FUNC_EXT;
       struct func_ext* impl = mem_alloc( sizeof( *impl ) );
       t_test_tk( task, TK_LIT_DECIMAL );
-      impl->id = t_read_literal( task );
+      impl->id = t_extract_literal_value( task );
       func->impl = impl;
+      t_read_tk( task );
    }
    // Dedicated function.
    else if ( task->tk == TK_ASSIGN_ADD ) {
@@ -1470,7 +1475,8 @@ void read_bfunc( struct task* task, struct func* func ) {
       func->type = FUNC_DED;
       struct func_ded* impl = mem_alloc( sizeof( *impl ) );
       t_test_tk( task, TK_LIT_DECIMAL );
-      impl->opcode = t_read_literal( task );
+      impl->opcode = t_extract_literal_value( task );
+      t_read_tk( task );
       t_test_tk( task, TK_COMMA );
       t_read_tk( task );
       t_test_tk( task, TK_LIT_DECIMAL );
@@ -1487,8 +1493,9 @@ void read_bfunc( struct task* task, struct func* func ) {
       func->type = FUNC_FORMAT;
       struct func_format* impl = mem_alloc( sizeof( *impl ) );
       t_test_tk( task, TK_LIT_DECIMAL );
-      impl->opcode = t_read_literal( task );
+      impl->opcode = t_extract_literal_value( task );
       func->impl = impl;
+      t_read_tk( task );
    }
    // Internal function.
    else {
@@ -1498,7 +1505,8 @@ void read_bfunc( struct task* task, struct func* func ) {
       struct func_intern* impl = mem_alloc( sizeof( *impl ) );
       t_test_tk( task, TK_LIT_DECIMAL );
       struct pos pos = task->tk_pos;
-      impl->id = t_read_literal( task );
+      impl->id = t_extract_literal_value( task );
+      t_read_tk( task );
       if ( impl->id >= INTERN_FUNC_STANDALONE_TOTAL ) {
          t_diag( task, DIAG_POS_ERR, &pos,
             "no internal function with ID of %d", impl->id );

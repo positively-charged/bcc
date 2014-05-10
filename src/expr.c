@@ -23,23 +23,25 @@ struct operand {
 
 static void read_op( struct task*, struct read_expr*, struct read* );
 static void read_operand( struct task*, struct read_expr*, struct read* );
-static void add_binary( struct read*, int, struct pos*, struct read* );
-static void add_unary( struct read*, int, struct pos* );
+static struct binary* alloc_binary( int, struct pos* );
+static struct unary* alloc_unary( int, struct pos* );
 static void read_primary( struct task*, struct read_expr*, struct read* );
 static void read_postfix( struct task*, struct read_expr*, struct read* );
-static struct access* alloc_access( char*, struct pos, struct node*, bool );
+static struct access* alloc_access( char*, struct pos );
 static void read_call( struct task*, struct read_expr*, struct read* );
-static void init_operand( struct operand* );
-static void use_object( struct task*, struct expr_test*, struct operand*,
-   struct object* );
+static void read_call_args( struct task* task, struct list* );
 static void read_string( struct task*, struct read_expr*, struct read* );
 static void test_expr( struct task*, struct expr_test*, struct expr*,
    struct operand* );
+static void init_operand( struct operand* );
+static void use_object( struct task*, struct expr_test*, struct operand*,
+   struct object* );
 static void test_node( struct task*, struct expr_test*, struct operand*,
    struct node* );
 static void test_literal( struct task*, struct operand*, struct literal* );
 static void test_string_usage( struct task*, struct expr_test*,
    struct operand*, struct indexed_string_usage* );
+static void test_boolean( struct task*, struct operand*, struct boolean* );
 static void test_name_usage( struct task*, struct expr_test*, struct operand*,
    struct name_usage* );
 static struct object* find_usage_object( struct task*, struct name_usage* );
@@ -53,8 +55,6 @@ static void test_binary( struct task*, struct expr_test*, struct operand*,
    struct binary* );
 static void test_assign( struct task*, struct expr_test*, struct operand*,
    struct assign* );
-static void test_format_block_usage( struct task*, struct expr_test*,
-   struct call*, struct format_block_usage* );
 static void test_access( struct task*, struct expr_test*, struct operand*,
    struct access* );
 
@@ -83,239 +83,200 @@ void t_read_expr( struct task* task, struct read_expr* read ) {
 
 void read_op( struct task* task, struct read_expr* read,
    struct read* operand ) {
-   int op;
-
-   struct read add;
-   struct read* add_parent = NULL;
-   int add_op = 0;
-   struct pos add_op_pos;
-
-   struct read shift;
-   struct read* shift_parent = NULL;
-   int shift_op = 0;
-   struct pos shift_op_pos;
-
-   struct read lt;
-   struct read* lt_parent = NULL;
-   int lt_op = 0;
-   struct pos lt_op_pos;
-
-   struct read eq;
-   struct read* eq_parent = NULL;
-   int eq_op = 0;
-   struct pos eq_op_pos;
-
-   struct read bit_and;
-   struct read* bit_and_parent = NULL;
-   struct pos bit_and_pos;
-
-   struct read bit_xor;
-   struct read* bit_xor_parent = NULL;
-   struct pos bit_xor_pos;
-
-   struct read bit_or;
-   struct read* bit_or_parent = NULL;
-   struct pos bit_or_pos;
-
-   struct read log_and;
-   struct read* log_and_parent = NULL;
-   struct pos log_and_pos;
-
-   struct read log_or;
-   struct read* log_or_parent = NULL;
-   struct pos log_or_pos;
+   int op = 0;
+   struct binary* mul = NULL;
+   struct binary* add = NULL;
+   struct binary* shift = NULL;
+   struct binary* lt = NULL;
+   struct binary* eq = NULL;
+   struct binary* bit_and = NULL;
+   struct binary* bit_xor = NULL;
+   struct binary* bit_or = NULL;
+   struct binary* log_and = NULL;
+   struct binary* log_or = NULL;
 
    top:
-   // -----------------------------------------------------------------------
    read_operand( task, read, operand );
 
    op_mul:
    // -----------------------------------------------------------------------
-   if ( task->tk == TK_STAR ) {
+   switch ( task->tk ) {
+   case TK_STAR:
       op = BOP_MUL;
-   }
-   else if ( task->tk == TK_SLASH ) {
+      break;
+   case TK_SLASH:
       op = BOP_DIV;
-   }
-   else if ( task->tk == TK_MOD ) {
+      break;
+   case TK_MOD:
       op = BOP_MOD;
-   }
-   else {
+      break;
+   default:
       goto op_add;
    }
-   struct pos op_pos = task->tk_pos;
+   mul = alloc_binary( op, &task->tk_pos );
+   mul->lside = operand->node;
    t_read_tk( task );
-   struct read rside;
-   read_operand( task, read, &rside );
-   add_binary( operand, op, &op_pos, &rside );
-   op = 0;
+   read_operand( task, read, operand );
+   mul->rside = operand->node;
+   operand->node = &mul->node;
    goto op_mul;
 
    op_add:
    // -----------------------------------------------------------------------
-   if ( add_parent ) {
-      add_binary( add_parent, add_op, &add_op_pos, operand );
-      operand = add_parent;
-      add_parent = NULL;
+   if ( add ) {
+      add->rside = operand->node;
+      operand->node = &add->node;
+      add = NULL;
    }
-   if ( task->tk == TK_PLUS ) {
+   switch ( task->tk ) {
+   case TK_PLUS:
       op = BOP_ADD;
-   }
-   else if ( task->tk == TK_MINUS ) {
+      break;
+   case TK_MINUS:
       op = BOP_SUB;
-   }
-   else {
+      break;
+   default:
       goto op_shift;
    }
-   add_parent = operand;
-   operand = &add;
-   add_op = op;
-   add_op_pos = task->tk_pos;
+   add = alloc_binary( op, &task->tk_pos );
+   add->lside = operand->node;
    t_read_tk( task );
    goto top;
 
    op_shift:
    // -----------------------------------------------------------------------
-   if ( shift_parent ) {
-      add_binary( shift_parent, shift_op, &shift_op_pos, operand );
-      operand = shift_parent;
-      shift_parent = NULL;
+   if ( shift ) {
+      shift->rside = operand->node;
+      operand->node = &shift->node;
+      shift = NULL;
    }
-   if ( task->tk == TK_SHIFT_L ) {
+   switch ( task->tk ) {
+   case TK_SHIFT_L:
       op = BOP_SHIFT_L;
-   }
-   else if ( task->tk == TK_SHIFT_R ) {
+      break;
+   case TK_SHIFT_R:
       op = BOP_SHIFT_R;
-   }
-   else {
+      break;
+   default:
       goto op_lt;
    }
-   shift_parent = operand;
-   operand = &shift;
-   shift_op = op;
-   shift_op_pos = task->tk_pos;
+   shift = alloc_binary( op, &task->tk_pos );
+   shift->lside = operand->node;
    t_read_tk( task );
    goto top;
 
    op_lt:
    // -----------------------------------------------------------------------
-   if ( lt_parent ) {
-      add_binary( lt_parent, lt_op, &lt_op_pos, operand );
-      operand = lt_parent;
-      lt_parent = NULL;
+   if ( lt ) {
+      lt->rside = operand->node;
+      operand->node = &lt->node;
+      lt = NULL;
    }
-   if ( task->tk == TK_LT ) {
+   switch ( task->tk ) {
+   case TK_LT:
       op = BOP_LT;
-   }
-   else if ( task->tk == TK_LTE ) {
+      break;
+   case TK_LTE:
       op = BOP_LTE;
-   }
-   else if ( task->tk == TK_GT ) {
+      break;
+   case TK_GT:
       op = BOP_GT;
-   }
-   else if ( task->tk == TK_GTE ) {
+      break;
+   case TK_GTE:
       op = BOP_GTE;
-   }
-   else {
+      break;
+   default:
       goto op_eq;
    }
-   lt_parent = operand;
-   operand = &lt;
-   lt_op = op;
-   lt_op_pos = task->tk_pos;
+   lt = alloc_binary( op, &task->tk_pos );
+   lt->lside = operand->node;
    t_read_tk( task );
    goto top;
 
    op_eq:
    // -----------------------------------------------------------------------
-   if ( eq_parent ) {
-      add_binary( eq_parent, eq_op, &eq_op_pos, operand );
-      operand = eq_parent;
-      eq_parent = NULL;
+   if ( eq ) {
+      eq->rside = operand->node;
+      operand->node = &eq->node;
+      eq = NULL;
    }
-   if ( task->tk == TK_EQ ) {
+   switch ( task->tk ) {
+   case TK_EQ:
       op = BOP_EQ;
-   }
-   else if ( task->tk == TK_NEQ ) {
+      break;
+   case TK_NEQ:
       op = BOP_NEQ;
-   }
-   else {
+      break;
+   default:
       goto op_bit_and;
    }
-   eq_parent = operand;
-   operand = &eq;
-   eq_op = op;
-   eq_op_pos = task->tk_pos;
+   eq = alloc_binary( op, &task->tk_pos );
+   eq->lside = operand->node;
    t_read_tk( task );
    goto top;
 
    op_bit_and:
    // -----------------------------------------------------------------------
-   if ( bit_and_parent ) {
-      add_binary( bit_and_parent, BOP_BIT_AND, &bit_and_pos, operand );
-      operand = bit_and_parent;
-      bit_and_parent = NULL;
+   if ( bit_and ) {
+      bit_and->rside = operand->node;
+      operand->node = &bit_and->node;
+      bit_and = NULL;
    }
    if ( task->tk == TK_BIT_AND ) {
-      bit_and_parent = operand;
-      operand = &bit_and;
-      bit_and_pos = task->tk_pos;
+      bit_and = alloc_binary( BOP_BIT_AND, &task->tk_pos );
+      bit_and->lside = operand->node;
       t_read_tk( task );
       goto top;
    }
 
    // -----------------------------------------------------------------------
-   if ( bit_xor_parent ) {
-      add_binary( bit_xor_parent, BOP_BIT_XOR, &bit_xor_pos, operand );
-      operand = bit_xor_parent;
-      bit_xor_parent = NULL;
+   if ( bit_xor ) {
+      bit_xor->rside = operand->node;
+      operand->node = &bit_xor->node;
+      bit_xor = NULL;
    }
    if ( task->tk == TK_BIT_XOR ) {
-      bit_xor_parent = operand;
-      operand = &bit_xor;
-      bit_xor_pos = task->tk_pos;
+      bit_xor = alloc_binary( BOP_BIT_XOR, &task->tk_pos );
+      bit_xor->lside = operand->node;
       t_read_tk( task );
       goto top;
    }
 
    // -----------------------------------------------------------------------
-   if ( bit_or_parent ) {
-      add_binary( bit_or_parent, BOP_BIT_OR, &bit_or_pos, operand );
-      operand = bit_or_parent;
-      bit_or_parent = NULL;
+   if ( bit_or ) {
+      bit_or->rside = operand->node;
+      operand->node = &bit_or->node;
+      bit_or = NULL;
    }
    if ( task->tk == TK_BIT_OR ) {
-      bit_or_parent = operand;
-      operand = &bit_or;
-      bit_or_pos = task->tk_pos;
+      bit_or = alloc_binary( BOP_BIT_OR, &task->tk_pos );
+      bit_or->lside = operand->node;
       t_read_tk( task );
       goto top;
    }
 
    // -----------------------------------------------------------------------
-   if ( log_and_parent ) {
-      add_binary( log_and_parent, BOP_LOG_AND, &log_and_pos, operand );
-      operand = log_and_parent;
-      log_and_parent = NULL;
+   if ( log_and ) {
+      log_and->rside = operand->node;
+      operand->node = &log_and->node;
+      log_and = NULL;
    }
    if ( task->tk == TK_LOG_AND ) {
-      log_and_parent = operand;
-      operand = &log_and;
-      log_and_pos = task->tk_pos;
+      log_and = alloc_binary( BOP_LOG_AND, &task->tk_pos );
+      log_and->lside = operand->node;
       t_read_tk( task );
       goto top;
    }
 
    // -----------------------------------------------------------------------
-   if ( log_or_parent ) {
-      add_binary( log_or_parent, BOP_LOG_OR, &log_or_pos, operand );
-      operand = log_or_parent;
-      log_or_parent = NULL;
+   if ( log_or ) {
+      log_or->rside = operand->node;
+      operand->node = &log_or->node;
+      log_or = NULL;
    }
    if ( task->tk == TK_LOG_OR ) {
-      log_or_parent = operand;
-      operand = &log_or;
-      log_or_pos = task->tk_pos;
+      log_or = alloc_binary( BOP_LOG_OR, &task->tk_pos );
+      log_or->lside = operand->node;
       t_read_tk( task );
       goto top;
    }
@@ -323,62 +284,98 @@ void read_op( struct task* task, struct read_expr* read,
    // -----------------------------------------------------------------------
    if ( ! read->skip_assign ) {
       switch ( task->tk ) {
-      case TK_ASSIGN: op = AOP_NONE; break;
-      case TK_ASSIGN_ADD: op = AOP_ADD; break;
-      case TK_ASSIGN_SUB: op = AOP_SUB; break;
-      case TK_ASSIGN_MUL: op = AOP_MUL; break;
-      case TK_ASSIGN_DIV: op = AOP_DIV; break;
-      case TK_ASSIGN_MOD: op = AOP_MOD; break;
-      case TK_ASSIGN_SHIFT_L: op = AOP_SHIFT_L; break;
-      case TK_ASSIGN_SHIFT_R: op = AOP_SHIFT_R; break;
-      case TK_ASSIGN_BIT_AND: op = AOP_BIT_AND; break;
-      case TK_ASSIGN_BIT_XOR: op = AOP_BIT_XOR; break;
-      case TK_ASSIGN_BIT_OR: op = AOP_BIT_OR; break;
-      // Finish.
-      default: return;
+      case TK_ASSIGN:
+         op = AOP_NONE;
+         break;
+      case TK_ASSIGN_ADD:
+         op = AOP_ADD;
+         break;
+      case TK_ASSIGN_SUB:
+         op = AOP_SUB;
+         break;
+      case TK_ASSIGN_MUL:
+         op = AOP_MUL;
+         break;
+      case TK_ASSIGN_DIV:
+         op = AOP_DIV;
+         break;
+      case TK_ASSIGN_MOD:
+         op = AOP_MOD;
+         break;
+      case TK_ASSIGN_SHIFT_L:
+         op = AOP_SHIFT_L;
+         break;
+      case TK_ASSIGN_SHIFT_R:
+         op = AOP_SHIFT_R;
+         break;
+      case TK_ASSIGN_BIT_AND:
+         op = AOP_BIT_AND;
+         break;
+      case TK_ASSIGN_BIT_XOR:
+         op = AOP_BIT_XOR;
+         break;
+      case TK_ASSIGN_BIT_OR:
+         op = AOP_BIT_OR;
+         break;
+      // Finish:
+      default:
+         return;
       }
-      struct pos pos = task->tk_pos;
-      t_read_tk( task );
-      read_op( task, read, &rside );
       struct assign* assign = mem_alloc( sizeof( *assign ) );
       assign->node.type = NODE_ASSIGN;
       assign->op = op;
       assign->lside = operand->node;
-      assign->rside = rside.node;
-      assign->pos = pos;
-      operand->node = ( struct node* ) assign;
+      assign->rside = NULL;
+      assign->pos = task->tk_pos;
+      t_read_tk( task );
+      read_op( task, read, operand );
+      assign->rside = operand->node;
+      operand->node = &assign->node;
    }
 }
 
-void add_binary( struct read* lside, int op, struct pos* pos,
-   struct read* rside ) {
+struct binary* alloc_binary( int op, struct pos* pos ) {
    struct binary* binary = mem_slot_alloc( sizeof( *binary ) );
    binary->node.type = NODE_BINARY;
    binary->op = op;
-   binary->lside = lside->node;
-   binary->rside = rside->node;
+   binary->lside = NULL;
+   binary->rside = NULL;
    binary->pos = *pos;
-   lside->node = ( struct node* ) binary;
+   return binary;
 }
 
 void read_operand( struct task* task, struct read_expr* expr,
    struct read* operand ) {
-   // Prefix operations:
    int op = UOP_NONE;
    switch ( task->tk ) {
-   case TK_INC: op = UOP_PRE_INC; break;
-   case TK_DEC: op = UOP_PRE_DEC; break;
-   case TK_MINUS: op = UOP_MINUS; break;
-   case TK_PLUS: op = UOP_PLUS; break;
-   case TK_LOG_NOT: op = UOP_LOG_NOT; break;
-   case TK_BIT_NOT: op = UOP_BIT_NOT; break;
-   default: break;
+   case TK_INC:
+      op = UOP_PRE_INC;
+      break;
+   case TK_DEC:
+      op = UOP_PRE_DEC;
+      break;
+   case TK_MINUS:
+      op = UOP_MINUS;
+      break;
+   case TK_PLUS:
+      op = UOP_PLUS;
+      break;
+   case TK_LOG_NOT:
+      op = UOP_LOG_NOT;
+      break;
+   case TK_BIT_NOT:
+      op = UOP_BIT_NOT;
+      break;
+   default:
+      break;
    }
-   if ( op ) {
+   if ( op != UOP_NONE ) {
       struct pos pos = task->tk_pos;
       t_read_tk( task );
       read_operand( task, expr, operand );
-      add_unary( operand, op, &pos );
+      struct unary* unary = alloc_unary( op, &pos );
+      unary->operand = operand->node;
+      operand->node = &unary->node;
    }
    else {
       operand->node = NULL;
@@ -387,18 +384,30 @@ void read_operand( struct task* task, struct read_expr* expr,
    }
 }
 
-void add_unary( struct read* operand, int op, struct pos* pos ) {
+struct unary* alloc_unary( int op, struct pos* pos ) {
    struct unary* unary = mem_alloc( sizeof( *unary ) );
    unary->node.type = NODE_UNARY;
    unary->op = op;
-   unary->operand = operand->node;
+   unary->operand = NULL;
    unary->pos = *pos;
-   operand->node = ( struct node* ) unary;
+   return unary;
 }
 
 void read_primary( struct task* task, struct read_expr* expr,
    struct read* operand ) {
-   if ( task->tk == TK_REGION ) {
+   if ( task->tk == TK_ID ) {
+      struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
+      usage->node.type = NODE_NAME_USAGE;
+      usage->text = task->tk_text;
+      usage->pos = task->tk_pos;
+      usage->object = NULL;
+      operand->node = &usage->node;
+      t_read_tk( task );
+   }
+   else if ( task->tk == TK_LIT_STRING ) {
+      read_string( task, expr, operand );
+   }
+   else if ( task->tk == TK_REGION ) {
       static struct node node = { NODE_REGION_HOST };
       operand->node = &node;
       t_read_tk( task );
@@ -408,13 +417,14 @@ void read_primary( struct task* task, struct read_expr* expr,
       operand->node = &node;
       t_read_tk( task );
    }
-   else if ( task->tk == TK_ID ) {
-      struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
-      usage->node.type = NODE_NAME_USAGE;
-      usage->text = task->tk_text;
-      usage->pos = task->tk_pos;
-      usage->object = NULL;
-      operand->node = ( struct node* ) usage;
+   else if ( task->tk == TK_TRUE ) {
+      static struct boolean boolean = { { NODE_BOOLEAN }, 1 };
+      operand->node = &boolean.node;
+      t_read_tk( task );
+   }
+   else if ( task->tk == TK_FALSE ) {
+      static struct boolean boolean = { { NODE_BOOLEAN }, 0 };
+      operand->node = &boolean.node;
       t_read_tk( task );
    }
    else if ( task->tk == TK_PAREN_L ) {
@@ -425,31 +435,26 @@ void read_primary( struct task* task, struct read_expr* expr,
       t_test_tk( task, TK_PAREN_R );
       t_read_tk( task );
       paren->inside = operand->node;
-      operand->node = ( struct node* ) paren;
-   }
-   // For now, the boolean literals will just be aliases to numeric constants.
-   else if ( task->tk == TK_TRUE || task->tk == TK_FALSE ) {
-      struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
-      literal->node.type = NODE_LITERAL;
-      if ( task->tk == TK_TRUE ) {
-         literal->value = 1;
-      }
-      else {
-         literal->value = 0;
-      }
-      literal->is_bool = true;
-      operand->node = &literal->node;
-      t_read_tk( task );
-   }
-   else if ( task->tk == TK_LIT_STRING ) {
-      read_string( task, expr, operand );
+      operand->node = &paren->node;
    }
    else {
+      switch ( task->tk ) {
+      case TK_LIT_DECIMAL:
+      case TK_LIT_OCTAL:
+      case TK_LIT_HEX:
+      case TK_LIT_FIXED:
+      case TK_LIT_CHAR:
+         break;
+      default:
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+            "missing primary expression" );
+         t_bail( task );
+      }
       struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
       literal->node.type = NODE_LITERAL;
-      literal->value = t_read_literal( task );
-      literal->is_bool = false;
-      operand->node = ( struct node* ) literal;
+      literal->value = t_extract_literal_value( task );
+      operand->node = &literal->node;
+      t_read_tk( task );
    }
 }
 
@@ -467,15 +472,13 @@ void read_string( struct task* task, struct read_expr* expr,
          string = NULL;
          break;
       }
-      else {
-         prev = string;
-         string = string->next_sorted;
-      }
+      prev = string;
+      string = string->next_sorted;
    }
-   // Allocate a new string.
+   // Allocate new string.
    if ( ! string ) {
-      void* block = mem_alloc(
-         sizeof( struct indexed_string ) + task->tk_length + 1 );
+      void* block = mem_alloc( sizeof( struct indexed_string ) +
+         task->tk_length + 1 );
       string = block;
       string->value = ( ( char* ) block ) + sizeof( *string );
       memcpy( string->value, task->tk_text, task->tk_length );
@@ -487,11 +490,13 @@ void read_string( struct task* task, struct read_expr* expr,
       string->next_usable = NULL;
       string->in_constant = expr->in_constant;
       string->used = false;
-      string->imported = false;
       if ( task->library->imported ) {
          string->imported = true;
       }
-      // Appearance insert.
+      else {
+         string->imported = false;
+      }
+      // Insert based on appearance.
       if ( task->str_table.head ) {
          task->str_table.tail->next = string;
       }
@@ -510,8 +515,8 @@ void read_string( struct task* task, struct read_expr* expr,
       }
    }
    else {
-      // If the imported string is found in the main library, then the string
-      // doesn't need to be marked as "imported."
+      // If an imported string is found in the main library, then the string
+      // should NOT be considered imported.
       if ( ! task->library->imported ) {
          string->imported = false;
       }
@@ -524,79 +529,86 @@ void read_string( struct task* task, struct read_expr* expr,
    t_read_tk( task );
 }
 
-int t_read_literal( struct task* task ) {
-   int value = 0;
+int t_extract_literal_value( struct task* task ) {
    if ( task->tk == TK_LIT_DECIMAL ) {
-      value = strtol( task->tk_text, NULL, 10 );
+      return strtol( task->tk_text, NULL, 10 );
    }
    else if ( task->tk == TK_LIT_OCTAL ) {
-      value = strtol( task->tk_text, NULL, 8 );
+      return strtol( task->tk_text, NULL, 8 );
    }
    else if ( task->tk == TK_LIT_HEX ) {
-      value = strtol( task->tk_text, NULL, 16 );
+      return strtol( task->tk_text, NULL, 16 );
    }
    else if ( task->tk == TK_LIT_FIXED ) {
-      double num = atof( task->tk_text );
-      value =
+      double value = atof( task->tk_text );
+      return
          // Whole.
-         ( ( int ) num << 16 ) +
+         ( ( int ) value << 16 ) +
          // Fraction.
-         ( int ) ( ( 1 << 16 ) * ( num - ( int ) num ) );
+         ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
    }
    else if ( task->tk == TK_LIT_CHAR ) {
-      value = task->tk_text[ 0 ];
+      return task->tk_text[ 0 ];
    }
    else {
-      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-         "missing primary expression" );
-      t_bail( task );
+      return 0;
    }
-   t_read_tk( task );
-   return value;
 }
 
 void read_postfix( struct task* task, struct read_expr* expr,
    struct read* operand ) {
    while ( true ) {
       if ( task->tk == TK_BRACKET_L ) {
-         struct subscript* subscript = mem_alloc( sizeof( *subscript ) );
-         subscript->node.type = NODE_SUBSCRIPT;
-         subscript->pos = task->tk_pos;
+         struct subscript* sub = mem_alloc( sizeof( *sub ) );
+         sub->node.type = NODE_SUBSCRIPT;
+         sub->pos = task->tk_pos;
          t_read_tk( task );
          struct read_expr index;
          t_init_read_expr( &index );
          t_read_expr( task, &index );
          t_test_tk( task, TK_BRACKET_R );
          t_read_tk( task );
-         subscript->index = index.node;
-         subscript->lside = operand->node;
-         operand->node = ( struct node* ) subscript;
+         sub->index = index.node;
+         sub->lside = operand->node;
+         operand->node = &sub->node;
       }
       else if ( task->tk == TK_DOT ) {
          struct pos pos = task->tk_pos;
          t_read_tk( task );
          t_test_tk( task, TK_ID );
-         operand->node = ( struct node* ) alloc_access( task->tk_text, pos,
-            operand->node, false );
+         struct access* access = alloc_access( task->tk_text, pos );
+         access->lside = operand->node;
+         operand->node = &access->node;
          t_read_tk( task );
       }
-      else if ( task->tk == TK_COLON2 ) {
+      else if ( task->tk == TK_COLON_2 ) {
          struct pos pos = task->tk_pos;
          t_read_tk( task );
          t_test_tk( task, TK_ID );
-         operand->node = ( struct node* ) alloc_access( task->tk_text, pos,
-            operand->node, true );
+         struct access* access = alloc_access( task->tk_text, pos );
+         access->lside = operand->node;
+         access->is_region = true;
+         operand->node = &access->node;
          t_read_tk( task );
       }
-      else if ( task->tk == TK_PAREN_L && ! expr->skip_function_call ) {
-         read_call( task, expr, operand );
+      else if ( task->tk == TK_PAREN_L ) {
+         if ( ! expr->skip_function_call ) {
+            read_call( task, expr, operand );
+         }
+         else {
+            break;
+         }
       }
       else if ( task->tk == TK_INC ) {
-         add_unary( operand, UOP_POST_INC, &task->tk_pos );
+         struct unary* inc = alloc_unary( UOP_POST_INC, &task->tk_pos );
+         inc->operand = operand->node;
+         operand->node = &inc->node;
          t_read_tk( task );
       }
       else if ( task->tk == TK_DEC ) {
-         add_unary( operand, UOP_POST_DEC, &task->tk_pos );
+         struct unary* dec = alloc_unary( UOP_POST_DEC, &task->tk_pos );
+         dec->operand = operand->node;
+         operand->node = &dec->node;
          t_read_tk( task );
       }
       else {
@@ -605,15 +617,14 @@ void read_postfix( struct task* task, struct read_expr* expr,
    }
 }
 
-struct access* alloc_access( char* name, struct pos pos, struct node* lside,
-   bool is_region ) {
+struct access* alloc_access( char* name, struct pos pos ) {
    struct access* access = mem_alloc( sizeof( *access ) );
    access->node.type = NODE_ACCESS;
    access->name = name;
    access->pos = pos;
-   access->lside = lside;
+   access->lside = NULL;
    access->rside = NULL;
-   access->is_region = is_region;
+   access->is_region = false;
    return access;
 }
 
@@ -624,26 +635,12 @@ void read_call( struct task* task, struct read_expr* expr,
    t_read_tk( task );
    struct list args;
    list_init( &args );
-   int count = 0;
    // Format list:
    if ( task->tk == TK_ID && t_peek( task ) == TK_COLON ) {
       list_append( &args, t_read_format_item( task, true ) );
-      ++count;
       if ( task->tk == TK_SEMICOLON ) {
          t_read_tk( task );
-         while ( true ) {
-            struct read_expr arg;
-            t_init_read_expr( &arg );
-            t_read_expr( task, &arg );
-            list_append( &args, arg.node );
-            ++count;
-            if ( task->tk == TK_COMMA ) {
-               t_read_tk( task );
-            }
-            else {
-               break;
-            }
-         }
+         read_call_args( task, &args );
       }
    }
    // Format block:
@@ -660,43 +657,19 @@ void read_call( struct task* task, struct read_expr* expr,
       t_read_tk( task );
       if ( task->tk == TK_SEMICOLON ) {
          t_read_tk( task );
-         while ( true ) {
-            struct read_expr arg;
-            t_init_read_expr( &arg );
-            t_read_expr( task, &arg );
-            list_append( &args, arg.node );
-            ++count;
-            if ( task->tk == TK_COMMA ) {
-               t_read_tk( task );
-            }
-            else {
-               break;
-            }
-         }
+         read_call_args( task, &args );
       }
    }
    else {
       // This relic is not necessary in new code. The compiler is smart enough
-      // to figure out when to use the constant version of an instruction.
+      // to figure out when to use the constant variant of an instruction.
       if ( task->tk == TK_CONST ) {
          t_read_tk( task );
          t_test_tk( task, TK_COLON );
          t_read_tk( task );
       }
       if ( task->tk != TK_PAREN_R ) {
-         while ( true ) {
-            struct read_expr arg;
-            t_init_read_expr( &arg );
-            t_read_expr( task, &arg );
-            list_append( &args, arg.node );
-            count += 1;
-            if ( task->tk == TK_COMMA ) {
-               t_read_tk( task );
-            }
-            else {
-               break;
-            }
-         }
+         read_call_args( task, &args );
       }
    }
    t_test_tk( task, TK_PAREN_R );
@@ -704,10 +677,25 @@ void read_call( struct task* task, struct read_expr* expr,
    struct call* call = mem_alloc( sizeof( *call ) );
    call->node.type = NODE_CALL;
    call->pos = pos;
-   call->func = NULL;
    call->operand = operand->node;
+   call->func = NULL;
    call->args = args;
-   operand->node = ( struct node* ) call;
+   operand->node = &call->node;
+}
+
+void read_call_args( struct task* task, struct list* args ) {
+   while ( true ) {
+      struct read_expr arg;
+      t_init_read_expr( &arg );
+      t_read_expr( task, &arg );
+      list_append( args, arg.node );
+      if ( task->tk == TK_COMMA ) {
+         t_read_tk( task );
+      }
+      else {
+         break;
+      }
+   }
 }
 
 struct format_item* t_read_format_item( struct task* task, bool colon ) {
@@ -739,13 +727,13 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
          break;
       }
       if ( unknown || task->tk_length != 1 ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &task->tk_pos, "unknown format cast `%s`", task->tk_text );
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unknown format cast `%s`",
+            task->tk_text );
          t_bail( task );
       }
       t_read_tk( task );
-      // In a format block, only the `:=` separator is allowed, because `:`
-      // will conflict with a goto label.
+      // In a format block, the `:=` separator is used, because an identifier
+      // and a colon creates a goto-statement label.
       if ( colon ) {
          t_test_tk( task, TK_COLON );
          t_read_tk( task );
@@ -842,6 +830,15 @@ void test_node( struct task* task, struct expr_test* test,
       test_string_usage( task, test, operand,
          ( struct indexed_string_usage* ) node );
       break;
+   case NODE_BOOLEAN:
+      test_boolean( task, operand, ( struct boolean* ) node );
+      break;
+   case NODE_REGION_HOST:
+      operand->region = task->region;
+      break;
+   case NODE_REGION_UPMOST:
+      operand->region = task->region_global;
+      break;
    case NODE_NAME_USAGE:
       test_name_usage( task, test, operand, ( struct name_usage* ) node );
       break;
@@ -863,12 +860,6 @@ void test_node( struct task* task, struct expr_test* test,
    case NODE_ACCESS:
       test_access( task, test, operand, ( struct access* ) node );
       break;
-   case NODE_REGION_HOST:
-      operand->region = task->region;
-      break;
-   case NODE_REGION_UPMOST:
-      operand->region = task->region_global;
-      break;
    case NODE_PAREN:
       {
          struct paren* paren = ( struct paren* ) node;
@@ -886,12 +877,7 @@ void test_literal( struct task* task, struct operand* operand,
    operand->folded = true;
    operand->is_result = true;
    operand->is_usable = true;
-   if ( literal->is_bool ) {
-      operand->type = task->type_bool;
-   }
-   else {
-      operand->type = task->type_int;
-   }
+   operand->type = task->type_int;
 }
 
 void test_string_usage( struct task* task, struct expr_test* test,
@@ -902,6 +888,15 @@ void test_string_usage( struct task* task, struct expr_test* test,
    operand->is_usable = true;
    operand->type = task->type_str;
    test->has_string = true;
+}
+
+void test_boolean( struct task* task, struct operand* operand,
+   struct boolean* boolean ) {
+   operand->value = boolean->value;
+   operand->folded = true;
+   operand->is_result = true;
+   operand->is_usable = true;
+   operand->type = task->type_bool;
 }
 
 void test_name_usage( struct task* task, struct expr_test* test,

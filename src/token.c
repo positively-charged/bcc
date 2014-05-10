@@ -619,7 +619,7 @@ void read_token( struct task* task, struct token* token ) {
          read_ch( task );
       }
       else if ( task->ch == ':' ) {
-         tk = TK_COLON2;
+         tk = TK_COLON_2;
          read_ch( task );
       }
       else {
@@ -1127,7 +1127,7 @@ const char* get_token_name( enum tk tk ) {
       { TK_LIT_DECIMAL, "decimal number" },
       { TK_LIT_HEX, "hexadecimal number" },
       { TK_LIT_FIXED, "fixed-point number" },
-      { TK_COLON2, "`::`" } };
+      { TK_COLON_2, "`::`" } };
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string";

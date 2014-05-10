@@ -207,7 +207,7 @@ struct path* t_read_path( struct task* task ) {
    // Tail of path.
    struct path* head = path;
    struct path* tail = head;
-   while ( task->tk == TK_COLON2 ) {
+   while ( task->tk == TK_COLON_2 ) {
       t_read_tk( task );
       t_test_tk( task, TK_ID );
       path = alloc_path( task->tk_pos );

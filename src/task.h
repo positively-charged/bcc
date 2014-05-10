@@ -27,13 +27,14 @@ enum tk {
    TK_ID,
    TK_COMMA,
    TK_COLON,
+   TK_COLON_2,
    TK_SEMICOLON,
    TK_ASSIGN,
    TK_ASSIGN_ADD,
    TK_ASSIGN_SUB,
    TK_ASSIGN_MUL,
-   TK_ASSIGN_DIV,
    // 20
+   TK_ASSIGN_DIV,
    TK_ASSIGN_MOD,
    TK_ASSIGN_SHIFT_L,
    TK_ASSIGN_SHIFT_R,
@@ -43,8 +44,8 @@ enum tk {
    TK_EQ,
    TK_NEQ,
    TK_LOG_NOT,
-   TK_LOG_AND,
    // 30
+   TK_LOG_AND,
    TK_LOG_OR,
    TK_BIT_AND,
    TK_BIT_OR,
@@ -54,8 +55,8 @@ enum tk {
    TK_LTE,
    TK_GT,
    TK_GTE,
-   TK_PLUS,
    // 40
+   TK_PLUS,
    TK_MINUS,
    TK_SLASH,
    TK_STAR,
@@ -65,8 +66,8 @@ enum tk {
    TK_ASSIGN_COLON,
    TK_BREAK,
    TK_CASE,
-   TK_CONST,
    // 50
+   TK_CONST,
    TK_CONTINUE,
    TK_DEFAULT,
    TK_DO,
@@ -76,8 +77,8 @@ enum tk {
    TK_IF,
    TK_INT,
    TK_RETURN,
-   TK_STATIC,
    // 60
+   TK_STATIC,
    TK_STR,
    TK_STRUCT,
    TK_SWITCH,
@@ -87,8 +88,8 @@ enum tk {
    TK_LIT_DECIMAL,
    TK_LIT_OCTAL,
    TK_LIT_HEX,
-   TK_LIT_CHAR,
    // 70
+   TK_LIT_CHAR,
    TK_LIT_FIXED,
    TK_LIT_STRING,
    TK_HASH,    // #
@@ -98,8 +99,8 @@ enum tk {
    TK_UNTIL,
    TK_WORLD,
    TK_OPEN,
-   TK_RESPAWN,
    // 80
+   TK_RESPAWN,
    TK_DEATH,
    TK_ENTER,
    TK_PICKUP,
@@ -109,8 +110,8 @@ enum tk {
    TK_LIGHTNING,
    TK_DISCONNECT,
    TK_UNLOADING,
-   TK_CLIENTSIDE,
    // 90
+   TK_CLIENTSIDE,
    TK_NET,
    TK_RESTART,
    TK_SUSPEND,
@@ -120,10 +121,9 @@ enum tk {
    TK_REGION,
    TK_UPMOST,
    TK_GOTO,
-   TK_TRUE,
    // 100
+   TK_TRUE,
    TK_FALSE,
-   TK_COLON2,
    TK_EVENT
 };
 
@@ -188,6 +188,7 @@ struct node {
       NODE_SCRIPT,
       NODE_PACKED_EXPR,
       NODE_INDEXED_STRING_USAGE,
+      NODE_BOOLEAN
    } type;
 };
 
@@ -257,7 +258,11 @@ struct paren {
 struct literal {
    struct node node;
    int value;
-   bool is_bool;
+};
+
+struct boolean {
+   struct node node;
+   int value;
 };
 
 struct unary {
@@ -1363,7 +1368,6 @@ struct name* t_make_name( struct task*, const char*, struct name* );
 void t_use_name( struct name*, struct object* );
 void t_read_script( struct task* );
 struct format_item* t_read_format_item( struct task*, bool colon );
-int t_read_literal( struct task* );
 void t_add_scope( struct task* );
 void t_pop_scope( struct task* );
 void t_test_constant( struct task*, struct constant*, bool undef_err );
@@ -1431,5 +1435,6 @@ void t_bail( struct task* );
 void t_read_region( struct task* );
 void t_read_import( struct task*, struct list* );
 void t_import( struct task*, struct import* );
+int t_extract_literal_value( struct task* );
 
 #endif
