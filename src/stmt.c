@@ -4,17 +4,13 @@
 
 #include "task.h"
 
-struct library* add_library( struct task* );
 static void read_module( struct task* );
-static void read_module_header( struct task* );
-static void handle_module_name( struct task* );
 static void read_module_body( struct task* );
 static struct path* alloc_path( struct pos );
 static void read_include_dirc( struct task*, struct pos* );
 static void read_case( struct task*, struct stmt_read* );
 static void read_default_case( struct task*, struct stmt_read* );
 static void read_label( struct task*, struct stmt_read* );
-static void read_stmt( struct task*, struct stmt_read* );
 static void read_if( struct task*, struct stmt_read* );
 static void read_switch( struct task*, struct stmt_read* );
 static void read_while( struct task*, struct stmt_read* );
@@ -36,7 +32,6 @@ static void test_case( struct task*, struct stmt_test*, struct case_label* );
 static void test_default_case( struct task*, struct stmt_test*,
    struct case_label* );
 static void test_label( struct task*, struct stmt_test*, struct label* );
-static void test_stmt( struct task*, struct stmt_test*, struct node* );
 static void test_if( struct task*, struct stmt_test*, struct if_stmt* );
 static void test_switch( struct task*, struct stmt_test*,
    struct switch_stmt* );
@@ -57,9 +52,7 @@ static void test_packed_expr( struct task*, struct stmt_test*,
 static void test_goto_in_format_block( struct task*, struct list* );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
-   task->tk = TK_END;
-   task->tk_text = NULL;
-   task->tk_length = 0;
+   t_init_fields_token( task );
    t_init_fields_dec( task );
    task->options = options;
    task->module = NULL;
@@ -79,113 +72,40 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    str_init( &task->tokens.text );
    task->tokens.peeked = 0;
    task->bail = bail;
-   task->column = 0;
-   task->ch = 0;
    task->err_file = NULL;
+   task->macro_expan = NULL;
+   task->ifdirc_depth = 0;
+   task->line_pos.offset = 0;
+   task->line_pos.column = 0;
+   task->line_pos.file = NULL;
 }
 
 void t_read( struct task* task ) {
-   task->library = add_library( task );
-   task->library_main = task->library;
-   struct module* module = t_load_module( task, task->options->source_file,
-      NULL );
-   if ( ! module ) {
-      t_diag( task, DIAG_ERR, "failed to load source file: %s",
-         task->options->source_file );
-      t_bail( task );
-   }
-   task->module_main = module;
+   t_load_main_module( task );
+   //task->module_main = module;
    t_read_tk( task );
-   module->read = true;
+/*
+   {
+      while ( task->tk != TK_END ) {
+         const char* text = task->tk_text;
+         switch ( task->tk ) {
+         case TK_PLUS: text = "+"; break;
+         default: break;
+         }
+         printf( "%d %s\n", task->tk, text );
+         t_read_tk( task );
+      }
+   }
+*/
+   //module->read = true;
    read_module( task );
    link_usable_strings( task );
 }
 
-struct library* add_library( struct task* task ) {
-   struct library* lib = mem_alloc( sizeof( *lib ) );
-   str_init( &lib->name );
-   str_copy( &lib->name, "", 0 );
-   list_init( &lib->modules );
-   list_init( &lib->vars );
-   list_init( &lib->funcs );
-   list_init( &lib->scripts );
-   list_init( &lib->dynamic );
-   lib->visible = false;
-   lib->imported = false;
-   list_append( &task->libraries, lib );
-   return lib;
-}
-
 void read_module( struct task* task ) {
    struct library* library = task->library;
-   read_module_header( task );
    t_read_region_body( task, false );
    task->library = library;
-}
-
-void read_module_header( struct task* task ) {
-   struct pos pos = task->tk_pos;
-   bool dirc = false;
-   if ( task->tk == TK_HASH ) {
-      t_read_tk( task );
-      if ( task->tk == TK_ID && strcmp( task->tk_text, "library" ) == 0 ) {
-         t_read_tk( task );
-         t_test_tk( task, TK_LIT_STRING );
-         handle_module_name( task ); 
-         t_read_tk( task );
-      }
-      else {
-         dirc = true;
-      }
-   }
-   // Add module to the library.
-   list_append( &task->library->modules, task->module );
-   if ( dirc ) {
-      t_read_dirc( task, &pos );
-   }
-}
-
-void handle_module_name( struct task* task ) {
-   if ( ! task->tk_length ) {
-      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-         "library name is blank" );
-      t_bail( task );
-   }
-   if ( task->tk_length > MAX_MODULE_NAME_LENGTH ) {
-      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-         "library name too long" );
-      t_diag( task, DIAG_FILE, &task->tk_pos,
-         "library name can be up to %d characters long",
-         MAX_MODULE_NAME_LENGTH );
-      t_bail( task );
-   }
-   // Name of main library.
-   if ( task->module == task->module_main ) {
-      str_copy( &task->library_main->name, task->tk_text,
-         task->tk_length );
-      task->library_main->visible = true;
-   }
-   else {
-      // Find the library this module belongs to.
-      list_iter_t i;
-      list_iter_init( &i, &task->libraries );
-      struct library* lib = NULL;
-      while ( ! list_end( &i ) ) {
-         lib = list_data( &i );
-         if ( strcmp( task->tk_text, lib->name.value ) == 0 ) {
-            break;
-         }
-         list_next( &i );
-      }
-      // Create a new library when one isn't present.
-      if ( list_end( &i ) ) {
-         lib = add_library( task );
-         str_copy( &lib->name, task->tk_text, task->tk_length );
-         lib->visible = true;
-         lib->imported = true;
-      }
-      task->library = lib;
-   }
 }
 
 struct path* t_read_path( struct task* task ) {
@@ -283,42 +203,6 @@ void t_read_dirc( struct task* task, struct pos* pos ) {
    if ( include ) {
       read_include_dirc( task, pos );
    }
-   else if ( strcmp( task->tk_text, "define" ) == 0 ||
-      strcmp( task->tk_text, "libdefine" ) == 0 ) {
-      t_read_define( task );
-   }
-   else if ( strcmp( task->tk_text, "library" ) == 0 ) {
-      t_read_tk( task );
-      t_test_tk( task, TK_LIT_STRING );
-      t_read_tk( task );
-      t_diag( task, DIAG_POS_ERR, pos,
-         "#library directive not at the very top" );
-      t_bail( task );
-   }
-   else if ( strcmp( task->tk_text, "encryptstrings" ) == 0 ) {
-      t_read_tk( task );
-      // This directive is only effective from the main module.
-      if ( task->module == task->module_main ) {
-         task->options->encrypt_str = true;
-      }
-   }
-   else if ( strcmp( task->tk_text, "macro" ) == 0 ) {
-      t_read_tk( task );
-      t_test_tk( task, TK_ID );
-      t_read_tk( task );
-      t_test_tk( task, TK_LIT_DECIMAL );
-      t_read_tk( task );
-   }
-   else if (
-      // NOTE: Not sure what these two are. 
-      strcmp( task->tk_text, "wadauthor" ) == 0 ||
-      strcmp( task->tk_text, "nowadauthor" ) == 0 ||
-      // For now, the output format will be selected automatically.
-      strcmp( task->tk_text, "nocompact" ) == 0 ) {
-      t_diag( task, DIAG_POS_ERR, pos, "directive `%s` not supported",
-         task->tk_text );
-      t_bail( task );
-   }
    else {
       t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
          "unknown directive '%s'", task->tk_text );
@@ -327,6 +211,7 @@ void t_read_dirc( struct task* task, struct pos* pos ) {
 }
 
 void read_include_dirc( struct task* task, struct pos* pos ) {
+/*
    t_test_tk( task, TK_LIT_STRING );
    struct paused paused;
    struct module* module = t_load_module( task, task->tk_text, &paused );
@@ -395,7 +280,7 @@ void read_include_dirc( struct task* task, struct pos* pos ) {
          list_append( &task->library->dynamic, lib );
       }
    }
-   t_read_tk( task );
+   t_read_tk( task ); */
 }
 
 void t_init_stmt_read( struct stmt_read* read ) {
@@ -444,7 +329,7 @@ void t_read_block( struct task* task, struct stmt_read* read ) {
       }
       else {
          read->node = NULL;
-         read_stmt( task, read );
+         t_read_stmt( task, read );
          if ( read->node->type != NODE_NONE ) {
             list_append( &block->stmts, read->node );
          }
@@ -531,7 +416,7 @@ void read_label( struct task* task, struct stmt_read* read ) {
    read->node = &label->node;
 }
 
-void read_stmt( struct task* task, struct stmt_read* read ) {
+void t_read_stmt( struct task* task, struct stmt_read* read ) {
    if ( task->tk == TK_BRACE_L ) {
       t_read_block( task, read );
    }
@@ -596,7 +481,7 @@ void read_if( struct task* task, struct stmt_read* read ) {
       t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &task->tk_pos, "body of `if` statement is empty (`;`)" );
    }
-   read_stmt( task, read );
+   t_read_stmt( task, read );
    stmt->body = read->node;
    stmt->else_body = NULL;
    if ( task->tk == TK_ELSE ) {
@@ -605,7 +490,7 @@ void read_if( struct task* task, struct stmt_read* read ) {
          t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &task->tk_pos, "body of `else` is empty (`;`)" );
       }
-      read_stmt( task, read );
+      t_read_stmt( task, read );
       stmt->else_body = read->node;
    }
    read->node = &stmt->node;
@@ -623,7 +508,7 @@ void read_switch( struct task* task, struct stmt_read* read ) {
    stmt->expr = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   read_stmt( task, read );
+   t_read_stmt( task, read );
    stmt->body = read->node;
    read->node = ( struct node* ) stmt;
 }
@@ -648,7 +533,7 @@ void read_while( struct task* task, struct stmt_read* read ) {
    stmt->expr = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   read_stmt( task, read );
+   t_read_stmt( task, read );
    stmt->body = read->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -660,7 +545,7 @@ void read_do( struct task* task, struct stmt_read* read ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_DO_WHILE;
-   read_stmt( task, read );
+   t_read_stmt( task, read );
    stmt->body = read->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -779,7 +664,7 @@ void read_for( struct task* task, struct stmt_read* read ) {
    }
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   read_stmt( task, read );
+   t_read_stmt( task, read );
    stmt->body = read->node;
    read->node = ( struct node* ) stmt;
 }
@@ -1107,7 +992,7 @@ void test_block_item( struct task* task, struct stmt_test* test,
       t_import( task, ( struct import* ) node );
       break;
    default:
-      test_stmt( task, test, node );
+      t_test_stmt( task, test, node );
    }
 }
 
@@ -1185,7 +1070,7 @@ void test_label( struct task* task, struct stmt_test* test,
    }
 }
 
-void test_stmt( struct task* task, struct stmt_test* test,
+void t_test_stmt( struct task* task, struct stmt_test* test,
    struct node* node ) {
    if ( node->type == NODE_BLOCK ) {
       t_test_block( task, test, ( struct block* ) node );
@@ -1233,10 +1118,10 @@ void test_if( struct task* task, struct stmt_test* test,
    t_test_expr( task, &expr, stmt->expr );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
-   test_stmt( task, &body, stmt->body );
+   t_test_stmt( task, &body, stmt->body );
    if ( stmt->else_body ) {
       t_init_stmt_test( &body, test );
-      test_stmt( task, &body, stmt->else_body );
+      t_test_stmt( task, &body, stmt->else_body );
    }
 }
 
@@ -1249,7 +1134,7 @@ void test_switch( struct task* task, struct stmt_test* test,
    struct stmt_test body;
    t_init_stmt_test( &body, test );
    body.in_switch = true;
-   test_stmt( task, &body, stmt->body );
+   t_test_stmt( task, &body, stmt->body );
    stmt->case_head = body.case_head;
    stmt->case_default = body.case_default;
    stmt->jump_break = body.jump_break;
@@ -1266,7 +1151,7 @@ void test_while( struct task* task, struct stmt_test* test,
    struct stmt_test body;
    t_init_stmt_test( &body, test );
    body.in_loop = true;
-   test_stmt( task, &body, stmt->body );
+   t_test_stmt( task, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
@@ -1322,7 +1207,7 @@ void test_for( struct task* task, struct stmt_test* test,
    struct stmt_test body;
    t_init_stmt_test( &body, test );
    body.in_loop = true;
-   test_stmt( task, &body, stmt->body );
+   t_test_stmt( task, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    t_pop_scope( task );

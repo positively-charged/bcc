@@ -25,6 +25,7 @@ void str_copy( struct str*, const char* value, int length );
 void str_grow( struct str*, int length );
 void str_append( struct str*, const char* cstr );
 void str_append_sub( struct str*, const char* cstr, int length );
+void str_append_number( struct str*, int number );
 void str_clear( struct str* );
 
 enum {

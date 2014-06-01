@@ -1,3 +1,8 @@
+#ifndef __ZCOMMON_ACS__
+#define __ZCOMMON_ACS__
+
 #include "std.acs"
 
-import region: region = std;
+import upmost: region = std;
+
+#endif

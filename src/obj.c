@@ -230,7 +230,7 @@ void t_add_opc( struct task* task, int code ) {
          { PC_SET_MUSIC, 3, PC_SET_MUSIC_DIRECT },
          { PC_LOCAL_SET_MUSIC, 3, PC_LOCAL_SET_MUSIC },
          { PC_SET_FONT, 1, PC_SET_FONT_DIRECT },
-         { PC_NONE } };
+         { PC_NONE, 0, PC_NONE } };
       const struct entry* entry = entries;
       while ( entry->code != code ) {
          if ( entry->code == PC_NONE ) {
@@ -680,16 +680,6 @@ void t_seek( struct task* task, int pos ) {
    }
 }
 
-void t_pad4align( struct task* task ) {
-   int i = t_tell( task ) % 4;
-   if ( i ) {
-      while ( i < 4 ) {
-         t_add_byte( task, 0 );
-         ++i;
-      }
-   }
-}
-
 void t_flush( struct task* task ) {
    // Don't overwrite the object file unless it's an ACS object file, or the
    // file doesn't exist. This is a basic check done to help prevent the user
@@ -732,5 +722,14 @@ void t_flush( struct task* task ) {
       t_diag( task, DIAG_ERR, "failed to write object file: %s",
          task->options->object_file );
       t_bail( task );
+   }
+}
+
+void t_align_4byte( struct task* task ) {
+   int padding = alignpad( t_tell( task ), 4 );
+   int i = 0;
+   while ( i < padding ) {
+      t_add_byte( task, 0 );
+      ++i;
    }
 }

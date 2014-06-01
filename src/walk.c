@@ -102,12 +102,7 @@ void t_publish_scripts( struct task* task, struct list* scripts ) {
          param->index = alloc_scalar( task );
          param = param->next;
       }
-      list_iter_t k;
-      list_iter_init( &k, &script->body->stmts );
-      while ( ! list_end( &k ) ) {
-         do_node( task, list_data( &k ) );
-         list_next( &k );
-      }
+      do_node( task, script->body );
       t_add_opc( task, PC_TERMINATE );
       script->size = task->block_walk->size_high;
       pop_block_walk( task );

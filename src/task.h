@@ -124,7 +124,10 @@ enum tk {
    // 100
    TK_TRUE,
    TK_FALSE,
-   TK_EVENT
+   TK_EVENT,
+   TK_NL,
+   TK_LIB,
+   TK_TOTAL
 };
 
 struct pos {
@@ -137,6 +140,11 @@ struct token {
    struct pos pos;
    enum tk type;
    int length;
+   struct token* next;
+   bool is_dirc_hash;
+   bool is_id;
+   bool reread;
+   bool space_before;
 };
 
 struct node {
@@ -516,6 +524,7 @@ struct var {
    bool shared_str;
    bool state_accessed;
    bool state_modified;
+   bool used;
    bool has_interface;
    bool use_interface;
    bool initial_has_str;
@@ -695,7 +704,7 @@ struct script {
       SCRIPT_FLAG_CLIENTSIDE = 0x2
    } flags;
    struct param* params;
-   struct block* body;
+   struct node* body;
    struct list labels;
    int num_param;
    int offset;
@@ -763,27 +772,37 @@ struct region {
    struct list items;
 };
 
+struct macro_list {
+   struct macro* head;
+   struct macro* tail;
+};
+
 struct module {
    struct object object;
    struct file* file;
    char* ch;
-   char* ch_start;
-   char* ch_save;
+   char* start;
+   char* save;
    int line;
    char* column;
    char* first_column;
-   char* end;
    struct {
       int* columns;
       int count;
       int count_max;
    } lines;
-   char recover_ch;
    struct file_identity identity;
    struct str file_path;
    struct list included;
    int id;
    bool read;
+   bool is_nl;
+   bool is_nl_token;
+   bool load_once;
+   bool is_lib;
+   struct module* prev;
+   int tab_space;
+   struct library* library;
 };
 
 struct library {
@@ -797,6 +816,7 @@ struct library {
    // Whether the objects of the library can be used by another library.
    bool visible;
    bool imported;
+   bool encrypt_str;
 };
 
 struct module_self {
@@ -1282,13 +1302,11 @@ struct task {
    struct options* options;
    FILE* err_file;
    jmp_buf* bail;
-   int column;
    struct {
       struct token buffer[ TK_BUFFER_SIZE ];
       struct str text;
       int peeked;
    } tokens;
-   char ch;
    enum tk tk;
    struct pos tk_pos;
    // The text contains the character content of the token. The text and the
@@ -1340,20 +1358,32 @@ struct task {
    bool push_immediate;
    struct block_walk* block_walk;
    struct block_walk* block_walk_free;
+   int ifdirc_depth;
+   struct {
+      int offset;
+      int column;
+      char* file;
+   } line_pos;
+   struct macro_list macros;
+   struct macro_expan* macro_expan;
+   struct macro* macro_free;
+   struct macro_param* macro_param_free;
+   bool in_dirc;
 };
 
 struct paused {
    struct module* module;
    char ch;
-   int column;
+   int tab_space;
    enum tk tk;
 };
 
 void t_init( struct task*, struct options*, jmp_buf* );
+void t_init_fields_token( struct task* );
 void t_init_fields_dec( struct task* );
 void t_init_fields_chunk( struct task* );
 void t_init_fields_obj( struct task* );
-struct module* t_load_module( struct task*, const char*, struct paused* );
+void t_load_main_module( struct task* );
 void t_resume_module( struct task*, struct paused* );
 void t_init_object( struct object*, int );
 void t_read_tk( struct task* );
@@ -1363,6 +1393,7 @@ void t_unload_file( struct task*, bool* );
 void t_skip_past( struct task*, char );
 void t_skip_past_tk( struct task*, enum tk );
 void t_test( struct task* );
+void t_read_stmt( struct task*, struct stmt_read* );
 void t_read_block( struct task*, struct stmt_read* );
 struct name* t_make_name( struct task*, const char*, struct name* );
 void t_use_name( struct name*, struct object* );
@@ -1374,7 +1405,7 @@ void t_test_constant( struct task*, struct constant*, bool undef_err );
 void t_test_constant_set( struct task*, struct constant_set*, bool undef_err );
 void t_test_type( struct task*, struct type*, bool undef_err );
 void t_read_define( struct task* );
-void t_copy_name( struct name*, bool, struct str* );
+void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
 void t_test_local_var( struct task*, struct var* );
 void t_skip_block( struct task* );
@@ -1395,7 +1426,6 @@ void t_skip_to_tk( struct task*, enum tk );
 int t_get_script_number( struct script* );
 void t_publish_scripts( struct task*, struct list* );
 void t_publish_funcs( struct task*, struct list* );
-void t_pad4align( struct task* );
 void t_init_read_expr( struct read_expr* );
 void t_read_expr( struct task*, struct read_expr* );
 bool t_is_dec( struct task* );
@@ -1406,6 +1436,7 @@ void t_test_expr( struct task*, struct expr_test*, struct expr* );
 void t_init_stmt_read( struct stmt_read* );
 void t_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void t_test_top_block( struct task*, struct stmt_test*, struct block* );
+void t_test_stmt( struct task*, struct stmt_test*, struct node* );
 void t_test_block( struct task*, struct stmt_test*, struct block* );
 void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
    struct expr_test*, struct name* name_offset, struct block* );
@@ -1416,9 +1447,9 @@ void diag_dup_struct( struct task*, struct name*, struct pos* );
 struct path* t_read_path( struct task* );
 void t_use_local_name( struct task*, struct name*, struct object* );
 enum tk t_peek( struct task* );
-enum tk t_peek_2nd( struct task* );
 void t_read_region_body( struct task*, bool is_brace );
 void t_read_dirc( struct task*, struct pos* );
+const char* t_get_token_name( enum tk );
 
 void t_print_name( struct name* );
 
@@ -1436,5 +1467,6 @@ void t_read_region( struct task* );
 void t_read_import( struct task*, struct list* );
 void t_import( struct task*, struct import* );
 int t_extract_literal_value( struct task* );
+void t_align_4byte( struct task* );
 
 #endif

@@ -9,14 +9,6 @@
 
 #include <stdio.h>
 
-struct shared {
-   struct var* last[ 2 ];
-   struct var* last_str[ 2 ];
-   int left;
-   bool needed;
-   bool needed_str;
-};
-
 struct func_entry {
    char params;
    char size;
@@ -26,30 +18,22 @@ struct func_entry {
 };
 
 static void alloc_index( struct task* );
-static void determine_shared( struct shared*, struct var* );
 static void do_sptr( struct task* );
 static void do_sflg( struct task* );
 static void do_strl( struct task* );
 static void do_aray( struct task* );
 static void do_aini( struct task* );
-static void do_aini_shared_int( struct task* );
-static void count_shared_value( struct value*, int, int* );
-static void add_shared_value( struct task*, struct value*, int, int* );
-static void do_aini_shared_str( struct task* );
 static void do_aini_indexed( struct task*, struct value*, int );
 static void do_mini( struct task* );
 static void do_func( struct task* );
-static void add_func( struct task*, struct func*, struct func_user* );
-static void add_getter_entry( struct task*, struct var* );
-static void add_setter_entry( struct task*, struct var* );
 static void do_fnam( struct task* );
 static void do_load( struct task* );
 static void do_svct( struct task* );
+static void do_mexp( struct task* );
+static void do_mimp( struct task* );
+static void do_aimp( struct task* );
 static void do_mstr( struct task* );
 static void do_astr( struct task* );
-static void do_var_interface( struct task* );
-static void add_getter( struct task*, struct var* );
-static void add_setter( struct task*, struct var* );
 
 void t_init_fields_chunk( struct task* task ) {
    task->shared_size = 0;
@@ -61,19 +45,15 @@ void t_init_fields_chunk( struct task* task ) {
 
 void t_publish( struct task* task ) {
    alloc_index( task );
+task->format = FORMAT_BIG_E;
    if ( task->format == FORMAT_LITTLE_E ) {
       task->compress = true;
    }
    // Reserve header.
    t_add_int( task, 0 );
    t_add_int( task, 0 );
-   // Output body of scripts and functions.
    t_publish_scripts( task, &task->library_main->scripts );
    t_publish_funcs( task,  &task->library_main->funcs );
-   // Getter and setter functions for interfacing with variables of a library.
-   if ( task->library_main->visible ) {
-      do_var_interface( task );
-   }
    // When utilizing the Little-E format, where instructions can be of
    // different size, add padding so any following data starts at an offset
    // that is multiple of 4.
@@ -94,8 +74,11 @@ void t_publish( struct task* task ) {
    do_mini( task );
    do_aray( task );
    do_aini( task );
+   do_mimp( task );
+   do_aimp( task );
    // Chunks for a library that is to be used through #include/#import.
    if ( task->library_main->visible ) {
+      do_mexp( task );
       do_mstr( task );
       do_astr( task );
    }
@@ -126,147 +109,30 @@ void t_publish( struct task* task ) {
 }
 
 void alloc_index( struct task* task ) {
-   // Determine which variables need to be stored in a shared array. A shared
-   // array is a single array whose space is used to store multiple pieces of
-   // different data, one after another.
-   STATIC_ASSERT( MAX_MAP_LOCATIONS >= 2 );
-   struct shared shared;
-   shared.last[ 0 ] = NULL;
-   shared.last[ 1 ] = NULL;
-   shared.last_str[ 0 ] = NULL;
-   shared.last_str[ 1 ] = NULL;
-   shared.left = MAX_MAP_LOCATIONS;
-   shared.needed = false;
-   shared.needed_str = false;
-   // Arrays:
+   int index = 0;
    list_iter_t i;
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         var->dim ) {
-         determine_shared( &shared, var );
-      }
-      list_next( &i );
-   }
-   // Scalars:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim ) {
-         determine_shared( &shared, var );
-      }
-      list_next( &i );
-   }
-   // Customs:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
-         determine_shared( &shared, var );
-      }
-      list_next( &i );
-   }
-   // Allocate indexes.
-   int index = 0;
-   if ( shared.needed ) {
-      ++index;
-   }
-   if ( shared.needed_str ) {
-      ++index;
-   }
-   // Arrays:
-   // When allocating an index, arrays are given higher priority over scalars.
-   // Why? The off-by-one error check provided by the engine will be better
-   // utilized. If multiple arrays are combined into a single array, the check
-   // won't be useful to the individual arrays.
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         var->dim && ! var->shared && ! var->shared_str ) {
+      if ( var->storage == STORAGE_MAP ) {
          var->index = index;
          ++index;
       }
       list_next( &i );
    }
-   // Scalars:
-   list_iter_init( &i, &task->library_main->vars );
+   // Imported variables:
+   list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim && ! var->shared && ! var->shared_str ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Customs:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
-         if ( ! var->shared ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->used ) {
             var->index = index;
             ++index;
          }
-         if ( ! var->shared_str ) {
-            var->index_str = index;
-            ++index;
-         }
-      }
-      list_next( &i );
-   }
-   // Any remaining variables are combined into an array.
-   // Scalars:
-   // Scalars are placed first to avoid being damaged by a buffer overflow.
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim ) {
-         if ( var->shared ) {
-            var->index = task->shared_size;
-            task->shared_size += var->size;
-         }
-         else if ( var->shared_str ) {
-            var->index_str = task->shared_size_str;
-            task->shared_size_str += var->size_str;
-         }
-      }
-      list_next( &i );
-   }
-   // Custom types:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive ) {
-         if ( var->shared ) {
-            var->index = task->shared_size;
-            task->shared_size += var->size;
-         }
-         if ( var->shared_str ) {
-            var->index_str = task->shared_size_str;
-            task->shared_size_str += var->size_str;
-         }
-      }
-      list_next( &i );
-   }
-   // Arrays:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         var->dim ) {
-         if ( var->shared ) {
-            var->index = task->shared_size;
-            task->shared_size += var->size;
-         }
-         else if ( var->shared_str ) {
-            var->index_str = task->shared_size_str;
-            task->shared_size_str += var->size_str;
-         }
+         list_next( &k );
       }
       list_next( &i );
    }
@@ -292,28 +158,6 @@ void alloc_index( struct task* task ) {
    // used. These are only used by the user of the library. From inside the
    // library, the variables are interfaced with directly.
    index = 0;
-   list_iter_init( &i, &task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            var->use_interface = true;
-            if ( var->state_accessed ) {
-               var->get = index;
-               ++index;
-            }
-            if ( var->state_modified ) {
-               var->set = index;
-               ++index;
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
    // Imported functions:
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
@@ -331,22 +175,6 @@ void alloc_index( struct task* task ) {
       }
       list_next( &i );
    }
-   // Getter and setter functions for interfacing with the global variables of
-   // a library.
-   if ( task->library_main->visible ) {
-      list_iter_init( &i, &task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-            var->has_interface = true;
-            var->get = index;
-            ++index;
-            var->set = index;
-            ++index;
-         }
-         list_next( &i );
-      }
-   }
    // Visible functions:
    // Visible functions are given an index first, so they are present in the
    // FNAM chunk.
@@ -359,292 +187,6 @@ void alloc_index( struct task* task ) {
          ++index;
       }
       list_next( &i );
-   }
-   // Hidden functions:
-   list_iter_init( &i, &task->library_main->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      if ( func->hidden ) {
-         struct func_user* impl = func->impl;
-         impl->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-}
-
-void determine_shared( struct shared* shared, struct var* var ) {
-   if ( var->type->size ) {
-      // Use an index when one is available.
-      if ( shared->left ) {
-         --shared->left;
-         shared->last[ 1 ] = shared->last[ 0 ];
-         shared->last[ 0 ] = var;
-      }
-      // Once all indexes are allocated, insert the variable in the shared
-      // array.
-      else if ( shared->needed ) {
-         var->shared = true;
-      }
-      // When no shared array exists, reuse the index of the last variable as
-      // the index of the shared array.
-      else if ( shared->last[ 0 ] ) {
-         shared->last[ 0 ]->shared = true;
-         shared->last[ 0 ] = shared->last[ 1 ];
-         shared->needed = true;
-         var->shared = true;
-      }
-      // When no variables are available, place one of the string variables
-      // into the shared array and reuse the index.
-      else if ( shared->needed_str ) {
-         shared->last_str[ 0 ]->shared_str = true;
-         shared->last[ 0 ] = var;
-      }
-      // When no string shared array exists, make one by combining two string
-      // variables. Then reuse the index.
-      else {
-         shared->last_str[ 0 ]->shared_str = true;
-         shared->last_str[ 1 ]->shared_str = true;
-         shared->needed_str = true;
-         shared->last[ 0 ] = var;
-      }
-   }
-   if ( var->type->size_str ) {
-      if ( shared->left ) {
-         --shared->left;
-         shared->last_str[ 1 ] = shared->last_str[ 0 ];
-         shared->last_str[ 0 ] = var;
-      }
-      else if ( shared->needed_str ) {
-         var->shared_str = true;
-      }
-      else if ( shared->last_str[ 0 ] ) {
-         shared->last_str[ 0 ]->shared_str = true;
-         shared->last_str[ 0 ] = shared->last_str[ 1 ];
-         shared->needed_str = true;
-         var->shared_str = true;
-      }
-      else if ( shared->needed ) {
-         shared->last[ 0 ]->shared = true;
-         shared->last_str[ 0 ] = var;
-      }
-      else {
-         shared->last[ 0 ]->shared = true;
-         shared->last[ 1 ]->shared = true;
-         shared->needed = true;
-         shared->last_str[ 0 ] = var;
-      }
-   }
-}
-
-void do_var_interface( struct task* task ) {
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-         var->get_offset = t_tell( task );
-         add_getter( task, var );
-         var->set_offset = t_tell( task );
-         add_setter( task, var );
-      }
-      list_next( &i );
-   }
-}
-
-void add_getter( struct task* task, struct var* var ) {
-   if ( ! var->type->primitive ) {
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 0 );  // Element.
-      // String member.
-      if ( var->type->size_str ) {
-         int jump = 0;
-         if ( var->type->size ) {
-            t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-            t_add_arg( task, 1 );  // String or not.
-            jump = t_tell( task );
-            t_add_opc( task, PC_IF_NOT_GOTO );
-            t_add_arg( task, 0 );
-         }
-         // Optimization: Skip adding an offset of 0 because it won't have any
-         // effect on the index.
-         if ( var->index_str ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, var->index_str );
-            t_add_opc( task, PC_ADD );
-         }
-         t_add_opc( task, PC_PUSH_MAP_ARRAY );
-         t_add_arg( task, SHARED_ARRAY_STR );
-         t_add_opc( task, PC_RETURN_VAL );
-         if ( jump ) {
-            int next = t_tell( task );
-            t_seek( task, jump );
-            t_add_opc( task, PC_IF_NOT_GOTO );
-            t_add_arg( task, next );
-            t_seek( task, OBJ_SEEK_END );
-         }
-      }
-      // Integer member.
-      if ( var->type->size ) {
-         if ( var->index ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, var->index );
-            t_add_opc( task, PC_ADD );
-         }
-         t_add_opc( task, PC_PUSH_MAP_ARRAY );
-         t_add_arg( task, SHARED_ARRAY );
-         t_add_opc( task, PC_RETURN_VAL );
-      }
-   }
-   else if ( var->dim ) {
-      // Element position.
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 0 );
-      int index = var->index;
-      if ( var->shared ) {
-         // Variable position.
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( var->type->is_str ) {
-            t_add_arg( task, var->index_str );
-            index = SHARED_ARRAY_STR;
-         }
-         else {
-            t_add_arg( task, var->index );
-            index = SHARED_ARRAY;
-         }
-         t_add_opc( task, PC_ADD );
-      }
-      t_add_opc( task, PC_PUSH_MAP_ARRAY );
-      t_add_arg( task, index );
-      t_add_opc( task, PC_RETURN_VAL );
-   }
-   else {
-      if ( var->shared ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( var->type->is_str ) {
-            t_add_arg( task, var->index_str );
-            t_add_opc( task, PC_PUSH_MAP_ARRAY );
-            t_add_arg( task, SHARED_ARRAY_STR );
-         }
-         else {
-            t_add_arg( task, var->index );
-            t_add_opc( task, PC_PUSH_MAP_ARRAY );
-            t_add_arg( task, SHARED_ARRAY );
-         }
-      }
-      else {
-         t_add_opc( task, PC_PUSH_MAP_VAR );
-         t_add_arg( task, var->index );
-      }
-      t_add_opc( task, PC_RETURN_VAL );
-   }
-}
-
-void add_setter( struct task* task, struct var* var ) {
-   if ( ! var->type->primitive ) {
-      enum {
-         VAR_ELEMENT,
-         VAR_VALUE,
-         VAR_DO_STR
-      };
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, VAR_ELEMENT );
-      // String member.
-      if ( var->type->size_str ) {
-         int jump = 0;
-         if ( var->type->size ) {
-            t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-            t_add_arg( task, VAR_DO_STR );
-            jump = t_tell( task );
-            t_add_opc( task, PC_IF_NOT_GOTO );
-            t_add_arg( task, 0 );
-         }
-         if ( var->index_str ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, var->index_str );
-            t_add_opc( task, PC_ADD );
-         }
-         t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, VAR_VALUE );
-         t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-         t_add_arg( task, SHARED_ARRAY_STR );
-         t_add_opc( task, PC_RETURN_VOID );
-         if ( jump ) {
-            int next = t_tell( task );
-            t_seek( task, jump );
-            t_add_opc( task, PC_IF_NOT_GOTO );
-            t_add_arg( task, next );
-            t_seek( task, OBJ_SEEK_END );
-         }
-      }
-      // Integer member.
-      if ( var->type->size ) {
-         if ( var->index ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, var->index );
-            t_add_opc( task, PC_ADD );
-         }
-         t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, VAR_VALUE );
-         t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-         t_add_arg( task, SHARED_ARRAY );
-         t_add_opc( task, PC_RETURN_VOID );
-      }
-   }
-   else if ( var->dim ) {
-      // Element position.
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 0 );
-      int index = var->index;
-      if ( var->shared ) {
-         // Variable position.
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( var->type->is_str ) {
-            t_add_arg( task, var->index_str );
-            index = SHARED_ARRAY_STR;
-         }
-         else {
-            t_add_arg( task, var->index );
-            index = SHARED_ARRAY;
-         }
-         t_add_opc( task, PC_ADD );
-      }
-      // Value.
-      t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-      t_add_arg( task, 1 );
-      t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-      t_add_arg( task, index );
-      t_add_opc( task, PC_RETURN_VOID );
-   }
-   else {
-      if ( var->shared ) {
-         // Variable position.
-         t_add_opc( task, PC_PUSH_NUMBER );
-         if ( var->type->is_str ) {
-            t_add_arg( task, var->index_str );
-         }
-         else {
-            t_add_arg( task, var->index );
-         }
-         // Value.
-         t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, 0 );
-         t_add_opc( task, PC_ASSIGN_MAP_ARRAY );
-         if ( var->type->is_str ) {
-            t_add_arg( task, SHARED_ARRAY_STR );
-         }
-         else {
-            t_add_arg( task, SHARED_ARRAY );
-         }
-      }
-      else {
-         // Value.
-         t_add_opc( task, PC_PUSH_SCRIPT_VAR );
-         t_add_arg( task, 0 );
-         t_add_opc( task, PC_ASSIGN_MAP_VAR );
-         t_add_arg( task, var->index );
-      }
-      t_add_opc( task, PC_RETURN_VOID );
    }
 }
 
@@ -816,12 +358,6 @@ void do_strl( struct task* task ) {
 
 void do_aray( struct task* task ) {
    int count = 0;
-   if ( task->shared_size ) {
-      ++count;
-   }
-   if ( task->shared_size_str ) {
-      ++count;
-   }
    list_iter_t i;
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
@@ -900,10 +436,6 @@ void do_aray( struct task* task ) {
 }
 
 void do_aini( struct task* task ) {
-   // Shared arrays.
-   do_aini_shared_int( task );
-   do_aini_shared_str( task );
-   // Variables with dedicated index.
    list_iter_t i;
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
@@ -921,148 +453,6 @@ void do_aini( struct task* task ) {
          else if ( var->dim ) {
             do_aini_indexed( task, var->value, var->index );
          }
-      }
-      list_next( &i );
-   }
-}
-
-void do_aini_shared_int( struct task* task ) {
-   int count = 0;
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->initial && var->shared ) {
-         count_shared_value( var->value, var->index, &count );
-      }
-      list_next( &i );
-   }
-   if ( ! count ) {
-      return;
-   }
-   t_add_str( task, "AINI" );
-   t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, SHARED_ARRAY );
-   count = 0;
-   // Writing of initial values needs to follow the order of shared index
-   // assignment, above. So initial values for scalar variables come first,
-   // then for struct variables, and so on.
-   // Scalars:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive && ! var->dim &&
-         var->shared ) {
-         add_shared_value( task, var->value, var->index, &count );
-      }
-      list_next( &i );
-   }
-   // Customs:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
-         var->shared ) {
-         add_shared_value( task, var->value, var->index, &count );
-      }
-      list_next( &i );
-   }
-   // Arrays:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
-         var->shared ) {
-         add_shared_value( task, var->value, var->index, &count );
-      }
-      list_next( &i );
-   }
-}
-
-void count_shared_value( struct value* value, int base, int* count ) {
-   while ( value ) {
-      // Skip any value that is zero because the engine will initialize
-      // any unitialized element with a zero.
-      if ( value->expr->value ) {
-         int latest = base + value->index + 1;
-         if ( latest > *count ) {
-            *count = latest;
-         }
-      }
-      value = value->next;
-   }
-}
-
-void add_shared_value( struct task* task, struct value* value, int base,
-   int* count ) {
-   while ( value ) {
-      int output = value->expr->value;
-      if ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         output = usage->string->index;
-      }
-      if ( output ) {
-         int index = base + value->index;
-         // Fill any skipped element with a zero.
-         if ( *count < index ) {
-            t_add_int_zero( task, index - *count );
-            *count = index;
-         }
-         t_add_int( task, output );
-         ++*count;
-      }
-      value = value->next;
-   }
-}
-
-void do_aini_shared_str( struct task* task ) {
-   int count = 0;
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->value_str && var->shared_str ) {
-         count_shared_value( var->value_str, var->index_str, &count );
-      }
-      list_next( &i );
-   }
-   if ( ! count ) {
-      return;
-   }
-   t_add_str( task, "AINI" );
-   t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, SHARED_ARRAY_STR );
-   count = 0;
-   // Scalars:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive && ! var->dim &&
-         var->shared_str ) {
-         add_shared_value( task, var->value_str, var->index_str, &count );
-      }
-      list_next( &i );
-   }
-   // Customs:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
-         var->shared_str ) {
-         add_shared_value( task, var->value_str, var->index_str,
-            &count );
-      }
-      list_next( &i );
-   }
-   // Arrays:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
-         var->shared_str ) {
-         add_shared_value( task, var->value_str, var->index_str,
-            &count );
       }
       list_next( &i );
    }
@@ -1167,37 +557,13 @@ void do_mini( struct task* task ) {
 void do_func( struct task* task ) {
    // Count number of function entries to output.
    // -----------------------------------------------------------------------
-   int count = 0;
-   // Variable interface functions:
+   int count = list_size( &task->library_main->funcs );
+   // Imported functions:
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->has_interface ) {
-         count += 2;
-      }
-      list_next( &i );
-   }
-   // Fuctions:
-   count += list_size( &task->library_main->funcs );
-   // Imported variable interface functions, and imported functions:
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            if ( var->state_accessed ) {
-               ++count;
-            }
-            if ( var->state_modified ) {
-               ++count;
-            }
-         }
-         list_next( &k );
-      }
       list_iter_init( &k, &lib->funcs );
       while ( ! list_end( &k ) ) {
          struct func* func = list_data( &k );
@@ -1216,26 +582,6 @@ void do_func( struct task* task ) {
    // -----------------------------------------------------------------------
    t_add_str( task, "FUNC" );
    t_add_int( task, sizeof( struct func_entry ) * count );
-   // Imported variable interface functions:
-   list_iter_init( &i, &task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            if ( var->state_accessed ) {
-               add_getter_entry( task, var );
-            }
-            if ( var->state_modified ) {
-               add_setter_entry( task, var );
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
    // Imported functions:
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
@@ -1261,124 +607,32 @@ void do_func( struct task* task ) {
       }
       list_next( &i );
    }
-   // Variable interface functions:
-   list_iter_init( &i, &task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->has_interface ) {
-         add_getter_entry( task, var );
-         add_setter_entry( task, var );
-      }
-      list_next( &i );
-   }
    // Visible functions:
    list_iter_init( &i, &task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      if ( ! func->hidden ) {
-         add_func( task, func, func->impl );
+      struct func_user* impl = func->impl;
+      struct func_entry entry;
+      entry.params = ( char ) func->max_param;
+      // A hidden parameter used to store the number of real arguments
+      // passed, is found after the last user parameter.
+      if ( func->min_param != func->max_param ) {
+         ++entry.params;
       }
+      entry.size = ( char ) impl->size;
+      entry.value = ( char ) ( func->value != NULL );
+      entry.padding = 0;
+      entry.offset = impl->obj_pos;
+      t_add_sized( task, &entry, sizeof( entry ) );
       list_next( &i );
    }
-   // Hidden function:
-   list_iter_init( &i, &task->library_main->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      if ( func->hidden ) {
-         add_func( task, func, func->impl );
-      }
-      list_next( &i );
-   }
-}
-
-void add_getter_entry( struct task* task, struct var* var ) {
-   struct func_entry entry;
-   // Always zero.
-   entry.padding = 0;
-   if ( ! var->type->primitive ) {
-      // Parameter 1: element
-      // Parameter 2: accessing string member or not
-      entry.params = 2;
-   }
-   else if ( var->dim ) {
-      // Parameter 1: element
-      entry.params = 1;
-   }
-   else {
-      entry.params = 0;
-   }
-   entry.size = 0;
-   entry.value = 1;
-   entry.offset = var->get_offset;
-   t_add_sized( task, &entry, sizeof( entry ) );
-}
-
-void add_setter_entry( struct task* task, struct var* var ) {
-   struct func_entry entry;
-   entry.padding = 0;
-   if ( ! var->type->primitive ) {
-      // Parameter 1: element
-      // Parameter 2: updating string member or not
-      // Parameter 3: value
-      entry.params = 3;
-   }
-   else if ( var->dim ) {
-      // Parameter 1: element
-      // Parameter 2: value
-      entry.params = 2;
-   }
-   else {
-      // Parameter 1: value
-      entry.params = 1;
-   }
-   entry.size = 0;
-   entry.value = 0;
-   entry.offset = var->set_offset;
-   t_add_sized( task, &entry, sizeof( entry ) );
-}
-
-void add_func( struct task* task, struct func* func, struct func_user* impl ) {
-   struct func_entry entry;
-   entry.params = ( char ) func->max_param;
-   // A hidden parameter used to store the number of real arguments
-   // passed, is found after the last user parameter.
-   if ( func->min_param != func->max_param ) {
-      ++entry.params;
-   }
-   entry.size = ( char ) impl->size;
-   entry.value = ( char ) ( func->value != NULL );
-   entry.padding = 0;
-   entry.offset = impl->obj_pos;
-   t_add_sized( task, &entry, sizeof( entry ) );
 }
 
 void do_fnam( struct task* task ) {
    int count = 0;
    int size = 0;
-   list_iter_t i;
-   // Imported-variable interface functions:
-   list_iter_init( &i, &task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            if ( var->state_accessed ) {
-               size += t_full_name_length( var->name ) + 1 + 4;
-               ++count;
-            }
-            if ( var->state_modified ) {
-               size += t_full_name_length( var->name ) + 1 + 4;
-               ++count;
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
    // Imported functions:
+   list_iter_t i;
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -1394,19 +648,6 @@ void do_fnam( struct task* task ) {
          list_next( &k );
       }
       list_next( &i );
-   }
-   // Variables:
-   if ( task->library_main->visible ) {
-      list_iter_init( &i, &task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-            int length = t_full_name_length( var->name );
-            size += ( length + 1 + 4 ) * 2;
-            count += 2;
-         }
-         list_next( &i );
-      }
    }
    // Functions:
    list_iter_init( &i, &task->library_main->funcs );
@@ -1430,28 +671,6 @@ void do_fnam( struct task* task ) {
    t_add_int( task, count );
    // Offsets:
    // -----------------------------------------------------------------------
-   // Imported variable interface functions.
-   list_iter_init( &i, &task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            if ( var->state_accessed ) {
-               t_add_int( task, offset );
-               offset += t_full_name_length( var->name ) + 1 + 4;
-            }
-            if ( var->state_modified ) {
-               t_add_int( task, offset );
-               offset += t_full_name_length( var->name ) + 1 + 4;
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
    // Imported functions.
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
@@ -1469,20 +688,6 @@ void do_fnam( struct task* task ) {
       }
       list_next( &i );
    }
-   // Variable interface functions.
-   if ( task->library_main->visible ) {
-      list_iter_init( &i, &task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-            t_add_int( task, offset );
-            offset += t_full_name_length( var->name ) + 1 + 4;
-            t_add_int( task, offset );
-            offset += t_full_name_length( var->name ) + 1 + 4;
-         }
-         list_next( &i );
-      }
-   }
    // Functions.
    list_iter_init( &i, &task->library_main->funcs );
    while ( ! list_end( &i ) ) {
@@ -1495,35 +700,9 @@ void do_fnam( struct task* task ) {
    }
    // Names:
    // -----------------------------------------------------------------------
-   // Imported variable interface functions.
+   // Imported functions.
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP ) {
-            if ( var->state_accessed ) {
-               t_copy_name( var->name, true, &str );
-               t_add_str( task, str.value );
-               t_add_str( task, "!get" );
-               t_add_byte( task, 0 );
-            }
-            if ( var->state_modified ) {
-               t_copy_name( var->name, true, &str );
-               t_add_str( task, str.value );
-               t_add_str( task, "!set" );
-               t_add_byte( task, 0 );
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // Imported functions.
    list_iter_init( &i, &task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -1541,23 +720,6 @@ void do_fnam( struct task* task ) {
       }
       list_next( &i );
    }
-   // Variable interface functions.
-   if ( task->library_main->visible ) {
-      list_iter_init( &i, &task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->hidden ) {
-            t_copy_name( var->name, true, &str );
-            t_add_str( task, str.value );
-            t_add_str( task, "!get" );
-            t_add_byte( task, 0 );
-            t_add_str( task, str.value );
-            t_add_str( task, "!set" );
-            t_add_byte( task, 0 );
-         }
-         list_next( &i );
-      }
-   }
    // Functions.
    list_iter_init( &i, &task->library_main->funcs );
    while ( ! list_end( &i ) ) {
@@ -1569,6 +731,7 @@ void do_fnam( struct task* task ) {
       }
       list_next( &i );
    }
+   str_deinit( &str );
    // Padding:
    // -----------------------------------------------------------------------
    for ( int i = 0; i < padding; ++i ) {
@@ -1596,36 +759,6 @@ void do_load( struct task* task ) {
       }
    }
 }
-
-/*
-void determine_module_used( struct module* module ) {
-   if ( list_size( &module->scripts ) ) {
-      module->used = true;
-      return;
-   }
-   // Functions.
-   list_iter_t i;
-   list_iter_init( &i, &module->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      if ( impl->usage ) {
-         module->used = true;
-         return;
-      }
-      list_next( &i );
-   }
-   // Variables.
-   list_iter_init( &i, &module->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->usage ) {
-         module->used = true;
-         return;
-      }
-      list_next( &i );
-   }
-}*/
 
 void do_mstr( struct task* task ) {
    int count = 0;
@@ -1687,4 +820,168 @@ void do_astr( struct task* task ) {
          list_next( &i );
       }
    }
+}
+
+// NOTE: The names need to be published in a specific order. The variable that
+// got an index allocated first is published first, and so on. So the order of
+// the names follows the order of index allocation.
+void do_mexp( struct task* task ) {
+   int count = 0;
+   int size = 0;
+   list_iter_t i;
+   list_iter_init( &i, &task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+         size += t_full_name_length( var->name ) + 1;
+         ++count;
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   int offset =
+      // Number of variables. A zero is NOT padded on each side.
+      sizeof( int ) +
+      sizeof( int ) * count;
+   int padding = alignpad( offset + size, 4 );
+   t_add_str( task, "MEXP" );
+   t_add_int( task, offset + size + padding );
+   // Number of variables.
+   t_add_int( task, count );
+   // Offsets:
+   list_iter_init( &i, &task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+         t_add_int( task, offset );
+         offset += t_full_name_length( var->name ) + 1;
+      }
+      list_next( &i );
+   }
+   // Name:
+   struct str str;
+   str_init( &str );
+   list_iter_init( &i, &task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+         t_copy_name( var->name, true, &str );
+         t_add_str( task, str.value );
+         t_add_byte( task, 0 );
+      }
+      list_next( &i );
+   }
+   str_deinit( &str );
+   // Padding.
+   int k = 0;
+   while ( k < padding ) {
+      t_add_byte( task, 0 );
+      ++k;
+   }
+}
+
+void do_mimp( struct task* task ) {
+   int size = 0;
+   list_iter_t i;
+   list_iter_init( &i, &task->libraries );
+   list_next( &i );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->type->primitive &&
+            ! var->dim && var->used ) {
+            size += sizeof( int ) + t_full_name_length( var->name ) + 1;
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   if ( ! size ) {
+      return;
+   }
+   t_add_str( task, "MIMP" );
+   t_add_int( task, size );
+   struct str str;
+   str_init( &str );
+   list_iter_init( &i, &task->libraries );
+   list_next( &i );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->type->primitive &&
+            ! var->dim && var->used ) {
+            t_add_int( task, var->index );
+            t_copy_name( var->name, true, &str );
+            t_add_sized( task, str.value, str.length + 1 );
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   str_deinit( &str );
+}
+
+void do_aimp( struct task* task ) {
+   int count = 0;
+   int size = sizeof( int );
+   list_iter_t i;
+   list_iter_init( &i, &task->libraries );
+   list_next( &i );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->used &&
+            ( ! var->type->primitive || var->dim ) ) {
+            size +=
+               // Array index.
+               sizeof( int ) +
+               // Array element size.
+               sizeof( int ) +
+               // Name of array.
+               t_full_name_length( var->name ) + 1;
+            ++count;
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   t_add_str( task, "AIMP" );
+   t_add_int( task, size );
+   t_add_int( task, count );
+   struct str str;
+   str_init( &str );
+   list_iter_init( &i, &task->libraries );
+   list_next( &i );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->used &&
+            ( ! var->type->primitive || var->dim ) ) {
+            t_add_int( task, var->index );
+            t_add_int( task, var->size );
+            t_copy_name( var->name, true, &str );
+            t_add_sized( task, str.value, str.length + 1 );
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   str_deinit( &str );
 }

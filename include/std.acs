@@ -1,3 +1,6 @@
+#ifndef __STD_ACS__
+#define __STD_ACS__
+
 /*
 
    The following declarations are based on the declarations found in the
@@ -266,6 +269,8 @@ enum {
    STYLE_SOULTRANS,
    STYLE_OPTFUZZY,
    STYLE_STENCIL,
+   STYLE_ADDSTENCIL,
+   STYLE_ADDSHADED,
    STYLE_TRANSLUCENT = 64,
    STYLE_ADD,
    STYLE_SHADED,
@@ -1221,6 +1226,8 @@ bool CheckFlag( int, str ) -= 75;
 void SetLineActivation( int, int ) -= 76;
 int GetLineActivation( int ) -= 77;
 int GetActorPowerupTics( int, str ) -= 78;
+void ChangeActorAngle( int, int, bool = false ) -= 79;
+void ChangeActorPitch( int, int, bool = false ) -= 80;
 bool ResetMap() -= 100;
 bool PlayerIsSpectator( int ) -= 101;
 int ConsolePlayerNumber() -= 102;
@@ -1391,3 +1398,5 @@ str StrParam( {} ) *= 352;
 void Acs_ExecuteWait( int, int = 0, int = 0, int = 0, int = 0 ) /= 0;
 
 }
+
+#endif

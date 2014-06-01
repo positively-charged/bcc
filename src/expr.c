@@ -1003,6 +1003,7 @@ void use_object( struct task* task, struct expr_test* test,
       // Keep track of how the variable is used.
       var->state_accessed = operand->state_access;
       var->state_modified = operand->state_modify;
+      var->used = true;
    }
    else if ( object->node.type == NODE_TYPE_MEMBER ) {
       struct type_member* member = ( struct type_member* ) object;

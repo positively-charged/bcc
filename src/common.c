@@ -16,7 +16,7 @@ static struct alloc {
 }* g_alloc = NULL;
 // Bulk allocations.
 static struct {
-   int alloc_size;
+   size_t alloc_size;
    int quantity;
    char* slot;
    int size;   
@@ -175,6 +175,12 @@ void str_append_sub( struct str* str, const char* cstr, int length ) {
    memcpy( str->value + str->length, cstr, length );
    str->length += length;
    str->value[ str->length ] = '\0';
+}
+
+void str_append_number( struct str* str, int number ) {
+   char buffer[ 11 ];
+   sprintf( buffer, "%d", number );
+   str_append( str, buffer );
 }
 
 void str_clear( struct str* str ) {

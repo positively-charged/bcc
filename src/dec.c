@@ -80,7 +80,7 @@ struct script_read {
    struct list labels;
    struct expr* number;
    struct param* params;
-   struct block* body;
+   struct node* body;
    int type;
    int flags;
    int num_param;
@@ -310,7 +310,7 @@ void init_type_members( struct task* task ) {
       { "length", 0, TYPE_STR, TYPE_INT, INTERN_FUNC_STR_LENGTH },
       { "at", 1, TYPE_STR, TYPE_INT, INTERN_FUNC_STR_AT },
    };
-   for ( int i = 0; i < ARRAY_SIZE( list ); ++i ) {
+   for ( size_t i = 0; i < ARRAY_SIZE( list ); ++i ) {
       struct func* func = mem_slot_alloc( sizeof( *func ) );
       t_init_object( &func->object, NODE_FUNC );
       func->object.resolved = true;
@@ -427,7 +427,7 @@ void t_read_region_body( struct task* task, bool is_brace ) {
          t_read_tk( task );
          t_read_dirc( task, &pos );
       }
-      else if ( task->tk == TK_SEMICOLON ) {
+      else if ( task->tk == TK_SEMICOLON || task->tk == TK_LIB ) {
          t_read_tk( task );
       }
       else if ( task->tk == TK_END ||
@@ -435,7 +435,8 @@ void t_read_region_body( struct task* task, bool is_brace ) {
          break;
       }
       else {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unexpected token" );
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+            "unexpected %s", t_get_token_name( task->tk ) );
          t_bail( task );
       }
    }
@@ -1227,6 +1228,7 @@ void add_var( struct task* task, struct dec* dec ) {
    var->shared_str = false;
    var->state_accessed = false;
    var->state_modified = false;
+   var->used = false;
    var->has_interface = false;
    var->use_interface = false;
    var->initial_has_str = false;
@@ -1684,8 +1686,8 @@ void read_script_body( struct task* task, struct script_read* read ) {
    struct stmt_read stmt;
    t_init_stmt_read( &stmt );
    stmt.labels = &read->labels;
-   t_read_block( task, &stmt );
-   read->body = stmt.block;
+   t_read_stmt( task, &stmt );
+   read->body = stmt.node;
 }
 
 void t_read_define( struct task* task ) {
@@ -2665,34 +2667,34 @@ void test_multi_value( struct task* task, struct multi_value_test* test ) {
 
 void test_multi_value_struct( struct task* task,
    struct multi_value_test* test ) {
-   struct type_member* type_member = test->type->member;
+   struct type_member* member = test->type->member;
    struct initial* initial = test->multi_value->body;
    while ( initial ) {
       if ( initial->tested ) {
          goto next;
       }
       // Overflow.
-      if ( ! type_member ) {
+      if ( ! member ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &test->multi_value->pos, "too many values in brace initializer" );
          t_bail( task );
       }
       if ( initial->multi ) {
          struct multi_value* multi_value = ( struct multi_value* ) initial;
-         if ( ! type_member->dim || type_member->type->primitive ) {
+         if ( ! ( member->dim || ! member->type->primitive ) ) {
             t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &multi_value->pos, "too many brace initializers" );
             t_bail( task );
          }
          struct multi_value_test nested_test;
-         if ( type_member->dim ) {
+         if ( member->dim ) {
             init_multi_value_test( &nested_test, test, multi_value,
-               type_member->dim, type_member->type, NULL, test->undef_err );
+               member->dim, member->type, NULL, test->undef_err );
             test_multi_value( task, &nested_test );
          }
          else {
             init_multi_value_test( &nested_test, test, multi_value,
-               type_member->dim, type_member->type, NULL, test->undef_err );
+               member->dim, member->type, NULL, test->undef_err );
             test_multi_value_struct( task, &nested_test );
          }
          if ( nested_test.undef_erred ) {
@@ -2711,14 +2713,22 @@ void test_multi_value_struct( struct task* task,
             test->undef_erred = true;
             return;
          }
-         else if ( type_member->dim || ! type_member->type->primitive ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &expr_test.pos, "missing another brace initializer" );
+         if ( member->dim || ! member->type->primitive ) {
+            t_diag( task, DIAG_POS_ERR, &expr_test.pos,
+               "missing another brace initializer" );
             t_bail( task );
          }
-         else if ( ! value->expr->folded ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &expr_test.pos, "initial value not constant" );
+         if ( ! value->expr->folded ) {
+            t_diag( task, DIAG_POS_ERR, &expr_test.pos,
+               "initial value not constant" );
+            t_bail( task );
+         }
+         // At this time, I know of no good way to initialize a string member.
+         // The user will have to initialize the member manually, by using an
+         // assignment operation.
+         if ( member->type->is_str ) {
+            t_diag( task, DIAG_POS_ERR, &value->expr->pos,
+               "initializing struct member of string type" );
             t_bail( task );
          }
          initial->tested = true;
@@ -2726,7 +2736,7 @@ void test_multi_value_struct( struct task* task,
       next:
       initial = initial->next;
       ++test->count;
-      type_member = type_member->next;
+      member = member->next;
    }
 }
 
@@ -2889,16 +2899,22 @@ void test_script( struct task* task, struct script* script ) {
    test.in_script = true;
    test.manual_scope = true;
    test.labels = &script->labels;
-   t_test_block( task, &test, script->body );
+   t_test_stmt( task, &test, script->body );
    t_pop_scope( task );
    script->tested = true;
 }
 
 void calc_map_var_size( struct task* task ) {
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &task->libraries );
    while ( ! list_end( &i ) ) {
-      calc_var_size( list_data( &i ) );
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         calc_var_size( list_data( &k ) );
+         list_next( &k );
+      }
       list_next( &i );
    }
 }
@@ -3244,7 +3260,7 @@ void count_string_usage( struct task* task ) {
    list_iter_init( &i, &task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
-      count_string_usage_node( &script->body->node );
+      count_string_usage_node( script->body );
       list_next( &i );
    }
    // Functions.
