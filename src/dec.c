@@ -48,14 +48,9 @@ struct multi_value_test {
    bool has_string;
 };
 
-struct prim_alloc {
-   struct value* value;
-   int index;
-};
-
 struct value_list {
    struct value* head;
-   struct value* value;
+   struct value* tail;
 };
 
 struct value_index_alloc {
@@ -134,23 +129,16 @@ static void test_func_body( struct task*, struct func* );
 static void calc_type_size( struct type* );
 static void calc_map_value_index( struct task* );
 static void calc_var_value_index( struct var* );
-static void link_value_prim( struct value_list*, struct multi_value* );
-static void alloc_value_index_prim( struct prim_alloc*, struct multi_value*,
-   struct dim* );
+static void make_value_list( struct value_list*, struct multi_value* );
+static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
+   struct type*, struct dim* );
+static void alloc_value_index_struct( struct value_index_alloc*,
+   struct multi_value*, struct type* );
 static void count_string_usage( struct task* );
 static void count_string_usage_node( struct node* );
 static void count_string_usage_initial( struct initial* );
 static void calc_map_var_size( struct task* );
 static void calc_var_size( struct var* );
-static void make_value_list( struct value_list*, struct multi_value*,
-   struct type*, struct dim* );
-static void make_value_list_struct( struct value_list*, struct multi_value*,
-   struct type* );
-static void link_value( struct value_list*, struct type*, struct value* );
-static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
-   struct type*, struct dim* );
-static void alloc_value_index_struct( struct value_index_alloc*,
-   struct multi_value*, struct type* );
 static void diag_dup_struct_member( struct task*, struct name*, struct pos* );
 
 void t_init_fields_dec( struct task* task ) {
@@ -1052,11 +1040,12 @@ void read_init( struct task* task, struct dec* dec ) {
          t_bail( task );
       }
       // At this time, there is no good way to initialize a variable having
-      // world or global storage, at region scope.
-      if ( dec->area == DEC_TOP && (
-         dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) ) {
+      // world or global storage at runtime.
+      if ( ( dec->storage == STORAGE_WORLD ||
+         dec->storage == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
+         dec->is_static ) ) {
          t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-            "initializing %s variable at region scope",
+            "initializing %s variable at start of map",
             dec->storage_name );
          t_bail( task );
       }
@@ -2973,161 +2962,67 @@ void calc_map_value_index( struct task* task ) {
 }
 
 void calc_var_value_index( struct var* var ) {
-   // Link together the basic initializers. There are two lists, one for the
-   // integer initializers, and another for the string initializers.
    struct value_list list;
    list.head = NULL;
-   list.value = NULL;
-   // Array of primitive type.
-   if ( var->type->primitive ) {
-      link_value_prim( &list, ( struct multi_value* ) var->initial );
-      struct prim_alloc alloc;
-      alloc.value = list.head;
-      alloc.index = 0;
-      alloc_value_index_prim( &alloc, ( struct multi_value* ) var->initial,
-         var->dim ); 
-      var->value = list.head;
+   list.tail = NULL;
+   make_value_list( &list, ( struct multi_value* ) var->initial );
+   var->value = list.head;
+   struct value_index_alloc alloc;
+   alloc.value = list.head;
+   alloc.index = 0;
+   if ( var->dim ) {
+      alloc_value_index( &alloc,
+         ( struct multi_value* ) var->initial,
+         var->type, var->dim );
    }
-   else { 
-      if ( var->dim ) {
-         make_value_list( &list, ( struct multi_value* ) var->initial, var->type,
-            var->dim );
-      }
-      else {
-         make_value_list_struct( &list, ( struct multi_value* ) var->initial,
-            var->type );
-      }
-      var->value = list.head;
-      // Determine which index of an array the initializer initializes. The same
-      // applies to structures.  
-      struct value_index_alloc alloc;
-      alloc.value = list.head;
-      alloc.index = 0;
-      if ( var->dim ) {
-         alloc_value_index( &alloc, ( struct multi_value* ) var->initial,
-       var->type, var->dim );
-      }
-      else {
-         alloc_value_index_struct( &alloc, ( struct multi_value* ) var->initial,
-            var->type );
-      }
+   else {
+      alloc_value_index_struct( &alloc,
+         ( struct multi_value* ) var->initial, var->type );
    }
 }
 
-void link_value_prim( struct value_list* list,
+void make_value_list( struct value_list* list,
    struct multi_value* multi_value ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( initial->multi ) {
-         link_value_prim( list, ( struct multi_value* ) initial );
+         make_value_list( list, ( struct multi_value* ) initial );
       }
       else {
-         // When dealing with an array of primitive type, a single link of
-         // initial values is made. It doesn't matter about the type of the
-         // array.
          struct value* value = ( struct value* ) initial;
-         if ( list->value ) {
-            list->value->next = value;
+         if ( list->head ) {
+            list->tail->next = value;
          }
          else {
             list->head = value;
          }
-         list->value = value;
+         list->tail = value;
       }
       initial = initial->next;
    }
-}
-
-void alloc_value_index_prim( struct prim_alloc* alloc,
-   struct multi_value* multi_value, struct dim* dim ) {
-   int given = 0;
-   struct initial* initial = multi_value->body;
-   while ( initial ) {
-      if ( initial->multi ) {
-         alloc_value_index_prim( alloc, ( struct multi_value* ) initial,
-            dim->next );
-      }
-      else {
-//printf( "%d\n", alloc->value->expr->value );
-         alloc->value->index = alloc->index;
-         alloc->value = alloc->value->next;
-         ++alloc->index;
-      }
-      ++given;
-      initial = initial->next;
-   }
-   // Skip past the elements not specified.
-   alloc->index += ( dim->size - given ) * dim->element_size;
-}
-
-void make_value_list( struct value_list* list,
-   struct multi_value* multi_value, struct type* type, struct dim* dim ) {
-   struct initial* initial = multi_value->body;
-   while ( initial ) {
-      if ( initial->multi ) {
-         if ( dim->next ) {
-            make_value_list( list, ( struct multi_value* ) initial, type,
-               dim->next );
-         }
-         else {
-            make_value_list_struct( list, ( struct multi_value* ) initial,
-               type );
-         }
-      }
-      else {
-         link_value( list, type, ( struct value* ) initial );
-      }
-      initial = initial->next;
-   }
-}
-
-void make_value_list_struct( struct value_list* list,
-   struct multi_value* multi_value, struct type* type ) {
-   struct type_member* type_member = type->member;
-   struct initial* initial = multi_value->body;
-   while ( initial ) {
-      if ( initial->multi ) {
-         if ( type_member->dim ) {
-            make_value_list( list, ( struct multi_value* ) initial,
-               type_member->type, type_member->dim );
-         }
-         else {
-            make_value_list_struct( list, ( struct multi_value* ) initial,
-               type_member->type );
-         }
-      }
-      else {
-         link_value( list, type_member->type, ( struct value* ) initial );
-      }
-      type_member = type_member->next;
-      initial = initial->next;
-   }
-}
-
-void link_value( struct value_list* list, struct type* type,
-   struct value* value ) {
-   if ( list->head ) {
-      list->value->next = value;
-   }
-   else {
-      list->head = value;
-   }
-   list->value = value;
 }
 
 void alloc_value_index( struct value_index_alloc* alloc,
    struct multi_value* multi_value, struct type* type, struct dim* dim ) {
-   int size = 0;
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( initial->multi ) {
          if ( dim->next ) {
-            alloc_value_index( alloc, ( struct multi_value* ) initial, type,
-               dim->next );
+            int index = alloc->index;
+            alloc_value_index( alloc,
+               ( struct multi_value* ) initial, type, dim->next );
+            // Skip elements not specified.
+            int used = alloc->index - index;
+            alloc->index += ( dim->next->size *
+               dim->next->element_size ) - used;
          }
          else {
-            alloc_value_index_struct( alloc, ( struct multi_value* ) initial,
-               type );
+            int index = alloc->index;
+            alloc_value_index_struct( alloc,
+               ( struct multi_value* ) initial, type );
+            // Skip members not specified.
+            int used = alloc->index - index;
+            alloc->index += type->size - used;
          }
       }
       else {
@@ -3135,40 +3030,41 @@ void alloc_value_index( struct value_index_alloc* alloc,
          alloc->value = alloc->value->next;
          ++alloc->index;
       }
-      ++size;
       initial = initial->next;
    }
-   // Skip past the elements not specified.
-   alloc->index += ( dim->size - size ) * dim->element_size;
 }
 
 void alloc_value_index_struct( struct value_index_alloc* alloc,
    struct multi_value* multi_value, struct type* type ) {
-   int size = 0;
-   struct type_member* type_member = type->member;
+   struct type_member* member = type->member;
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( initial->multi ) {
-         if ( type_member->dim ) {
-            alloc_value_index( alloc, ( struct multi_value* ) initial,
-               type_member->type, type_member->dim );
+         if ( member->dim ) {
+            int index = alloc->index;
+            alloc_value_index( alloc,
+               ( struct multi_value* ) initial,
+               member->type, member->dim );
+            int used = alloc->index - index;
+            alloc->index += ( member->dim->size *
+               member->dim->element_size ) - used;
          }
          else {
-            alloc_value_index_struct( alloc, ( struct multi_value* ) initial,
-               type_member->type );
+            int index = alloc->index;
+            alloc_value_index_struct( alloc,
+               ( struct multi_value* ) initial, member->type );
+            int used = alloc->index - index;
+            alloc->index += member->type->size - used;
          }
       }
       else {
          alloc->value->index = alloc->index;
          alloc->value = alloc->value->next;
          ++alloc->index;
-         ++size;
       }
-      type_member = type_member->next;
+      member = member->next;
       initial = initial->next;
    }
-   // Skip past member data that was not specified. 
-   alloc->index += type->size - size;
 }
 
 // Counting the usage of strings is done so only strings that are used are

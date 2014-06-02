@@ -23,7 +23,7 @@ static void do_sflg( struct task* );
 static void do_strl( struct task* );
 static void do_aray( struct task* );
 static void do_aini( struct task* );
-static void do_aini_indexed( struct task*, struct value*, int );
+static void do_aini_single( struct task*, struct var* );
 static void do_mini( struct task* );
 static void do_func( struct task* );
 static void do_fnam( struct task* );
@@ -393,41 +393,40 @@ void do_aini( struct task* task ) {
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->initial &&
+      if ( var->storage == STORAGE_MAP && var->value &&
          ( ! var->type->primitive || var->dim ) ) {
-         do_aini_indexed( task, var->value, var->index );
+         do_aini_single( task, var );
       }
       list_next( &i );
    }
 }
 
-void do_aini_indexed( struct task* task, struct value* head, int index ) {
+void do_aini_single( struct task* task, struct var* var ) {
    int count = 0;
-   struct value* value = head;
+   struct value* value = var->value;
    while ( value ) {
       if ( value->expr->value ) {
          count = value->index + 1;
       }
       value = value->next;
    }
-   if ( ! count ) {
-      return;
-   }
-   t_add_str( task, "AINI" );
-   t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, index );
-   count = 0;
-   value = head;
-   while ( value ) {
-      if ( value->expr->value ) {
-         if ( count < value->index ) {
-            t_add_int_zero( task, value->index - count );
-            count = value->index;
+   if ( count ) {
+      t_add_str( task, "AINI" );
+      t_add_int( task, sizeof( int ) + sizeof( int ) * count );
+      t_add_int( task, var->index );
+      count = 0;
+      value = var->value;
+      while ( value ) {
+         if ( value->expr->value ) {
+            if ( count < value->index ) {
+               t_add_int_zero( task, value->index - count );
+               count = value->index;
+            }
+            t_add_int( task, value->expr->value );
+            ++count;
          }
-         t_add_int( task, value->expr->value );
-         ++count;
+         value = value->next;
       }
-      value = value->next;
    }
 }
 
