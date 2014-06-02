@@ -55,16 +55,12 @@ struct prim_alloc {
 
 struct value_list {
    struct value* head;
-   struct value* head_str;
    struct value* value;
-   struct value* value_str;
 };
 
 struct value_index_alloc {
    struct value* value;
-   struct value* value_str;
    int index;
-   int index_str;
 };
 
 enum {
@@ -272,7 +268,7 @@ void init_type( struct task* task ) {
    type = new_type( task,
       t_make_name( task, "str", task->region_global->body ) );
    type->object.resolved = true;
-   type->size_str = 1;
+   type->size = 1;
    type->primitive = true;
    type->is_str = true;
    task->type_str = type;
@@ -292,7 +288,6 @@ struct type* new_type( struct task* task, struct name* name ) {
    type->member = NULL;
    type->member_tail = NULL;
    type->size = 0;
-   type->size_str = 0;
    type->primitive = false;
    type->is_str = false;
    type->anon = false;
@@ -1012,7 +1007,6 @@ void read_dim( struct task* task, struct dec* dec ) {
       dim->size_expr = NULL;
       dim->size = 0;
       dim->element_size = 0;
-      dim->element_size_str = 0;
       dim->pos = task->tk_pos;
       t_read_tk( task );
       // Implicit size.
@@ -1122,7 +1116,6 @@ void read_multi_init( struct task* task, struct dec* dec,
    multi_value->body = NULL;
    multi_value->pos = task->tk_pos;
    multi_value->padding = 0;
-   multi_value->padding_str = 0;
    struct multi_value_read read;
    read.multi_value = multi_value;
    read.tail = NULL;
@@ -1190,9 +1183,7 @@ void add_struct_member( struct task* task, struct dec* dec ) {
    member->dim = dec->dim;
    member->next = NULL;
    member->offset = 0;
-   member->offset_str = 0;
    member->size = 0;
-   member->size_str = 0;
    if ( dec->type_make->member ) {
       dec->type_make->member_tail->next = member;
    }
@@ -1212,25 +1203,12 @@ void add_var( struct task* task, struct dec* dec ) {
    var->dim = dec->dim;
    var->initial = dec->initial;
    var->value = NULL;
-   var->value_str = NULL;
    var->storage = dec->storage;
    var->index = dec->storage_index;
-   var->index_str = 0;
    var->size = 0;
-   var->size_str = 0;
-   var->get = 0;
-   var->set = 0;
-   var->get_offset = 0;
-   var->set_offset = 0;
    var->initz_zero = false;
    var->hidden = false;
-   var->shared = false;
-   var->shared_str = false;
-   var->state_accessed = false;
-   var->state_modified = false;
    var->used = false;
-   var->has_interface = false;
-   var->use_interface = false;
    var->initial_has_str = false;
    if ( dec->is_static ) {
       var->hidden = true;
@@ -1850,8 +1828,7 @@ void t_test( struct task* task ) {
             list_iter_init( &k, &lib->vars );
             while ( ! list_end( &k ) ) {
                struct var* var = list_data( &k );
-               if ( var->storage == STORAGE_MAP && (
-                  var->state_accessed || var->state_modified ) ) {
+               if ( var->storage == STORAGE_MAP && var->used ) {
                   used = true;
                   break;
                }
@@ -2564,12 +2541,7 @@ void test_init( struct task* task, struct var* var, bool undef_err,
             &expr_test.pos, "initial value not constant" );
          t_bail( task );
       }
-      if ( var->type->is_str ) {
-         var->value_str = value;
-      }
-      else {
-         var->value = value;
-      }
+      var->value = value;
       if ( expr_test.has_string ) {
          var->initial_has_str = true;
       }
@@ -2926,18 +2898,16 @@ void calc_var_size( struct var* var ) {
    }
    else {
       // Only calculate the size of the type if it hasn't been already.
-      if ( ! var->type->size && ! var->type->size_str ) {
+      if ( ! var->type->size ) {
          calc_type_size( var->type );
       }
    }
    // Calculate the size of the variable.
    if ( var->dim ) {
       var->size = var->dim->size * var->dim->element_size;
-      var->size_str = var->dim->size * var->dim->element_size_str;
    }
    else {
       var->size = var->type->size;
-      var->size_str = var->type->size_str;
    }
 }
 
@@ -2945,21 +2915,18 @@ void calc_dim_size( struct dim* dim, struct type* type ) {
    if ( dim->next ) {
       calc_dim_size( dim->next, type );
       dim->element_size = dim->next->size * dim->next->element_size;
-      dim->element_size_str = dim->next->size * dim->next->element_size_str;
    }
    else {
       // Calculate the size of the element type.
-      if ( ! type->size && ! type->size_str ) {
+      if ( ! type->size ) {
          calc_type_size( type );
       }
       dim->element_size = type->size;
-      dim->element_size_str = type->size_str;
    }
 }
 
 void calc_type_size( struct type* type ) {
    int offset = 0;
-   int offset_str = 0;
    struct type_member* member = type->member;
    while ( member ) {
       if ( member->dim ) {
@@ -2970,16 +2937,10 @@ void calc_type_size( struct type* type ) {
             member->offset = offset;
             offset += size;
          }
-         if ( member->dim->element_size_str ) {
-            int size = member->dim->size * member->dim->element_size_str;
-            type->size_str += size;
-            member->offset_str = offset_str;
-            offset_str += size;
-         }
       }
       else if ( ! member->type->primitive ) {
          // Calculate the size of the type if it hasn't been already.
-         if ( ! member->type->size && ! member->type->size_str ) {
+         if ( ! member->type->size ) {
             calc_type_size( member->type );
          }
          if ( member->type->size ) {
@@ -2987,17 +2948,6 @@ void calc_type_size( struct type* type ) {
             member->offset = offset;
             offset += member->type->size;
          }
-         if ( member->type->size_str ) {
-            type->size_str += member->type->size_str;
-            member->offset_str = offset_str;
-            offset_str += member->type->size_str;
-         }
-      }
-      else if ( member->type->is_str ) {
-         member->size_str = member->type->size_str;
-         member->offset_str = offset_str;
-         offset_str += member->type->size_str;
-         type->size_str += member->type->size_str;
       }
       else {
          member->size = member->type->size;
@@ -3027,9 +2977,7 @@ void calc_var_value_index( struct var* var ) {
    // integer initializers, and another for the string initializers.
    struct value_list list;
    list.head = NULL;
-   list.head_str = NULL;
    list.value = NULL;
-   list.value_str = NULL;
    // Array of primitive type.
    if ( var->type->primitive ) {
       link_value_prim( &list, ( struct multi_value* ) var->initial );
@@ -3050,14 +2998,11 @@ void calc_var_value_index( struct var* var ) {
             var->type );
       }
       var->value = list.head;
-      var->value_str = list.head_str;
       // Determine which index of an array the initializer initializes. The same
       // applies to structures.  
       struct value_index_alloc alloc;
       alloc.value = list.head;
-      alloc.value_str = list.head_str;
       alloc.index = 0;
-      alloc.index_str = 0;
       if ( var->dim ) {
          alloc_value_index( &alloc, ( struct multi_value* ) var->initial,
        var->type, var->dim );
@@ -3161,24 +3106,13 @@ void make_value_list_struct( struct value_list* list,
 
 void link_value( struct value_list* list, struct type* type,
    struct value* value ) {
-   if ( type->is_str ) {
-      if ( list->head_str ) {
-         list->value_str->next = value;
-      }
-      else {
-         list->head_str = value;
-      }
-      list->value_str = value;
+   if ( list->head ) {
+      list->value->next = value;
    }
    else {
-      if ( list->head ) {
-         list->value->next = value;
-      }
-      else {
-         list->head = value;
-      }
-      list->value = value;
+      list->head = value;
    }
+   list->value = value;
 }
 
 void alloc_value_index( struct value_index_alloc* alloc,
@@ -3196,11 +3130,6 @@ void alloc_value_index( struct value_index_alloc* alloc,
                type );
          }
       }
-      else if ( type->is_str ) {
-         alloc->value_str->index = alloc->index_str;
-         alloc->value_str = alloc->value_str->next;
-         ++alloc->index_str;
-      }
       else {
          alloc->value->index = alloc->index;
          alloc->value = alloc->value->next;
@@ -3211,13 +3140,11 @@ void alloc_value_index( struct value_index_alloc* alloc,
    }
    // Skip past the elements not specified.
    alloc->index += ( dim->size - size ) * dim->element_size;
-   alloc->index_str += ( dim->size - size ) * dim->element_size_str;
 }
 
 void alloc_value_index_struct( struct value_index_alloc* alloc,
    struct multi_value* multi_value, struct type* type ) {
    int size = 0;
-   int size_str = 0;
    struct type_member* type_member = type->member;
    struct initial* initial = multi_value->body;
    while ( initial ) {
@@ -3231,12 +3158,6 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
                type_member->type );
          }
       }
-      else if ( type_member->type->is_str ) {
-         alloc->value_str->index = alloc->index_str;
-         alloc->value_str = alloc->value_str->next;
-         ++alloc->index_str;
-         ++size_str;
-      }
       else {
          alloc->value->index = alloc->index;
          alloc->value = alloc->value->next;
@@ -3248,7 +3169,6 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
    }
    // Skip past member data that was not specified. 
    alloc->index += type->size - size;
-   alloc->index_str += type->size_str - size_str;
 }
 
 // Counting the usage of strings is done so only strings that are used are

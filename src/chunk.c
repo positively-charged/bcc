@@ -36,8 +36,6 @@ static void do_mstr( struct task* );
 static void do_astr( struct task* );
 
 void t_init_fields_chunk( struct task* task ) {
-   task->shared_size = 0;
-   task->shared_size_str = 0;
    task->compress = false;
    task->block_walk = NULL;
    task->block_walk_free = NULL;
@@ -302,7 +300,7 @@ void do_strl( struct task* task ) {
    int padding = alignpad( offset + size, 4 );
    int offset_initial = offset;
    const char* name = "STRL";
-   if ( task->options->encrypt_str ) {
+   if ( task->library_main->encrypt_str ) {
       name = "STRE";
    }
    t_add_str( task, name );
@@ -331,7 +329,7 @@ void do_strl( struct task* task ) {
    string = task->str_table.head_usable;
    while ( string ) {
       if ( string->used ) {
-         if ( task->options->encrypt_str ) {
+         if ( task->library_main->encrypt_str ) {
             int key = offset * STR_ENCRYPTION_CONSTANT;
             // Each character of the string is encoded, including the NUL
             // character.
@@ -362,22 +360,9 @@ void do_aray( struct task* task ) {
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP ) {
-         // struct variables.
-         if ( ! var->type->primitive ) {
-            if ( var->size && ! var->shared ) {
-               ++count;
-            }
-            if ( var->size_str && ! var->shared_str ) {
-               ++count;
-            }
-         }
-         // Primitive arrays.
-         else if ( var->dim ) {
-            if ( ! var->shared && ! var->shared_str ) {
-               ++count;
-            }
-         }
+      if ( var->storage == STORAGE_MAP &&
+         ( ! var->type->primitive || var->dim ) ) {
+         ++count;
       }
       list_next( &i );
    }
@@ -390,46 +375,14 @@ void do_aray( struct task* task ) {
    } entry;
    t_add_str( task, "ARAY" );
    t_add_int( task, sizeof( entry ) * count );
-   if ( task->shared_size ) {
-      entry.number = SHARED_ARRAY;
-      entry.size = task->shared_size;
-      t_add_sized( task, &entry, sizeof( entry ) );
-   }
-   if ( task->shared_size_str ) {
-      entry.number = SHARED_ARRAY_STR;
-      entry.size = task->shared_size_str;
-      t_add_sized( task, &entry, sizeof( entry ) );
-   }
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP ) {
-         // struct variables.
-         if ( ! var->type->primitive ) {
-            if ( var->size && ! var->shared ) {
-               entry.number = var->index;
-               entry.size = var->size;
-               t_add_sized( task, &entry, sizeof( entry ) );
-            }
-            if ( var->size_str && ! var->shared_str ) {
-               entry.number = var->index_str;
-               entry.size = var->size_str;
-               t_add_sized( task, &entry, sizeof( entry ) );
-            }
-         }
-         // Primitive arrays.
-         else if ( var->dim ) {
-            if ( ! var->shared && ! var->shared_str ) {
-               entry.number = var->index;
-               if ( var->type->is_str ) {
-                  entry.size = var->size_str;
-               }
-               else {
-                  entry.size = var->size;
-               }
-               t_add_sized( task, &entry, sizeof( entry ) );
-            }
-         }
+      if ( var->storage == STORAGE_MAP &&
+         ( ! var->type->primitive || var->dim ) ) {
+         entry.number = var->index;
+         entry.size = var->size;
+         t_add_sized( task, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
@@ -441,18 +394,8 @@ void do_aini( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->initial &&
-         ! var->shared && ! var->shared_str ) {
-         if ( ! var->type->primitive ) {
-            if ( var->value ) {
-               do_aini_indexed( task, var->value, var->index );
-            }
-            if ( var->value_str ) {
-               do_aini_indexed( task, var->value_str, var->index_str );
-            }
-         }
-         else if ( var->dim ) {
-            do_aini_indexed( task, var->value, var->index );
-         }
+         ( ! var->type->primitive || var->dim ) ) {
+         do_aini_indexed( task, var->value, var->index );
       }
       list_next( &i );
    }
@@ -497,7 +440,7 @@ void do_mini( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim && ! var->shared && ! var->shared_str ) {
+         ! var->dim ) {
          int nonzero = 0;
          if ( var->initial ) {
             struct value* value = ( struct value* ) var->initial;
@@ -530,7 +473,7 @@ void do_mini( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive &&
-         ! var->dim && ! var->shared && ! var->shared_str ) {
+         ! var->dim ) {
          int nonzero = 0;
          if ( var->initial ) {
             struct value* value = ( struct value* ) var->initial;
@@ -767,7 +710,7 @@ void do_mstr( struct task* task ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive && ! var->dim &&
-         var->initial_has_str && ! var->shared && ! var->shared_str ) {
+         var->initial_has_str ) {
          ++count;
       }
       list_next( &i );
@@ -779,8 +722,7 @@ void do_mstr( struct task* task ) {
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
          if ( var->storage == STORAGE_MAP && var->type->primitive &&
-            ! var->dim && var->initial_has_str && ! var->shared &&
-            ! var->shared_str ) {
+            ! var->dim && var->initial_has_str ) {
             t_add_int( task, var->index );
          }
          list_next( &i );
@@ -790,15 +732,12 @@ void do_mstr( struct task* task ) {
 
 void do_astr( struct task* task ) {
    int count = 0;
-   if ( task->shared_size_str ) {
-      ++count;
-   }
    list_iter_t i;
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->type->primitive && var->dim &&
-         var->initial_has_str && ! var->shared && ! var->shared_str ) {
+         var->initial_has_str ) {
          ++count;
       }
       list_next( &i );
@@ -806,15 +745,11 @@ void do_astr( struct task* task ) {
    if ( count ) {
       t_add_str( task, "ASTR" );
       t_add_int( task, sizeof( int ) * count );
-      if ( task->shared_size_str ) {
-         t_add_int( task, SHARED_ARRAY_STR );
-      }
       list_iter_init( &i, &task->library_main->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
          if ( var->storage == STORAGE_MAP && var->type->primitive &&
-            var->dim && var->initial_has_str && ! var->shared &&
-            ! var->shared_str ) {
+            var->dim && var->initial_has_str ) {
             t_add_int( task, var->index );
          }
          list_next( &i );

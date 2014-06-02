@@ -239,7 +239,6 @@ struct type {
    struct type_member* member;
    struct type_member* member_tail;
    int size;
-   int size_str;
    bool primitive;
    bool is_str;
    bool anon;
@@ -253,9 +252,7 @@ struct type_member {
    struct dim* dim;
    struct type_member* next;
    int offset;
-   int offset_str;
    int size;
-   int size_str;
 };
 
 struct paren {
@@ -475,7 +472,6 @@ struct dim {
    struct expr* size_expr;
    int size;
    int element_size;
-   int element_size_str;
    struct pos pos;
 };
 
@@ -497,7 +493,6 @@ struct multi_value {
    struct initial* body;
    struct pos pos;
    int padding;
-   int padding_str;
 };
 
 struct var {
@@ -508,25 +503,12 @@ struct var {
    struct dim* dim;
    struct initial* initial;
    struct value* value;
-   struct value* value_str;
    int storage;
    int index;
-   int index_str;
    int size;
-   int size_str;
-   int get;
-   int set;
-   int get_offset;
-   int set_offset;
    bool initz_zero;
    bool hidden;
-   bool shared;
-   bool shared_str;
-   bool state_accessed;
-   bool state_modified;
    bool used;
-   bool has_interface;
-   bool use_interface;
    bool initial_has_str;
 };
 
@@ -1338,8 +1320,6 @@ struct task {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
-   int shared_size;
-   int shared_size_str;
    struct buffer* buffer_head;
    struct buffer* buffer;
    bool compress;

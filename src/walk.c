@@ -15,20 +15,15 @@ struct operand {
       METHOD_ELEMENT
    } method;
    enum {
-      TRIGGER_INDEX,
-      TRIGGER_FUNCTION
+      TRIGGER_INDEX
    } trigger;
    int storage;
    int index;
-   int func_get;
-   int func_set;
    int base;
    bool push;
    bool push_temp;
    bool pushed;
    bool pushed_element;
-   bool do_str;
-   bool add_str_arg;
 };
 
 struct block_walk {
@@ -215,7 +210,7 @@ void do_var( struct task* task, struct var* var ) {
 void do_world_global_init( struct task* task, struct var* var ) {
    // Nullify array.
    t_add_opc( task, PC_PUSH_NUMBER );
-   t_add_arg( task, var->size + var->size_str - 1 );
+   t_add_arg( task, var->size - 1 );
    int loop = t_tell( task );
    t_add_opc( task, PC_CASE_GOTO );
    t_add_arg( task, 0 );
@@ -242,16 +237,7 @@ void do_world_global_init( struct task* task, struct var* var ) {
       t_add_arg( task, value->index );
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, value->expr->value );
-      update_element( task, var->storage, var->index, AOP_NONE );
-      value = value->next;
-   }
-   value = var->value_str;
-   while ( value ) {
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, var->size + value->index );
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, value->expr->value );
-      if ( task->library_main->visible ) {
+      if ( value->expr->has_str && task->library_main->visible ) {
          t_add_opc( task, PC_TAG_STRING );
       }
       update_element( task, var->storage, var->index, AOP_NONE );
@@ -382,15 +368,11 @@ void init_operand( struct operand* operand ) {
    operand->trigger = TRIGGER_INDEX;
    operand->storage = 0;
    operand->index = 0;
-   operand->func_get = 0;
-   operand->func_set = 0;
    operand->base = 0;
    operand->push = false;
    operand->push_temp = false;
    operand->pushed = false;
    operand->pushed_element = false;
-   operand->do_str = false;
-   operand->add_str_arg = false;
 }
 
 void push_expr( struct task* task, struct expr* expr, bool temp ) {
@@ -531,52 +513,7 @@ void do_pre_inc( struct task* task, struct operand* operand,
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
    do_operand( task, &object, unary->operand );
-   if ( object.trigger == TRIGGER_FUNCTION ) {
-      if ( object.method == METHOD_ELEMENT ) {
-         t_add_opc( task, PC_DUP );
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-         }
-         if ( object.add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) object.do_str );
-         }
-      }
-      t_add_opc( task, PC_CALL );
-      t_add_arg( task, object.func_get );
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, 1 );
-      if ( unary->op == UOP_PRE_INC ) {
-         t_add_opc( task, PC_ADD );
-      }
-      else {
-         t_add_opc( task, PC_SUB );
-      }
-      if ( object.method == METHOD_INDEXED ) {
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-            operand->pushed = true;
-         }
-      }
-      if ( object.add_str_arg ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, ( int ) object.do_str );
-      }
-      t_add_opc( task, PC_CALL_DISCARD );
-      t_add_arg( task, object.func_set );
-      if ( object.method == METHOD_ELEMENT ) {
-         if ( operand->push ) {
-            if ( object.add_str_arg ) {
-               t_add_opc( task, PC_PUSH_NUMBER );
-               t_add_arg( task, ( int ) object.do_str );
-            }
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, object.func_get );
-            operand->pushed = true;
-         }
-      }
-   }
-   else if ( object.method == METHOD_ELEMENT ) {
+   if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
          t_add_opc( task, PC_DUP );
       }
@@ -611,49 +548,7 @@ void do_post_inc( struct task* task, struct operand* operand,
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
    do_operand( task, &object, unary->operand );
-   if ( object.trigger == TRIGGER_FUNCTION ) {
-      if ( object.method == METHOD_ELEMENT ) {
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-            if ( object.add_str_arg ) {
-               t_add_opc( task, PC_PUSH_NUMBER );
-               t_add_arg( task, ( int ) object.do_str );
-            }
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, object.func_get );
-            t_add_opc( task, PC_SWAP );
-            operand->pushed = true;
-         }
-         t_add_opc( task, PC_DUP );
-         if ( object.add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) object.do_str );
-         }
-      }
-      t_add_opc( task, PC_CALL );
-      t_add_arg( task, object.func_get );
-      if ( object.method == METHOD_INDEXED ) {
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-            operand->pushed = true;
-         }
-      }
-      t_add_opc( task, PC_PUSH_NUMBER );
-      t_add_arg( task, 1 );
-      if ( unary->op == UOP_POST_INC ) {
-         t_add_opc( task, PC_ADD );
-      }
-      else {
-         t_add_opc( task, PC_SUB );
-      }
-      if ( object.add_str_arg ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, ( int ) object.do_str );
-      }
-      t_add_opc( task, PC_CALL_DISCARD );
-      t_add_arg( task, object.func_set );
-   }
-   else if ( object.method == METHOD_ELEMENT ) {
+   if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
          t_add_opc( task, PC_DUP );
          push_element( task, object.storage, object.index );
@@ -937,52 +832,20 @@ void do_format_item( struct task* task, struct format_item* item ) {
          init_operand( &object );
          object.action = ACTION_PUSH_VAR;
          do_operand( task, &object, item->expr->root );
-         if ( object.trigger == TRIGGER_FUNCTION ) {
-            int loop = t_tell( task );
-            t_add_opc( task, PC_DUP );
-            // Get value.
-            if ( object.add_str_arg ) {
-               t_add_opc( task, PC_PUSH_NUMBER );
-               t_add_arg( task, ( int ) object.do_str );
-            }
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, object.func_get );
-            // Bail out on NUL character.
-            int bail = t_tell( task );
-            t_add_opc( task, PC_CASE_GOTO );
-            t_add_arg( task, 0 );
-            t_add_arg( task, 0 );
-            t_add_opc( task, PC_PRINT_CHARACTER );
-            // Next element.
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, 1 );
-            t_add_opc( task, PC_ADD );
-            t_add_opc( task, PC_GOTO );
-            t_add_arg( task, loop );
-            int done = t_tell( task );
-            t_add_opc( task, PC_DROP );
-            t_seek( task, bail );
-            t_add_opc( task, PC_CASE_GOTO );
-            t_add_arg( task, 0 );
-            t_add_arg( task, done );
-            t_seek( task, OBJ_SEEK_END );
+         t_add_opc( task, PC_PUSH_NUMBER );
+         t_add_arg( task, object.index );
+         int code = PC_PRINT_MAP_CHAR_ARRAY;
+         switch ( object.storage ) {
+         case STORAGE_WORLD:
+            code = PC_PRINT_WORLD_CHAR_ARRAY;
+            break;
+         case STORAGE_GLOBAL:
+            code = PC_PRINT_GLOBAL_CHAR_ARRAY;
+            break;
+         default:
+            break;
          }
-         else {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, object.index );
-            int code = PC_PRINT_MAP_CHAR_ARRAY;
-            switch ( object.storage ) {
-            case STORAGE_WORLD:
-               code = PC_PRINT_WORLD_CHAR_ARRAY;
-               break;
-            case STORAGE_GLOBAL:
-               code = PC_PRINT_GLOBAL_CHAR_ARRAY;
-               break;
-            default:
-               break;
-            }
-            t_add_opc( task, code );
-         }
+         t_add_opc( task, code );
       }
       else {
          static const int casts[] = {
@@ -1114,86 +977,13 @@ void set_var( struct task* task, struct operand* operand, struct var* var ) {
    operand->type = var->type;
    operand->dim = var->dim;
    operand->storage = var->storage;
-   if ( var->use_interface ) {
-      if ( var->dim || ! var->type->primitive ) {
-         operand->method = METHOD_ELEMENT;
-      }
-      else {
-         operand->method = METHOD_INDEXED;
-      }
-      if ( var->storage == STORAGE_MAP ) {
-         operand->trigger = TRIGGER_FUNCTION;
-         operand->func_get = var->get;
-         operand->func_set = var->set;
-         if ( ! var->type->primitive ) {
-            operand->add_str_arg = true;
-         }
-      }
-      else {
-         operand->index = var->index;
-      }
-   }
-   else if ( ! var->type->primitive ) {
+   if ( ! var->type->primitive || var->dim ) {
       operand->method = METHOD_ELEMENT;
-      if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
-         operand->index = var->index;
-         // In a world or global array, the first half contains the integer
-         // members, and the second half contains the string members.
-         if ( operand->do_str ) {
-            operand->base = var->size;
-         }
-      }
-      // For map storage.
-      else {
-         if ( operand->do_str ) {
-            if ( var->shared_str ) {
-               operand->index = SHARED_ARRAY_STR;
-               operand->base = var->index_str;
-            }
-            else {
-               operand->index = var->index_str;
-            }
-         }
-         else {
-            if ( var->shared ) {
-               operand->index = SHARED_ARRAY;
-               operand->base = var->index;
-            }
-            else {
-               operand->index = var->index;
-            }
-         }
-      }
-   }
-   else if ( var->dim ) {
-      operand->method = METHOD_ELEMENT;
-      if ( var->shared ) {
-         operand->index = SHARED_ARRAY;
-         operand->base = var->index;
-      }
-      else if ( var->shared_str ) {
-         operand->index = SHARED_ARRAY_STR;
-         operand->base = var->index_str;
-      }
-      else {
-         operand->index = var->index;
-      }
+      operand->index = var->index;
    }
    else {
-      if ( var->shared ) {
-         operand->method = METHOD_ELEMENT;
-         operand->index = SHARED_ARRAY;
-         operand->base = var->index;
-      }
-      else if ( var->shared_str ) {
-         operand->method = METHOD_ELEMENT;
-         operand->index = SHARED_ARRAY_STR;
-         operand->base = var->index_str;
-      }
-      else {
-         operand->method = METHOD_INDEXED;
-         operand->index = var->index;
-      }
+      operand->method = METHOD_INDEXED;
+      operand->index = var->index;
    }
 }
 
@@ -1208,13 +998,7 @@ void do_var_name( struct task* task, struct operand* operand,
    }
    else {
       if ( operand->action == ACTION_PUSH_VALUE ) {
-         if ( operand->trigger == TRIGGER_FUNCTION ) {
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, operand->func_get );
-         }
-         else {
-            push_indexed( task, operand->storage, operand->index );
-         }
+         push_indexed( task, operand->storage, operand->index );
          operand->pushed = true;
       }
    }
@@ -1223,12 +1007,7 @@ void do_var_name( struct task* task, struct operand* operand,
 void do_object( struct task* task, struct operand* operand,
    struct node* node ) {
    if ( node->type == NODE_ACCESS ) {
-      struct access* access = ( struct access* ) node;
-      if ( access->rside->type == NODE_TYPE_MEMBER ) {
-         struct type_member* member = ( struct type_member* ) access->rside;
-         operand->do_str = member->type->is_str;
-      }
-      do_access( task, operand, access );
+      do_access( task, operand, ( struct access* ) node );
    }
    else if ( node->type == NODE_SUBSCRIPT ) {
       do_subscript( task, operand, ( struct subscript* ) node );
@@ -1248,15 +1027,7 @@ void do_object( struct task* task, struct operand* operand,
    }
    if ( operand->action == ACTION_PUSH_VALUE &&
       operand->method != METHOD_NONE ) {
-      if ( operand->trigger == TRIGGER_FUNCTION ) {
-         if ( operand->add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) operand->do_str );
-         }
-         t_add_opc( task, PC_CALL );
-         t_add_arg( task, operand->func_get );
-      }
-      else if ( operand->method == METHOD_ELEMENT ) {
+      if ( operand->method == METHOD_ELEMENT ) {
          push_element( task, operand->storage, operand->index );
       }
       else {
@@ -1299,22 +1070,12 @@ void do_subscript( struct task* task, struct operand* operand,
    do_operand( task, &index, subscript->index->root );
    if ( operand->dim->next ) {
       t_add_opc( task, PC_PUSH_NUMBER );
-      if ( operand->do_str ) {
-         t_add_arg( task, operand->dim->element_size_str );
-      }
-      else {
-         t_add_arg( task, operand->dim->element_size );
-      }
+      t_add_arg( task, operand->dim->element_size );
       t_add_opc( task, PC_MUL );
    }
    else if ( ! operand->type->primitive ) {
       t_add_opc( task, PC_PUSH_NUMBER );
-      if ( operand->do_str ) {
-         t_add_arg( task, operand->type->size_str );
-      }
-      else {
-         t_add_arg( task, operand->type->size );
-      }
+      t_add_arg( task, operand->type->size );
       t_add_opc( task, PC_MUL );
    }
    if ( operand->pushed_element ) {
@@ -1382,12 +1143,7 @@ void do_access( struct task* task, struct operand* operand,
    if ( rside && rside->type == NODE_TYPE_MEMBER ) {
       struct type_member* member = ( struct type_member* ) rside;
       t_add_opc( task, PC_PUSH_NUMBER );
-      if ( operand->do_str ) {
-         t_add_arg( task, member->offset_str );
-      }
-      else {
-         t_add_arg( task, member->offset );
-      }
+      t_add_arg( task, member->offset );
       if ( operand->pushed_element ) {
          t_add_opc( task, PC_ADD );
       }
@@ -1405,71 +1161,7 @@ void do_assign( struct task* task, struct operand* operand,
    init_operand( &lside );
    lside.action = ACTION_PUSH_VAR;
    do_operand( task, &lside, assign->lside );
-   if ( lside.trigger == TRIGGER_FUNCTION ) {
-      if ( lside.method == METHOD_ELEMENT ) {
-         if ( assign->op != AOP_NONE ) {
-            t_add_opc( task, PC_DUP );
-         }
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-         }
-      }
-      // When using a compound assignment operator, the value of the variable
-      // is retrieved and manipulated. 
-      if ( assign->op != AOP_NONE ) {
-         if ( lside.add_str_arg ) {
-            t_add_opc( task, PC_PUSH_NUMBER );
-            t_add_arg( task, ( int ) lside.do_str );
-         }
-         t_add_opc( task, PC_CALL );
-         t_add_arg( task, lside.func_get );
-      }
-      // Push right side.
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      do_operand( task, &rside, assign->rside );
-      // Manipulate the retrieved value using the pushed right side.
-      if ( assign->op != AOP_NONE ) {
-         static const int code[] = {
-            PC_ADD,
-            PC_SUB,
-            PC_MUL,
-            PC_DIV,
-            PC_MOD,
-            PC_LSHIFT,
-            PC_RSHIFT,
-            PC_AND_BITWISE,
-            PC_EOR_BITWISE,
-            PC_OR_BITWISE };
-         STATIC_ASSERT( AOP_TOTAL == 11 )
-         t_add_opc( task, code[ assign->op - 1 ] );
-      }
-      if ( lside.method == METHOD_INDEXED ) {
-         if ( operand->push ) {
-            t_add_opc( task, PC_DUP );
-         }
-      }
-      // Save the value.
-      if ( lside.add_str_arg ) {
-         t_add_opc( task, PC_PUSH_NUMBER );
-         t_add_arg( task, ( int ) lside.do_str );
-      }
-      t_add_opc( task, PC_CALL_DISCARD );
-      t_add_arg( task, lside.func_set );
-      // Retrieve new value if needed further.
-      if ( lside.method == METHOD_ELEMENT ) {
-         if ( operand->push ) {
-            if ( lside.add_str_arg ) {
-               t_add_opc( task, PC_PUSH_NUMBER );
-               t_add_arg( task, ( int ) lside.do_str );
-            }
-            t_add_opc( task, PC_CALL );
-            t_add_arg( task, lside.func_get );
-         }
-      }
-   }
-   else if ( lside.method == METHOD_ELEMENT ) {
+   if ( lside.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
          t_add_opc( task, PC_DUP );
       }
