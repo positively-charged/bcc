@@ -4,8 +4,6 @@
 
 #include "task.h"
 
-static void read_module( struct task* );
-static void read_module_body( struct task* );
 static struct path* alloc_path( struct pos );
 static void read_include_dirc( struct task*, struct pos* );
 static void read_case( struct task*, struct stmt_read* );
@@ -55,19 +53,14 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    t_init_fields_token( task );
    t_init_fields_dec( task );
    task->options = options;
-   task->module = NULL;
-   task->module_main = NULL;
-   task->library = NULL;
-   task->library_main = NULL;
    list_init( &task->libraries );
    task->str_table.head = NULL;
    task->str_table.head_sorted = NULL;
    task->str_table.head_usable = NULL;
    task->str_table.tail = NULL;
-   task->format = FORMAT_BIG_E;
    t_init_fields_chunk( task );
    t_init_fields_obj( task );
-   list_init( &task->loaded_modules );
+   list_init( &task->loaded_sources );
    list_init( &task->scripts );
    str_init( &task->tokens.text );
    task->tokens.peeked = 0;
@@ -75,37 +68,14 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->err_file = NULL;
    task->macro_expan = NULL;
    task->ifdirc_depth = 0;
-   task->line_pos.offset = 0;
-   task->line_pos.column = 0;
-   task->line_pos.file = NULL;
 }
 
 void t_read( struct task* task ) {
-   t_load_main_module( task );
-   //task->module_main = module;
+   t_make_main_lib( task );
+   t_load_main_source( task );
    t_read_tk( task );
-/*
-   {
-      while ( task->tk != TK_END ) {
-         const char* text = task->tk_text;
-         switch ( task->tk ) {
-         case TK_PLUS: text = "+"; break;
-         default: break;
-         }
-         printf( "%d %s\n", task->tk, text );
-         t_read_tk( task );
-      }
-   }
-*/
-   //module->read = true;
-   read_module( task );
+   t_read_lib( task );
    link_usable_strings( task );
-}
-
-void read_module( struct task* task ) {
-   struct library* library = task->library;
-   t_read_region_body( task, false );
-   task->library = library;
 }
 
 struct path* t_read_path( struct task* task ) {
@@ -171,116 +141,7 @@ struct object* t_get_region_object( struct task* task, struct region* region,
    if ( object->depth != 0 ) {
       return NULL;
    }
-   if ( object->node.type == NODE_CONSTANT ) {
-      struct constant* constant = ( struct constant* ) object;
-      if ( ! constant->visible ) {
-         return NULL;
-      }
-   }
    return object;
-}
-
-void t_read_dirc( struct task* task, struct pos* pos ) {
-   // Directives can only be used in the global region.
-   if ( task->region != task->region_global ) {
-      t_diag( task, DIAG_POS_ERR, pos, "directive in non-upmost region" );
-      t_bail( task );
-   }
-   // In this compiler, #include and #import do the same thing, that being
-   // establishing a link with another module.
-   bool include = false;
-   if ( task->tk == TK_IMPORT ) {
-      include = true;
-      t_read_tk( task );
-   }
-   else {
-      t_test_tk( task, TK_ID );
-      if ( strcmp( task->tk_text, "include" ) == 0 ) {
-         include = true;
-         t_read_tk( task );
-      }
-   }
-   if ( include ) {
-      read_include_dirc( task, pos );
-   }
-   else {
-      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-         "unknown directive '%s'", task->tk_text );
-      t_bail( task );
-   }
-}
-
-void read_include_dirc( struct task* task, struct pos* pos ) {
-/*
-   t_test_tk( task, TK_LIT_STRING );
-   struct paused paused;
-   struct module* module = t_load_module( task, task->tk_text, &paused );
-   if ( ! module ) {
-      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-         "failed to load file: %s", task->tk_text );
-      t_bail( task );
-   }
-   // Read new module.
-   if ( ! module->read ) {
-      module->read = true;
-      struct region* region = task->region;
-      t_read_tk( task );
-      read_module( task );
-      t_resume_module( task, &paused );
-      task->region = region;
-   }
-   // Warn about duplicate #includes.
-   list_iter_t i;
-   list_iter_init( &i, &task->module->included );
-   while ( ! list_end( &i ) ) {
-      if ( module == list_data( &i ) ) {
-         t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-            "file already loaded. skipping..." );
-         break;
-      }
-      list_next( &i );
-   }
-   if ( list_end( &i ) ) {
-      // Don't add file to self.
-      if ( module != task->module ) {
-         list_append( &task->module->included, module );
-      }
-      else {
-         t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-            "file loading self" );
-      }
-   }
-   // Determine which library the already-read module belongs to.
-   struct library* lib = NULL;
-   list_iter_init( &i, &task->libraries );
-   while ( ! list_end( &i ) ) {
-      lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->modules );
-      while ( ! list_end( &k ) ) {
-         if ( module == list_data( &k ) ) {
-            break;
-         }
-         list_next( &k );
-      }
-      // Library found.
-      if ( ! list_end( &k ) ) {
-         break;
-      }
-      list_next( &i );
-   }
-   // Remember to load the included library dynamically, but only if it's a
-   // different library.
-   if ( lib != task->library ) {
-      list_iter_init( &i, &task->library->dynamic );
-      while ( ! list_end( &i ) && lib != list_data( &i ) ) {
-         list_next( &i );
-      }
-      if ( list_end( &i ) ) {
-         list_append( &task->library->dynamic, lib );
-      }
-   }
-   t_read_tk( task ); */
 }
 
 void t_init_stmt_read( struct stmt_read* read ) {

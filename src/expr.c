@@ -401,6 +401,7 @@ void read_primary( struct task* task, struct read_expr* expr,
       usage->text = task->tk_text;
       usage->pos = task->tk_pos;
       usage->object = NULL;
+      usage->lib_id = task->library->id;
       operand->node = &usage->node;
       t_read_tk( task );
    }
@@ -837,7 +838,7 @@ void test_node( struct task* task, struct expr_test* test,
       operand->region = task->region;
       break;
    case NODE_REGION_UPMOST:
-      operand->region = task->region_global;
+      operand->region = task->region_upmost;
       break;
    case NODE_NAME_USAGE:
       test_name_usage( task, test, operand, ( struct name_usage* ) node );
@@ -928,13 +929,33 @@ void test_name_usage( struct task* task, struct expr_test* test,
 
 struct object* find_usage_object( struct task* task,
    struct name_usage* usage ) {
+   struct object* object = NULL;
+   struct name* name;
+   // Try searching in the hidden compartment of the library.
+   if ( usage->lib_id ) {
+      list_iter_t i;
+      list_iter_init( &i, &task->libraries );
+      struct library* lib;
+      while ( true ) {
+         lib = list_data( &i );
+         if ( lib->id == usage->lib_id ) {
+            break;
+         }
+         list_next( &i );
+      }
+      name = t_make_name( task, usage->text, lib->hidden_names );
+      if ( name->object ) {
+         object = name->object;
+         goto done;
+      }
+   }
    // Try searching in the current scope.
-   struct name* name = t_make_name( task, usage->text, task->region->body );
+   name = t_make_name( task, usage->text, task->region->body );
    if ( name->object ) {
-      return name->object;
+      object = name->object;
+      goto done;
    }
    // Try searching in any of the linked regions.
-   struct object* object = NULL;
    struct region_link* link = task->region->link;
    while ( link && ! object ) {
       name = t_make_name( task, usage->text, link->region->body );
@@ -943,7 +964,7 @@ struct object* find_usage_object( struct task* task,
    }
    // Object could not be found.
    if ( ! object ) {
-      return NULL;
+      goto done;
    }
    // If an object is found through a region link, make sure no other object
    // with the same name can be found using any remaining region link. We can
@@ -968,6 +989,7 @@ struct object* find_usage_object( struct task* task,
    if ( dup ) {
       t_bail( task );
    }
+   done:
    return object;
 }
 

@@ -233,67 +233,6 @@ void list_deinit( struct list* list ) {
    }
 }
 
-// Doubly linked list
-// ==========================================================================
-
-void d_list_init( struct d_list* list ) {
-   list->head = NULL;
-   list->tail = NULL;
-   list->size = 0;
-}
-
-void d_list_append( struct d_list* list, void* data ) {
-   struct d_list_link* link = mem_alloc( sizeof( *link ) );
-   link->data = data;
-   link->next = NULL;
-   link->prev = NULL;
-   if ( list->head ) {
-      link->prev = list->tail;
-      list->tail->next = link;
-      list->tail = link;
-   }
-   else {
-      list->head = link;
-      list->tail = link;
-   }
-   list->size += 1;
-}
-
-// Stack
-// ==========================================================================
-
-void stack_init( struct stack* entry ) {
-   entry->prev = NULL;
-   entry->value = NULL;
-}
-
-void stack_push( struct stack* entry, void* value ) {
-   if ( entry->value ) {
-      struct stack* prev = mem_alloc( sizeof( *prev ) );
-      prev->prev = entry->prev;
-      prev->value = entry->value;
-      entry->prev = prev;
-   }
-   entry->value = value;
-}
-
-void* stack_pop( struct stack* entry ) {
-   if ( entry->value ) {
-      void* value = entry->value;
-      if ( entry->prev ) {
-         entry->value = entry->prev->value;
-         entry->prev = entry->prev->prev;
-      }
-      else {
-         entry->value = NULL;
-      }
-      return value;
-   }
-   else {
-      return NULL;
-   }
-}
-
 // File Identity
 // ==========================================================================
 
@@ -301,14 +240,14 @@ void* stack_pop( struct stack* entry ) {
 
 #include <windows.h>
 
-bool c_read_identity( struct file_identity* identity, const char* path ) {
+bool c_read_fileid( struct fileid* id, const char* path ) {
    HANDLE fh = CreateFile( path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0,
       NULL );
    if ( fh != INVALID_HANDLE_VALUE ) {
       BY_HANDLE_FILE_INFORMATION detail;
       if ( GetFileInformationByHandle( fh, &detail ) ) {
-         identity->id_high = detail.nFileIndexHigh;
-         identity->id_low = detail.nFileIndexLow;
+         fileid->id_high = detail.nFileIndexHigh;
+         fileid->id_low = detail.nFileIndexLow;
          CloseHandle( fh );
          return true;
       }
@@ -322,35 +261,32 @@ bool c_read_identity( struct file_identity* identity, const char* path ) {
    }
 }
 
-bool c_same_identity( struct file_identity* first,
-   struct file_identity* other ) {
-   return (
-      first->id_high == other->id_high &&
-      first->id_low == other->id_low );
+bool c_same_fileid( struct fileid* a, struct fileid* b ) {
+   return ( a->id_high == b->id_high && a->id_low == b->id_low );
 }
 
 #else
 
 #include <sys/stat.h>
 
-bool c_read_identity( struct file_identity* identity, const char* path ) {
+bool c_read_fileid( struct fileid* fileid, const char* path ) {
    struct stat buff;
    if ( stat( path, &buff ) == -1 ) {
       return false;
    }
-   identity->device = buff.st_dev;
-   identity->number = buff.st_ino;
+   fileid->device = buff.st_dev;
+   fileid->number = buff.st_ino;
    return true;
 }
 
-bool c_same_identity( struct file_identity* first,
-   struct file_identity* other ) {
-   return (
-      first->device == other->device &&
-      first->number == other->number );
+bool c_same_fileid( struct fileid* a, struct fileid* b ) {
+   return ( a->device == b->device && a->number == b->number );
 }
 
 #endif
+
+// Miscellaneous
+// ==========================================================================
 
 int alignpad( int size, int align_size ) {
    int i = size % align_size;
@@ -361,3 +297,46 @@ int alignpad( int size, int align_size ) {
       return 0;
    }
 }
+
+#if OS_WINDOWS
+
+#include <windows.h>
+
+bool c_read_full_path( const char* path, struct str* str ) {
+   const int max_path = MAX_PATH + 1;
+   if ( str->buffer_length < max_path ) { 
+      str_grow( str, max_path );
+   }
+   str->length = GetFullPathName( path, max_path, str->value, NULL );
+   if ( GetFileAttributes( str->value ) != INVALID_FILE_ATTRIBUTES ) {
+      int i = 0;
+      while ( str->value[ i ] ) {
+         if ( str->value[ i ] == '\\' ) {
+            str->value[ i ] = '/';
+         }
+         ++i;
+      }
+      return true;
+   }
+   else {
+      return false;
+   }
+}
+
+#else
+
+#include <dirent.h>
+#include <sys/stat.h>
+
+bool c_read_full_path( const char* path, struct str* str ) {
+   str_grow( str, PATH_MAX + 1 );
+   if ( realpath( path, str->value ) ) {
+      str->length = strlen( str->value );
+      return true;
+   }
+   else {
+      return false;
+   }
+}
+
+#endif

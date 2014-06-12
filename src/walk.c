@@ -85,9 +85,10 @@ static void do_default_params( struct task*, struct func* );
 static const int g_aspec_code[] = {
    PC_LSPEC1, PC_LSPEC2, PC_LSPEC3, PC_LSPEC4, PC_LSPEC5 };
 
-void t_publish_scripts( struct task* task, struct list* scripts ) {
+void t_publish_usercode( struct task* task ) {
+   // Scripts.
    list_iter_t i;
-   list_iter_init( &i, scripts );
+   list_iter_init( &i, &task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       script->offset = t_tell( task );
@@ -103,11 +104,8 @@ void t_publish_scripts( struct task* task, struct list* scripts ) {
       pop_block_walk( task );
       list_next( &i );
    }
-}
-
-void t_publish_funcs( struct task* task, struct list* funcs ) {
-   list_iter_t i;
-   list_iter_init( &i, funcs );
+   // Functions.
+   list_iter_init( &i, &task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );   
       struct func_user* impl = func->impl;
@@ -129,6 +127,16 @@ void t_publish_funcs( struct task* task, struct list* funcs ) {
       impl->size = task->block_walk->size_high - func->max_param;
       pop_block_walk( task );
       list_next( &i );
+   }
+   // When utilizing the Little-E format, where instructions can be of
+   // different size, add padding so any following data starts at an offset
+   // that is multiple of 4.
+   if ( task->library_main->format == FORMAT_LITTLE_E ) {
+      int i = alignpad( t_tell( task ), 4 );
+      while ( i ) {
+         t_add_opc( task, PC_TERMINATE );
+         --i;
+      }
    }
 }
 
@@ -237,7 +245,7 @@ void do_world_global_init( struct task* task, struct var* var ) {
       t_add_arg( task, value->index );
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, value->expr->value );
-      if ( value->expr->has_str && task->library_main->visible ) {
+      if ( value->expr->has_str && task->library_main->importable ) {
          t_add_opc( task, PC_TAG_STRING );
       }
       update_element( task, var->storage, var->index, AOP_NONE );
@@ -405,7 +413,7 @@ void do_operand( struct task* task, struct operand* operand,
       t_add_opc( task, PC_PUSH_NUMBER );
       t_add_arg( task, usage->string->index );
       // Strings in a library need to be tagged.
-      if ( task->library_main->visible ) {
+      if ( task->library_main->importable ) {
          t_add_opc( task, PC_TAG_STRING );
       }
       operand->pushed = true;
@@ -466,7 +474,7 @@ void do_constant( struct task* task, struct operand* operand,
    t_add_opc( task, PC_PUSH_NUMBER );
    t_add_arg( task, constant->value );
    if ( constant->expr && constant->expr->has_str &&
-      task->library_main->visible ) {
+      task->library_main->importable ) {
       t_add_opc( task, PC_TAG_STRING );
    }
    operand->pushed = true;

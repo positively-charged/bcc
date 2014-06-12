@@ -7,7 +7,7 @@
 
 #include "common.h"
 
-#define MAX_MODULE_NAME_LENGTH 8
+#define MAX_LIB_NAME_LENGTH 8
 
 // Token types.
 enum tk {
@@ -127,12 +127,14 @@ enum tk {
    TK_EVENT,
    TK_NL,
    TK_LIB,
+   TK_LIB_END,
    TK_TOTAL
 };
 
 struct pos {
-   int module;
+   int line;
    int column;
+   int id;
 };
 
 struct token {
@@ -145,6 +147,24 @@ struct token {
    bool is_id;
    bool reread;
    bool space_before;
+};
+
+struct source {
+   char* text;
+   char* left;
+   char* save;
+   struct source* prev;
+   struct fileid fileid;
+   struct str path;
+   struct str full_path;
+   int line;
+   int column;
+   int id;
+   int active_id;
+   bool find_dirc;
+   bool load_once;
+   bool imported;
+   char ch;
 };
 
 struct node {
@@ -186,7 +206,7 @@ struct node {
       NODE_PARAM,
       NODE_PALTRANS,
       NODE_ALIAS,
-      NODE_MODULE,
+      NODE_BOOLEAN,
       NODE_IMPORT,
       NODE_NAME_USAGE,
       NODE_REGION,
@@ -195,8 +215,7 @@ struct node {
       // 40
       NODE_SCRIPT,
       NODE_PACKED_EXPR,
-      NODE_INDEXED_STRING_USAGE,
-      NODE_BOOLEAN
+      NODE_INDEXED_STRING_USAGE
    } type;
 };
 
@@ -222,6 +241,7 @@ struct name_usage {
    char* text;
    struct node* object;
    struct pos pos;
+   int lib_id;
 };
 
 struct path {
@@ -495,6 +515,13 @@ struct multi_value {
    int padding;
 };
 
+enum {
+   STORAGE_LOCAL,
+   STORAGE_MAP,
+   STORAGE_WORLD,
+   STORAGE_GLOBAL
+};
+
 struct var {
    struct object object;
    struct name* name;
@@ -503,6 +530,7 @@ struct var {
    struct dim* dim;
    struct initial* initial;
    struct value* value;
+   struct var* next;
    int storage;
    int index;
    int size;
@@ -706,7 +734,8 @@ struct constant {
    struct expr* expr;
    struct constant* next;
    int value;
-   bool visible;
+   int lib_id;
+   bool hidden;
 };
 
 struct constant_set {
@@ -759,57 +788,31 @@ struct macro_list {
    struct macro* tail;
 };
 
-struct module {
-   struct object object;
-   struct file* file;
-   char* ch;
-   char* start;
-   char* save;
-   int line;
-   char* column;
-   char* first_column;
-   struct {
-      int* columns;
-      int count;
-      int count_max;
-   } lines;
-   struct file_identity identity;
-   struct str file_path;
-   struct list included;
-   int id;
-   bool read;
-   bool is_nl;
-   bool is_nl_token;
-   bool load_once;
-   bool is_lib;
-   struct module* prev;
-   int tab_space;
-   struct library* library;
-};
-
 struct library {
    struct str name;
-   struct list modules;
+   struct pos name_pos;
    struct list vars;
    struct list funcs;
    struct list scripts;
    // #included/#imported libraries.
    struct list dynamic;
-   // Whether the objects of the library can be used by another library.
-   bool visible;
+   struct name* hidden_names;
+   struct pos file_pos;
+   int id;
+   enum {
+      FORMAT_ZERO,
+      FORMAT_BIG_E,
+      FORMAT_LITTLE_E
+   } format;
+   bool importable;
    bool imported;
    bool encrypt_str;
-};
-
-struct module_self {
-   struct node node;
-   struct pos pos;
 };
 
 struct import {
    struct node node;
    struct pos pos;
-   // When NULL, use global region.
+   // When NULL, use upmost region.
    struct path* path;
    // When NULL, it means make region link.
    struct import_item* item;
@@ -1302,18 +1305,15 @@ struct task {
    struct type* type_str;
    struct type* type_bool;
    struct region* region;
-   struct region* region_global;
-   // Module currently being worked on. Could be the main module, or an
-   // imported module.
-   struct module* module;
-   // Module requested by the user to be compiled.
-   struct module* module_main;
+   struct region* region_upmost;
+   struct source* source;
+   struct source* source_main;
    struct library* library;
    struct library* library_main;
    struct list libraries;
    struct name* root_name;
    struct name* anon_name;
-   struct list loaded_modules;
+   struct list loaded_sources;
    struct list regions;
    struct list scripts;
    int depth;
@@ -1324,11 +1324,6 @@ struct task {
    struct buffer* buffer;
    bool compress;
    bool in_func;
-   enum {
-      FORMAT_ZERO,
-      FORMAT_BIG_E,
-      FORMAT_LITTLE_E
-   } format;
    int opc;
    int opc_args;
    struct immediate* immediate;
@@ -1339,23 +1334,12 @@ struct task {
    struct block_walk* block_walk;
    struct block_walk* block_walk_free;
    int ifdirc_depth;
-   struct {
-      int offset;
-      int column;
-      char* file;
-   } line_pos;
    struct macro_list macros;
    struct macro_expan* macro_expan;
    struct macro* macro_free;
    struct macro_param* macro_param_free;
    bool in_dirc;
-};
-
-struct paused {
-   struct module* module;
-   char ch;
-   int tab_space;
-   enum tk tk;
+   struct alter_filename* alter_filename;
 };
 
 void t_init( struct task*, struct options*, jmp_buf* );
@@ -1363,15 +1347,12 @@ void t_init_fields_token( struct task* );
 void t_init_fields_dec( struct task* );
 void t_init_fields_chunk( struct task* );
 void t_init_fields_obj( struct task* );
-void t_load_main_module( struct task* );
-void t_resume_module( struct task*, struct paused* );
-void t_init_object( struct object*, int );
+void t_load_main_source( struct task* );
 void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
 void t_read( struct task* );
 void t_unload_file( struct task*, bool* );
 void t_skip_past( struct task*, char );
-void t_skip_past_tk( struct task*, enum tk );
 void t_test( struct task* );
 void t_read_stmt( struct task*, struct stmt_read* );
 void t_read_block( struct task*, struct stmt_read* );
@@ -1384,7 +1365,6 @@ void t_pop_scope( struct task* );
 void t_test_constant( struct task*, struct constant*, bool undef_err );
 void t_test_constant_set( struct task*, struct constant_set*, bool undef_err );
 void t_test_type( struct task*, struct type*, bool undef_err );
-void t_read_define( struct task* );
 void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
 void t_test_local_var( struct task*, struct var* );
@@ -1402,10 +1382,8 @@ void t_add_arg( struct task*, int );
 void t_seek( struct task*, int );
 int t_tell( struct task* );
 void t_flush( struct task* );
-void t_skip_to_tk( struct task*, enum tk );
 int t_get_script_number( struct script* );
-void t_publish_scripts( struct task*, struct list* );
-void t_publish_funcs( struct task*, struct list* );
+void t_publish_usercode( struct task* );
 void t_init_read_expr( struct read_expr* );
 void t_read_expr( struct task*, struct read_expr* );
 bool t_is_dec( struct task* );
@@ -1428,7 +1406,6 @@ struct path* t_read_path( struct task* );
 void t_use_local_name( struct task*, struct name*, struct object* );
 enum tk t_peek( struct task* );
 void t_read_region_body( struct task*, bool is_brace );
-void t_read_dirc( struct task*, struct pos* );
 const char* t_get_token_name( enum tk );
 
 void t_print_name( struct name* );
@@ -1448,5 +1425,8 @@ void t_read_import( struct task*, struct list* );
 void t_import( struct task*, struct import* );
 int t_extract_literal_value( struct task* );
 void t_align_4byte( struct task* );
+struct source* t_load_included_source( struct task* );
+void t_make_main_lib( struct task* );
+void t_read_lib( struct task* );
 
 #endif

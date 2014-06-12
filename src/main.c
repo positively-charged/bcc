@@ -85,7 +85,6 @@ void init_options( struct options* options ) {
    options->object_file = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
-   options->encrypt_str = false;
    options->acc_err = false;
    options->one_column = false;
    options->help = false;
@@ -185,14 +184,14 @@ void strip_rslash( char* ch ) {
 }
 
 bool source_object_files_same( struct options* options ) {
-   struct file_identity source;
-   struct file_identity object;
+   struct fileid source;
+   struct fileid object;
    if (
-      ! c_read_identity( &source, options->source_file ) ||
-      ! c_read_identity( &object, options->object_file ) ) {
+      ! c_read_fileid( &source, options->source_file ) ||
+      ! c_read_fileid( &object, options->object_file ) ) {
       return false;
    }
-   return c_same_identity( &source, &object );
+   return c_same_fileid( &source, &object );
 }
 
 void print_usage( char* path ) {

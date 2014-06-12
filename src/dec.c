@@ -1,6 +1,7 @@
-#include "task.h"
-
 #include <stdio.h>
+#include <string.h>
+
+#include "task.h"
 
 #define MAX_WORLD_LOCATIONS 256
 #define MAX_GLOBAL_LOCATIONS 64
@@ -82,7 +83,9 @@ static void init_type( struct task* );
 static struct type* new_type( struct task*, struct name* );
 static void init_type_members( struct task* );
 static struct type* get_type( struct task*, int );
+static struct library* add_library( struct task* );
 static struct region* alloc_region( struct task*, struct name*, bool );
+static void read_region_body( struct task* );
 static void init_params( struct params* );
 static void read_params( struct task*, struct params* );
 static void read_qual( struct task*, struct dec* );
@@ -140,6 +143,11 @@ static void count_string_usage_initial( struct initial* );
 static void calc_map_var_size( struct task* );
 static void calc_var_size( struct var* );
 static void diag_dup_struct_member( struct task*, struct name*, struct pos* );
+static void init_object( struct object*, int );
+static void read_dirc( struct task*, struct pos* );
+static void read_include( struct task*, struct pos*, bool );
+static void read_library( struct task*, struct pos* );
+static void read_define( struct task* );
 
 void t_init_fields_dec( struct task* task ) {
    task->depth = 0;
@@ -152,7 +160,7 @@ void t_init_fields_dec( struct task* task ) {
    struct region* region = alloc_region( task, task->root_name, true );
    task->root_name->object = &region->object;
    task->region = region;
-   task->region_global = region;
+   task->region_upmost = region;
    list_append( &task->regions, region );
    init_type( task );
    init_type_members( task );
@@ -248,20 +256,20 @@ int t_full_name_length( struct name* name ) {
 
 void init_type( struct task* task ) {
    struct type* type = new_type( task,
-      t_make_name( task, "int", task->region_global->body ) );
+      t_make_name( task, "int", task->region_upmost->body ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    task->type_int = type;
    type = new_type( task,
-      t_make_name( task, "str", task->region_global->body ) );
+      t_make_name( task, "str", task->region_upmost->body ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    type->is_str = true;
    task->type_str = type;
    type = new_type( task,
-      t_make_name( task, "bool", task->region_global->body ) );
+      t_make_name( task, "bool", task->region_upmost->body ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
@@ -270,7 +278,7 @@ void init_type( struct task* task ) {
 
 struct type* new_type( struct task* task, struct name* name ) {
    struct type* type = mem_alloc( sizeof( *type ) );
-   t_init_object( &type->object, NODE_TYPE );
+   init_object( &type->object, NODE_TYPE );
    type->name = name;
    type->body = t_make_name( task, "::", name );
    type->member = NULL;
@@ -295,7 +303,7 @@ void init_type_members( struct task* task ) {
    };
    for ( size_t i = 0; i < ARRAY_SIZE( list ); ++i ) {
       struct func* func = mem_slot_alloc( sizeof( *func ) );
-      t_init_object( &func->object, NODE_FUNC );
+      init_object( &func->object, NODE_FUNC );
       func->object.resolved = true;
       func->type = FUNC_INTERNAL;
       struct type* type = get_type( task, list[ i ].type );
@@ -323,6 +331,85 @@ struct type* get_type( struct task* task, int id ) {
       return task->type_bool;
    default:
       return NULL;
+   }
+}
+
+void t_make_main_lib( struct task* task ) {
+   task->library = add_library( task );
+   task->library_main = task->library;
+}
+
+struct library* add_library( struct task* task ) {
+   struct library* lib = mem_alloc( sizeof( *lib ) );
+   str_init( &lib->name );
+   str_copy( &lib->name, "", 0 );
+   list_init( &lib->vars );
+   list_init( &lib->funcs );
+   list_init( &lib->scripts );
+   list_init( &lib->dynamic );
+   lib->file_pos.line = 0;
+   lib->file_pos.column = 0;
+   lib->file_pos.id = 0;
+   lib->id = list_size( &task->libraries );
+   lib->format = FORMAT_LITTLE_E;
+   lib->importable = false;
+   lib->imported = false;
+   if ( task->library_main ) {
+      struct library* last_lib = list_tail( &task->libraries );
+      lib->hidden_names = t_make_name( task, "a.", last_lib->hidden_names );
+   }
+   else {
+      lib->hidden_names = t_make_name( task, "!hidden.", task->root_name );
+   }
+   lib->encrypt_str = false;
+   list_append( &task->libraries, lib );
+   return lib;
+}
+
+void t_read_lib( struct task* task ) {
+   while ( true ) {
+      if ( t_is_dec( task ) ) {
+         struct dec dec;
+         t_init_dec( &dec );
+         dec.name_offset = task->region_upmost->body;
+         t_read_dec( task, &dec );
+      }
+      else if ( task->tk == TK_SCRIPT ) {
+         if ( task->library->imported ) {
+            t_skip_block( task );
+         }
+         else {
+            t_read_script( task );
+         }
+      }
+      else if ( task->tk == TK_REGION ) {
+         t_read_region( task );
+      }
+      else if ( task->tk == TK_IMPORT ) {
+         t_read_import( task, NULL );
+      }
+      else if ( task->tk == TK_SEMICOLON ) {
+         t_read_tk( task );
+      }
+      else if ( task->tk == TK_HASH ) {
+         struct pos pos = task->tk_pos;
+         t_read_tk( task );
+         read_dirc( task, &pos );
+      }
+      else if ( task->tk == TK_END ) {
+         break;
+      }
+      else {
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+            "unexpected %s", t_get_token_name( task->tk ) );
+         t_bail( task );
+      }
+   }
+   // Library must have the #library directive.
+   if ( task->library->imported && ! task->library->name.length ) {
+      t_diag( task, DIAG_ERR | DIAG_FILE, &task->tk_pos,
+         "#imported file missing #library directive" );
+      t_bail( task );
    }
 }
 
@@ -356,18 +443,18 @@ void t_read_region( struct task* task ) {
    }
    t_test_tk( task, TK_BRACE_L );
    t_read_tk( task );
-   t_read_region_body( task, true );
+   read_region_body( task );
    t_test_tk( task, TK_BRACE_R );
    t_read_tk( task );
    task->region = parent;
 }
 
 struct region* alloc_region( struct task* task, struct name* name,
-   bool global ) {
+   bool upmost ) {
    struct region* region = mem_alloc( sizeof( *region ) );
-   t_init_object( &region->object, NODE_REGION );
+   init_object( &region->object, NODE_REGION );
    region->name = name;
-   if ( global ) {
+   if ( upmost ) {
       region->body = name;
       region->body_struct = t_make_name( task, "struct::", name );
    }
@@ -383,7 +470,7 @@ struct region* alloc_region( struct task* task, struct name* name,
    return region;
 }
 
-void t_read_region_body( struct task* task, bool is_brace ) {
+void read_region_body( struct task* task ) {
    while ( true ) {
       if ( t_is_dec( task ) ) {
          struct dec dec;
@@ -405,16 +492,10 @@ void t_read_region_body( struct task* task, bool is_brace ) {
       else if ( task->tk == TK_IMPORT ) {
          t_read_import( task, NULL );
       }
-      else if ( task->tk == TK_HASH ) {
-         struct pos pos = task->tk_pos;
-         t_read_tk( task );
-         t_read_dirc( task, &pos );
-      }
-      else if ( task->tk == TK_SEMICOLON || task->tk == TK_LIB ) {
+      else if ( task->tk == TK_SEMICOLON ) {
          t_read_tk( task );
       }
-      else if ( task->tk == TK_END ||
-         ( is_brace && task->tk == TK_BRACE_R ) ) {
+      else if ( task->tk == TK_BRACE_R ) {
          break;
       }
       else {
@@ -425,7 +506,159 @@ void t_read_region_body( struct task* task, bool is_brace ) {
    }
 }
 
-void t_init_object( struct object* object, int node_type ) {
+void read_dirc( struct task* task, struct pos* pos ) {
+   // Directives can only appear in the upmost region.
+   if ( task->region != task->region_upmost ) {
+      t_diag( task, DIAG_POS_ERR, pos, "directive not in upmost region" );
+      t_bail( task );
+   }
+   if ( task->tk == TK_IMPORT ) {
+      t_read_tk( task );
+      if ( task->source->imported ) {
+         t_test_tk( task, TK_LIT_STRING );
+         t_read_tk( task );
+      }
+      else {
+         read_include( task, pos, true );
+      }
+   }
+   else if ( strcmp( task->tk_text, "include" ) == 0 ) {
+      t_read_tk( task );
+      if ( task->source->imported ) {
+         t_test_tk( task, TK_LIT_STRING );
+         t_read_tk( task );
+      }
+      else {
+         read_include( task, pos, false );
+      }
+   }
+   else if ( strcmp( task->tk_text, "define" ) == 0 ||
+      strcmp( task->tk_text, "libdefine" ) == 0 ) {
+      read_define( task );
+   }
+   else if ( strcmp( task->tk_text, "library" ) == 0 ) {
+      t_read_tk( task );
+      read_library( task, pos );
+   }
+   else if ( strcmp( task->tk_text, "encryptstrings" ) == 0 ) {
+      task->library->encrypt_str = true;
+      t_read_tk( task );
+   }
+   else if ( strcmp( task->tk_text, "nocompact" ) == 0 ) {
+      task->library->format = FORMAT_BIG_E;
+      t_read_tk( task );
+   }
+   else if (
+      // NOTE: Not sure what these two are.
+      strcmp( task->tk_text, "wadauthor" ) == 0 ||
+      strcmp( task->tk_text, "nowadauthor" ) == 0 ) {
+      t_diag( task, DIAG_POS_ERR, pos, "directive `%s` not supported",
+         task->tk_text );
+      t_bail( task );
+   }
+   else {
+      t_diag( task, DIAG_POS_ERR, pos,
+         "unknown directive '%s'", task->tk_text );
+      t_bail( task );
+   }
+}
+
+void read_include( struct task* task, struct pos* pos, bool import ) {
+   t_test_tk( task, TK_LIT_STRING );
+   struct source* source = t_load_included_source( task );
+   t_read_tk( task );
+   if ( import ) {
+      source->imported = true;
+      struct library* parent_lib = task->library;
+      struct library* lib = add_library( task );
+      list_append( &parent_lib->dynamic, lib );
+      task->library = lib;
+      task->library->imported = true;
+      t_read_lib( task );
+      t_read_tk( task );
+      task->library = parent_lib;
+   }
+}
+
+void read_library( struct task* task, struct pos* pos ) {
+   t_test_tk( task, TK_LIT_STRING );
+   if ( ! task->tk_length ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         "library name is blank" );
+      t_bail( task );
+   }
+   int length = task->tk_length;
+   if ( length > MAX_LIB_NAME_LENGTH ) {
+      t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &task->tk_pos, "library name too long" );
+      t_diag( task, DIAG_FILE, &task->tk_pos,
+         "library name can be up to %d characters long",
+         MAX_LIB_NAME_LENGTH );
+      length = MAX_LIB_NAME_LENGTH;
+   }
+   char name[ MAX_LIB_NAME_LENGTH + 1 ];
+   memcpy( name, task->tk_text, length );
+   name[ length ] = 0;
+   t_read_tk( task );
+   // Different #library directives in the same library must have the same
+   // name.
+   if ( task->library->name.length &&
+      strcmp( task->library->name.value, name ) != 0 ) {
+      t_diag( task, DIAG_POS_ERR, pos, "library has multiple names" );
+      t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &task->library->name_pos, "first name given here" );
+      t_bail( task );
+   }
+   // Each library must have a unique name.
+   list_iter_t i;
+   list_iter_init( &i, &task->libraries );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      if ( lib != task->library && strcmp( name, lib->name.value ) == 0 ) {
+         t_diag( task, DIAG_POS_ERR, pos,
+            "duplicate library name" );
+         t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lib->name_pos,
+            "library name previously found here" );
+         t_bail( task );
+      }
+      list_next( &i );
+   }
+   str_copy( &task->library->name, name, length );
+   task->library->importable = true;
+   task->library->name_pos = *pos;
+}
+
+void read_define( struct task* task ) {
+   bool hidden = false;
+   if ( task->tk_text[ 0 ] == 'd' && task->library->imported ) {
+      hidden = true;
+   }
+   t_read_tk( task );
+   t_test_tk( task, TK_ID );
+   struct constant* constant = mem_alloc( sizeof( *constant ) );
+   init_object( &constant->object, NODE_CONSTANT );
+   constant->object.pos = task->tk_pos;
+   if ( hidden ) {
+      constant->name = t_make_name( task, task->tk_text,
+         task->library->hidden_names );
+   }
+   else {
+      constant->name = t_make_name( task, task->tk_text,
+         task->region_upmost->body );
+   }
+   t_read_tk( task );
+   struct read_expr expr;
+   t_init_read_expr( &expr );
+   expr.in_constant = true;
+   t_read_expr( task, &expr );
+   constant->expr = expr.node;
+   constant->value = 0;
+   constant->hidden = hidden;
+   constant->lib_id = task->library->id;
+   add_unresolved( task->region, &constant->object );
+}
+
+void init_object( struct object* object, int node_type ) {
    object->node.type = node_type;
    object->resolved = false;
    object->depth = 0;
@@ -758,7 +991,6 @@ void read_enum( struct task* task, struct dec* dec ) {
          constant->object.pos = task->tk_pos;
          constant->name = t_make_name( task, task->tk_text,
             task->region->body );
-         constant->visible = true;
          t_read_tk( task );
          if ( task->tk == TK_ASSIGN ) {
             t_read_tk( task );
@@ -789,7 +1021,7 @@ void read_enum( struct task* task, struct dec* dec ) {
          }
       }
       struct constant_set* set = mem_alloc( sizeof( *set ) );
-      t_init_object( &set->object, NODE_CONSTANT_SET );
+      init_object( &set->object, NODE_CONSTANT_SET );
       set->head = head;
       if ( dec->vars ) {
          list_append( dec->vars, set );
@@ -815,7 +1047,6 @@ void read_enum( struct task* task, struct dec* dec ) {
       struct constant* constant = alloc_constant();
       constant->object.pos = task->tk_pos;
       constant->name = t_make_name( task, task->tk_text, task->region->body );
-      constant->visible = true;
       t_read_tk( task );
       t_test_tk( task, TK_ASSIGN );
       t_read_tk( task );
@@ -844,12 +1075,13 @@ void read_enum( struct task* task, struct dec* dec ) {
 
 struct constant* alloc_constant( void ) {
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
-   t_init_object( &constant->object, NODE_CONSTANT );
+   init_object( &constant->object, NODE_CONSTANT );
    constant->name = NULL;
    constant->expr = NULL;
    constant->next = NULL;
    constant->value = 0;
-   constant->visible = false;
+   constant->hidden = false;
+   constant->lib_id = 0;
    return constant;
 }
 
@@ -1164,7 +1396,7 @@ void read_multi_init( struct task* task, struct dec* dec,
 
 void add_struct_member( struct task* task, struct dec* dec ) {
    struct type_member* member = mem_alloc( sizeof( *member ) );
-   t_init_object( &member->object, NODE_TYPE_MEMBER );
+   init_object( &member->object, NODE_TYPE_MEMBER );
    member->object.pos = dec->name_pos;
    member->name = dec->name;
    member->type = dec->type;
@@ -1184,7 +1416,7 @@ void add_struct_member( struct task* task, struct dec* dec ) {
 
 void add_var( struct task* task, struct dec* dec ) {
    struct var* var = mem_alloc( sizeof( *var ) );
-   t_init_object( &var->object, NODE_VAR );
+   init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
    var->name = dec->name;
    var->type = dec->type;
@@ -1192,6 +1424,7 @@ void add_var( struct task* task, struct dec* dec ) {
    var->dim = dec->dim;
    var->initial = dec->initial;
    var->value = NULL;
+   var->next = NULL;
    var->storage = dec->storage;
    var->index = dec->storage_index;
    var->size = 0;
@@ -1217,7 +1450,7 @@ void add_var( struct task* task, struct dec* dec ) {
 
 void read_func( struct task* task, struct dec* dec ) {
    struct func* func = mem_slot_alloc( sizeof( *func ) );
-   t_init_object( &func->object, NODE_FUNC );
+   init_object( &func->object, NODE_FUNC );
    func->object.pos = dec->name_pos;
    func->type = FUNC_ASPEC;
    func->name = dec->name;
@@ -1353,7 +1586,7 @@ void read_params( struct task* task, struct params* params ) {
       }
       struct pos pos = task->tk_pos;
       struct param* param = mem_slot_alloc( sizeof( *param ) );
-      t_init_object( &param->object, NODE_PARAM );
+      init_object( &param->object, NODE_PARAM );
       param->type = type;
       param->next = NULL;
       param->name = NULL;
@@ -1657,28 +1890,6 @@ void read_script_body( struct task* task, struct script_read* read ) {
    read->body = stmt.node;
 }
 
-void t_read_define( struct task* task ) {
-   bool visible = false;
-   if ( task->tk_text[ 0 ] == 'l' || ! task->library->imported ) {
-      visible = true;
-   }
-   t_read_tk( task );
-   t_test_tk( task, TK_ID );
-   struct constant* constant = mem_alloc( sizeof( *constant ) );
-   t_init_object( &constant->object, NODE_CONSTANT );
-   constant->object.pos = task->tk_pos;
-   constant->name = t_make_name( task, task->tk_text, task->region->body );
-   t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   expr.in_constant = true;
-   t_read_expr( task, &expr );
-   constant->expr = expr.node;
-   constant->value = 0;
-   constant->visible = visible;
-   add_unresolved( task->region, &constant->object );
-}
-
 void t_test( struct task* task ) {
    // Associate name with region object.
    list_iter_t i;
@@ -1891,7 +2102,7 @@ void bind_object( struct task* task, struct name* name,
 
 void t_import( struct task* task, struct import* stmt ) {
    // Determine region to import from.
-   struct region* region = task->region_global;
+   struct region* region = task->region_upmost;
    struct path* path = stmt->path;
    if ( ! path->text ) {
       if ( path->is_region ) {
@@ -2033,7 +2244,7 @@ void alias_imported( struct task* task, char* alias_name,
    }
    else {
       struct alias* alias = mem_alloc( sizeof( *alias ) );
-      t_init_object( &alias->object, NODE_ALIAS );
+      init_object( &alias->object, NODE_ALIAS );
       alias->object.pos = *alias_pos;
       alias->object.resolved = true;
       alias->target = object;
@@ -2272,7 +2483,7 @@ struct type* find_type( struct task* task, struct path* path ) {
    // Find head of path.
    struct object* object = NULL;
    if ( path->is_upmost ) {
-      object = &task->region_global->object;
+      object = &task->region_upmost->object;
       path = path->next;
    }
    else if ( path->is_region ) {
