@@ -533,7 +533,7 @@ script 1 enter {
 
 There are new keywords: `enum`, `false`, `fixed`, `region`, `struct`, `true`, and `upmost`. `fixed` is currently reserved but is not used. In acc, the `goto` keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
 
-In acc, there are keywords that are not used in bcc: `define`, `include`, `print`, `printbold`, `log`, `hudmessage`, `hudmessagebold`, `nocompact`, `wadauthor`, `nowadauthor`, `acs_executewait`, `encryptstrings`, `library`, `libdefine`, `strparam`, and `strcpy`. You can use these identifiers as names for your own objects.
+The following keywords can be used as names for your objects and are no longer reserved: `define`, `include`, `print`, `printbold`, `log`, `hudmessage`, `hudmessagebold`, `nocompact`, `wadauthor`, `nowadauthor`, `acs_executewait`, `encryptstrings`, `library`, `libdefine`, `strparam`, and `strcpy`.
 
 ---
 
