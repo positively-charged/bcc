@@ -67,9 +67,9 @@ struct boss {
 
 Here, the structure is named <code>boss</code>. It contains two members: an integer named <code>id</code> and a string named <code>name</code>.
 
-====
+---
 
-A structure is used as a variable type. When you create a variable of a structure type, the variable will contain every member of the structure. If you create multiple variables with the same structure type, each variable will have its own copy of the members.
+A structure is used as a variable type. When a variable of a structure type is created, the variable will contain every member of the structure. If multiple variables of the same structure type are created, each variable will have its own copy of the members.
 
 ```
 struct boss big_boss;
@@ -77,7 +77,7 @@ struct boss big_boss;
 
 In the example above, we create a variable named <code>big\_boss</code>. The type of this variable is <code>struct boss</code>, the structure we made earlier. When specifying the type, notice we use the <code>struct</code> keyword plus the name of the structure we want to use.
 
-====
+---
 
 The dot operator is used to access a member. A member can be modified like any other variable.
 
@@ -89,14 +89,18 @@ script 1 open {
    big_boss.id = 123;
    big_boss.name = "Really Mean Boss";
    // View members:
-   Print( s : "Boss ID is ", i : big_boss.id );     // Output: Boss ID is 123
-   Print( s : "Boss name is ", s : big_boss.name ); // Output: Boss name is Really Mean Boss
+   Print( s: "Boss ID is ", i: big_boss.id );     // Output: Boss ID is 123
+   Print( s: "Boss name is ", s: big_boss.name ); // Output: Boss name is Really Mean Boss
 }
 ```
 
 In the example above, we use the dot operator to access the <code>id</code> member and change its value to 123. We do the same for the <code>name</code> member, changing its value to <code>"Really Mean Boss"</code>. We then print the values of the members, using the dot operator to access each member.
 
-====
+---
+
+<p style="background-color: #FCC; padding: 8px;">
+<strong>Note:</strong> At this time, it is not possible to initialize the string members of a variable of a structure type. You will need to manually assign values to these members.
+</p>
 
 To initialize a variable of a structure type, the brace initializer is used. The first value in the initializer will be the starting value of the first member, the second value will be the starting value of the second member, and so on.
 
@@ -105,14 +109,14 @@ struct boss big_boss = { 123, "Really Mean Boss" };
 
 script 1 open {
    // View members:
-   Print( s : "Boss ID is ", i : big_boss.id );     // Output: Boss ID is 123
-   Print( s : "Boss name is ", s : big_boss.name ); // Output: Boss name is Really Mean Boss
+   Print( s: "Boss ID is ", i: big_boss.id );     // Output: Boss ID is 123
+   Print( s: "Boss name is ", s: big_boss.name ); // Output: Boss name is Really Mean Boss
 }
 ```
 
 The example above and the example in the previous section are similar. The difference is how the members get their values. In the example above, we assign the values of the members when we create the variable. In the example in the previous section, we first create the variable, and later assign the values.
 
-====
+---
 
 A member can be an array or a structure, or both.
 
@@ -146,26 +150,22 @@ A region is a group of functions, scripts, variables, constants, and other code.
 
 ```
 script 1 open {
-   my_region.v = my_region.c;
-   my_region.f();
+   stuff::v = stuff::c;
+   stuff::f();
 }
 
-// ==========================================================================
-region my_region;
-// ==========================================================================
-
-int v = 0;
-enum c = 123;
-void f() {}
+region stuff {
+   int v = 0;
+   enum c = 123;
+   void f() {}
+}
 ```
 
-Here we have a region called <code>my_region</code>. It contains a variable, a constant, and a function.
+A region is created by using the <code>region</code> keyword, followed by the name and body of the region. The body is delimited by braces and contains code like functions, scripts, and variables. In the above example, we have a region called <code>stuff</code>. It contains a variable, a constant, and a function.
 
-A region is created by using the <code>region</code> keyword, followed by the name of the region. Any code that follows will be part of the region.
+To use an item of a region, we specify the region name, followed by the item we want to use. In script 1, we first select the constant from the region, then assign it to the variable found in the same region. Finally, we call the function.
 
-To use an item of a region, you specify the region name, followed by the item you want to use. In script 1, we first select the constant from the region, then assign it to the variable found in the same region. Finally, we call the function.
-
-====
+---
 
 You can have as many regions as you want.
 
@@ -173,51 +173,158 @@ Items of one region don't conflict with the items of another region. This means 
 
 ```
 script 1 open {
-   my_region.f();
-   my_other_region.f();
+   stuff::f();
+   other_stuff::f();
 }
 
-// ==========================================================================
-region my_region;
-// ==========================================================================
+region stuff {
+   void f() {}
+}
 
-void f() {}
-
-// ==========================================================================
-region my_other_region;
-// ==========================================================================
-
-void f() {}
+region other_stuff {
+   void f() {}
+}
 ```
 
-====
+---
 
 A region can contain other regions. The region that contains the other region is called the parent region, and the region being contained is called the child region, or a nested region.
 
 ```
 script 1 open {
-   parent.f();
-   parent.child.f();
+   parent::f();
+   parent::child::f();
 }
 
-// ==========================================================================
-region parent;
-// ==========================================================================
-
-void f() {}
-
-// ==========================================================================
-region parent.child;
-// ==========================================================================
-
-void f() {}
+region parent {
+   void f() {}
+   region child {
+      void f() {}
+   }
+}
 ```
 
-You access the item of a child region like any other item. In the above example, from the <code>parent</code> region you select the <code>child</code>, then from the <code>child</code> region you select the <code>f()</code> function.
+We access the item of a child region like any other item. In the above example, from the <code>parent</code> region we select the <code>child</code>, then from the <code>child</code> region we select the <code>f()</code> function.
 
-====
+---
 
-Inside a region, only the items of the region are visible. To use an item from elsewhere, there are multiple ways of getting a hold of the item.
+Code found outside a region you create is part of the __upmost__ region. The upmost region is an implicitly-created region that contains all other regions, and other code.
+
+```
+// HERE: In upmost region.
+
+region a {
+   // HERE: In region `a`
+}
+
+region b {
+   // HERE: In region `b`
+}
+
+// HERE: In upmost region.
+```
+
+The upmost region doesn't have a name. You can refer to the upmost region using the `upmost` keyword.
+
+```
+int a = 123;
+
+script 1 open {
+   int a = 321;
+   Print( i: a );         // Output: 321
+   Print( i: upmost::a ); // Output: 123
+}
+```
+
+In the above example, the inner `a` variable hides the outer `a` variable. To access the outer variable, we first select the upmost region, then from the upmost region, we select the variable.
+
+---
+
+Inside a region, only the items of the region are visible. To use an item found outside the region, there are multiple ways.
+
+```
+region a {
+   void f() {}
+}
+
+region b {
+   script 1 open {
+      upmost::a::f();
+   }
+}
+```
+
+In the above example, we access `f()` by first going into the upmost region, then into the `a` region where we find the function. Accessing items through the upmost region can get cumbersome. Instead, we can import items from a region.
+
+---
+
+```
+region b {
+   import upmost: a;
+   script 1 open {
+      a::f();
+   }
+}
+```
+
+When making an `import`, we first select what region we want to import from. Then we select which items we want to import. In the above example, we select the upmost region, and from the upmost region, we select the `a` region to be imported.
+
+---
+
+```
+region b {
+   import upmost: a_alias = a;
+   script 1 open {
+      a_alias::f();
+   }
+}
+```
+
+We can create an alias to an imported item.
+
+---
+
+```
+region b {
+   import upmost: top = region;
+   script 1 open {
+      top::a::f();  
+   }
+}
+```
+
+We can also create an alias to the selected region. In the above example, we select the upmost region, then use the `region` keyword to refer to the selected region as the item to import. At the same time, we create an alias to it.
+
+---
+
+```
+region b {
+   import upmost: region = a;
+   script 1 open {
+      f();
+   }
+}
+```
+
+We can establish a relationship with another region. This is like importing every item from a region. The item selected during the `import` must be a region for this to work.
+
+---
+
+You can import multiple items by separating them with a comma.
+
+```
+region a {
+   import std: Print, Delay;
+   script 1 open {
+      Delay( 35 * 3 );
+      Print( s: "Hello, World!" );
+   }
+}
+```
+
+_Sidenote:_ The standard functions `Print()` and `Delay()` are found in the `std` region. The `std` region is found in the upmost region. The `std.acs` file creates the `std` region.
+
+Note how we don't need to specify the upmost region in the `import`; using just `std` is enough. It is assumed that the first region specified is found in the upmost region.
 
 <h3>Proper Scoping</h3>
 In bcc, names of objects follow scoping rules.
@@ -235,14 +342,14 @@ int a = 0;
 
 script 1 open {
    // In scope #1
-   print( i : a );
+   print( i: a );
    int a = 1;
    {
       // In scope #2
       int a = 2;
-      print( i : a );
+      print( i: a );
    }
-   print( i : a );
+   print( i: a );
 }
 ```
 
@@ -263,20 +370,20 @@ When using the logical OR operator, the left side is evaluated first. If the res
 <h6>Code:</h6>
 ```
 function int get_0( void ) {
-   print( s : "called get_0()" );
+   print( s: "called get_0()" );
    return 0;
 }
 
 function int get_1( void ) {
-   print( s : "called get_1()" );
+   print( s: "called get_1()" );
    return 1;
 }
 
 script 1 open {
-   print( s : "get_0() && get_1() == ", i : get_0() && get_1() );
-   print( s : "get_1() && get_0() == ", i : get_1() && get_0() );
-   print( s : "get_0() || get_1() == ", i : get_0() || get_1() );
-   print( s : "get_1() || get_0() == ", i : get_1() || get_0() );
+   print( s: "get_0() && get_1() == ", i: get_0() && get_1() );
+   print( s: "get_1() && get_0() == ", i: get_1() && get_0() );
+   print( s: "get_0() || get_1() == ", i: get_0() || get_1() );
+   print( s: "get_1() || get_0() == ", i: get_1() || get_0() );
 }
 ```
 
@@ -299,59 +406,77 @@ Notice in the first expression, when the left side is 0, get_1() is not called. 
 In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
 
 <h3>goto statement</h3>
-A goto statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
 
-<h6>Code:</h6>
-````
+A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
+
+```
 script 1 open {
    goto bottom;
    top:
-   print( s : "top" );
+   Print( s: "top" );
    goto end;
    bottom:
-   print( s : "bottom" );
+   Print( s: "bottom" );
    goto top;
    end:
+   // Output:
+   // bottom
+   // top
 }
-````
-
-<h6>Output:</h6>
-<pre>
-bottom  
-top
-</pre>
+```
 
 <h3>Format Blocks</h3>
-When calling functions like print(), a format block gives you more precision in the formatting of the message. A format block is like a normal code block, but also allows you to mix format items with other statements. (Format items are those colon-separated arguments passed to print() and the like.) Inside a format block, a format item uses a sequence of three left-angled brackets in the middle, not the colon.
 
-<h6>Code:</h6>
+When calling functions like `Print()`, a format block gives you more precision in the composition of the message. A format block is like a normal block of code, but it can also contain format items. (Format items are those colon-separated arguments you pass to `Print()` and the like.) Inside a format block, a format item uses `:=` in the middle, not `:`. Everytime a format item is encountered, it is added as a part of the message. By mixing format items with other statements, you can create a different message based on how those other statements execute.
+
 ```
 script 1 open {
    bool alive = false;
-   print( {
-      s <<< "The monster is: ";
+   Print( {} ) := {
+      s:= "The monster is: ";
       if ( alive ) {
-         s <<< "Alive and doing well";
+         s:= "Alive and doing well";
       }
       else {
-         s <<< "Dead";
+         s:= "Dead";
       }
-   } );
+   }
+   // Output: The monster is: Dead
 }
 ```
 
-<h6>Output:</h6>
-<pre>The monster is: Dead</pre>
+In the example above, we call the `Print()` function. In the argument list, we use `{}`. This indicates we want to use a format block. Following the function call, we add `:=`. This is just a syntactic requirement. Then we have a block of code. In the block, we have a basic `if` statement and a few format items. The first format item is added to the message. If the `if` statement is true, the second format item is added to the message; otherwise, the third.
 
-A format block can contain function calls that themselves contain a format block.
+```
+script 1 open {
+   HudMessage( {}; HUDMSG_PLAIN, 0, 0, 1.5, 0.5, 5.0 ) := {
+      for ( int i = 0; i < 10; ++i ) {
+         c:= '*';
+      }
+   }
+   // Output: **********
+}
+```
 
-You cannot move into a format block with a goto statement, and you cannot move out of the format block with a break, continue, or goto statement. You must naturally enter and leave the format block.
+In this example, we print a border consisting of 10 `*` characters. Change the 10 to some other number to print a border of a different length.
+
+---
+
+<h5>Other Details</h5>
+
+Functions like `HudMessage()` take multiple arguments. When calling such a function, the format block is executed first, then the rest of the arguments.
+
+A format block can contain a function call that itself uses a format block.
+
+You cannot move into a format block with a `goto` statement, and you cannot move out of a format block with a `break`, `continue`, or `goto` statement. You must naturally enter and leave the format block.
+
+Inside a format block, calling a waiting function like `Delay()` is not allowed.
 
 <h3>Optional Parameters</h3>
 
 ```
 void print_string( str string = "Hello, World!" ) {
-   Print( s : string );
+   Print( s: string );
 }
 
 script 1 open {
@@ -360,17 +485,17 @@ script 1 open {
 }
 ```
 
-If you call <code>print_string()</code> with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the <code>"Hello, World!"</code> string.
+If you call `print_string()` with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the `"Hello, World!"` string.
 
 A script cannot have optional parameters.
 
-====
+---
 
 You can have multiple optional parameters.
 
 ```
 void print_numbers( int a = 111, int b = 999 ) {
-   Print( s : "a ", i : a, s : ", b ", i : b );
+   Print( s: "a ", i: a, s: ", b ", i: b );
 }
 
 script 1 open {
@@ -380,7 +505,7 @@ script 1 open {
 }
 ```
 
-====
+---
 
 You can have required parameters and optional parameters in the same function. The optional parameters must follow the required parameters. So the required parameters appear first, then come the optional parameters.
 
@@ -392,9 +517,9 @@ void printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0 ) {}
 void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
 ```
 
-====
+---
 
-Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the <code>MorphActor()</code> function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
+Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the `MorphActor()` function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
 
 ```
 script 1 enter {
@@ -404,49 +529,23 @@ script 1 enter {
 }
 ```
 
-<h3>Loading Files</h3>
-
-<code>#include</code> and <code>#import</code> perform the same action. These directives tell the compiler to load a file. Each file is loaded once; a request to load a file again will be ignored. Every <code>#include</code> and <code>#import</code> is processed, even in libraries.
-
-If a file starts with a <code>#library</code> directive, the file is a library. The <code>#library</code> directive must appear at the very top, before any other code except for comments:
-
-```
-// File: nice_library.acs
-#library "lumpname"
-#include "zcommon.acs"
-
-// File: not_so_nice_library.acs
-#include "zcommon.acs"
-#library "lumpname"
-```
-
-If multiple libraries have the same name, the libraries are merged into one. This allows you to break up a library into multiple files, then load each file separately, as needed.
-
-If library-A loads library-B, and library-B loads library-C, library-A can use the objects of library-C. The compiler will try and figure out which libraries to load at run-time based on the objects you use. (It is not recommended you do this. If you want to use an object from a library, explicitly load the library with an <code>#include</code> or an <code>#import</code> directive.)
-
-If a map loads your library and this library has an array, you can change the size of the array and recompile the library. The map will still be able to use this array, but now with a new size.
-
 <h3>Miscellaneous</h3>
 
-There are new keywords: <code>enum</code>, <code>false</code>, <code>fixed</code>, <code>region</code>, <code>struct</code>, <code>true</code>, and <code>upmost</code>. <code>fixed</code> is currently reserved but is not used. In acc, the <code>goto</code> keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
+There are new keywords: `enum`, `false`, `fixed`, `region`, `struct`, `true`, and `upmost`. `fixed` is currently reserved but is not used. In acc, the `goto` keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
 
-In acc, there are keywords that are not used in bcc: <code>define</code>, <code>include</code>, <code>print</code>, <code>printbold</code>, <code>log</code>, <code>hudmessage</code>, <code>hudmessagebold</code>, <code>nocompact</code>, <code>wadauthor</code>, <code>nowadauthor</code>, <code>acs_executewait</code>, <code>encryptstrings</code>, <code>library</code>, <code>libdefine</code>, <code>strparam</code>, and <code>strcpy</code>. You can use these identifiers as names for your own objects.
+In acc, there are keywords that are not used in bcc: `define`, `include`, `print`, `printbold`, `log`, `hudmessage`, `hudmessagebold`, `nocompact`, `wadauthor`, `nowadauthor`, `acs_executewait`, `encryptstrings`, `library`, `libdefine`, `strparam`, and `strcpy`. You can use these identifiers as names for your own objects.
 
-====
+---
 
-It is not necessary to <code>#include "zcommon.acs"</code> in order to use the boolean literals. The boolean literals <code>true</code> and <code>false</code> are now keywords. <code>true</code> is the value 1, and <code>false</code> is the value 0.
+It is not necessary to `#include "zcommon.acs"` in order to use the boolean literals. The boolean literals `true` and `false` are now keywords. `true` is the value 1, and `false` is the value 0.
 
-====
+---
 
-The following directives are not supported: <code>#wadauthor</code>, <code>#nowadauthor</code>, and <code>#nocompact</code>.
+The following directives are not supported: `#wadauthor` and `#nowadauthor`
 
-====
+---
 
-Some limitations have been removed. You can now have more than 128 map variables. You can also have more than 256 functions.
-
-====
-
-When a script has no parameters, the <code>void</code> keyword is not necessary. The parentheses are not required either.
+When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either.
 
 ```
 // These are all the same.
@@ -455,19 +554,20 @@ script 1 () {}
 script 1 {}
 ```
 
-====
+---
 
-When creating a function, the <code>function</code> keyword is not necessary. If the function has no parameters, the <code>void</code> keyword is not necessary.
+When creating a function, the `function` keyword is not necessary. If the function has no parameters, the `void` keyword is not necessary.
 
 ```
-// These are the same.
+// These are all the same.
 function void f( void ) {}
+function void f() {}
 void f() {}
 ```
 
-====
+---
 
-When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but <strong>don't</strong> do this.)
+When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but __don't__ do this.)
 
 ```
 // Get absolute value of number.
@@ -481,7 +581,7 @@ int abs( int number ) {
 }
 ```
 
-====
+---
 
 The name of a function or script parameter is not required. You still need to pass an argument, but you won't be able to use such a parameter. This can be used to indicate a parameter is no longer used.
 
@@ -491,11 +591,11 @@ int sum( int used1, int, int used2 ) {
 }
 
 script 1 open {
-   Print( i : sum( 100, 0, 200 ) ); // Output: 300
+   Print( i: sum( 100, 0, 200 ) ); // Output: 300
 }
 ```
 
-====
+---
 
 World and global variables can be created inside a script, a function, or any other block statement.
 
@@ -504,7 +604,7 @@ void add_kill() {
    global int 1:kills;
    ++kills;
 }
-````
+```
 
 You can specify the size of a dimension of world and global arrays. World and global arrays can be multidimensional.
 
@@ -517,9 +617,9 @@ script 1 open {
 }
 ```
 
-====
+---
 
-When creating an array, the size of the <em>first dimension</em> can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
+When creating an array, the size of the _first dimension_ can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
 
 ```
 // The size of this array is 5, because it is initialized with 5 strings.
@@ -532,7 +632,7 @@ str names[] = {
 };
 ```
 
-====
+---
 
 The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
 
@@ -544,10 +644,10 @@ script 1 open {
 
 int v = 0;
 enum c = 123;
-void f() { Print( i : v ); }
+void f() { Print( i: v ); }
 ```
 
-====
+---
 
 The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
 
@@ -559,40 +659,40 @@ script 1 open {
    // variable `a`. The result of the assignment, which is the random number,
    // is then checked if it's not 3.
    while ( ( a = random( 0, 10 ) ) != 3 ) {
-      Print( s : "Bad number: ", i : a );
+      Print( s: "Bad number: ", i: a );
    }
 }
 ```
 
-====
+---
 
-There are two functions that are associated with the <code>str</code> type: at() and length(). These functions can only be called on a value or a variable of <code>str</code> type. at() returns the character found at the specified index, and length() returns the length of the string.
+There are two functions that are associated with the `str` type: `at()` and `length()`. These functions can only be called on a value or a variable of `str` type. `at()` returns the character found at the specified index, and `length()` returns the length of the string.
 
 ```
 script 1 open {
-   Print( c : "Hello, World!".at( 7 ) );  // Output: W
-   Print( i : "Hello, World!".length() ); // Output: 13
+   Print( c: "Hello, World!".at( 7 ) );  // Output: W
+   Print( i: "Hello, World!".length() ); // Output: 13
 }
 ```
 
-====
+---
 
 When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
 
 ```
 script 1 open {
-   Print( s : "Hello, " "World" "!" ); // Output: Hello, World!
+   Print( s: "Hello, " "World" "!" ); // Output: Hello, World!
 }
 ```
 
-====
+---
 
 A line of code can be broken up into multiple lines. To break up a line, position your cursor somewhere in the line, type in a backslash character, then press Enter. Make sure no other characters follow the backslash.
 
 ```
 script 1 open {
    str reallyniceintro = "Hello, World!";
-   Print( s : really\
+   Print( s: really\
 nice\
 intro );
 }
