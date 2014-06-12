@@ -1,300 +1,310 @@
 #library "jm"
-#include "std.acs"
+#include "zcommon.acs"
 
 region jm {
-   import region: r = region;
-   import upmost: region = std;
 
-   enum MODE_COOP = 0;
-   enum MODE_SVMZ = 1;
-   enum MAP_SOLO = 0;
-   enum MAP_TEAM = 1;
-   enum F_MANUAL_TIMER = 0x1;
+import region: r = region;
+import upmost: region = std;
 
-   int mode = MODE_COOP;
-   int map_type = MAP_SOLO;
-   int flags = 0;
-   str par = 0;
-   int points = 0;
+enum MODE_COOP = 0;
+enum MODE_SVMZ = 1;
+enum MAP_SOLO = 0;
+enum MAP_TEAM = 1;
+enum F_MANUAL_TIMER = 0x1;
 
-   void init_solo( str par ) {
-      init( MAP_SOLO, par );
-   }
+int mode = MODE_COOP;
+int map_type = MAP_SOLO;
+int flags = 0;
+str par = 0;
+int points = 0;
 
-   void init_team( str par, int points ) {
-      init( MAP_TEAM, par );
-      r::points = points;
-   }
+void init_solo( str par ) {
+   init( MAP_SOLO, par );
+}
 
-   void init( int map_type, str par ) {
-      utility::init();
-      r::map_type = map_type;
-      r::par = par;
-      if ( GetCvar( "survival" ) ) {
-         r::mode = MODE_SVMZ;
-         hs::disable();
-         if ( map_type == MAP_TEAM ) {
-            team_ranker::end_message = "Maze Complete";
-         }
-      }
-      else {
-         timer::set_par( par );
-         if ( GetCvar( "sv_disallowsuicide" ) ) {
-            ConsoleCommand( "sv_disallowsuicide false" );
-         }
+void init_team( str par, int points ) {
+   init( MAP_TEAM, par );
+   r::points = points;
+}
+
+void init( int map_type, str par ) {
+   utility::init();
+   r::map_type = map_type;
+   r::par = par;
+   if ( GetCvar( "survival" ) ) {
+      r::mode = MODE_SVMZ;
+      hs::disable();
+      if ( map_type == MAP_TEAM ) {
+         team_ranker::end_message = "Maze Complete";
       }
    }
-
-   void enable_flag( int flag ) {
-      region::flags |= flag;
-   }
-
-   void disable_flags( int flag ) {
-      region::flags ^= flag;
-   }
-
-   void run() {
-      if ( region::mode == MODE_COOP ) {
-         if ( region::flags & F_MANUAL_TIMER ) {
-            timer::show_time( 0 );
-         }
-         else {
-            timer::run();
-         }
-         if ( region::map_type == MAP_SOLO ) {
-            Acs_Execute( solo_ranker::SCRIPT_START, 0 );
-         }
-         else {
-            Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
-         }
-      }
-      else {
-         run_svmz( "map map01" );
+   else {
+      timer::set_par( par );
+      if ( GetCvar( "sv_disallowsuicide" ) ) {
+         ConsoleCommand( "sv_disallowsuicide false" );
       }
    }
+}
 
-   void run_svmz( str map_restart_command ) {
-      if ( svmz::init() ) {
-         ConsoleCommand( map_restart_command );
-      }
-      if ( region::map_type == MAP_TEAM ) {
-         // Clear the points table from the previous round if the players
-         // failed to complete the map. If not done, the table from the
-         // previous round will overlap with the new one.
-         team_ranker::clear_points_table();
-         Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
-      }
-      Acs_Execute( 900, 0, region::par );
-   }
+void enable_flag( int flag ) {
+   region::flags |= flag;
+}
 
-   void start_timer() {
+void disable_flags( int flag ) {
+   region::flags ^= flag;
+}
+
+void run() {
+   if ( region::mode == MODE_COOP ) {
       if ( region::flags & F_MANUAL_TIMER ) {
+         timer::show_time( 0 );
+      }
+      else {
          timer::run();
       }
+      if ( region::map_type == MAP_SOLO ) {
+         Acs_Execute( solo_ranker::SCRIPT_START, 0 );
+      }
       else {
-         PrintBold(
-            s : "\cjm.start_timer() error: timer is not set to manual" );
+         Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
       }
    }
-
-   void set_map_message( str name, str author, int skill ) {
-      map_msg::set( name, author, skill, region::par );
+   else {
+      run_svmz( "map map01" );
    }
+}
 
-   void add_point() {
+void run_svmz( str map_restart_command ) {
+   if ( svmz::init() ) {
+      ConsoleCommand( map_restart_command );
+   }
+   if ( region::map_type == MAP_TEAM ) {
+      // Clear the points table from the previous round if the players
+      // failed to complete the map. If not done, the table from the
+      // previous round will overlap with the new one.
+      team_ranker::clear_points_table();
+      Acs_Execute( team_ranker::SCRIPT_START, 0, region::points );
+   }
+   Acs_Execute( 900, 0, region::par );
+}
+
+void start_timer() {
+   if ( region::flags & F_MANUAL_TIMER ) {
+      timer::run();
+   }
+   else {
+      PrintBold(
+         s : "\cjm.start_timer() error: timer is not set to manual" );
+   }
+}
+
+void set_map_message( str name, str author, int skill ) {
+   map_msg::set( name, author, skill, region::par );
+}
+
+void add_point() {
+   if ( region::map_type == MAP_TEAM ) {
+      Acs_ExecuteAlways( team_ranker::SCRIPT_POINT, 0 );
+   }
+   else {
+      PrintBold( s : "\ciCan't give a point on a non-team map" );
+   }
+}
+
+void finish_line() {
+   if ( region::mode == MODE_COOP ) {
+      if ( region::map_type == MAP_SOLO ) {
+         solo_ranker::finish();
+      }
+      else {
+         add_point();
+      }
+   }
+   else {
+      svmz::make_escapee();
       if ( region::map_type == MAP_TEAM ) {
-         Acs_ExecuteAlways( team_ranker::SCRIPT_POINT, 0 );
-      }
-      else {
-         PrintBold( s : "\ciCan't give a point on a non-team map" );
-      }
-   }
-
-   void finish_line() {
-      if ( region::mode == MODE_COOP ) {
-         if ( region::map_type == MAP_SOLO ) {
-            solo_ranker::finish();
-         }
-         else {
-            add_point();
-         }
-      }
-      else {
-         svmz::make_escapee();
-         if ( region::map_type == MAP_TEAM ) {
-            add_point();
-         }
-      }
-   }
-
-   void disallow_hs( int player ) {
-      hs::cheated[ player ] = true;
-   }
-
-   void exit() {
-      if ( region::mode != MODE_SVMZ || svmz::validate_exit() ) {
-         who_exited::show_and_exit();
-      }
-   }
-
-   bool is_valid_exit() {
-      if ( region::mode == MODE_SVMZ ) {
-         return svmz::validate_exit();
-      }
-      else {
-         return true;
-      }
-   }
-
-   script 931 death {
-      if ( region::mode == MODE_COOP && ! GetCvar( "jm_disable_telepatch" ) ) {
-         // This function changes the activator of the script, so we better
-         // have this block of code as the last block of the script.
-         telepatch::on_death( PlayerNumber() );
-      }
-   }
-
-   script 932 respawn {
-      int player = PlayerNumber();
-      if ( region::mode == MODE_COOP ) {
-         telepatch::on_respawn( player );
-      }
-   }
-
-   script 933 ( int player ) disconnect {
-      if ( region::mode == MODE_COOP ) {
-         telepatch::on_disconnect( player );
+         add_point();
       }
    }
 }
 
-region jm::config {
-   enum TICS_IN_SECOND = 35;
-   enum SECONDS_IN_MINUTE = 60;
-   enum MAX_PLAYERS = 32;
-   enum VALUE_NONE = -1;
-   enum TOTAL_MONTHS = 12;
-   // Looking at the screen, in Doom Builder 2, left is West and right is East.
-   enum ANGLE_EAST = 0;
-   enum ANGLE_NORTHEAST = 32;
-   enum ANGLE_NORTH = 64;
-   enum ANGLE_NORTHWEST = 96;
-   enum ANGLE_WEST = 128;
-   enum ANGLE_SOUTHWEST = 160;
-   enum ANGLE_SOUTH = 192;
-   enum ANGLE_SOUTHEAST = 224;
+void disallow_hs( int player ) {
+   hs::cheated[ player ] = true;
 }
 
-   region jm::utility {
-   import upmost: region = std;
-   import jm: config;
-
-   void init() {
-      if ( GetCvar( "util_ishosted" ) == 0 ) {
-         if ( GameType() != GAME_SINGLE_PLAYER ) {
-            ConsoleCommand( "set util_ishosted 1" );
-         }
-         else {
-            ConsoleCommand( "set util_ishosted 2" );
-         }
-      }
+void exit() {
+   if ( region::mode != MODE_SVMZ || svmz::validate_exit() ) {
+      who_exited::show_and_exit();
    }
+}
 
-   bool is_online() {
-      return GetCvar( "util_ishosted" ) == 1;
+bool is_valid_exit() {
+   if ( region::mode == MODE_SVMZ ) {
+      return svmz::validate_exit();
    }
-
-   // Convert a par time string into seconds.
-   int par_to_seconds( str par ) {
-      int index = strlen( par ) - 1;
-      int character;
-      // We are going to parse the par time backwards starting from
-      // the seconds field because it's easier to implement this way.
-      // Seconds:
-      int base = 1;
-      int seconds = 0;
-      while ( index >= 0 ) {
-         character = GetChar( par, index );
-         // We end the loop if we stumble upon a minute/second 
-         // field seperator.
-         if ( character == ':' ) {
-            break;
-         }
-         if ( character >= '0' && character <= '9' ) {
-            seconds += ( character - '0' ) * base;
-            base *= 10;
-         }
-         index -= 1;
-      }
-      // Minutes:
-      base = 1;
-      int minutes = 0;
-      while ( index >= 0 ) {
-         character = GetChar( par, index );
-         if ( character >= '0' && character <= '9' ) {
-            minutes += ( character - '0' ) * base;
-            base *= 10;
-         }
-         index -= 1;
-      }
-      return ( minutes * config::SECONDS_IN_MINUTE ) + seconds;
+   else {
+      return true;
    }
+}
 
-   str number_prefix( int number ) {
-      if ( number >= 0 && number <= 9 ) {
-         return "0";
+script 931 death {
+   if ( region::mode == MODE_COOP && ! GetCvar( "jm_disable_telepatch" ) ) {
+      // This function changes the activator of the script, so we better
+      // have this block of code as the last block of the script.
+      telepatch::on_death( PlayerNumber() );
+   }
+}
+
+script 932 respawn {
+   int player = PlayerNumber();
+   if ( region::mode == MODE_COOP ) {
+      telepatch::on_respawn( player );
+   }
+}
+
+script 933 ( int player ) disconnect {
+   if ( region::mode == MODE_COOP ) {
+      telepatch::on_disconnect( player );
+   }
+}
+
+}
+
+region jm {
+region config {
+
+enum TICS_IN_SECOND = 35;
+enum SECONDS_IN_MINUTE = 60;
+enum MAX_PLAYERS = 32;
+enum VALUE_NONE = -1;
+enum TOTAL_MONTHS = 12;
+// Looking at the screen, in Doom Builder 2, left is West and right is East.
+enum ANGLE_EAST = 0;
+enum ANGLE_NORTHEAST = 32;
+enum ANGLE_NORTH = 64;
+enum ANGLE_NORTHWEST = 96;
+enum ANGLE_WEST = 128;
+enum ANGLE_SOUTHWEST = 160;
+enum ANGLE_SOUTH = 192;
+enum ANGLE_SOUTHEAST = 224;
+
+}
+}
+
+region jm {
+region utility {
+
+import upmost: region = std;
+import jm: config;
+
+void init() {
+   if ( GetCvar( "util_ishosted" ) == 0 ) {
+      if ( GameType() != GAME_SINGLE_PLAYER ) {
+         ConsoleCommand( "set util_ishosted 1" );
       }
       else {
-         return "";
+         ConsoleCommand( "set util_ishosted 2" );
       }
    }
+}
 
-   str ordinal_suffix( int value ) {
-      if ( value == 11 || value == 12 || value == 13 ) {
-         return "th";
-      }
-      switch ( value % 10 ) {
-      case 1: return "st";
-      case 2: return "nd";
-      case 3: return "rd";
-      case 4: return "th";
-      default: return "th";
-      }
-   }
+bool is_online() {
+   return GetCvar( "util_ishosted" ) == 1;
+}
 
-   void clear_message( int id ) {
-      HudMessage( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
-   }
-
-   void clear_message_bold( int id ) {
-      HudMessageBold( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
-   }
-
-   // Function to calculate the centiseconds from any remaining tics after
-   // subtracting full seconds from the total tics.
-   int cal_cseconds( int tics ) {
-      int centiseconds = 0;
-      if ( tics > 0 ) {
-         // TODO: Explain this algorithm better than this comment!
-         int percent = 10000 / ( ( config::TICS_IN_SECOND * 100 ) / tics );
-         centiseconds = ( 1000 * percent ) / 1000;
+// Convert a par time string into seconds.
+int par_to_seconds( str par ) {
+   int index = strlen( par ) - 1;
+   int character;
+   // We are going to parse the par time backwards starting from
+   // the seconds field because it's easier to implement this way.
+   // Seconds:
+   int base = 1;
+   int seconds = 0;
+   while ( index >= 0 ) {
+      character = GetChar( par, index );
+      // We end the loop if we stumble upon a minute/second 
+      // field seperator.
+      if ( character == ':' ) {
+         break;
       }
-      return centiseconds;
+      if ( character >= '0' && character <= '9' ) {
+         seconds += ( character - '0' ) * base;
+         base *= 10;
+      }
+      index -= 1;
    }
+   // Minutes:
+   base = 1;
+   int minutes = 0;
+   while ( index >= 0 ) {
+      character = GetChar( par, index );
+      if ( character >= '0' && character <= '9' ) {
+         minutes += ( character - '0' ) * base;
+         base *= 10;
+      }
+      index -= 1;
+   }
+   return ( minutes * config::SECONDS_IN_MINUTE ) + seconds;
+}
 
-   // This function converts a numeric month representation into
-   // its corresponding string name.
-   str conv_month_string( int month ) {
-      if ( month >= 1 && month <= config::TOTAL_MONTHS ) {
-         static str names[ config::TOTAL_MONTHS ] = {
-            "January", "February", "March", "April", "May", "June", 
-            "July", "August", "September", "October", "November", "December" };
-         return names[ month - 1 ];
-      }
-      else {
-         return "";
-      }
+str number_prefix( int number ) {
+   if ( number >= 0 && number <= 9 ) {
+      return "0";
    }
+   else {
+      return "";
+   }
+}
+
+str ordinal_suffix( int value ) {
+   if ( value == 11 || value == 12 || value == 13 ) {
+      return "th";
+   }
+   switch ( value % 10 ) {
+   case 1: return "st";
+   case 2: return "nd";
+   case 3: return "rd";
+   case 4: return "th";
+   default: return "th";
+   }
+}
+
+void clear_message( int id ) {
+   HudMessage( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
+}
+
+void clear_message_bold( int id ) {
+   HudMessageBold( s : "" ; HUDMSG_PLAIN, id, 0, 0, 0, 1.0 );
+}
+
+// Function to calculate the centiseconds from any remaining tics after
+// subtracting full seconds from the total tics.
+int cal_cseconds( int tics ) {
+   int centiseconds = 0;
+   if ( tics > 0 ) {
+      // TODO: Explain this algorithm better than this comment!
+      int percent = 10000 / ( ( config::TICS_IN_SECOND * 100 ) / tics );
+      centiseconds = ( 1000 * percent ) / 1000;
+   }
+   return centiseconds;
+}
+
+// This function converts a numeric month representation into
+// its corresponding string name.
+str conv_month_string( int month ) {
+   if ( month >= 1 && month <= config::TOTAL_MONTHS ) {
+      static str names[ config::TOTAL_MONTHS ] = {
+         "January", "February", "March", "April", "May", "June", 
+         "July", "August", "September", "October", "November", "December" };
+      return names[ month - 1 ];
+   }
+   else {
+      return "";
+   }
+}
+
+}
 }
 
 region jm::client {
@@ -407,19 +417,19 @@ region jm::map_msg {
       SetFont( "SMALLFONT" );
       HudMessage( {}; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3,
          DISPLAY_TIME, 1.0 ) := {
-         s := "\cf", s := region::name, s := " - ",
-         s := "MAP", s := jm::utility::number_prefix( region::number ),
-         i := region::number, s := " - ",
-         s := "Author: ", s := region::author, s := "\n\n",
-         s := "\ciLevel of Difficulty\n", s := region::skill, s := "\n\n",
-         s := "\ciPar Time\n", s := "\cn", a := region::par;
+         s:= "\cf", s:= region::name, s:= " - ",
+         s:= "MAP", s:= jm::utility::number_prefix( region::number ),
+         i:= region::number, s:= " - ",
+         s:= "Author: ", s:= region::author, s:= "\n\n",
+         s:= "\ciLevel of Difficulty\n", s:= region::skill, s:= "\n\n",
+         s:= "\ciPar Time\n", s:= "\cn", a:= region::par;
          // We don't need to display the record holder's name in the map
          // message if the record details auto show feature is enabled. This
          // only applies to the solo ranker.
          if ( jm::map_type == jm::MAP_SOLO && hs::is_set() &&
             ! hs::is_auto_show_details_table() ) {
-            s := "\n\n\ciMap record set by:\c-\n",
-            a := jm::solo_ranker::hs_author;
+            s:= "\n\n\ciMap record set by:\c-\n",
+            a:= jm::solo_ranker::hs_author;
          }
       }
    }
