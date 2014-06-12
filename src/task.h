@@ -538,6 +538,7 @@ struct var {
    bool hidden;
    bool used;
    bool initial_has_str;
+   bool imported;
 };
 
 struct param {

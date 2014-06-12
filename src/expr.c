@@ -1174,9 +1174,11 @@ void test_subscript( struct task* task, struct expr_test* test,
       }
    }
    else {
-      operand->is_result = true;
-      operand->is_usable = true;
-      operand->is_space = true;
+      if ( operand->type->primitive ) {
+         operand->is_result = true;
+         operand->is_usable = true;
+         operand->is_space = true;
+      }
    }
 }
 

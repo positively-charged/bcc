@@ -240,7 +240,7 @@ void list_deinit( struct list* list ) {
 
 #include <windows.h>
 
-bool c_read_fileid( struct fileid* id, const char* path ) {
+bool c_read_fileid( struct fileid* fileid, const char* path ) {
    HANDLE fh = CreateFile( path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0,
       NULL );
    if ( fh != INVALID_HANDLE_VALUE ) {

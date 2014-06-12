@@ -1432,6 +1432,7 @@ void add_var( struct task* task, struct dec* dec ) {
    var->hidden = false;
    var->used = false;
    var->initial_has_str = false;
+   var->imported = task->library->imported;
    if ( dec->is_static ) {
       var->hidden = true;
    }
@@ -2687,63 +2688,81 @@ void test_var( struct task* task, struct var* var, bool undef_err ) {
 void test_init( struct task* task, struct var* var, bool undef_err,
    bool* undef_erred ) {
    if ( var->dim ) {
-      struct multi_value_test test;
-      init_multi_value_test( &test,
-         NULL,
-         ( struct multi_value* ) var->initial,
-         var->dim,
-         var->type,
-         var->type->member,
-         undef_err );
-      test_multi_value( task, &test );
-      if ( test.undef_erred ) {
-         *undef_erred = true;
-         return;
+      if ( var->imported ) {
+         // TODO: Add error checking.
+         if ( ! var->dim->size_expr ) {
+            struct multi_value* multi_value =
+               ( struct multi_value* ) var->initial;
+            struct initial* initial = multi_value->body;
+            while ( initial ) {
+               initial = initial->next;
+               ++var->dim->size;
+            }
+         }
       }
-      // Size of implicit dimension.
-      if ( ! var->dim->size_expr ) {
-         var->dim->size = test.count;
-      }
-      if ( test.has_string ) {
-         var->initial_has_str = true;
+      else {
+         struct multi_value_test test;
+         init_multi_value_test( &test,
+            NULL,
+            ( struct multi_value* ) var->initial,
+            var->dim,
+            var->type,
+            var->type->member,
+            undef_err );
+         test_multi_value( task, &test );
+         if ( test.undef_erred ) {
+            *undef_erred = true;
+            return;
+         }
+         // Size of implicit dimension.
+         if ( ! var->dim->size_expr ) {
+            var->dim->size = test.count;
+         }
+         if ( test.has_string ) {
+            var->initial_has_str = true;
+         }
       }
    }
    else if ( ! var->type->primitive ) {
-      struct multi_value_test test;
-      init_multi_value_test( &test,
-         NULL,
-         ( struct multi_value* ) var->initial,
-         NULL,
-         var->type,
-         var->type->member,
-         undef_err );
-      test_multi_value_struct( task, &test );
-      if ( test.undef_erred ) {
-         *undef_erred = true;
-         return;
-      }
-      if ( test.has_string ) {
-         var->initial_has_str = true;
+      if ( ! var->imported ) {
+         struct multi_value_test test;
+         init_multi_value_test( &test,
+            NULL,
+            ( struct multi_value* ) var->initial,
+            NULL,
+            var->type,
+            var->type->member,
+            undef_err );
+         test_multi_value_struct( task, &test );
+         if ( test.undef_erred ) {
+            *undef_erred = true;
+            return;
+         }
+         if ( test.has_string ) {
+            var->initial_has_str = true;
+         }
       }
    }
    else {
-      struct value* value = ( struct value* ) var->initial;
-      struct expr_test expr_test;
-      t_init_expr_test( &expr_test );
-      expr_test.undef_err = undef_err;
-      t_test_expr( task, &expr_test, value->expr );
-      if ( expr_test.undef_erred ) {
-         *undef_erred = true;
-         return;
-      }
-      if ( var->storage == STORAGE_MAP && ! value->expr->folded ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &expr_test.pos, "initial value not constant" );
-         t_bail( task );
-      }
-      var->value = value;
-      if ( expr_test.has_string ) {
-         var->initial_has_str = true;
+      if ( ! var->imported ) {
+         struct value* value = ( struct value* ) var->initial;
+         struct expr_test expr_test;
+         t_init_expr_test( &expr_test );
+         expr_test.undef_err = undef_err;
+         t_test_expr( task, &expr_test, value->expr );
+         if ( expr_test.undef_erred ) {
+            *undef_erred = true;
+            return;
+         }
+         if ( var->storage == STORAGE_MAP && ! value->expr->folded ) {
+            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &expr_test.pos, "initial value not constant" );
+            t_bail( task );
+         }
+         var->value = value;
+         if ( expr_test.has_string ) {
+            var->initial_has_str = true;
+         }
       }
    }
 }
