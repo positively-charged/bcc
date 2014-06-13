@@ -328,6 +328,12 @@ bool c_read_full_path( const char* path, struct str* str ) {
 #include <dirent.h>
 #include <sys/stat.h>
 
+#ifdef __APPLE__
+#include <limits.h> // PATH_MAX on OS X is defined in limits.h
+#elif defined __linux__
+#include <linux/limits.h> // And on Linux it is in linux/limits.h
+#endif
+
 bool c_read_full_path( const char* path, struct str* str ) {
    str_grow( str, PATH_MAX + 1 );
    if ( realpath( path, str->value ) ) {
