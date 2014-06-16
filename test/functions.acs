@@ -1,0 +1,154 @@
+region func {
+
+import upmost: std;
+
+// Compare two strings for equality, up to the specified length.
+int StrCmp( str a, str b, int length = -1 ) {
+   int i = 0;
+   while ( true ) {
+      if ( length ) {
+         if ( a.at( i ) == b.at( i ) ) {
+            if ( a.at( i ) ) {
+               --length;
+               ++i;
+            }
+            else {
+               return 0;
+            }
+         }
+         else if ( a.at( i ) < b.at( i ) ) {
+            return -1;
+         }
+         else {
+            return 1;
+         }
+      }
+      else {
+         return 0;
+      }
+   }
+}
+
+// Like StrCmp(), but case-insensitive.
+int StriCmp( str a, str b, int length = -1 ) {
+   return StrCmp( StrToLower( a ), StrToLower( b ), length );
+}
+
+// Get substring.
+str StrMid( str string, int start, int length ) {
+   return std::StrParam( {} ) := {
+      if ( start < 0 ) {
+         start = 0;
+      }
+      int i = start;
+      int k = start + length;
+      int c = 0;
+      while ( i < k && ( c = string.at( i ) ) ) {
+         c:= c;
+         ++i;
+      }
+   }
+}
+
+// Get substring, starting at offset 0.
+str StrLeft( str string, int length ) {
+   return StrMid( string, 0, length );
+}
+
+// Get substring, starting at the end and reading backwards.
+str StrRight( str string, int length ) {
+   return StrMid( string, string.length() - length, length );
+}
+
+// Get string as uppercase.
+str StrToUpper( str string ) {
+   return std::StrParam( {} ) := {
+      int i = 0;
+      while ( i < string.length() ) {
+         int ch = string.at( i );
+         // Character encoding assumed to be ASCII.
+         if ( ch >= 97 && ch <= 122 ) {
+            c:= ch - 32;
+         }
+         else {
+            c:= ch;
+         }
+         ++i;
+      }
+   }
+}
+
+// Get string as lowercase.
+str StrToLower( str string ) {
+   return std::StrParam( {} ) := {
+      int i = 0;
+      while ( i < string.length() ) {
+         int ch = string.at( i );
+         if ( ch >= 65 && ch <= 90 ) {
+            c:= ch + 32;
+         }
+         else {
+            c:= ch;
+         }
+         ++i;
+      }
+   }
+}
+
+// Supports up to 10 arguments, integer or string.
+void Printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0,
+   int arg4 = 0, int arg5 = 0, int arg6 = 0, int arg7 = 0, int arg8 = 0,
+   int arg9 = 0, int arg10 = 0 ) {
+   std::Log( {} ) := {
+      int num = 0;
+      int pos = 0;
+      while ( num < 10 ) {
+         // Select arg.
+         int arg = 0;
+         switch ( num + 1 ) {
+         case 1: arg = arg1; break;
+         case 2: arg = arg2; break;
+         case 3: arg = arg3; break;
+         case 5: arg = arg5; break;
+         case 6: arg = arg6; break;
+         case 7: arg = arg7; break;
+         case 8: arg = arg8; break;
+         case 9: arg = arg9; break;
+         case 10: arg = arg10; break;
+         default:
+            goto done;
+         }
+         // Search for the next specifier.
+         while ( true ) {
+            int ch = format.at( pos );
+            if ( ! ch ) {
+               goto done;
+            }
+            else if ( ch == '%' ) {
+               break;
+            }
+            else {
+               c:= ch;
+               ++pos;
+            }
+         }
+         // Output the arg based on the specifier.
+         switch ( format.at( pos + 1 ) ) {
+         case 's':
+            s:= arg;
+            pos += 2;
+            break;
+         case 'd':
+            i:= arg;
+            pos += 2;
+            break;
+         default:
+            goto done;
+         }
+         ++num;
+      }
+      done:
+   }
+}
+
+}
