@@ -346,3 +346,17 @@ bool c_read_full_path( const char* path, struct str* str ) {
 }
 
 #endif
+
+void c_extract_dirname( struct str* path ) {
+   while ( true ) {
+      if ( path->length == 0 ) {
+         break;
+      }
+      --path->length;
+      char ch = path->value[ path->length ];
+      path->value[ path->length ] = 0;
+      if ( ch == '/' || ch == '\\' ) {
+         break;
+      }
+   }
+}

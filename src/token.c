@@ -22,7 +22,6 @@ struct alter_filename {
 
 static void load_source( struct task* task, struct source_request* );
 static void init_source_request( struct source_request*, const char* );
-static void extract_dirname( struct str* );
 static enum tk peek( struct task*, int );
 static void read_source( struct task*, struct token* );
 static void escape_ch( struct task*, char*, char**, bool );
@@ -102,7 +101,7 @@ void load_source( struct task* task, struct source_request* request ) {
    if ( task->source ) {
       str_copy( &path, task->source->full_path.value,
          task->source->full_path.length );
-      extract_dirname( &path );
+      c_extract_dirname( &path );
       str_append( &path, "/" );
       str_append( &path, request->path );
       if ( c_read_fileid( &fileid, path.value ) ) {
@@ -202,20 +201,6 @@ void load_source( struct task* task, struct source_request* request ) {
    request->source = source;
    finish:
    str_deinit( &path );
-}
-
-void extract_dirname( struct str* path ) {
-   while ( true ) {
-      if ( path->length == 0 ) {
-         break;
-      }
-      --path->length;
-      char ch = path->value[ path->length ];
-      path->value[ path->length ] = 0;
-      if ( ch == '/' || ch == '\\' ) {
-         break;
-      }
-   }
 }
 
 void t_read_tk( struct task* task ) {

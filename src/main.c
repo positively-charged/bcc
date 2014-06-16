@@ -34,6 +34,13 @@ int main( int argc, char* argv[] ) {
    else {
       goto deinit_mem;
    }
+   // Add directory of compiler as search path.
+   struct str compiler_dir;
+   str_init( &compiler_dir );
+   if ( c_read_full_path( argv[ 0 ], &compiler_dir ) ) {
+      c_extract_dirname( &compiler_dir );
+      list_append( &options.includes, compiler_dir.value );
+   }
    // When no object file is explicitly specified, create the object file in
    // the directory of the source file, giving it the name that of the source
    // file, but with ".o" extension.
@@ -73,6 +80,7 @@ int main( int argc, char* argv[] ) {
       fclose( task.err_file );
    }
    deinit_object_file:
+   str_deinit( &compiler_dir );
    str_deinit( &object_file );
    deinit_mem:
    mem_free_all();
@@ -91,7 +99,6 @@ void init_options( struct options* options ) {
 }
 
 bool read_options( struct options* options, char** argv ) {
-   // Program path not needed.
    char** args = argv + 1;
    // Process the help option first.
    while ( *args ) {
