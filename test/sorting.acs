@@ -1,0 +1,141 @@
+#include "std.acs"
+
+enum TOTAL_VALUES = 20;
+enum SORT_SIZE = 20;
+int values[ TOTAL_VALUES ];
+int values_temp[ TOTAL_VALUES ];
+
+// Test script.
+script 1 open {
+   for ( int i = 0; i < SORT_SIZE; ++i ) {
+      values[ i ] = std::Random( 1, 9 );
+   }
+   std::Print( {} ) := {
+      // Unsorted:
+      s:= "Unsorted:";
+      for ( int i = 0; i < SORT_SIZE; ++i ) {
+         s:= " ", i:= values[ i ];
+      }
+      // Sorted:
+      // bsort( SORT_SIZE );
+      // ssort( SORT_SIZE );
+      // isort( SORT_SIZE );
+      msort( SORT_SIZE );
+      s:= "\n";
+      s:= "Sorted:";
+      for ( int i = 0; i < SORT_SIZE; ++i ) {
+         s:= " ", i:= values[ i ];
+      }
+   }
+}
+
+// Bubble sort.
+void bsort( int size ) {
+   int left = size;
+   while ( left ) {
+      int i = 0;
+      int k = left - 1;
+      while ( i < k ) {
+         if ( values[ i ] > values[ i + 1 ] ) {
+            int temp = values[ i + 1 ];
+            values[ i + 1 ] = values[ i ];
+            values[ i ] = temp;
+         }
+         ++i;
+      }
+      --left;
+   }
+}
+
+// Selection sort.
+void ssort( int size ) {
+   int sorted = 0;
+   while ( sorted < size ) {
+      int lowest = sorted;
+      int i = sorted + 1;
+      while ( i < size ) {
+         if ( values[ i ] < values[ lowest ] ) {
+            lowest = i;
+         }
+         ++i;
+      }
+      int temp = values[ sorted ];
+      values[ sorted ] = values[ lowest ];
+      values[ lowest ] = temp;
+      ++sorted;
+   }
+}
+
+// Insertion sort.
+void isort( int size ) {
+   int sorted = 0;
+   while ( sorted < size ) {
+      int value = values[ sorted ];
+      int i = sorted;
+      while ( i && value < values[ i - 1 ] ) {
+         values[ i ] = values[ i - 1 ];
+         --i;
+      }
+      values[ i ] = value;
+      ++sorted;
+   }
+}
+
+// Merge sort.
+void msort( int size ) {
+   if ( size <= TOTAL_VALUES ) {
+      msort_half( 0, size );
+   }
+   else {
+      std::Print( s: "\cgToo many values to sort for msort()" );
+   }
+}
+
+void msort_half( int pos, int size ) {
+   int size_l = size / 2;
+   int size_r = size - size_l;
+   // Sort left side.
+   if ( size_l > 1 ) {
+      msort_half( pos, size_l );
+   }
+   // Sort right side.
+   if ( size_r > 1 ) {
+      msort_half( pos + size_l, size_r );
+   }
+   // Merge sides.
+   int i = pos;
+   int j = pos + size_l;
+   int k = 0;
+   while ( size_l && size_r ) {
+      if ( values[ i ] < values[ j ] ) {
+         values_temp[ k ] = values[ i ];
+         --size_l;
+         ++i;
+      }
+      else {
+         values_temp[ k ] = values[ j ];
+         --size_r;
+         ++j;
+      }
+      ++k;
+   }
+   // Add leftover elements.
+   while ( size_l ) {
+      values_temp[ k ] = values[ i ];
+      --size_l;
+      ++i;
+      ++k;
+   }
+   while ( size_r ) {
+      values_temp[ k ] = values[ j ];
+      --size_r;
+      ++j;
+      ++k;
+   }
+   // Save.
+   i = 0;
+   while ( i < size ) {
+      values[ pos + i ] = values_temp[ i ];
+      ++i;
+   }
+}
