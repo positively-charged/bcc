@@ -139,3 +139,29 @@ void msort_half( int pos, int size ) {
       ++i;
    }
 }
+
+// Shell sort.
+void hsort( int size ) {
+   // Figure out initial increment.
+   int h = 0;
+   int h_next = 1;
+   do {
+      h = h_next;
+      h_next = 3 * h + 1;
+   } while ( h_next < size );
+   // Sort.
+   while ( h ) {
+      int sorted = h;
+      while ( sorted < size ) {
+         int i = sorted;
+         int value = values[ i ];
+         while ( i >= h && value < values[ i - h ] ) {
+            values[ i ] = values[ i - h ];
+            i -= h;
+         }
+         values[ i ] = value;
+         ++sorted;
+      }
+      h = ( h - 1 ) / 3;
+   }
+}
