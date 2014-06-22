@@ -1240,6 +1240,12 @@ str GetDBEntryString( str, str ) -= 111;
 void IncrementDBEntryInt( str, str, int ) -= 112;
 bool PlayerIsLoggedIn( int ) -= 113;
 str GetPlayerAccountName( int ) -= 114;
+int QuerySortedDBEntries( str, int, int, bool ) -= 115;
+int GetDBResultSize( int ) -= 116;
+void ClearDBResultHandle( int ) -= 117;
+str GetDBResultEntryNameString( int, int ) -= 118;
+str GetDBResultEntryValueString( int, int ) -= 119;
+int GetDBEntryRank( str, str, bool ) -= 120;
 
 // Dedicated functions
 // Tail format: += <opcode> , <is-latent>
