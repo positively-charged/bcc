@@ -909,6 +909,9 @@ enum {
    GAMEEVENT_ROUND_ENDS
 };
 
+enum DB_ORDER_DESC = false;
+enum DB_ORDER_ASC = true;
+
 // Action specials
 // Tail format: = <action-special-number> , <script-callable>
 int Polyobj_StartLine( int, int, int, int ) = 1, 0;
