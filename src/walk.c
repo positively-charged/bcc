@@ -1438,37 +1438,34 @@ void do_while( struct task* task, struct while_stmt* stmt ) {
    int test = 0;
    int done = 0;
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
-      bool dead = false;
-      if ( stmt->expr->folded && (
+      int jump = 0;
+      if ( ! stmt->expr->folded || (
          ( stmt->type == WHILE_WHILE && ! stmt->expr->value ) ||
          ( stmt->type == WHILE_UNTIL && stmt->expr->value ) ) ) {
-         dead = true;
-      }
-      int jump = 0;
-      if ( ! stmt->expr->folded || dead ) {
          jump = t_tell( task );
          t_add_opc( task, PC_GOTO );
          t_add_arg( task, 0 );
       }
       int body = t_tell( task );
       do_node( task, stmt->body );
-      test = t_tell( task );
       if ( stmt->expr->folded ) {
-         if ( dead ) {
-            done = t_tell( task );
-            t_seek( task, jump );
-            t_add_opc( task, PC_GOTO );
-            t_add_arg( task, done );
-            test = done;
-         }
-         else {
+         if ( ( stmt->type == WHILE_WHILE && stmt->expr->value ) ||
+            ( stmt->type == WHILE_UNTIL && ! stmt->expr->value ) ) {
             t_add_opc( task, PC_GOTO );
             t_add_arg( task, body );
             done = t_tell( task );
             test = body;
          }
+         else {
+            done = t_tell( task );
+            test = done;
+            t_seek( task, jump );
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, done );
+         }
       }
       else {
+         test = t_tell( task );
          struct operand expr;
          init_operand( &expr );
          expr.push = true;
@@ -1497,8 +1494,8 @@ void do_while( struct task* task, struct while_stmt* stmt ) {
             ( stmt->type == WHILE_DO_UNTIL && ! stmt->expr->value ) ) {
             t_add_opc( task, PC_GOTO );
             t_add_arg( task, body );
-            test = body;
             done = t_tell( task );
+            test = body;
          }
          else {
             done = t_tell( task );
