@@ -1435,29 +1435,40 @@ void do_case( struct task* task, struct case_label* label ) {
 }
 
 void do_while( struct task* task, struct while_stmt* stmt ) {
-   // Optimization: Don't output the loop if the condition is known at
-   // compile-time and is false. It's dead code.
-   if ( stmt->expr->folded && ( ( (
-      stmt->type == WHILE_WHILE || stmt->type == WHILE_DO_WHILE ) &&
-      ! stmt->expr->value ) || ( (
-      stmt->type == WHILE_UNTIL || stmt->type == WHILE_DO_UNTIL ) &&
-      stmt->expr->value ) ) ) {
-      return;
-   }
+   int test = 0;
+   int done = 0;
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
+      bool dead = false;
+      if ( stmt->expr->folded && (
+         ( stmt->type == WHILE_WHILE && ! stmt->expr->value ) ||
+         ( stmt->type == WHILE_UNTIL && stmt->expr->value ) ) ) {
+         dead = true;
+      }
       int jump = 0;
-      // Optimization: If the loop condition is constant, the code for checking
-      // the condition is not needed.
-      if ( ! stmt->expr->folded ) {
+      if ( ! stmt->expr->folded || dead ) {
          jump = t_tell( task );
          t_add_opc( task, PC_GOTO );
          t_add_arg( task, 0 );
       }
       int body = t_tell( task );
       do_node( task, stmt->body );
-      int test = t_tell( task );
-      int done = 0;
-      if ( ! stmt->expr->folded ) {
+      test = t_tell( task );
+      if ( stmt->expr->folded ) {
+         if ( dead ) {
+            done = t_tell( task );
+            t_seek( task, jump );
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, done );
+            test = done;
+         }
+         else {
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, body );
+            done = t_tell( task );
+            test = body;
+         }
+      }
+      else {
          struct operand expr;
          init_operand( &expr );
          expr.push = true;
@@ -1474,20 +1485,28 @@ void do_while( struct task* task, struct while_stmt* stmt ) {
          t_add_opc( task, PC_GOTO );
          t_add_arg( task, test );
       }
-      else {
-         t_add_opc( task, PC_GOTO );
-         t_add_arg( task, body );
-         done = t_tell( task );
-      }
-      do_jump_target( task, stmt->jump_continue, test );
-      do_jump_target( task, stmt->jump_break, done );
    }
+   // do-while / do-until.
    else {
       int body = t_tell( task );
       do_node( task, stmt->body );
-      int test = t_tell( task );
-      int done = 0;
-      if ( ! stmt->expr->folded ) {
+      // Condition:
+      if ( stmt->expr->folded ) {
+         // Optimization: Only loop when the condition is satisfied.
+         if ( ( stmt->type == WHILE_DO_WHILE && stmt->expr->value ) ||
+            ( stmt->type == WHILE_DO_UNTIL && ! stmt->expr->value ) ) {
+            t_add_opc( task, PC_GOTO );
+            t_add_arg( task, body );
+            test = body;
+            done = t_tell( task );
+         }
+         else {
+            done = t_tell( task );
+            test = done;
+         }
+      }
+      else {
+         test = t_tell( task );
          struct operand expr;
          init_operand( &expr );
          expr.push = true;
@@ -1501,14 +1520,9 @@ void do_while( struct task* task, struct while_stmt* stmt ) {
          t_add_arg( task, body );
          done = t_tell( task );
       }
-      else {
-         t_add_opc( task, PC_GOTO );
-         t_add_arg( task, body );
-         done = t_tell( task );
-      }
-      do_jump_target( task, stmt->jump_continue, test );
-      do_jump_target( task, stmt->jump_break, done );
    }
+   do_jump_target( task, stmt->jump_continue, test );
+   do_jump_target( task, stmt->jump_break, done );
 }
 
 void do_for( struct task* task, struct for_stmt* stmt ) {
