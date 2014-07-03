@@ -902,11 +902,13 @@ enum {
 
 enum {
    GAMEEVENT_PLAYERFRAGS,
-   GAMEEVENT_CAPTURES,
    GAMEEVENT_MEDALS,
+   GAMEEVENT_CAPTURES,
    GAMEEVENT_TOUCHES,
    GAMEEVENT_RETURNS,
-   GAMEEVENT_ROUND_ENDS
+   GAMEEVENT_ROUND_STARTS,
+   GAMEEVENT_ROUND_ENDS,
+   GAMEEVENT_ROUND_ABORTED
 };
 
 enum DB_ORDER_DESC = false;
@@ -1236,11 +1238,11 @@ int GetPlayerLivesLeft( int ) -= 104;
 bool SetPlayerLivesLeft( int, int ) -= 105;
 bool KickFromGame( int, str ) -= 106;
 int GetGamemodeState() -= 107;
-void SetDBEntryInt( str, str, int ) -= 108;
-int GetDBEntryInt( str, str ) -= 109;
+void SetDBEntry( str, str, int ) -= 108;
+int GetDBEntry( str, str ) -= 109;
 void SetDBEntryString( str, str, str ) -= 110;
 str GetDBEntryString( str, str ) -= 111;
-void IncrementDBEntryInt( str, str, int ) -= 112;
+void IncrementDBEntry( str, str, int ) -= 112;
 bool PlayerIsLoggedIn( int ) -= 113;
 str GetPlayerAccountName( int ) -= 114;
 int QuerySortedDBEntries( str, int, int, bool ) -= 115;
