@@ -437,7 +437,7 @@ void read_for( struct task* task, struct stmt_read* read ) {
    stmt->node.type = NODE_FOR;
    stmt->init = NULL;
    list_init( &stmt->vars );
-   stmt->expr = NULL;
+   stmt->cond = NULL;
    stmt->post = NULL;
    stmt->body = NULL;
    stmt->jump_break = NULL;
@@ -490,7 +490,7 @@ void read_for( struct task* task, struct stmt_read* read ) {
       struct read_expr expr;
       t_init_read_expr( &expr );
       t_read_expr( task, &expr );
-      stmt->expr = expr.node;
+      stmt->cond = expr.node;
       t_test_tk( task, TK_SEMICOLON );
       t_read_tk( task );
    }
@@ -736,7 +736,6 @@ struct label* new_label( char* name, struct pos pos ) {
    label->stmts = NULL;
    label->obj_pos = 0;
    label->format_block = NULL;
-   list_init( &label->users );
    return label;
 }
 
@@ -1048,11 +1047,11 @@ void test_for( struct task* task, struct stmt_test* test,
          list_next( &i );
       }
    }
-   if ( stmt->expr ) {
+   if ( stmt->cond ) {
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
-      t_test_expr( task, &expr, stmt->expr );
+      t_test_expr( task, &expr, stmt->cond );
    }
    if ( stmt->post ) {
       struct expr_link* link = stmt->post;

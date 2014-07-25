@@ -660,24 +660,23 @@ int t_tell( struct task* task ) {
 }
 
 void t_seek( struct task* task, int pos ) {
-   if ( pos == OBJ_SEEK_END ) {
-      while ( task->buffer->next ) {
-         task->buffer = task->buffer->next;
+   struct buffer* buffer = task->buffer_head;
+   while ( buffer ) {
+      if ( pos < BUFFER_SIZE ) {
+         task->buffer = buffer;
+         task->buffer->pos = pos;
+         break;
       }
-      task->buffer->pos = task->buffer->used;
+      pos -= BUFFER_SIZE;
+      buffer = buffer->next;
    }
-   else {
-      struct buffer* buffer = task->buffer_head;
-      while ( buffer ) {
-         if ( pos < BUFFER_SIZE ) {
-            task->buffer = buffer;
-            task->buffer->pos = pos;
-            break;
-         }
-         pos -= BUFFER_SIZE;
-         buffer = buffer->next;
-      }
+}
+
+void t_seek_end( struct task* task ) {
+   while ( task->buffer->next ) {
+      task->buffer = task->buffer->next;
    }
+   task->buffer->pos = task->buffer->used;
 }
 
 void t_flush( struct task* task ) {

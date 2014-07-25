@@ -479,7 +479,7 @@ struct for_stmt {
    struct node node;
    struct expr_link* init;
    struct list vars;
-   struct expr* expr;
+   struct expr* cond;
    struct expr_link* post;
    struct node* body;
    struct jump* jump_break;
@@ -676,7 +676,6 @@ struct label {
    struct pos pos;
    char* name;
    struct goto_stmt* stmts;
-   struct list users;
    struct block* format_block;
    bool defined;
 };
@@ -908,7 +907,6 @@ struct expr_test {
    bool accept_array;
 };
 
-#define OBJ_SEEK_END -1
 #define BUFFER_SIZE 65536
 
 struct buffer {
@@ -1344,8 +1342,8 @@ struct task {
    struct immediate* free_immediate;
    int immediate_count;
    bool push_immediate;
-   struct block_walk* block_walk;
-   struct block_walk* block_walk_free;
+   struct block_visit* block_visit;
+   struct block_visit* block_visit_free;
    int ifdirc_depth;
    struct macro_list macros;
    struct macro_expan* macro_expan;
@@ -1393,6 +1391,7 @@ void t_add_sized( struct task*, const void*, int size );
 void t_add_opc( struct task*, int );
 void t_add_arg( struct task*, int );
 void t_seek( struct task*, int );
+void t_seek_end( struct task* );
 int t_tell( struct task* );
 void t_flush( struct task* );
 int t_get_script_number( struct script* );

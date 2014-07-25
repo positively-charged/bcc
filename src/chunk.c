@@ -27,8 +27,8 @@ static void do_astr( struct task* );
 
 void t_init_fields_chunk( struct task* task ) {
    task->compress = false;
-   task->block_walk = NULL;
-   task->block_walk_free = NULL;
+   task->block_visit = NULL;
+   task->block_visit_free = NULL;
 }
 
 void t_publish( struct task* task ) {

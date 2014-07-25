@@ -3383,8 +3383,8 @@ void count_string_usage_node( struct node* node ) {
          }
       }
       // Condition.
-      if ( stmt->expr ) {
-         count_string_usage_node( &stmt->expr->node );
+      if ( stmt->cond ) {
+         count_string_usage_node( &stmt->cond->node );
       }
       // Post expression.
       struct expr_link* link = stmt->post;
