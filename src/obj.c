@@ -17,7 +17,7 @@ void t_init_fields_obj( struct task* task ) {
    task->buffer_head = NULL;
    task->buffer = NULL;
    add_buffer( task );
-   task->opc = PC_NONE;
+   task->opc = PCD_NONE;
    task->opc_args = 0;
    task->immediate = NULL;
    task->immediate_tail = NULL;
@@ -85,13 +85,13 @@ void t_add_opc( struct task* task, int code ) {
    // -----------------------------------------------------------------------
    {
       switch ( code ) {
-      case PC_PUSH_NUMBER:
-      case PC_PUSH_BYTE:
-      case PC_PUSH_2BYTES:
-      case PC_PUSH_3BYTES:
-      case PC_PUSH_4BYTES:
-      case PC_PUSH_5BYTES:
-      case PC_PUSH_BYTES:
+      case PCD_PUSHNUMBER:
+      case PCD_PUSHBYTE:
+      case PCD_PUSH2BYTES:
+      case PCD_PUSH3BYTES:
+      case PCD_PUSH4BYTES:
+      case PCD_PUSH5BYTES:
+      case PCD_PUSHBYTES:
          task->push_immediate = true;
          goto finish;
       default:
@@ -103,9 +103,9 @@ void t_add_opc( struct task* task, int code ) {
    // -----------------------------------------------------------------------
    fold: {
       switch ( code ) {
-      case PC_UNARY_MINUS:
-      case PC_NEGATE_LOGICAL:
-      case PC_NEGATE_BINARY:
+      case PCD_UNARYMINUS:
+      case PCD_NEGATELOGICAL:
+      case PCD_NEGATEBINARY:
          if ( task->immediate_count ) {
             break;
          }
@@ -114,13 +114,13 @@ void t_add_opc( struct task* task, int code ) {
          goto binary_fold;
       }
       switch ( code ) {
-      case PC_UNARY_MINUS:
+      case PCD_UNARYMINUS:
          task->immediate_tail->value = ( - task->immediate_tail->value );
          break;
-      case PC_NEGATE_LOGICAL:
+      case PCD_NEGATELOGICAL:
          task->immediate_tail->value = ( ! task->immediate_tail->value );
          break;
-      case PC_NEGATE_BINARY:
+      case PCD_NEGATEBINARY:
          task->immediate_tail->value = ( ~ task->immediate_tail->value );
          break;
       default:
@@ -133,24 +133,24 @@ void t_add_opc( struct task* task, int code ) {
    binary_fold: {
       switch ( code ) {
       // TODO: Implement support for the logical operators.
-      case PC_OR_LOGICAL:
-      case PC_AND_LOGICAL:
-      case PC_OR_BITWISE:
-      case PC_EOR_BITWISE:
-      case PC_AND_BITWISE:
-      case PC_EQ:
-      case PC_NE:
-      case PC_LT:
-      case PC_LE:
-      case PC_GT:
-      case PC_GE:
-      case PC_LSHIFT:
-      case PC_RSHIFT:
-      case PC_ADD:
-      case PC_SUB:
-      case PC_MUL:
-      case PC_DIV:
-      case PC_MOD:
+      case PCD_ORLOGICAL:
+      case PCD_ANDLOGICAL:
+      case PCD_ORBITWISE:
+      case PCD_EORBITWISE:
+      case PCD_ANDBITWISE:
+      case PCD_EQ:
+      case PCD_NE:
+      case PCD_LT:
+      case PCD_LE:
+      case PCD_GT:
+      case PCD_GE:
+      case PCD_LSHIFT:
+      case PCD_RSHIFT:
+      case PCD_ADD:
+      case PCD_SUBTRACT:
+      case PCD_MULIPLY:
+      case PCD_DIVIDE:
+      case PCD_MODULUS:
          if ( task->immediate_count >= 2 ) {
             break;
          }
@@ -173,24 +173,24 @@ void t_add_opc( struct task* task, int code ) {
       last->next = NULL;
       task->immediate_tail = last;
       switch ( code ) {
-      // case PC_OR_LOGICAL: last->value = ( l || r ); break;
-      // case PC_AND_LOGICAL: last->value = ( l && r ); break;
-      case PC_OR_BITWISE: last->value = l | r; break;
-      case PC_EOR_BITWISE: last->value = l ^ r; break;
-      case PC_AND_BITWISE: last->value = l & r; break;
-      case PC_EQ: last->value = ( l == r ); break;
-      case PC_NE: last->value = ( l != r ); break;
-      case PC_LT: last->value = ( l < r ); break;
-      case PC_LE: last->value = ( l <= r ); break;
-      case PC_GT: last->value = ( l > r ); break;
-      case PC_GE: last->value = ( l >= r ); break;
-      case PC_LSHIFT: last->value = l << r; break;
-      case PC_RSHIFT: last->value = l >> r; break;
-      case PC_ADD: last->value = l + r; break;
-      case PC_SUB: last->value = l - r; break;
-      case PC_MUL: last->value = l * r; break;
-      case PC_DIV: last->value = l / r; break;
-      case PC_MOD: last->value = l % r; break;
+      // case PCD_ORLOGICAL: last->value = ( l || r ); break;
+      // case PCD_ANDLOGICAL: last->value = ( l && r ); break;
+      case PCD_ORBITWISE: last->value = l | r; break;
+      case PCD_EORBITWISE: last->value = l ^ r; break;
+      case PCD_ANDBITWISE: last->value = l & r; break;
+      case PCD_EQ: last->value = ( l == r ); break;
+      case PCD_NE: last->value = ( l != r ); break;
+      case PCD_LT: last->value = ( l < r ); break;
+      case PCD_LE: last->value = ( l <= r ); break;
+      case PCD_GT: last->value = ( l > r ); break;
+      case PCD_GE: last->value = ( l >= r ); break;
+      case PCD_LSHIFT: last->value = l << r; break;
+      case PCD_RSHIFT: last->value = l >> r; break;
+      case PCD_ADD: last->value = l + r; break;
+      case PCD_SUBTRACT: last->value = l - r; break;
+      case PCD_MULIPLY: last->value = l * r; break;
+      case PCD_DIVIDE: last->value = l / r; break;
+      case PCD_MODULUS: last->value = l % r; break;
       default: break;
       }
       goto finish;
@@ -206,34 +206,34 @@ void t_add_opc( struct task* task, int code ) {
          int count;
          int direct;
       } entries[] = {
-         { PC_LSPEC1, 1, PC_LSPEC1_DIRECT },
-         { PC_LSPEC2, 2, PC_LSPEC2_DIRECT },
-         { PC_LSPEC3, 3, PC_LSPEC3_DIRECT },
-         { PC_LSPEC4, 4, PC_LSPEC4_DIRECT },
-         { PC_LSPEC5, 5, PC_LSPEC5_DIRECT },
-         { PC_DELAY, 1, PC_DELAY_DIRECT },
-         { PC_RANDOM, 2, PC_RANDOM_DIRECT },
-         { PC_THING_COUNT, 2, PC_THING_COUNT_DIRECT },
-         { PC_TAG_WAIT, 1, PC_TAG_WAIT_DIRECT },
-         { PC_POLY_WAIT, 1, PC_POLY_WAIT_DIRECT },
-         { PC_CHANGE_FLOOR, 2, PC_CHANGE_FLOOR_DIRECT },
-         { PC_CHANGE_CEILING, 2, PC_CHANGE_CEILING_DIRECT },
-         { PC_SCRIPT_WAIT, 1, PC_SCRIPT_WAIT_DIRECT },
-         { PC_CONSOLE_COMMAND, 3, PC_CONSOLE_COMMAND_DIRECT },
-         { PC_SET_GRAVITY, 1, PC_SET_GRAVITY_DIRECT },
-         { PC_SET_AIR_CONTROL, 1, PC_SET_AIR_CONTROL_DIRECT },
-         { PC_GIVE_INVENTORY, 2, PC_GIVE_INVENTORY_DIRECT },
-         { PC_TAKE_INVENTORY, 2, PC_TAKE_INVENTORY_DIRECT },
-         { PC_CHECK_INVENTORY, 1, PC_CHECK_INVENTORY_DIRECT },
-         { PC_SPAWN, 6, PC_SPAWN_DIRECT },
-         { PC_SPAWN_SPOT, 4, PC_SPAWN_SPOT_DIRECT },
-         { PC_SET_MUSIC, 3, PC_SET_MUSIC_DIRECT },
-         { PC_LOCAL_SET_MUSIC, 3, PC_LOCAL_SET_MUSIC },
-         { PC_SET_FONT, 1, PC_SET_FONT_DIRECT },
-         { PC_NONE, 0, PC_NONE } };
+         { PCD_LSPEC1, 1, PCD_LSPEC1DIRECT },
+         { PCD_LSPEC2, 2, PCD_LSPEC2DIRECT },
+         { PCD_LSPEC3, 3, PCD_LSPEC3DIRECT },
+         { PCD_LSPEC4, 4, PCD_LSPEC4DIRECT },
+         { PCD_LSPEC5, 5, PCD_LSPEC5DIRECT },
+         { PCD_DELAY, 1, PCD_DELAYDIRECT },
+         { PCD_RANDOM, 2, PCD_RANDOMDIRECT },
+         { PCD_THINGCOUNT, 2, PCD_THINGCOUNTDIRECT },
+         { PCD_TAGWAIT, 1, PCD_TAGWAITDIRECT },
+         { PCD_POLYWAIT, 1, PCD_POLYWAITDIRECT },
+         { PCD_CHANGEFLOOR, 2, PCD_CHANGEFLOORDIRECT },
+         { PCD_CHANGECEILING, 2, PCD_CHANGECEILINGDIRECT },
+         { PCD_SCRIPTWAIT, 1, PCD_SCRIPTWAITDIRECT },
+         { PCD_CONSOLECOMMAND, 3, PCD_CONSOLECOMMANDDIRECT },
+         { PCD_SETGRAVITY, 1, PCD_SETGRAVITYDIRECT },
+         { PCD_SETAIRCONTROL, 1, PCD_SETAIRCONTROLDIRECT },
+         { PCD_GIVEINVENTORY, 2, PCD_GIVEINVENTORYDIRECT },
+         { PCD_TAKEINVENTORY, 2, PCD_TAKEINVENTORYDIRECT },
+         { PCD_CHECKINVENTORY, 1, PCD_CHECKINVENTORYDIRECT },
+         { PCD_SPAWN, 6, PCD_SPAWNDIRECT },
+         { PCD_SPAWNSPOT, 4, PCD_SPAWNSPOTDIRECT },
+         { PCD_SETMUSIC, 3, PCD_SETMUSICDIRECT },
+         { PCD_LOCALSETMUSIC, 3, PCD_LOCALSETMUSIC },
+         { PCD_SETFONT, 1, PCD_SETFONTDIRECT },
+         { PCD_NONE, 0, PCD_NONE } };
       const struct entry* entry = entries;
       while ( entry->code != code ) {
-         if ( entry->code == PC_NONE ) {
+         if ( entry->code == PCD_NONE ) {
             goto other;
          }
          ++entry;
@@ -253,13 +253,13 @@ void t_add_opc( struct task* task, int code ) {
       int direct = entry->direct;
       if ( task->compress && count == entry->count ) {
          switch ( code ) {
-         case PC_LSPEC1: direct = PC_LSPEC1_DIRECT_B; break;
-         case PC_LSPEC2: direct = PC_LSPEC2_DIRECT_B; break;
-         case PC_LSPEC3: direct = PC_LSPEC3_DIRECT_B; break;
-         case PC_LSPEC4: direct = PC_LSPEC4_DIRECT_B; break;
-         case PC_LSPEC5: direct = PC_LSPEC5_DIRECT_B; break;
-         case PC_DELAY: direct = PC_DELAY_DIRECT_B; break;
-         case PC_RANDOM: direct = PC_RANDOM_DIRECT_B; break;
+         case PCD_LSPEC1: direct = PCD_LSPEC1DIRECTB; break;
+         case PCD_LSPEC2: direct = PCD_LSPEC2DIRECTB; break;
+         case PCD_LSPEC3: direct = PCD_LSPEC3DIRECTB; break;
+         case PCD_LSPEC4: direct = PCD_LSPEC4DIRECTB; break;
+         case PCD_LSPEC5: direct = PCD_LSPEC5DIRECTB; break;
+         case PCD_DELAY: direct = PCD_DELAYDIRECTB; break;
+         case PCD_RANDOM: direct = PCD_RANDOMDIRECTB; break;
          default: break;
          }
       }
@@ -267,11 +267,11 @@ void t_add_opc( struct task* task, int code ) {
       // Some instructions have other arguments that need to be written
       // before outputting the queued immediates.
       switch ( code ) {
-      case PC_LSPEC1:
-      case PC_LSPEC2:
-      case PC_LSPEC3:
-      case PC_LSPEC4:
-      case PC_LSPEC5:
+      case PCD_LSPEC1:
+      case PCD_LSPEC2:
+      case PCD_LSPEC3:
+      case PCD_LSPEC4:
+      case PCD_LSPEC5:
          break;
       default:
          write_args( task );
@@ -296,16 +296,16 @@ void t_add_arg( struct task* task, int arg ) {
    else {
       write_arg( task, arg );
       switch ( task->opc ) {
-      case PC_LSPEC1_DIRECT:
-      case PC_LSPEC2_DIRECT:
-      case PC_LSPEC3_DIRECT:
-      case PC_LSPEC4_DIRECT:
-      case PC_LSPEC5_DIRECT:
-      case PC_LSPEC1_DIRECT_B:
-      case PC_LSPEC2_DIRECT_B:
-      case PC_LSPEC3_DIRECT_B:
-      case PC_LSPEC4_DIRECT_B:
-      case PC_LSPEC5_DIRECT_B:
+      case PCD_LSPEC1DIRECT:
+      case PCD_LSPEC2DIRECT:
+      case PCD_LSPEC3DIRECT:
+      case PCD_LSPEC4DIRECT:
+      case PCD_LSPEC5DIRECT:
+      case PCD_LSPEC1DIRECTB:
+      case PCD_LSPEC2DIRECTB:
+      case PCD_LSPEC3DIRECTB:
+      case PCD_LSPEC4DIRECTB:
+      case PCD_LSPEC5DIRECTB:
          if ( task->opc_args == 1 ) {
             write_args( task );
          }
@@ -339,17 +339,17 @@ void write_opc( struct task* task, int code ) {
 
 void write_arg( struct task* task, int arg ) {
    switch ( task->opc ) {
-   case PC_LSPEC1:
-   case PC_LSPEC2:
-   case PC_LSPEC3:
-   case PC_LSPEC4:
-   case PC_LSPEC5:
-   case PC_LSPEC5_RESULT:
-   case PC_LSPEC1_DIRECT:
-   case PC_LSPEC2_DIRECT:
-   case PC_LSPEC3_DIRECT:
-   case PC_LSPEC4_DIRECT:
-   case PC_LSPEC5_DIRECT:
+   case PCD_LSPEC1:
+   case PCD_LSPEC2:
+   case PCD_LSPEC3:
+   case PCD_LSPEC4:
+   case PCD_LSPEC5:
+   case PCD_LSPEC5RESULT:
+   case PCD_LSPEC1DIRECT:
+   case PCD_LSPEC2DIRECT:
+   case PCD_LSPEC3DIRECT:
+   case PCD_LSPEC4DIRECT:
+   case PCD_LSPEC5DIRECT:
       if ( task->opc_args == 0 && task->compress ) {
          t_add_byte( task, arg );
       }
@@ -357,119 +357,119 @@ void write_arg( struct task* task, int arg ) {
          t_add_int( task, arg );
       }
       break;
-   case PC_PUSH_BYTE:
-   case PC_PUSH_2BYTES:
-   case PC_PUSH_3BYTES:
-   case PC_PUSH_4BYTES:
-   case PC_PUSH_5BYTES:
-   case PC_PUSH_BYTES:
-   case PC_LSPEC1_DIRECT_B:
-   case PC_LSPEC2_DIRECT_B:
-   case PC_LSPEC3_DIRECT_B:
-   case PC_LSPEC4_DIRECT_B:
-   case PC_LSPEC5_DIRECT_B:
-   case PC_DELAY_DIRECT_B:
-   case PC_RANDOM_DIRECT_B:
+   case PCD_PUSHBYTE:
+   case PCD_PUSH2BYTES:
+   case PCD_PUSH3BYTES:
+   case PCD_PUSH4BYTES:
+   case PCD_PUSH5BYTES:
+   case PCD_PUSHBYTES:
+   case PCD_LSPEC1DIRECTB:
+   case PCD_LSPEC2DIRECTB:
+   case PCD_LSPEC3DIRECTB:
+   case PCD_LSPEC4DIRECTB:
+   case PCD_LSPEC5DIRECTB:
+   case PCD_DELAYDIRECTB:
+   case PCD_RANDOMDIRECTB:
       t_add_byte( task, arg );
       break;
-   case PC_PUSH_SCRIPT_VAR:
-   case PC_PUSH_MAP_VAR:
-   case PC_PUSH_MAP_ARRAY:
-   case PC_PUSH_WORLD_VAR:
-   case PC_PUSH_WORLD_ARRAY:
-   case PC_PUSH_GLOBAL_VAR:
-   case PC_PUSH_GLOBAL_ARRAY:
-   case PC_ASSIGN_SCRIPT_VAR:
-   case PC_ASSIGN_MAP_VAR:
-   case PC_ASSIGN_WORLD_VAR:
-   case PC_ASSIGN_GLOBAL_VAR:
-   case PC_ASSIGN_MAP_ARRAY:
-   case PC_ASSIGN_WORLD_ARRAY:
-   case PC_ASSIGN_GLOBAL_ARRAY:
-   case PC_ADD_SCRIPT_VAR:
-   case PC_ADD_MAP_VAR:
-   case PC_ADD_WORLD_VAR:
-   case PC_ADD_GLOBAL_VAR:
-   case PC_ADD_MAP_ARRAY:
-   case PC_ADD_WORLD_ARRAY:
-   case PC_ADD_GLOBAL_ARRAY:
-   case PC_SUB_SCRIPT_VAR:
-   case PC_SUB_MAP_VAR:
-   case PC_SUB_WORLD_VAR:
-   case PC_SUB_GLOBAL_VAR:
-   case PC_SUB_MAP_ARRAY:
-   case PC_SUB_WORLD_ARRAY:
-   case PC_SUB_GLOBAL_ARRAY:
-   case PC_MUL_SCRIPT_VAR:
-   case PC_MUL_MAP_VAR:
-   case PC_MUL_WORLD_VAR:
-   case PC_MUL_GLOBAL_VAR:
-   case PC_MUL_MAP_ARRAY:
-   case PC_MUL_WORLD_ARRAY:
-   case PC_MUL_GLOBAL_ARRAY:
-   case PC_DIV_SCRIPT_VAR:
-   case PC_DIV_MAP_VAR:
-   case PC_DIV_WORLD_VAR:
-   case PC_DIV_GLOBAL_VAR:
-   case PC_DIV_MAP_ARRAY:
-   case PC_DIV_WORLD_ARRAY:
-   case PC_DIV_GLOBAL_ARRAY:
-   case PC_MOD_SCRIPT_VAR:
-   case PC_MOD_MAP_VAR:
-   case PC_MOD_WORLD_VAR:
-   case PC_MOD_GLOBAL_VAR:
-   case PC_MOD_MAP_ARRAY:
-   case PC_MOD_WORLD_ARRAY:
-   case PC_MOD_GLOBAL_ARRAY:
-   case PC_LS_SCRIPT_VAR:
-   case PC_LS_MAP_VAR:
-   case PC_LS_WORLD_VAR:
-   case PC_LS_GLOBAL_VAR:
-   case PC_LS_MAP_ARRAY:
-   case PC_LS_WORLD_ARRAY:
-   case PC_LS_GLOBAL_ARRAY:
-   case PC_RS_SCRIPT_VAR:
-   case PC_RS_MAP_VAR:
-   case PC_RS_WORLD_VAR:
-   case PC_RS_GLOBAL_VAR:
-   case PC_RS_MAP_ARRAY:
-   case PC_RS_WORLD_ARRAY:
-   case PC_RS_GLOBAL_ARRAY:
-   case PC_AND_SCRIPT_VAR:
-   case PC_AND_MAP_VAR:
-   case PC_AND_WORLD_VAR:
-   case PC_AND_GLOBAL_VAR:
-   case PC_AND_MAP_ARRAY:
-   case PC_AND_WORLD_ARRAY:
-   case PC_AND_GLOBAL_ARRAY:
-   case PC_EOR_SCRIPT_VAR:
-   case PC_EOR_MAP_VAR:
-   case PC_EOR_WORLD_VAR:
-   case PC_EOR_GLOBAL_VAR:
-   case PC_EOR_MAP_ARRAY:
-   case PC_EOR_WORLD_ARRAY:
-   case PC_EOR_GLOBAL_ARRAY:
-   case PC_OR_SCRIPT_VAR:
-   case PC_OR_MAP_VAR:
-   case PC_OR_WORLD_VAR:
-   case PC_OR_GLOBAL_VAR:
-   case PC_OR_MAP_ARRAY:
-   case PC_OR_WORLD_ARRAY:
-   case PC_OR_GLOBAL_ARRAY:
-   case PC_INC_SCRIPT_VAR:
-   case PC_INC_MAP_VAR:
-   case PC_INC_WORLD_VAR:
-   case PC_INC_GLOBAL_VAR:
-   case PC_INC_MAP_ARRAY:
-   case PC_INC_WORLD_ARRAY:
-   case PC_INC_GLOBAL_ARRAY:
-   case PC_DEC_SCRIPT_VAR:
-   case PC_DEC_MAP_VAR:
-   case PC_DEC_WORLD_VAR:
-   case PC_DEC_GLOBAL_VAR:
-   case PC_DEC_MAP_ARRAY:
-   case PC_DEC_WORLD_ARRAY:
-   case PC_DEC_GLOBAL_ARRAY:
+   case PCD_PUSHSCRIPTVAR:
+   case PCD_PUSHMAPVAR:
+   case PCD_PUSHMAPARRAY:
+   case PCD_PUSHWORLDVAR:
+   case PCD_PUSHWORLDARRAY:
+   case PCD_PUSHGLOBALVAR:
+   case PCD_PUSHGLOBALARRAY:
+   case PCD_ASSIGNSCRIPTVAR:
+   case PCD_ASSIGNMAPVAR:
+   case PCD_ASSIGNWORLDVAR:
+   case PCD_ASSIGNGLOBALVAR:
+   case PCD_ASSIGNMAPARRAY:
+   case PCD_ASSIGNWORLDARRAY:
+   case PCD_ASSIGNGLOBALARRAY:
+   case PCD_ADDSCRIPTVAR:
+   case PCD_ADDMAPVAR:
+   case PCD_ADDWORLDVAR:
+   case PCD_ADDGLOBALVAR:
+   case PCD_ADDMAPARRAY:
+   case PCD_ADDWORLDARRAY:
+   case PCD_ADDGLOBALARRAY:
+   case PCD_SUBSCRIPTVAR:
+   case PCD_SUBMAPVAR:
+   case PCD_SUBWORLDVAR:
+   case PCD_SUBGLOBALVAR:
+   case PCD_SUBMAPARRAY:
+   case PCD_SUBWORLDARRAY:
+   case PCD_SUBGLOBALARRAY:
+   case PCD_MULSCRIPTVAR:
+   case PCD_MULMAPVAR:
+   case PCD_MULWORLDVAR:
+   case PCD_MULGLOBALVAR:
+   case PCD_MULMAPARRAY:
+   case PCD_MULWORLDARRAY:
+   case PCD_MULGLOBALARRAY:
+   case PCD_DIVSCRIPTVAR:
+   case PCD_DIVMAPVAR:
+   case PCD_DIVWORLDVAR:
+   case PCD_DIVGLOBALVAR:
+   case PCD_DIVMAPARRAY:
+   case PCD_DIVWORLDARRAY:
+   case PCD_DIVGLOBALARRAY:
+   case PCD_MODSCRIPTVAR:
+   case PCD_MODMAPVAR:
+   case PCD_MODWORLDVAR:
+   case PCD_MODGLOBALVAR:
+   case PCD_MODMAPARRAY:
+   case PCD_MODWORLDARRAY:
+   case PCD_MODGLOBALARRAY:
+   case PCD_LSSCRIPTVAR:
+   case PCD_LSMAPVAR:
+   case PCD_LSWORLDVAR:
+   case PCD_LSGLOBALVAR:
+   case PCD_LSMAPARRAY:
+   case PCD_LSWORLDARRAY:
+   case PCD_LSGLOBALARRAY:
+   case PCD_RSSCRIPTVAR:
+   case PCD_RSMAPVAR:
+   case PCD_RSWORLDVAR:
+   case PCD_RSGLOBALVAR:
+   case PCD_RSMAPARRAY:
+   case PCD_RSWORLDARRAY:
+   case PCD_RSGLOBALARRAY:
+   case PCD_ANDSCRIPTVAR:
+   case PCD_ANDMAPVAR:
+   case PCD_ANDWORLDVAR:
+   case PCD_ANDGLOBALVAR:
+   case PCD_ANDMAPARRAY:
+   case PCD_ANDWORLDARRAY:
+   case PCD_ANDGLOBALARRAY:
+   case PCD_EORSCRIPTVAR:
+   case PCD_EORMAPVAR:
+   case PCD_EORWORLDVAR:
+   case PCD_EORGLOBALVAR:
+   case PCD_EORMAPARRAY:
+   case PCD_EORWORLDARRAY:
+   case PCD_EORGLOBALARRAY:
+   case PCD_ORSCRIPTVAR:
+   case PCD_ORMAPVAR:
+   case PCD_ORWORLDVAR:
+   case PCD_ORGLOBALVAR:
+   case PCD_ORMAPARRAY:
+   case PCD_ORWORLDARRAY:
+   case PCD_ORGLOBALARRAY:
+   case PCD_INCSCRIPTVAR:
+   case PCD_INCMAPVAR:
+   case PCD_INCWORLDVAR:
+   case PCD_INCGLOBALVAR:
+   case PCD_INCMAPARRAY:
+   case PCD_INCWORLDARRAY:
+   case PCD_INCGLOBALARRAY:
+   case PCD_DECSCRIPTVAR:
+   case PCD_DECMAPVAR:
+   case PCD_DECWORLDVAR:
+   case PCD_DECGLOBALVAR:
+   case PCD_DECMAPARRAY:
+   case PCD_DECWORLDARRAY:
+   case PCD_DECGLOBALARRAY:
       if ( task->compress ) {
          t_add_byte( task, arg );
       }
@@ -477,8 +477,8 @@ void write_arg( struct task* task, int arg ) {
          t_add_int( task, arg );
       }
       break;
-   case PC_CALL:
-   case PC_CALL_DISCARD:
+   case PCD_CALL:
+   case PCD_CALLDISCARD:
       if ( task->compress ) {
          t_add_byte( task, arg );
       }
@@ -486,7 +486,7 @@ void write_arg( struct task* task, int arg ) {
          t_add_int( task, arg );
       }
       break;
-   case PC_CALL_FUNC:
+   case PCD_CALLFUNC:
       if ( task->compress ) {
          // Argument-count field.
          if ( task->opc_args == 0 ) {
@@ -501,7 +501,7 @@ void write_arg( struct task* task, int arg ) {
          t_add_int( task, arg );
       }
       break;
-   case PC_CASE_GOTO_SORTED:
+   case PCD_CASEGOTOSORTED:
       // The arguments need to be 4-byte aligned.
       if ( task->opc_args == 0 ) {
          int i = t_tell( task ) % 4;
@@ -575,17 +575,17 @@ void push_immediate( struct task* task, int count ) {
       if ( i ) {
          left -= i;
          if ( task->compress ) {
-            int code = PC_PUSH_BYTES;
+            int code = PCD_PUSHBYTES;
             switch ( i ) {
-            case 1: code = PC_PUSH_BYTE; break;
-            case 2: code = PC_PUSH_2BYTES; break;
-            case 3: code = PC_PUSH_3BYTES; break;
-            case 4: code = PC_PUSH_4BYTES; break;
-            case 5: code = PC_PUSH_5BYTES; break;
+            case 1: code = PCD_PUSHBYTE; break;
+            case 2: code = PCD_PUSH2BYTES; break;
+            case 3: code = PCD_PUSH3BYTES; break;
+            case 4: code = PCD_PUSH4BYTES; break;
+            case 5: code = PCD_PUSH5BYTES; break;
             default: break;
             }
             write_opc( task, code );
-            if ( code == PC_PUSH_BYTES ) {
+            if ( code == PCD_PUSHBYTES ) {
                write_arg( task, i );
             }
             while ( i ) {
@@ -598,7 +598,7 @@ void push_immediate( struct task* task, int count ) {
             // Optimization: Pack four byte-values into a single 4-byte integer.
             // The instructions following this one will still be 4-byte aligned.
             while ( i >= 4 ) {
-               write_opc( task, PC_PUSH_4BYTES );
+               write_opc( task, PCD_PUSH4BYTES );
                write_arg( task, immediate->value );
                immediate = immediate->next;
                write_arg( task, immediate->value );
@@ -610,7 +610,7 @@ void push_immediate( struct task* task, int count ) {
                i -= 4;
             }
             while ( i ) {
-               write_opc( task, PC_PUSH_NUMBER );
+               write_opc( task, PCD_PUSHNUMBER );
                write_arg( task, immediate->value );
                immediate = immediate->next;
                --i;
@@ -618,7 +618,7 @@ void push_immediate( struct task* task, int count ) {
          }
       }
       else {
-         write_opc( task, PC_PUSH_NUMBER );
+         write_opc( task, PCD_PUSHNUMBER );
          write_arg( task, immediate->value );
          immediate = immediate->next;
          --left;
