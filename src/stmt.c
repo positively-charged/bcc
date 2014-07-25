@@ -66,8 +66,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->tokens.peeked = 0;
    task->bail = bail;
    task->err_file = NULL;
-   task->macro_expan = NULL;
-   task->ifdirc_depth = 0;
 }
 
 void t_read( struct task* task ) {
@@ -225,7 +223,7 @@ void read_case( struct task* task, struct stmt_read* read ) {
    struct read_expr expr;
    t_init_read_expr( &expr );
    t_read_expr( task, &expr );
-   label->expr = expr.node;
+   label->number = expr.node;
    t_test_tk( task, TK_COLON );
    t_read_tk( task );
    read->node = &label->node;
@@ -334,7 +332,7 @@ void read_if( struct task* task, struct stmt_read* read ) {
    struct read_expr expr;
    t_init_read_expr( &expr );
    t_read_expr( task, &expr );
-   stmt->expr = expr.node;
+   stmt->cond = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    // It is assumed that a semicolon is the empty statement.
@@ -366,7 +364,7 @@ void read_switch( struct task* task, struct stmt_read* read ) {
    struct read_expr expr;
    t_init_read_expr( &expr );
    t_read_expr( task, &expr );
-   stmt->expr = expr.node;
+   stmt->cond = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_read_stmt( task, read );
@@ -391,7 +389,7 @@ void read_while( struct task* task, struct stmt_read* read ) {
    struct read_expr expr;
    t_init_read_expr( &expr );
    t_read_expr( task, &expr );
-   stmt->expr = expr.node;
+   stmt->cond = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_read_stmt( task, read );
@@ -423,7 +421,7 @@ void read_do( struct task* task, struct stmt_read* read ) {
    struct read_expr expr;
    t_init_read_expr( &expr );
    t_read_expr( task, &expr );
-   stmt->expr = expr.node;
+   stmt->cond = expr.node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
@@ -435,10 +433,9 @@ void read_for( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    struct for_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_FOR;
-   stmt->init = NULL;
-   list_init( &stmt->vars );
+   list_init( &stmt->init );
+   list_init( &stmt->post );
    stmt->cond = NULL;
-   stmt->post = NULL;
    stmt->body = NULL;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -451,26 +448,15 @@ void read_for( struct task* task, struct stmt_read* read ) {
          t_init_dec( &dec );
          dec.area = DEC_FOR;
          dec.name_offset = task->region->body;
-         dec.vars = &stmt->vars;
+         dec.vars = &stmt->init;
          t_read_dec( task, &dec );
       }
       else {
-         struct expr_link* tail = NULL;
          while ( true ) {
-            struct expr_link* link = mem_alloc( sizeof( *link ) );
-            link->node.type = NODE_EXPR_LINK;
-            link->next = NULL;
             struct read_expr expr;
             t_init_read_expr( &expr );
             t_read_expr( task, &expr );
-            link->expr = expr.node;
-            if ( tail ) {
-               tail->next = link;
-            }
-            else {
-               stmt->init = link;
-            }
-            tail = link;
+            list_append( &stmt->init, expr.node );
             if ( task->tk == TK_COMMA ) {
                t_read_tk( task );
             }
@@ -499,22 +485,11 @@ void read_for( struct task* task, struct stmt_read* read ) {
    }
    // Optional post-expression:
    if ( task->tk != TK_PAREN_R ) {
-      struct expr_link* tail = NULL;
       while ( true ) {
-         struct expr_link* link = mem_alloc( sizeof( *link ) );
-         link->node.type = NODE_EXPR_LINK;
-         link->next = NULL;
          struct read_expr expr;
          t_init_read_expr( &expr );
          t_read_expr( task, &expr );
-         link->expr = expr.node;
-         if ( tail ) {
-            tail->next = link;
-         }
-         else {
-            stmt->post = link;
-         }
-         tail = link;
+         list_append( &stmt->post, expr.node );
          if ( task->tk == TK_COMMA ) {
             t_read_tk( task );
          }
@@ -566,7 +541,7 @@ void read_script_jump( struct task* task, struct stmt_read* read ) {
 void read_return( struct task* task, struct stmt_read* read ) {
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
-   stmt->packed_expr = NULL;
+   stmt->return_value = NULL;
    stmt->pos = task->tk_pos;
    t_read_tk( task );
    if ( task->tk == TK_SEMICOLON ) {
@@ -574,7 +549,7 @@ void read_return( struct task* task, struct stmt_read* read ) {
    }
    else {
       read_packed_expr( task, read );
-      stmt->packed_expr = ( struct packed_expr* ) read->node;
+      stmt->return_value = ( struct packed_expr* ) read->node;
    }
    read->node = ( struct node* ) stmt;
 }
@@ -604,8 +579,8 @@ void read_goto( struct task* task, struct stmt_read* read ) {
    struct goto_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_GOTO;
    stmt->label = label;
-   stmt->next = label->stmts;
-   label->stmts = stmt;
+   stmt->next = label->users;
+   label->users = stmt;
    stmt->obj_pos = 0;
    stmt->format_block = NULL;
    stmt->pos = pos;
@@ -733,7 +708,7 @@ struct label* new_label( char* name, struct pos pos ) {
    label->name = name;
    label->defined = false;
    label->pos = pos;
-   label->stmts = NULL;
+   label->users = NULL;
    label->obj_pos = 0;
    label->format_block = NULL;
    return label;
@@ -870,21 +845,21 @@ void test_case( struct task* task, struct stmt_test* test,
    struct expr_test expr;
    t_init_expr_test( &expr );
    expr.undef_err = true;
-   t_test_expr( task, &expr, label->expr );
-   if ( ! label->expr->folded ) {
+   t_test_expr( task, &expr, label->number );
+   if ( ! label->number->folded ) {
       t_diag( task, DIAG_POS_ERR, &expr.pos, "case value not constant" );
       t_bail( task );
    }
    struct case_label* prev = NULL;
    struct case_label* curr = target->case_head;
-   while ( curr && curr->expr->value < label->expr->value ) {
+   while ( curr && curr->number->value < label->number->value ) {
       prev = curr;
       curr = curr->next;
    }
-   if ( curr && curr->expr->value == label->expr->value ) {
+   if ( curr && curr->number->value == label->number->value ) {
       t_diag( task, DIAG_POS_ERR, &label->pos, "duplicate case" );
       t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
-         "case with value %d found here", curr->expr->value );
+         "case with value %d found here", curr->number->value );
       t_bail( task );
    }
    if ( prev ) {
@@ -975,7 +950,7 @@ void test_if( struct task* task, struct stmt_test* test,
    struct expr_test expr;
    t_init_expr_test( &expr );
    expr.undef_err = true;
-   t_test_expr( task, &expr, stmt->expr );
+   t_test_expr( task, &expr, stmt->cond );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
    t_test_stmt( task, &body, stmt->body );
@@ -990,7 +965,7 @@ void test_switch( struct task* task, struct stmt_test* test,
    struct expr_test expr;
    t_init_expr_test( &expr );
    expr.undef_err = true;
-   t_test_expr( task, &expr, stmt->expr );
+   t_test_expr( task, &expr, stmt->cond );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
    body.in_switch = true;
@@ -1006,7 +981,7 @@ void test_while( struct task* task, struct stmt_test* test,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
-      t_test_expr( task, &expr, stmt->expr );
+      t_test_expr( task, &expr, stmt->cond );
    }
    struct stmt_test body;
    t_init_stmt_test( &body, test );
@@ -1018,51 +993,46 @@ void test_while( struct task* task, struct stmt_test* test,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
-      t_test_expr( task, &expr, stmt->expr );
+      t_test_expr( task, &expr, stmt->cond );
    }
 }
 
 void test_for( struct task* task, struct stmt_test* test,
    struct for_stmt* stmt ) {
    t_add_scope( task );
-   if ( stmt->init ) {
-      struct expr_link* link = stmt->init;
-      while ( link ) {
+   // Initialization.
+   list_iter_t i;
+   list_iter_init( &i, &stmt->init );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_EXPR ) {
          struct expr_test expr;
          t_init_expr_test( &expr );
          expr.undef_err = true;
          expr.need_value = false;
-         t_test_expr( task, &expr, link->expr );
-         link = link->next;
+         t_test_expr( task, &expr, ( struct expr* ) node );
       }
-   }
-   else if ( list_size( &stmt->vars ) ) {
-      list_iter_t i;
-      list_iter_init( &i, &stmt->vars );
-      while ( ! list_end( &i ) ) {
-         struct node* node = list_data( &i );
-         if ( node->type == NODE_VAR ) {
-            t_test_local_var( task, ( struct var* ) node );
-         }
-         list_next( &i );
+      else {
+         t_test_local_var( task, ( struct var* ) node );
       }
+      list_next( &i );
    }
+   // Condition.
    if ( stmt->cond ) {
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
       t_test_expr( task, &expr, stmt->cond );
    }
-   if ( stmt->post ) {
-      struct expr_link* link = stmt->post;
-      while ( link ) {
-         struct expr_test expr;
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
-         expr.need_value = false;
-         t_test_expr( task, &expr, link->expr );
-         link = link->next;
-      }
+   // Post expressions.
+   list_iter_init( &i, &stmt->post );
+   while ( ! list_end( &i ) ) {
+      struct expr_test expr;
+      t_init_expr_test( &expr );
+      expr.undef_err = true;
+      expr.need_value = false;
+      t_test_expr( task, &expr, list_data( &i ) );
+      list_next( &i );
    }
    struct stmt_test body;
    t_init_stmt_test( &body, test );
@@ -1163,17 +1133,17 @@ void test_return( struct task* task, struct stmt_test* test,
          "return statement outside function" );
       t_bail( task );
    }
-   if ( stmt->packed_expr ) {
+   if ( stmt->return_value ) {
       struct pos pos;
-      test_packed_expr( task, test, stmt->packed_expr, &pos );
-      if ( ! target->func->value ) {
+      test_packed_expr( task, test, stmt->return_value, &pos );
+      if ( ! target->func->return_type ) {
          t_diag( task, DIAG_POS_ERR, &pos,
             "returning value in void function" );
          t_bail( task );
       }
    }
    else {
-      if ( target->func->value ) {
+      if ( target->func->return_type ) {
          t_diag( task, DIAG_POS_ERR, &stmt->pos, "missing return value" );
          t_bail( task );
       }
@@ -1294,8 +1264,8 @@ void test_goto_in_format_block( struct task* task, struct list* labels ) {
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       if ( label->format_block ) {
-         if ( label->stmts ) {
-            struct goto_stmt* stmt = label->stmts;
+         if ( label->users ) {
+            struct goto_stmt* stmt = label->users;
             while ( stmt ) {
                if ( stmt->format_block != label->format_block ) {
                   t_diag( task, DIAG_POS_ERR, &stmt->pos,
@@ -1315,7 +1285,7 @@ void test_goto_in_format_block( struct task* task, struct list* labels ) {
          }
       }
       else {
-         struct goto_stmt* stmt = label->stmts;
+         struct goto_stmt* stmt = label->users;
          while ( stmt ) {
             if ( stmt->format_block ) {
                t_diag( task, DIAG_POS_ERR, &stmt->pos,

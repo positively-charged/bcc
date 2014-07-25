@@ -311,7 +311,7 @@ void init_type_members( struct task* task ) {
       name->object = &func->object;
       func->name = name;
       func->params = NULL;
-      func->value = get_type( task, list[ i ].value );
+      func->return_type = get_type( task, list[ i ].value );
       struct func_intern* impl = mem_alloc( sizeof( *impl ) );
       impl->id = list[ i ].id;
       func->impl = impl;
@@ -1456,7 +1456,7 @@ void read_func( struct task* task, struct dec* dec ) {
    func->type = FUNC_ASPEC;
    func->name = dec->name;
    func->params = NULL;
-   func->value = dec->type;
+   func->return_type = dec->type;
    func->impl = NULL;
    func->min_param = 0;
    func->max_param = 0;
@@ -1591,7 +1591,7 @@ void read_params( struct task* task, struct params* params ) {
       param->type = type;
       param->next = NULL;
       param->name = NULL;
-      param->expr = NULL;
+      param->default_value = NULL;
       param->index = 0;
       param->obj_pos = 0;
       ++params->max;
@@ -1608,14 +1608,14 @@ void read_params( struct task* task, struct params* params ) {
          t_init_read_expr( &expr );
          expr.skip_assign = true;
          t_read_expr( task, &expr );
-         param->expr = expr.node;
+         param->default_value = expr.node;
          if ( params->script ) {
             t_diag( task, DIAG_POS_ERR, &pos, "default parameter in script" );
             t_bail( task );
          }
       }
       else {
-         if ( tail && tail->expr ) {
+         if ( tail && tail->default_value ) {
             t_diag( task, DIAG_POS_ERR, &pos,
                "parameter missing default value" );
             t_bail( task );
@@ -2948,11 +2948,11 @@ void test_func( struct task* task, struct func* func, bool undef_err ) {
       // Default arguments:
       struct param* param = start;
       while ( param ) {
-         if ( param->expr ) {
+         if ( param->default_value ) {
             struct expr_test expr;
             t_init_expr_test( &expr );
             expr.undef_err = undef_err;
-            t_test_expr( task, &expr, param->expr );
+            t_test_expr( task, &expr, param->default_value );
             if ( expr.undef_erred ) {
                break;
             }
@@ -3002,11 +3002,11 @@ void test_func( struct task* task, struct func* func, bool undef_err ) {
          param = param->next;
       }
       while ( param ) {
-         if ( param->expr ) {
+         if ( param->default_value ) {
             struct expr_test expr;
             t_init_expr_test( &expr );
             expr.undef_err = undef_err;
-            t_test_expr( task, &expr, param->expr );
+            t_test_expr( task, &expr, param->default_value );
             if ( expr.undef_erred ) {
                return;
             }
@@ -3317,8 +3317,8 @@ void count_string_usage( struct task* task ) {
       count_string_usage_node( &impl->body->node );
       struct param* param = func->params;
       while ( param ) {
-         if ( param->expr ) {
-            count_string_usage_node( &param->expr->node );
+         if ( param->default_value ) {
+            count_string_usage_node( &param->default_value->node );
          }
          param = param->next;
       }
@@ -3344,7 +3344,7 @@ void count_string_usage_node( struct node* node ) {
    }
    else if ( node->type == NODE_IF ) {
       struct if_stmt* stmt = ( struct if_stmt* ) node;
-      count_string_usage_node( &stmt->expr->node );
+      count_string_usage_node( &stmt->cond->node );
       count_string_usage_node( stmt->body );
       if ( stmt->else_body ) {
          count_string_usage_node( stmt->else_body );
@@ -3352,53 +3352,44 @@ void count_string_usage_node( struct node* node ) {
    }
    else if ( node->type == NODE_SWITCH ) {
       struct switch_stmt* stmt = ( struct switch_stmt* ) node;
-      count_string_usage_node( &stmt->expr->node );
+      count_string_usage_node( &stmt->cond->node );
       count_string_usage_node( stmt->body );
    }
    else if ( node->type == NODE_CASE ) {
       struct case_label* label = ( struct case_label* ) node;
-      count_string_usage_node( &label->expr->node );
+      count_string_usage_node( &label->number->node );
    }
    else if ( node->type == NODE_WHILE ) {
       struct while_stmt* stmt = ( struct while_stmt* ) node;
-      count_string_usage_node( &stmt->expr->node );
+      count_string_usage_node( &stmt->cond->node );
       count_string_usage_node( stmt->body );
    }
    else if ( node->type == NODE_FOR ) {
       struct for_stmt* stmt = ( struct for_stmt* ) node;
       // Initialization.
-      if ( list_size( &stmt->vars ) ) {
-         list_iter_t i;
-         list_iter_init( &i, &stmt->vars );
-         while ( ! list_end( &i ) ) {
-            count_string_usage_node( list_data( &i ) );
-            list_next( &i );
-         }
-      }
-      else {
-         struct expr_link* link = stmt->init;
-         while ( link ) {
-            count_string_usage_node( &link->expr->node );
-            link = link->next;
-         }
+      list_iter_t i;
+      list_iter_init( &i, &stmt->init );
+      while ( ! list_end( &i ) ) {
+         count_string_usage_node( list_data( &i ) );
+         list_next( &i );
       }
       // Condition.
       if ( stmt->cond ) {
          count_string_usage_node( &stmt->cond->node );
       }
       // Post expression.
-      struct expr_link* link = stmt->post;
-      while ( link ) {
-         count_string_usage_node( &link->expr->node );
-         link = link->next;
+      list_iter_init( &i, &stmt->post );
+      while ( ! list_end( &i ) ) {
+         count_string_usage_node( list_data( &i ) );
+         list_next( &i );
       }
       // Body.
       count_string_usage_node( stmt->body );
    }
    else if ( node->type == NODE_RETURN ) {
       struct return_stmt* stmt = ( struct return_stmt* ) node;
-      if ( stmt->packed_expr ) {
-         count_string_usage_node( &stmt->packed_expr->node );
+      if ( stmt->return_value ) {
+         count_string_usage_node( &stmt->return_value->node );
       }
    }
    else if ( node->type == NODE_FORMAT_ITEM ) {
@@ -3482,7 +3473,7 @@ void count_string_usage_node( struct node* node ) {
       }
       // Default arguments:
       while ( param ) {
-         count_string_usage_node( &param->expr->node );
+         count_string_usage_node( &param->default_value->node );
          param = param->next;
       }
    }

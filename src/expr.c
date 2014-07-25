@@ -1361,7 +1361,7 @@ void test_call( struct task* task, struct expr_test* test,
       }
    }
    call->func = callee.func;
-   operand->type = callee.func->value;
+   operand->type = callee.func->return_type;
    operand->is_result = true;
    // Only functions that return a value produce a usable value.
    if ( operand->type ) {

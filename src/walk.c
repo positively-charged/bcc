@@ -336,7 +336,7 @@ void visit_script_jump( struct task* task, struct script_jump* stmt ) {
 
 void visit_label( struct task* task, struct label* label ) {
    label->obj_pos = t_tell( task );
-   struct goto_stmt* stmt = label->stmts;
+   struct goto_stmt* stmt = label->users;
    while ( stmt ) {
       if ( stmt->obj_pos ) {
          t_seek( task, stmt->obj_pos );
@@ -666,7 +666,7 @@ void visit_ext_call( struct task* task, struct operand* operand,
    int count = list_size( &call->args );
    int skipped = 0;
    while ( param ) {
-      if ( param->expr->folded && ! param->expr->value ) {
+      if ( param->default_value->folded && ! param->default_value->value ) {
          ++skipped;
       }
       else {
@@ -676,10 +676,7 @@ void visit_ext_call( struct task* task, struct operand* operand,
             t_add_arg( task, 0 );
             --skipped;
          }
-         struct operand arg;
-         init_operand( &arg );
-         arg.push = true;
-         visit_operand( task, &arg, param->expr->root );
+         push_expr( task, param->default_value, false );
          ++count;
       }
       param = param->next;
@@ -688,7 +685,7 @@ void visit_ext_call( struct task* task, struct operand* operand,
    t_add_opc( task, PCD_CALLFUNC );
    t_add_arg( task, count );
    t_add_arg( task, impl->id );
-   if ( call->func->value ) {
+   if ( call->func->return_type ) {
       operand->pushed = true;
    }
 }
@@ -706,14 +703,11 @@ void visit_ded_call( struct task* task, struct operand* operand,
    }
    // Default arguments.
    while ( param ) {
-      struct operand arg;
-      init_operand( &arg );
-      arg.push = true;
-      visit_operand( task, &arg, param->expr->root );
+      push_expr( task, param->default_value, false );
       param = param->next;
    }
    t_add_opc( task, ded->opcode );
-   if ( call->func->value ) {
+   if ( call->func->return_type ) {
       operand->pushed = true;
    }
 }
@@ -741,7 +735,7 @@ void visit_user_call( struct task* task, struct operand* operand,
       t_add_arg( task, list_size( &call->args ) );
    }
    struct func_user* impl = call->func->impl;
-   if ( call->func->value ) {
+   if ( call->func->return_type ) {
       t_add_opc( task, PCD_CALL );
       t_add_arg( task, impl->index );
       operand->pushed = true;
@@ -832,7 +826,7 @@ void visit_format_call( struct task* task, struct operand* operand,
    }
    struct func_format* format = call->func->impl;
    t_add_opc( task, format->opcode );
-   if ( call->func->value ) {
+   if ( call->func->return_type ) {
       operand->pushed = true;
    }
 } 
@@ -1393,7 +1387,7 @@ void dec_element( struct task* task, int storage, int index ) {
 }
 
 void visit_if( struct task* task, struct if_stmt* stmt ) {
-   push_expr( task, stmt->expr, true );
+   push_expr( task, stmt->cond, true );
    int cond = t_tell( task );
    t_add_opc( task, PCD_IFNOTGOTO );
    t_add_arg( task, 0 );
@@ -1418,7 +1412,7 @@ void visit_if( struct task* task, struct if_stmt* stmt ) {
 }
 
 void visit_switch( struct task* task, struct switch_stmt* stmt ) {
-   push_expr( task, stmt->expr, true );
+   push_expr( task, stmt->cond, true );
    int num_cases = 0;
    struct case_label* label = stmt->case_head;
    while ( label ) {
@@ -1446,7 +1440,7 @@ void visit_switch( struct task* task, struct switch_stmt* stmt ) {
       t_add_arg( task, num_cases );
       label = stmt->case_head;
       while ( label ) {
-         t_add_arg( task, label->expr->value );
+         t_add_arg( task, label->number->value );
          t_add_arg( task, label->offset );
          label = label->next;
       }
@@ -1470,18 +1464,18 @@ void visit_while( struct task* task, struct while_stmt* stmt ) {
    int done = 0;
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
       int jump = 0;
-      if ( ! stmt->expr->folded || (
-         ( stmt->type == WHILE_WHILE && ! stmt->expr->value ) ||
-         ( stmt->type == WHILE_UNTIL && stmt->expr->value ) ) ) {
+      if ( ! stmt->cond->folded || (
+         ( stmt->type == WHILE_WHILE && ! stmt->cond->value ) ||
+         ( stmt->type == WHILE_UNTIL && stmt->cond->value ) ) ) {
          jump = t_tell( task );
          t_add_opc( task, PCD_GOTO );
          t_add_arg( task, 0 );
       }
       int body = t_tell( task );
       visit_node( task, stmt->body );
-      if ( stmt->expr->folded ) {
-         if ( ( stmt->type == WHILE_WHILE && stmt->expr->value ) ||
-            ( stmt->type == WHILE_UNTIL && ! stmt->expr->value ) ) {
+      if ( stmt->cond->folded ) {
+         if ( ( stmt->type == WHILE_WHILE && stmt->cond->value ) ||
+            ( stmt->type == WHILE_UNTIL && ! stmt->cond->value ) ) {
             t_add_opc( task, PCD_GOTO );
             t_add_arg( task, body );
             done = t_tell( task );
@@ -1497,7 +1491,7 @@ void visit_while( struct task* task, struct while_stmt* stmt ) {
       }
       else {
          test = t_tell( task );
-         push_expr( task, stmt->expr, true );
+         push_expr( task, stmt->cond, true );
          int code = PCD_IFGOTO;
          if ( stmt->type == WHILE_UNTIL ) {
             code = PCD_IFNOTGOTO;
@@ -1515,10 +1509,10 @@ void visit_while( struct task* task, struct while_stmt* stmt ) {
       int body = t_tell( task );
       visit_node( task, stmt->body );
       // Condition:
-      if ( stmt->expr->folded ) {
+      if ( stmt->cond->folded ) {
          // Optimization: Only loop when the condition is satisfied.
-         if ( ( stmt->type == WHILE_DO_WHILE && stmt->expr->value ) ||
-            ( stmt->type == WHILE_DO_UNTIL && ! stmt->expr->value ) ) {
+         if ( ( stmt->type == WHILE_DO_WHILE && stmt->cond->value ) ||
+            ( stmt->type == WHILE_DO_UNTIL && ! stmt->cond->value ) ) {
             t_add_opc( task, PCD_GOTO );
             t_add_arg( task, body );
             done = t_tell( task );
@@ -1531,7 +1525,7 @@ void visit_while( struct task* task, struct while_stmt* stmt ) {
       }
       else {
          test = t_tell( task );
-         push_expr( task, stmt->expr, true );
+         push_expr( task, stmt->cond, true );
          int code = PCD_IFGOTO;
          if ( stmt->type == WHILE_DO_UNTIL ) {
             code = PCD_IFNOTGOTO;
@@ -1567,20 +1561,21 @@ void visit_while( struct task* task, struct while_stmt* stmt ) {
 // <done>
 void visit_for( struct task* task, struct for_stmt* stmt ) {
    // Initialization.
-   if ( stmt->init ) {
-      struct expr_link* link = stmt->init;
-      while ( link ) {
-         visit_expr( task, link->expr );
-         link = link->next;
+   list_iter_t i;
+   list_iter_init( &i, &stmt->init );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      switch ( node->type ) {
+      case NODE_EXPR:
+         visit_expr( task, ( struct expr* ) node );
+         break;
+      case NODE_VAR:
+         visit_var( task, ( struct var* ) node );
+         break;
+      default:
+         break;
       }
-   }
-   else if ( list_size( &stmt->vars ) ) {
-      list_iter_t i;
-      list_iter_init( &i, &stmt->vars );
-      while ( ! list_end( &i ) ) {
-         visit_var( task, list_data( &i ) );
-         list_next( &i );
-      }
+      list_next( &i );
    }
    // Jump to condition.
    int jump = 0;
@@ -1596,12 +1591,10 @@ void visit_for( struct task* task, struct for_stmt* stmt ) {
    visit_node( task, stmt->body );
    // Post expressions.
    int post = t_tell( task );
-   if ( stmt->post ) {
-      struct expr_link* link = stmt->post;
-      while ( link ) {
-         visit_expr( task, link->expr );
-         link = link->next;
-      }
+   list_iter_init( &i, &stmt->post );
+   while ( ! list_end( &i ) ) {
+      visit_expr( task, list_data( &i ) );
+      list_next( &i );
    }
    // Condition.
    int test = 0;
@@ -1660,8 +1653,8 @@ void add_jumps( struct task* task, struct jump* jump, int pos ) {
 }
 
 void visit_return( struct task* task, struct return_stmt* stmt ) {
-   if ( stmt->packed_expr ) {
-      push_expr( task, stmt->packed_expr->expr, false );
+   if ( stmt->return_value ) {
+      push_expr( task, stmt->return_value->expr, false );
       t_add_opc( task, PCD_RETURNVAL );
    }
    else {
@@ -1698,7 +1691,7 @@ void visit_paltrans( struct task* task, struct paltrans* trans ) {
 void add_default_params( struct task* task, struct func* func ) {
    // Find first default parameter.
    struct param* param = func->params;
-   while ( param && ! param->expr ) {
+   while ( param && ! param->default_value ) {
       param = param->next;
    }
    int num = 0;
@@ -1706,7 +1699,7 @@ void add_default_params( struct task* task, struct func* func ) {
    struct param* start = param;
    while ( param ) {
       ++num;
-      if ( ! param->expr->folded || param->expr->value ) {
+      if ( ! param->default_value->folded || param->default_value->value ) {
          num_cases = num;
       }
       param = param->next;
@@ -1733,8 +1726,8 @@ void add_default_params( struct task* task, struct func* func ) {
       param = start;
       while ( param ) {
          param->obj_pos = t_tell( task );
-         if ( ! param->expr->folded || param->expr->value ) {
-            push_expr( task, param->expr, false );
+         if ( ! param->default_value->folded || param->default_value->value ) {
+            push_expr( task, param->default_value, false );
             update_indexed( task, STORAGE_LOCAL, param->index, AOP_NONE );
          }
          param = param->next;

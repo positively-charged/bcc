@@ -142,11 +142,6 @@ struct token {
    struct pos pos;
    enum tk type;
    int length;
-   struct token* next;
-   bool is_dirc_hash;
-   bool is_id;
-   bool reread;
-   bool space_before;
 };
 
 struct source {
@@ -174,7 +169,7 @@ struct node {
       NODE_UNARY,
       NODE_BINARY,
       NODE_EXPR,
-      NODE_EXPR_LINK,
+      NODE_INDEXED_STRING_USAGE,
       NODE_JUMP,
       NODE_SCRIPT_JUMP,
       NODE_IF,
@@ -214,8 +209,7 @@ struct node {
       NODE_REGION_UPMOST,
       // 40
       NODE_SCRIPT,
-      NODE_PACKED_EXPR,
-      NODE_INDEXED_STRING_USAGE
+      NODE_PACKED_EXPR
    } type;
 };
 
@@ -389,12 +383,6 @@ struct expr {
    bool has_str;
 };
 
-struct expr_link {
-   struct node node;
-   struct expr_link* next;
-   struct expr* expr;
-};
-
 struct packed_expr {
    struct node node;
    struct expr* expr;
@@ -425,7 +413,7 @@ struct script_jump {
 
 struct return_stmt {
    struct node node;
-   struct packed_expr* packed_expr;
+   struct packed_expr* return_value;
    struct pos pos;
 };
 
@@ -437,7 +425,7 @@ struct block {
 
 struct if_stmt {
    struct node node;
-   struct expr* expr;
+   struct expr* cond;
    struct node* body;
    struct node* else_body;
 };
@@ -445,14 +433,14 @@ struct if_stmt {
 struct case_label {
    struct node node;
    int offset;
-   struct expr* expr;
+   struct expr* number;
    struct case_label* next;
    struct pos pos;
 };
 
 struct switch_stmt {
    struct node node;
-   struct expr* expr;
+   struct expr* cond;
    // Cases are sorted by their value, in ascending order. Default case not
    // included in this list.
    struct case_label* case_head;
@@ -469,7 +457,7 @@ struct while_stmt {
       WHILE_DO_WHILE,
       WHILE_DO_UNTIL
    } type;
-   struct expr* expr;
+   struct expr* cond;
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;
@@ -477,10 +465,9 @@ struct while_stmt {
 
 struct for_stmt {
    struct node node;
-   struct expr_link* init;
-   struct list vars;
+   struct list init;
+   struct list post;
    struct expr* cond;
-   struct expr_link* post;
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;
@@ -546,7 +533,7 @@ struct param {
    struct type* type;
    struct param* next;
    struct name* name;
-   struct expr* expr;
+   struct expr* default_value;
    int index;
    int obj_pos;
 };
@@ -563,7 +550,7 @@ struct func {
    } type;
    struct name* name;
    struct param* params;
-   struct type* value;
+   struct type* return_type;
    void* impl;
    int min_param;
    int max_param;
@@ -675,7 +662,7 @@ struct label {
    int obj_pos;
    struct pos pos;
    char* name;
-   struct goto_stmt* stmts;
+   struct goto_stmt* users;
    struct block* format_block;
    bool defined;
 };
@@ -781,11 +768,6 @@ struct region {
    struct object* unresolved_tail;
    struct list imports;
    struct list items;
-};
-
-struct macro_list {
-   struct macro* head;
-   struct macro* tail;
 };
 
 struct library {
@@ -1344,13 +1326,6 @@ struct task {
    bool push_immediate;
    struct block_visit* block_visit;
    struct block_visit* block_visit_free;
-   int ifdirc_depth;
-   struct macro_list macros;
-   struct macro_expan* macro_expan;
-   struct macro* macro_free;
-   struct macro_param* macro_param_free;
-   bool in_dirc;
-   struct alter_filename* alter_filename;
 };
 
 void t_init( struct task*, struct options*, jmp_buf* );

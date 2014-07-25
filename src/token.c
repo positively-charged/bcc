@@ -14,12 +14,6 @@ struct source_request {
    bool err_loaded_before;
 };
 
-// Alternative name for a source file.
-struct alter_filename {
-   char* name;
-   struct alter_filename* next;
-};
-
 static void load_source( struct task* task, struct source_request* );
 static void init_source_request( struct source_request*, const char* );
 static enum tk peek( struct task*, int );
@@ -37,12 +31,6 @@ void t_init_fields_token( struct task* task ) {
    task->source_main = NULL;
    task->library = NULL;
    task->library_main = NULL;
-   task->macros.head = NULL;
-   task->macros.tail = NULL;
-   task->in_dirc = false;
-   task->macro_free = NULL;
-   task->macro_param_free = NULL;
-   task->alter_filename = NULL;
 }
 
 void t_load_main_source( struct task* task ) {
@@ -263,33 +251,12 @@ void read_source( struct task* task, struct token* token ) {
    int line = 0;
    int column = 0;
    enum tk tk = TK_END;
-   bool is_id = false;
-   bool is_dirc_hash = false;
-   bool space_before;
 
    state_space:
    // -----------------------------------------------------------------------
-   space_before = false;
-   if ( isspace( ch ) ) {
-      space_before = true;
-      while ( isspace( ch ) ) {
-         if ( ch == '\n' ) {
-            task->source->find_dirc = true;
-            if ( task->in_dirc ) {
-               goto state_token;
-            }
-         }
-         ch = read_ch( task );
-      }
+   while ( isspace( ch ) ) {
+      ch = read_ch( task );
    }
-   // Check for a directive.
-   if ( task->source->find_dirc ) {
-      task->source->find_dirc = false;
-      if ( ch == '#' ) {
-         is_dirc_hash = true;
-      }
-   }
-   // FALLTHROUGH
 
    state_token:
    // -----------------------------------------------------------------------
@@ -382,7 +349,6 @@ void read_source( struct task* task, struct token* token ) {
             ++i;
          }
       }
-      is_id = true;
       goto state_finish;
    }
    else if ( ch == '0' ) {
@@ -713,16 +679,6 @@ void read_source( struct task* task, struct token* token ) {
          "`\\` not followed with newline character" );
       t_bail( task );
    }
-   else if ( ch == '\n' ) {
-      tk = TK_NL;
-      ch = read_ch( task );
-      goto state_finish;
-   }
-   else if ( is_dirc_hash ) {
-      tk = TK_HASH;
-      ch = read_ch( task );
-      goto state_finish;
-   }
    // End.
    else if ( ! ch ) {
       tk = TK_END;
@@ -801,16 +757,7 @@ void read_source( struct task* task, struct token* token ) {
       }
       else if ( ch == '"' ) {
          ch = read_ch( task );
-         // During preprocessing, adjacent string tokens are not concatenated.
-         if ( task->in_dirc ) {
-            *save = 0;
-            ++save;
-            tk = TK_LIT_STRING;
-            goto state_finish;
-         }
-         else {
-            goto state_string_concat;
-         }
+         goto state_string_concat;
       }
       else if ( ch == '\\' ) {
          ch = read_ch( task );
@@ -898,11 +845,6 @@ void read_source( struct task* task, struct token* token ) {
    token->pos.line = line;
    token->pos.column = column;
    token->pos.id = task->source->active_id;
-   token->next = NULL;
-   token->is_dirc_hash = is_dirc_hash;
-   token->is_id = is_id;
-   token->reread = false;
-   token->space_before = space_before;
    task->source->ch = ch;
 }
 
@@ -1326,35 +1268,18 @@ void diag_acc( struct task* task, int flags, va_list* args ) {
 
 void make_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column ) {
-   // Path of source file:
-   if ( pos->id >= 0 ) {
-      struct source* source = NULL;
-      list_iter_t i;
-      list_iter_init( &i, &task->loaded_sources );
-      while ( ! list_end( &i ) ) {
-         source = list_data( &i );
-         if ( source->id == pos->id ) {
-            break;
-         }
-         list_next( &i );
+   // Path of source file.
+   struct source* source = NULL;
+   list_iter_t i;
+   list_iter_init( &i, &task->loaded_sources );
+   while ( ! list_end( &i ) ) {
+      source = list_data( &i );
+      if ( source->id == pos->id ) {
+         break;
       }
-      *file = source->path.value;
+      list_next( &i );
    }
-   // Custom name:
-   else {
-      struct alter_filename* alter = task->alter_filename;
-      int id = pos->id;
-      while ( id != -1 ) {
-         alter = alter->next;
-         ++id;
-      }
-      if ( alter->name[ 0 ] ) {
-         *file = alter->name;
-      }
-      else {
-         *file = "(blank)";
-      }
-   }
+   *file = source->path.value;
    *line = pos->line;
    *column = pos->column;
    if ( task->options->one_column ) {

@@ -366,7 +366,7 @@ void do_func( struct task* task ) {
             if ( func->min_param != func->max_param ) {
                ++entry.params;
             }
-            entry.value = ( char ) ( func->value != NULL );
+            entry.value = ( char ) ( func->return_type != NULL );
             t_add_sized( task, &entry, sizeof( entry ) );
          }
          list_next( &k );
@@ -383,7 +383,7 @@ void do_func( struct task* task ) {
          ++entry.params;
       }
       entry.size = ( char ) impl->size;
-      entry.value = ( char ) ( func->value != NULL );
+      entry.value = ( char ) ( func->return_type != NULL );
       entry.offset = impl->obj_pos;
       t_add_sized( task, &entry, sizeof( entry ) );
       list_next( &i );
