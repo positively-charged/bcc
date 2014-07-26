@@ -25,6 +25,9 @@ static void read_palrange_rgb_field( struct task*, struct expr**,
 static void read_packed_expr( struct task*, struct stmt_read* );
 static struct label* new_label( char*, struct pos );
 static void link_usable_strings( struct task* );
+static void add_usable_string( struct indexed_string**,
+   struct indexed_string**, struct indexed_string* );
+static void alloc_string_indexes( struct task* );
 static void test_block_item( struct task*, struct stmt_test*, struct node* );
 static void test_case( struct task*, struct stmt_test*, struct case_label* );
 static void test_default_case( struct task*, struct stmt_test*,
@@ -74,6 +77,7 @@ void t_read( struct task* task ) {
    t_read_tk( task );
    t_read_lib( task );
    link_usable_strings( task );
+   alloc_string_indexes( task );
 }
 
 struct path* t_read_path( struct task* task ) {
@@ -717,44 +721,54 @@ struct label* new_label( char* name, struct pos pos ) {
 void link_usable_strings( struct task* task ) {
    // Link together the strings that have the potential to be used. To reduce
    // the number of unused indexes that have to be published, we want used
-   // strings to appear first. This is to try and prevent the case where you
-   // have a string with index, say, 20 that is used, and all strings before
-   // are not, but you still have to publish the other 20 indexes because it
-   // is required by the format of the STRL chunk.
+   // strings to appear first. This is done to try and prevent the case where
+   // you have a string with index, say, 20 that is used, and all strings
+   // before are not, but you still have to publish the other 20 indexes
+   // because it is required by the format of the STRL chunk.
    struct indexed_string* head = NULL;
    struct indexed_string* tail;
-   // Strings of the current library appear first.
+   // Strings in main file of the library appear first.
    struct indexed_string* string = task->str_table.head;
    while ( string ) {
-      if ( ! string->imported ) {
-         if ( head ) {
-            tail->next_usable = string;
-         }
-         else {
-            head = string;
-         }
-         tail = string;
+      if ( ! string->imported && string->in_main_file ) {
+         add_usable_string( &head, &tail, string );
       }
       string = string->next;
    }
-   // In imported libraries, only strings in a constant are useful.
+   // Strings part of the library but found in a secondary file appear next.
    string = task->str_table.head;
-   while ( string ) { 
+   while ( string ) {
+      if ( ! string->imported && ! string->in_main_file ) {
+         add_usable_string( &head, &tail, string );
+      }
+      string = string->next;
+   }
+   // Strings in an imported library follow. Only a string found in a constant
+   // is useful.
+   string = task->str_table.head;
+   while ( string ) {
       if ( string->imported && string->in_constant ) {
-         if ( head ) {
-            tail->next_usable = string;
-         }
-         else {
-            head = string;
-         }
-         tail = string;
+         add_usable_string( &head, &tail, string );
       }
       string = string->next;
    }
    task->str_table.head_usable = head;
-   // Allocate string indexes.
+}
+
+void add_usable_string( struct indexed_string** head,
+   struct indexed_string** tail, struct indexed_string* string ) {
+   if ( *head ) {
+      ( *tail )->next_usable = string;
+   }
+   else {
+      *head = string;
+   }
+   *tail = string;
+}
+
+void alloc_string_indexes( struct task* task ) {
    int index = 0;
-   string = head;
+   struct indexed_string* string = task->str_table.head_usable;
    while ( string ) {
       string->index = index;
       ++index;

@@ -497,6 +497,12 @@ void read_string( struct task* task, struct read_expr* expr,
       else {
          string->imported = false;
       }
+      if ( task->source == task->source_main ) {
+         string->in_main_file = true;
+      }
+      else {
+         string->in_main_file = false;
+      }
       // Insert based on appearance.
       if ( task->str_table.head ) {
          task->str_table.tail->next = string;
