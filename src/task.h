@@ -888,6 +888,7 @@ struct expr_test {
    bool undef_err;
    bool undef_erred;
    bool accept_array;
+   bool suggest_paren_assign;
 };
 
 #define BUFFER_SIZE 65536

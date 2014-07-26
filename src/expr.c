@@ -19,6 +19,7 @@ struct operand {
    bool folded;
    bool state_access;
    bool state_modify;
+   bool in_paren;
 };
 
 static void read_op( struct task*, struct read_expr*, struct read* );
@@ -778,6 +779,7 @@ void t_init_expr_test( struct expr_test* test ) {
    test->undef_err = false;
    test->undef_erred = false;
    test->accept_array = false;
+   test->suggest_paren_assign = false;
 }
 
 void init_operand( struct operand* operand ) {
@@ -793,6 +795,7 @@ void init_operand( struct operand* operand ) {
    operand->folded = false;
    operand->state_access = false;
    operand->state_modify = false;
+   operand->in_paren = false;
 }
 
 void t_test_expr( struct task* task, struct expr_test* test,
@@ -869,8 +872,10 @@ void test_node( struct task* task, struct expr_test* test,
       break;
    case NODE_PAREN:
       {
+         operand->in_paren = true;
          struct paren* paren = ( struct paren* ) node;
          test_node( task, test, operand, paren->inside );
+         operand->in_paren = false;
       }
       break;
    default:
@@ -1509,6 +1514,13 @@ void test_binary( struct task* task, struct expr_test* test,
 
 void test_assign( struct task* task, struct expr_test* test,
    struct operand* operand, struct assign* assign ) {
+   // To avoid the error where the user wanted equality operator but instead
+   // typed in the assignment operator, suggest that assignment be wrapped in
+   // parentheses.
+   if ( test->suggest_paren_assign && ! operand->in_paren ) {
+      t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &assign->pos, "assignment operation not in parentheses" );
+   }
    struct operand lside;
    init_operand( &lside );
    lside.name_offset = operand->name_offset;

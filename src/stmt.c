@@ -964,6 +964,7 @@ void test_if( struct task* task, struct stmt_test* test,
    struct expr_test expr;
    t_init_expr_test( &expr );
    expr.undef_err = true;
+   expr.suggest_paren_assign = true;
    t_test_expr( task, &expr, stmt->cond );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
@@ -995,6 +996,7 @@ void test_while( struct task* task, struct stmt_test* test,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
+      expr.suggest_paren_assign = true;
       t_test_expr( task, &expr, stmt->cond );
    }
    struct stmt_test body;
@@ -1007,6 +1009,7 @@ void test_while( struct task* task, struct stmt_test* test,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
+      expr.suggest_paren_assign = true;
       t_test_expr( task, &expr, stmt->cond );
    }
 }
@@ -1036,6 +1039,7 @@ void test_for( struct task* task, struct stmt_test* test,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = true;
+      expr.suggest_paren_assign = true;
       t_test_expr( task, &expr, stmt->cond );
    }
    // Post expressions.
