@@ -15,6 +15,7 @@ static void print_usage( char* );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
+   mem_init();
    // When no options are given, show the help information.
    if ( argc == 1 ) {
       print_usage( argv[ 0 ] );

@@ -10,6 +10,7 @@
 #   define OS_WINDOWS 0
 #endif
 
+void mem_init( void );
 void* mem_alloc( size_t );
 void* mem_realloc( void*, size_t );
 void* mem_slot_alloc( size_t );
