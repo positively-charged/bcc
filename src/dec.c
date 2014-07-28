@@ -66,16 +66,9 @@ enum {
    TYPE_VOID
 };
 
-struct script_read {
-   struct pos pos;
+struct script_reading {
+   struct script* script;
    struct pos param_pos;
-   struct list labels;
-   struct expr* number;
-   struct param* params;
-   struct node* body;
-   int type;
-   int flags;
-   int num_param;
 };
 
 static struct name* new_name( void );
@@ -100,11 +93,13 @@ static void test_script( struct task*, struct script* );
 static void read_func( struct task*, struct dec* );
 static void read_bfunc( struct task*, struct func* );
 static void read_script( struct task* );
-static void read_script_number( struct task*, struct script_read* );
-static void read_script_param( struct task*, struct script_read* );
-static void read_script_type( struct task*, struct script_read* );
-static void read_script_flag( struct task*, struct script_read* );
-static void read_script_body( struct task*, struct script_read* );
+static void read_script_number( struct task*, struct script* );
+static void read_script_params( struct task*, struct script*,
+   struct script_reading* );
+static void read_script_type( struct task*, struct script*,
+   struct script_reading* );
+static void read_script_flag( struct task*, struct script* );
+static void read_script_body( struct task*, struct script* );
 static void read_name( struct task*, struct dec* );
 static void read_dim( struct task*, struct dec* );
 static void read_init( struct task*, struct dec* );
@@ -1760,40 +1755,33 @@ void read_bfunc( struct task* task, struct func* func ) {
 
 void read_script( struct task* task ) {
    t_test_tk( task, TK_SCRIPT );
-   struct script_read read;
-   read.pos = task->tk_pos;
-   list_init( &read.labels );
-   read.number = NULL;
-   read.params = NULL;
-   read.body = NULL;
-   read.type = SCRIPT_TYPE_CLOSED;
-   read.flags = 0;
-   read.num_param = 0;
+   struct pos pos = task->tk_pos;
    t_read_tk( task );
-   read_script_number( task, &read );
-   read_script_param( task, &read );
-   read_script_type( task, &read );
-   read_script_flag( task, &read );
-   read_script_body( task, &read );
    struct script* script = mem_alloc( sizeof( *script ) );
    script->node.type = NODE_SCRIPT;
-   script->pos = read.pos;
-   script->number = read.number;
-   script->type = read.type;
-   script->flags = read.flags;
-   script->params = read.params;
-   script->body = read.body;
-   script->labels = read.labels;
-   script->num_param = read.num_param;
+   script->pos = pos;
+   script->number = NULL;
+   script->type = SCRIPT_TYPE_CLOSED;
+   script->flags = 0;
+   script->params = NULL;
+   script->body = NULL;
+   list_init( &script->labels );
+   script->num_param = 0;
    script->offset = 0;
    script->size = 0;
    script->tested = false;
    script->publish = false;
+   struct script_reading reading;
+   read_script_number( task, script );
+   read_script_params( task, script, &reading );
+   read_script_type( task, script, &reading );
+   read_script_flag( task, script );
+   read_script_body( task, script );
    list_append( &task->library->scripts, script );
    list_append( &task->region->items, script );
 }
 
-void read_script_number( struct task* task, struct script_read* reading ) {
+void read_script_number( struct task* task, struct script* script ) {
    if ( task->tk == TK_SHIFT_L ) {
       t_read_tk( task );
       // The token between the << and >> tokens must be the digit zero.
@@ -1814,12 +1802,13 @@ void read_script_number( struct task* task, struct script_read* reading ) {
       struct expr_reading number;
       t_init_expr_reading( &number, false, false, true );
       t_read_expr( task, &number );
-      reading->number = number.output_node;
+      script->number = number.output_node;
    }
 }
 
-void read_script_param( struct task* task, struct script_read* read ) {
-   read->param_pos = task->tk_pos;
+void read_script_params( struct task* task, struct script* script,
+   struct script_reading* reading ) {
+   reading->param_pos = task->tk_pos;
    if ( task->tk == TK_PAREN_L ) {
       t_read_tk( task );
       if ( task->tk == TK_PAREN_R ) {
@@ -1830,67 +1819,69 @@ void read_script_param( struct task* task, struct script_read* read ) {
          init_params( &params );
          params.script = true;
          read_params( task, &params );
-         read->params = params.node;
-         read->num_param = params.max;
+         script->params = params.node;
+         script->num_param = params.max;
          t_test_tk( task, TK_PAREN_R );
          t_read_tk( task );
       }
    }
 }
 
-void read_script_type( struct task* task, struct script_read* read ) {
+void read_script_type( struct task* task, struct script* script,
+   struct script_reading* reading ) {
    switch ( task->tk ) {
-   case TK_OPEN: read->type = SCRIPT_TYPE_OPEN; break;
-   case TK_RESPAWN: read->type = SCRIPT_TYPE_RESPAWN; break;
-   case TK_DEATH: read->type = SCRIPT_TYPE_DEATH; break;
-   case TK_ENTER: read->type = SCRIPT_TYPE_ENTER; break;
-   case TK_PICKUP: read->type = SCRIPT_TYPE_PICKUP; break;
-   case TK_BLUE_RETURN: read->type = SCRIPT_TYPE_BLUE_RETURN; break;
-   case TK_RED_RETURN: read->type = SCRIPT_TYPE_RED_RETURN; break;
-   case TK_WHITE_RETURN: read->type = SCRIPT_TYPE_WHITE_RETURN; break;
-   case TK_LIGHTNING: read->type = SCRIPT_TYPE_LIGHTNING; break;
-   case TK_DISCONNECT: read->type = SCRIPT_TYPE_DISCONNECT; break;
-   case TK_UNLOADING: read->type = SCRIPT_TYPE_UNLOADING; break;
-   case TK_RETURN: read->type = SCRIPT_TYPE_RETURN; break;
-   case TK_EVENT: read->type = SCRIPT_TYPE_EVENT; break;
+   case TK_OPEN: script->type = SCRIPT_TYPE_OPEN; break;
+   case TK_RESPAWN: script->type = SCRIPT_TYPE_RESPAWN; break;
+   case TK_DEATH: script->type = SCRIPT_TYPE_DEATH; break;
+   case TK_ENTER: script->type = SCRIPT_TYPE_ENTER; break;
+   case TK_PICKUP: script->type = SCRIPT_TYPE_PICKUP; break;
+   case TK_BLUE_RETURN: script->type = SCRIPT_TYPE_BLUE_RETURN; break;
+   case TK_RED_RETURN: script->type = SCRIPT_TYPE_RED_RETURN; break;
+   case TK_WHITE_RETURN: script->type = SCRIPT_TYPE_WHITE_RETURN; break;
+   case TK_LIGHTNING: script->type = SCRIPT_TYPE_LIGHTNING; break;
+   case TK_DISCONNECT: script->type = SCRIPT_TYPE_DISCONNECT; break;
+   case TK_UNLOADING: script->type = SCRIPT_TYPE_UNLOADING; break;
+   case TK_RETURN: script->type = SCRIPT_TYPE_RETURN; break;
+   case TK_EVENT: script->type = SCRIPT_TYPE_EVENT; break;
    default: break;
    }
-   if ( read->type == SCRIPT_TYPE_CLOSED ) {
-      if ( read->num_param > SCRIPT_MAX_PARAMS ) {
-         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+   // Correct number of parameters need to be specified for a script type.
+   if ( script->type == SCRIPT_TYPE_CLOSED ) {
+      if ( script->num_param > SCRIPT_MAX_PARAMS ) {
+         t_diag( task, DIAG_POS_ERR, &reading->param_pos,
             "script has over %d parameters", SCRIPT_MAX_PARAMS );
          t_bail( task );
       }
    }
-   else if ( read->type == SCRIPT_TYPE_DISCONNECT ) {
+   else if ( script->type == SCRIPT_TYPE_DISCONNECT ) {
       // A disconnect script must have a single parameter. It is the number of
-      // the player who disconnected from the server.
-      if ( read->num_param < 1 ) {
-         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+      // the player who exited the game.
+      if ( script->num_param < 1 ) {
+         t_diag( task, DIAG_POS_ERR, &reading->param_pos,
             "disconnect script missing player-number parameter" );
          t_bail( task );
       }
-      if ( read->num_param > 1 ) {
-         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+      if ( script->num_param > 1 ) {
+         t_diag( task, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in disconnect script" );
          t_bail( task );
 
       }
       t_read_tk( task );
    }
-   else if ( read->type == SCRIPT_TYPE_EVENT ) {
-      if ( read->num_param != 3 ) {
-         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+   else if ( script->type == SCRIPT_TYPE_EVENT ) {
+      if ( script->num_param != 3 ) {
+         t_diag( task, DIAG_POS_ERR, &reading->param_pos,
             "incorrect number of parameters in event script" );
-         t_diag( task, DIAG_FILE, &read->param_pos,
+         t_diag( task, DIAG_FILE, &reading->param_pos,
             "an event script takes exactly 3 parameters" );
          t_bail( task );
       }
       t_read_tk( task );
    }
    else {
-      if ( read->num_param ) {
-         t_diag( task, DIAG_POS_ERR, &read->param_pos,
+      if ( script->num_param ) {
+         t_diag( task, DIAG_POS_ERR, &reading->param_pos,
             "parameter list of %s script not empty", task->tk_text );
          t_bail( task );
       }
@@ -1898,7 +1889,7 @@ void read_script_type( struct task* task, struct script_read* read ) {
    }
 }
 
-void read_script_flag( struct task* task, struct script_read* read ) {
+void read_script_flag( struct task* task, struct script* script ) {
    while ( true ) {
       int flag = SCRIPT_FLAG_NET;
       if ( task->tk != TK_NET ) {
@@ -1909,8 +1900,8 @@ void read_script_flag( struct task* task, struct script_read* read ) {
             break;
          }
       }
-      if ( ! ( read->flags & flag ) ) {
-         read->flags |= flag;
+      if ( ! ( script->flags & flag ) ) {
+         script->flags |= flag;
          t_read_tk( task );
       }
       else {
@@ -1921,12 +1912,12 @@ void read_script_flag( struct task* task, struct script_read* read ) {
    }
 }
 
-void read_script_body( struct task* task, struct script_read* read ) {
+void read_script_body( struct task* task, struct script* script ) {
    struct stmt_read stmt;
    t_init_stmt_read( &stmt );
-   stmt.labels = &read->labels;
+   stmt.labels = &script->labels;
    t_read_stmt( task, &stmt );
-   read->body = stmt.node;
+   script->body = stmt.node;
 }
 
 void t_test( struct task* task ) {
