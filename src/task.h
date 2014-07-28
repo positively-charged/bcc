@@ -476,7 +476,7 @@ struct for_stmt {
 struct dim {
    struct dim* next;
    // Number of elements.
-   struct expr* size_expr;
+   struct expr* size_node;
    int size;
    int element_size;
    struct pos pos;
@@ -591,7 +591,7 @@ struct format_item {
    } cast;
    struct pos pos;
    struct format_item* next;
-   struct expr* expr;
+   struct expr* value;
 };
 
 struct format_block_usage {
@@ -718,7 +718,7 @@ struct alias {
 struct constant {
    struct object object;
    struct name* name;
-   struct expr* expr;
+   struct expr* value_node;
    struct constant* next;
    int value;
    int lib_id;
@@ -868,13 +868,13 @@ struct stmt_test {
    bool manual_scope;
 };
 
-struct read_expr {
-   struct expr* node;
-   struct stmt_read* stmt_read;
+struct expr_reading {
+   struct node* node;
+   struct expr* output_node;
    bool has_str;
    bool in_constant;
    bool skip_assign;
-   bool skip_function_call;
+   bool skip_call;
 };
 
 struct expr_test {
@@ -899,9 +899,6 @@ struct buffer {
    int used;
    int pos;
 };
-
-#define SHARED_ARRAY 0
-#define SHARED_ARRAY_STR 1
 
 struct immediate {
    struct immediate* next;
@@ -1330,6 +1327,14 @@ struct task {
    struct block_visit* block_visit_free;
 };
 
+#define DIAG_NONE 0
+#define DIAG_FILE 0x1
+#define DIAG_LINE 0x2
+#define DIAG_COLUMN 0x4
+#define DIAG_WARN 0x8
+#define DIAG_ERR 0x10
+#define DIAG_POS_ERR DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN
+
 void t_init( struct task*, struct options*, jmp_buf* );
 void t_init_fields_token( struct task* );
 void t_init_fields_dec( struct task* );
@@ -1339,14 +1344,10 @@ void t_load_main_source( struct task* );
 void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
 void t_read( struct task* );
-void t_unload_file( struct task*, bool* );
-void t_skip_past( struct task*, char );
 void t_test( struct task* );
 void t_read_stmt( struct task*, struct stmt_read* );
 void t_read_block( struct task*, struct stmt_read* );
 struct name* t_make_name( struct task*, const char*, struct name* );
-void t_use_name( struct name*, struct object* );
-void t_read_script( struct task* );
 struct format_item* t_read_format_item( struct task*, bool colon );
 void t_add_scope( struct task* );
 void t_pop_scope( struct task* );
@@ -1373,8 +1374,9 @@ int t_tell( struct task* );
 void t_flush( struct task* );
 int t_get_script_number( struct script* );
 void t_publish_usercode( struct task* );
-void t_init_read_expr( struct read_expr* );
-void t_read_expr( struct task*, struct read_expr* );
+void t_init_expr_reading( struct expr_reading*, bool in_constant,
+   bool skip_assign, bool skip_func_call );
+void t_read_expr( struct task*, struct expr_reading* );
 bool t_is_dec( struct task* );
 void t_init_dec( struct dec* );
 void t_read_dec( struct task*, struct dec* );
@@ -1391,22 +1393,11 @@ struct object* t_get_region_object( struct task*, struct region*,
    struct name* );
 void diag_dup( struct task*, const char* text, struct pos*, struct name* );
 void diag_dup_struct( struct task*, struct name*, struct pos* );
-struct path* t_read_path( struct task* );
 void t_use_local_name( struct task*, struct name*, struct object* );
 enum tk t_peek( struct task* );
 void t_read_region_body( struct task*, bool is_brace );
 const char* t_get_token_name( enum tk );
-
 void t_print_name( struct name* );
-
-#define DIAG_NONE 0
-#define DIAG_FILE 0x1
-#define DIAG_LINE 0x2
-#define DIAG_COLUMN 0x4
-#define DIAG_WARN 0x8
-#define DIAG_ERR 0x10
-#define DIAG_POS_ERR DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN
-
 void t_diag( struct task*, int flags, ... );
 void t_bail( struct task* );
 void t_read_region( struct task* );

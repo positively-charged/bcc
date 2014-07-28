@@ -99,6 +99,7 @@ static void add_unresolved( struct region*, struct object* );
 static void test_script( struct task*, struct script* );
 static void read_func( struct task*, struct dec* );
 static void read_bfunc( struct task*, struct func* );
+static void read_script( struct task* );
 static void read_script_number( struct task*, struct script_read* );
 static void read_script_param( struct task*, struct script_read* );
 static void read_script_type( struct task*, struct script_read* );
@@ -148,6 +149,8 @@ static void read_dirc( struct task*, struct pos* );
 static void read_include( struct task*, struct pos*, bool );
 static void read_library( struct task*, struct pos* );
 static void read_define( struct task* );
+static struct path* read_path( struct task* );
+static struct path* alloc_path( struct pos );
 
 void t_init_fields_dec( struct task* task ) {
    task->depth = 0;
@@ -379,7 +382,7 @@ void t_read_lib( struct task* task ) {
             t_skip_block( task );
          }
          else {
-            t_read_script( task );
+            read_script( task );
          }
       }
       else if ( task->tk == TK_REGION ) {
@@ -480,7 +483,7 @@ void read_region_body( struct task* task ) {
       }
       else if ( task->tk == TK_SCRIPT ) {
          if ( ! task->library->imported ) {
-            t_read_script( task );
+            read_script( task );
          }
          else {
             t_skip_block( task );
@@ -647,11 +650,10 @@ void read_define( struct task* task ) {
          task->region_upmost->body );
    }
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   expr.in_constant = true;
-   t_read_expr( task, &expr );
-   constant->expr = expr.node;
+   struct expr_reading value;
+   t_init_expr_reading( &value, true, false, false );
+   t_read_expr( task, &value );
+   constant->value_node = value.output_node;
    constant->value = 0;
    constant->hidden = hidden;
    constant->lib_id = task->library->id;
@@ -685,7 +687,7 @@ void t_read_import( struct task* task, struct list* local ) {
    stmt->item = NULL;
    stmt->next = NULL;
    t_read_tk( task );
-   stmt->path = t_read_path( task );
+   stmt->path = read_path( task );
    t_test_tk( task, TK_COLON );
    t_read_tk( task );
    struct import_item* tail = NULL;
@@ -773,6 +775,47 @@ void t_read_import( struct task* task, struct list* local ) {
    else {
       list_append( &task->region->imports, stmt );
    }
+}
+
+struct path* read_path( struct task* task ) {
+   // Head of path.
+   struct path* path = alloc_path( task->tk_pos );
+   if ( task->tk == TK_UPMOST ) {
+      path->is_upmost = true;
+      t_read_tk( task );
+   }
+   else if ( task->tk == TK_REGION ) {
+      path->is_region = true;
+      t_read_tk( task );
+   }
+   else {
+      t_test_tk( task, TK_ID );
+      path->text = task->tk_text;
+      t_read_tk( task );
+   }
+   // Tail of path.
+   struct path* head = path;
+   struct path* tail = head;
+   while ( task->tk == TK_COLON_2 ) {
+      t_read_tk( task );
+      t_test_tk( task, TK_ID );
+      path = alloc_path( task->tk_pos );
+      path->text = task->tk_text;
+      tail->next = path;
+      tail = path;
+      t_read_tk( task );
+   }
+   return head;
+}
+
+struct path* alloc_path( struct pos pos ) {
+   struct path* path = mem_alloc( sizeof( *path ) );
+   path->next = NULL;
+   path->text = NULL;
+   path->pos = pos;
+   path->is_region = false;
+   path->is_upmost = false;
+   return path;
 }
 
 bool t_is_dec( struct task* task ) {
@@ -994,11 +1037,10 @@ void read_enum( struct task* task, struct dec* dec ) {
          t_read_tk( task );
          if ( task->tk == TK_ASSIGN ) {
             t_read_tk( task );
-            struct read_expr expr;
-            t_init_read_expr( &expr );
-            expr.in_constant = true;
-            t_read_expr( task, &expr );
-            constant->expr = expr.node;
+            struct expr_reading value;
+            t_init_expr_reading( &value, true, false, false );
+            t_read_expr( task, &value );
+            constant->value_node = value.output_node;
          }
          if ( head ) {
             tail->next = constant;
@@ -1050,11 +1092,10 @@ void read_enum( struct task* task, struct dec* dec ) {
       t_read_tk( task );
       t_test_tk( task, TK_ASSIGN );
       t_read_tk( task );
-      struct read_expr expr;
-      t_init_read_expr( &expr );
-      expr.in_constant = true;
-      t_read_expr( task, &expr );
-      constant->expr = expr.node;
+      struct expr_reading value;
+      t_init_expr_reading( &value, true, false, false );
+      t_read_expr( task, &value );
+      constant->value_node = value.output_node;
       if ( dec->vars ) {
          list_append( dec->vars, constant );
       }
@@ -1077,9 +1118,9 @@ struct constant* alloc_constant( void ) {
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
    init_object( &constant->object, NODE_CONSTANT );
    constant->name = NULL;
-   constant->expr = NULL;
    constant->next = NULL;
    constant->value = 0;
+   constant->value_node = NULL;
    constant->hidden = false;
    constant->lib_id = 0;
    return constant;
@@ -1161,7 +1202,7 @@ void read_struct( struct task* task, struct dec* dec ) {
    }
    // Variable of struct type.
    else {
-      dec->type_path = t_read_path( task );
+      dec->type_path = read_path( task );
    }
 }
 
@@ -1224,7 +1265,7 @@ void read_dim( struct task* task, struct dec* dec ) {
    while ( task->tk == TK_BRACKET_L ) {
       struct dim* dim = mem_alloc( sizeof( *dim ) );
       dim->next = NULL;
-      dim->size_expr = NULL;
+      dim->size_node = NULL;
       dim->size = 0;
       dim->element_size = 0;
       dim->pos = task->tk_pos;
@@ -1246,10 +1287,10 @@ void read_dim( struct task* task, struct dec* dec ) {
          t_read_tk( task );
       }
       else {
-         struct read_expr expr;
-         t_init_read_expr( &expr );
-         t_read_expr( task, &expr );
-         dim->size_expr = expr.node;
+         struct expr_reading size;
+         t_init_expr_reading( &size, false, false, false );
+         t_read_expr( task, &size );
+         dim->size_node = size.output_node;
          t_test_tk( task, TK_BRACKET_R );
          t_read_tk( task );
       }
@@ -1300,11 +1341,10 @@ void read_init( struct task* task, struct dec* dec ) {
          }
          struct value* value = mem_alloc( sizeof( *value ) );
          init_initial( &value->initial, false );
-         struct read_expr expr;
-         t_init_read_expr( &expr );
-         expr.stmt_read = dec->stmt_read;
+         struct expr_reading expr;
+         t_init_expr_reading( &expr, false, false, false );
          t_read_expr( task, &expr );
-         value->expr = expr.node;
+         value->expr = expr.output_node;
          dec->initial = &value->initial;
          dec->initz_str = expr.has_str;
       }
@@ -1313,7 +1353,7 @@ void read_init( struct task* task, struct dec* dec ) {
       // Initializer needs to be present when the size of the initial dimension
       // is implicit. Global and world arrays are an exception, unless they are
       // multi-dimensional.
-      if ( dec->dim && ! dec->dim->size_expr && ( (
+      if ( dec->dim && ! dec->dim->size_node && ( (
          dec->storage != STORAGE_WORLD &&
          dec->storage != STORAGE_GLOBAL ) || dec->dim->next ) ) {
          t_diag( task, DIAG_POS_ERR, &task->tk_pos,
@@ -1350,12 +1390,12 @@ void read_multi_init( struct task* task, struct dec* dec,
          read_multi_init( task, dec, &read );
       }
       else {
-         struct read_expr expr;
-         t_init_read_expr( &expr );
+         struct expr_reading expr;
+         t_init_expr_reading( &expr, false, false, false );
          t_read_expr( task, &expr );
          struct value* value = mem_alloc( sizeof( *value ) );
          init_initial( &value->initial, false );
-         value->expr = expr.node;
+         value->expr = expr.output_node;
          value->next = NULL;
          value->index = 0;
          if ( read.tail ) {
@@ -1604,11 +1644,10 @@ void read_params( struct task* task, struct params* params ) {
       }
       if ( task->tk == TK_ASSIGN ) {
          t_read_tk( task );
-         struct read_expr expr;
-         t_init_read_expr( &expr );
-         expr.skip_assign = true;
-         t_read_expr( task, &expr );
-         param->default_value = expr.node;
+         struct expr_reading value;
+         t_init_expr_reading( &value, false, true, false );
+         t_read_expr( task, &value );
+         param->default_value = value.output_node;
          if ( params->script ) {
             t_diag( task, DIAG_POS_ERR, &pos, "default parameter in script" );
             t_bail( task );
@@ -1719,7 +1758,7 @@ void read_bfunc( struct task* task, struct func* func ) {
    }
 }
 
-void t_read_script( struct task* task ) {
+void read_script( struct task* task ) {
    t_test_tk( task, TK_SCRIPT );
    struct script_read read;
    read.pos = task->tk_pos;
@@ -1754,7 +1793,7 @@ void t_read_script( struct task* task ) {
    list_append( &task->region->items, script );
 }
 
-void read_script_number( struct task* task, struct script_read* read ) {
+void read_script_number( struct task* task, struct script_read* reading ) {
    if ( task->tk == TK_SHIFT_L ) {
       t_read_tk( task );
       // The token between the << and >> tokens must be the digit zero.
@@ -1770,13 +1809,12 @@ void read_script_number( struct task* task, struct script_read* read ) {
       }
    }
    else {
-      struct read_expr expr;
-      t_init_read_expr( &expr );
-      // When reading the script number, the left parenthesis of the
-      // parameter list can be mistaken for a function call.
-      expr.skip_function_call = true;
-      t_read_expr( task, &expr );
-      read->number = expr.node;
+      // When reading the script number, the left parenthesis of the parameter
+      // list can be mistaken for a function call. Don't read function calls.
+      struct expr_reading number;
+      t_init_expr_reading( &number, false, false, true );
+      t_read_expr( task, &number );
+      reading->number = number.output_node;
    }
 }
 
@@ -2322,15 +2360,15 @@ void t_test_constant( struct task* task, struct constant* constant,
    struct expr_test expr;
    t_init_expr_test( &expr );
    expr.undef_err = undef_err;
-   t_test_expr( task, &expr, constant->expr );
+   t_test_expr( task, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
-      if ( constant->expr->folded ) {
-         constant->value = constant->expr->value;
+      if ( constant->value_node->folded ) {
+         constant->value = constant->value_node->value;
          constant->object.resolved = true;
       }
       else {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &constant->expr->pos, "expression not constant" );
+         t_diag( task, DIAG_POS_ERR, &constant->value_node->pos,
+            "expression not constant" );
          t_bail( task );
       }
    }
@@ -2359,20 +2397,20 @@ void t_test_constant_set( struct task* task, struct constant_set* set,
             t_bail( task );
          }
       }
-      if ( constant->expr ) {
+      if ( constant->value_node ) {
          struct expr_test expr;
          t_init_expr_test( &expr );
          expr.undef_err = undef_err;
-         t_test_expr( task, &expr, constant->expr );
+         t_test_expr( task, &expr, constant->value_node );
          if ( expr.undef_erred ) {
             return;
          }
-         if ( ! constant->expr->folded ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &expr.pos, "enumerator expression not constant" );
+         if ( ! constant->value_node->folded ) {
+            t_diag( task, DIAG_POS_ERR, &expr.pos,
+               "enumerator expression not constant" );
             t_bail( task );
          }
-         value = constant->expr->value;
+         value = constant->value_node->value;
       }
       constant->value = value;
       ++value;
@@ -2458,21 +2496,21 @@ void test_type_member( struct task* task, struct type_member* member,
       struct expr_test expr;
       t_init_expr_test( &expr );
       expr.undef_err = undef_err;
-      t_test_expr( task, &expr, dim->size_expr );
+      t_test_expr( task, &expr, dim->size_node );
       if ( expr.undef_erred ) {
          return;
       }
-      if ( ! dim->size_expr->folded ) {
+      if ( ! dim->size_node->folded ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
          "array size not a constant expression" );
          t_bail( task );
       }
-      if ( dim->size_expr->value <= 0 ) {
+      if ( dim->size_node->value <= 0 ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
             "array size must be greater than 0" );
          t_bail( task );
       }
-      dim->size = dim->size_expr->value;
+      dim->size = dim->size_node->value;
       dim = dim->next;
    }
    member->object.resolved = true;
@@ -2644,25 +2682,25 @@ void test_var( struct task* task, struct var* var, bool undef_err ) {
       dim = dim->next;
    }
    while ( dim ) {
-      if ( dim->size_expr ) {
+      if ( dim->size_node ) {
          struct expr_test expr;
          t_init_expr_test( &expr );
          expr.undef_err = undef_err;
-         t_test_expr( task, &expr, dim->size_expr );
+         t_test_expr( task, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return;
          }
-         else if ( ! dim->size_expr->folded ) {
+         else if ( ! dim->size_node->folded ) {
             t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
                "array size not a constant expression" );
             t_bail( task );
          }
-         else if ( dim->size_expr->value <= 0 ) {
+         else if ( dim->size_node->value <= 0 ) {
             t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
                "array size must be greater than 0" );
             t_bail( task );
          }
-         dim->size = dim->size_expr->value;
+         dim->size = dim->size_node->value;
       }
       else {
          // Only the first dimension can have an implicit size.
@@ -2690,7 +2728,7 @@ void test_init( struct task* task, struct var* var, bool undef_err,
    if ( var->dim ) {
       if ( var->imported ) {
          // TODO: Add error checking.
-         if ( ! var->dim->size_expr ) {
+         if ( ! var->dim->size_node ) {
             struct multi_value* multi_value =
                ( struct multi_value* ) var->initial;
             struct initial* initial = multi_value->body;
@@ -2715,7 +2753,7 @@ void test_init( struct task* task, struct var* var, bool undef_err,
             return;
          }
          // Size of implicit dimension.
-         if ( ! var->dim->size_expr ) {
+         if ( ! var->dim->size_node ) {
             var->dim->size = test.count;
          }
          if ( test.has_string ) {
@@ -3395,7 +3433,7 @@ void count_string_usage_node( struct node* node ) {
    else if ( node->type == NODE_FORMAT_ITEM ) {
       struct format_item* item = ( struct format_item* ) node;
       while ( item ) {
-         count_string_usage_node( &item->expr->node );
+         count_string_usage_node( &item->value->node );
          item = item->next;
       }
    }
@@ -3421,8 +3459,8 @@ void count_string_usage_node( struct node* node ) {
       struct constant* constant = ( struct constant* ) node;
       // Enumerators might have an automatically generated value, so make sure
       // not to process those.
-      if ( constant->expr ) {
-         count_string_usage_node( &constant->expr->node );
+      if ( constant->value_node ) {
+         count_string_usage_node( &constant->value_node->node );
       }
    }
    else if ( node->type == NODE_INDEXED_STRING_USAGE ) {

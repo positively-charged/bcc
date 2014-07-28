@@ -4,8 +4,6 @@
 
 #include "task.h"
 
-static struct path* alloc_path( struct pos );
-static void read_include_dirc( struct task*, struct pos* );
 static void read_case( struct task*, struct stmt_read* );
 static void read_default_case( struct task*, struct stmt_read* );
 static void read_label( struct task*, struct stmt_read* );
@@ -80,52 +78,12 @@ void t_read( struct task* task ) {
    alloc_string_indexes( task );
 }
 
-struct path* t_read_path( struct task* task ) {
-   // Head of path.
-   struct path* path = alloc_path( task->tk_pos );
-   if ( task->tk == TK_UPMOST ) {
-      path->is_upmost = true;
-      t_read_tk( task );
-   }
-   else if ( task->tk == TK_REGION ) {
-      path->is_region = true;
-      t_read_tk( task );
-   }
-   else {
-      t_test_tk( task, TK_ID );
-      path->text = task->tk_text;
-      t_read_tk( task );
-   }
-   // Tail of path.
-   struct path* head = path;
-   struct path* tail = head;
-   while ( task->tk == TK_COLON_2 ) {
-      t_read_tk( task );
-      t_test_tk( task, TK_ID );
-      path = alloc_path( task->tk_pos );
-      path->text = task->tk_text;
-      tail->next = path;
-      tail = path;
-      t_read_tk( task );
-   }
-   return head;
-}
-
-struct path* alloc_path( struct pos pos ) {
-   struct path* path = mem_alloc( sizeof( *path ) );
-   path->next = NULL;
-   path->text = NULL;
-   path->pos = pos;
-   path->is_region = false;
-   path->is_upmost = false;
-   return path;
-}
-
 void t_print_name( struct name* name ) {
    struct str str;
    str_init( &str );
    t_copy_name( name, true, &str );
    printf( "%s\n", str.value );
+   str_deinit( &str );
 }
 
 // Gets the top-most object associated with the name, and only retrieves the
@@ -208,8 +166,8 @@ void t_read_block( struct task* task, struct stmt_read* read ) {
       while ( ! list_end( &i ) ) {
          struct label* label = list_data( &i );
          if ( ! label->defined ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &label->pos, "label `%s` not found", label->name );
+            t_diag( task, DIAG_POS_ERR, &label->pos,
+               "label `%s` not found", label->name );
             t_bail( task );
          }
          list_next( &i );
@@ -224,10 +182,10 @@ void read_case( struct task* task, struct stmt_read* read ) {
    label->next = NULL;
    label->pos = task->tk_pos;
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   label->number = expr.node;
+   struct expr_reading number;
+   t_init_expr_reading( &number, false, false, false );
+   t_read_expr( task, &number );
+   label->number = number.output_node;
    t_test_tk( task, TK_COLON );
    t_read_tk( task );
    read->node = &label->node;
@@ -333,10 +291,10 @@ void read_if( struct task* task, struct stmt_read* read ) {
    stmt->node.type = NODE_IF;
    t_test_tk( task, TK_PAREN_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   stmt->cond = expr.node;
+   struct expr_reading cond;
+   t_init_expr_reading( &cond, false, false, false );
+   t_read_expr( task, &cond );
+   stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    // It is assumed that a semicolon is the empty statement.
@@ -365,10 +323,10 @@ void read_switch( struct task* task, struct stmt_read* read ) {
    stmt->node.type = NODE_SWITCH;
    t_test_tk( task, TK_PAREN_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   stmt->cond = expr.node;
+   struct expr_reading cond;
+   t_init_expr_reading( &cond, false, false, false );
+   t_read_expr( task, &cond );
+   stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_read_stmt( task, read );
@@ -390,10 +348,10 @@ void read_while( struct task* task, struct stmt_read* read ) {
    }
    t_test_tk( task, TK_PAREN_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   stmt->cond = expr.node;
+   struct expr_reading cond;
+   t_init_expr_reading( &cond, false, false, false );
+   t_read_expr( task, &cond );
+   stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_read_stmt( task, read );
@@ -422,10 +380,10 @@ void read_do( struct task* task, struct stmt_read* read ) {
    }
    t_test_tk( task, TK_PAREN_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   t_read_expr( task, &expr );
-   stmt->cond = expr.node;
+   struct expr_reading cond;
+   t_init_expr_reading( &cond, false, false, false );
+   t_read_expr( task, &cond );
+   stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
@@ -457,10 +415,10 @@ void read_for( struct task* task, struct stmt_read* read ) {
       }
       else {
          while ( true ) {
-            struct read_expr expr;
-            t_init_read_expr( &expr );
+            struct expr_reading expr;
+            t_init_expr_reading( &expr, false, false, false );
             t_read_expr( task, &expr );
-            list_append( &stmt->init, expr.node );
+            list_append( &stmt->init, expr.output_node );
             if ( task->tk == TK_COMMA ) {
                t_read_tk( task );
             }
@@ -477,10 +435,10 @@ void read_for( struct task* task, struct stmt_read* read ) {
    }
    // Optional condition:
    if ( task->tk != TK_SEMICOLON ) {
-      struct read_expr expr;
-      t_init_read_expr( &expr );
-      t_read_expr( task, &expr );
-      stmt->cond = expr.node;
+      struct expr_reading cond;
+      t_init_expr_reading( &cond, false, false, false );
+      t_read_expr( task, &cond );
+      stmt->cond = cond.output_node;
       t_test_tk( task, TK_SEMICOLON );
       t_read_tk( task );
    }
@@ -490,10 +448,10 @@ void read_for( struct task* task, struct stmt_read* read ) {
    // Optional post-expression:
    if ( task->tk != TK_PAREN_R ) {
       while ( true ) {
-         struct read_expr expr;
-         t_init_read_expr( &expr );
+         struct expr_reading expr;
+         t_init_expr_reading( &expr, false, false, false );
          t_read_expr( task, &expr );
-         list_append( &stmt->post, expr.node );
+         list_append( &stmt->post, expr.output_node );
          if ( task->tk == TK_COMMA ) {
             t_read_tk( task );
          }
@@ -599,24 +557,22 @@ void read_paltrans( struct task* task, struct stmt_read* read ) {
    stmt->ranges_tail = NULL;
    t_test_tk( task, TK_PAREN_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
+   struct expr_reading expr;
+   t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
-   stmt->number = expr.node;
+   stmt->number = expr.output_node;
    while ( task->tk == TK_COMMA ) {
       struct palrange* range = mem_alloc( sizeof( *range ) );
       range->next = NULL;
       t_read_tk( task );
-      struct read_expr expr;
-      t_init_read_expr( &expr );
+      t_init_expr_reading( &expr, false, false, false );
       t_read_expr( task, &expr );
-      range->begin = expr.node;
+      range->begin = expr.output_node;
       t_test_tk( task, TK_COLON );
       t_read_tk( task );
-      t_init_read_expr( &expr );
-      expr.skip_assign = true;
+      t_init_expr_reading( &expr, false, true, false );
       t_read_expr( task, &expr );
-      range->end = expr.node;
+      range->end = expr.output_node;
       t_test_tk( task, TK_ASSIGN );
       t_read_tk( task );
       if ( task->tk == TK_BRACKET_L ) {
@@ -629,14 +585,14 @@ void read_paltrans( struct task* task, struct stmt_read* read ) {
          range->rgb = true;
       }
       else {
-         t_init_read_expr( &expr );
+         t_init_expr_reading( &expr, false, false, false );
          t_read_expr( task, &expr );
-         range->value.ent.begin = expr.node;
+         range->value.ent.begin = expr.output_node;
          t_test_tk( task, TK_COLON );
          t_read_tk( task );
-         t_init_read_expr( &expr );
+         t_init_expr_reading( &expr, false, false, false );
          t_read_expr( task, &expr );
-         range->value.ent.end = expr.node;
+         range->value.ent.end = expr.output_node;
          range->rgb = false;
       }
       if ( stmt->ranges ) {
@@ -659,20 +615,20 @@ void read_palrange_rgb_field( struct task* task, struct expr** r,
    struct expr** g, struct expr** b ) {
    t_test_tk( task, TK_BRACKET_L );
    t_read_tk( task );
-   struct read_expr expr;
-   t_init_read_expr( &expr );
+   struct expr_reading expr;
+   t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
-   *r = expr.node;
+   *r = expr.output_node;
    t_test_tk( task, TK_COMMA );
    t_read_tk( task );
-   t_init_read_expr( &expr );
+   t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
-   *g = expr.node;
+   *g = expr.output_node;
    t_test_tk( task, TK_COMMA );
    t_read_tk( task );
-   t_init_read_expr( &expr );
+   t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
-   *b = expr.node;
+   *b = expr.output_node;
    t_test_tk( task, TK_BRACKET_R );
    t_read_tk( task ); 
 }
@@ -685,13 +641,12 @@ void read_format_item( struct task* task, struct stmt_read* read ) {
 }
 
 void read_packed_expr( struct task* task, struct stmt_read* read ) {
-   struct read_expr expr;
-   t_init_read_expr( &expr );
-   expr.stmt_read = read;
+   struct expr_reading expr;
+   t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
    struct packed_expr* packed = mem_alloc( sizeof( *packed ) );
    packed->node.type = NODE_PACKED_EXPR;
-   packed->expr = expr.node;
+   packed->expr = expr.output_node;
    packed->block = NULL;
    // Format block.
    if ( task->tk == TK_ASSIGN_COLON ) {

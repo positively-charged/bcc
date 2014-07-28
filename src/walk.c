@@ -481,8 +481,8 @@ void visit_constant( struct task* task, struct operand* operand,
    struct constant* constant ) {
    t_add_opc( task, PCD_PUSHNUMBER );
    t_add_arg( task, constant->value );
-   if ( task->library_main->importable && constant->expr &&
-      constant->expr->has_str ) {
+   if ( task->library_main->importable && constant->value_node &&
+      constant->value_node->has_str ) {
       t_add_opc( task, PCD_TAGSTRING );
    }
    operand->pushed = true;
@@ -837,7 +837,7 @@ void visit_format_item( struct task* task, struct format_item* item ) {
          struct operand object;
          init_operand( &object );
          object.action = ACTION_PUSH_VAR;
-         visit_operand( task, &object, item->expr->root );
+         visit_operand( task, &object, item->value->root );
          t_add_opc( task, PCD_PUSHNUMBER );
          t_add_arg( task, object.index );
          int code = PCD_PRINTMAPCHARARRAY;
@@ -865,7 +865,7 @@ void visit_format_item( struct task* task, struct format_item* item ) {
             PCD_PRINTSTRING,
             PCD_PRINTHEX };
          STATIC_ASSERT( FCAST_TOTAL == 10 );
-         push_expr( task, item->expr, false );
+         push_expr( task, item->value, false );
          t_add_opc( task, casts[ item->cast - 1 ] );
       }
       item = item->next;
