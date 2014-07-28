@@ -841,7 +841,6 @@ void t_init_dec( struct dec* dec ) {
    dec->name_offset = NULL;
    dec->dim = NULL;
    dec->initial = NULL;
-   dec->stmt_read = NULL;
    dec->vars = NULL;
    dec->storage = STORAGE_LOCAL;
    dec->storage_index = 0;
@@ -1525,11 +1524,10 @@ void read_func( struct task* task, struct dec* dec ) {
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! task->library->imported ) {
-         struct stmt_read stmt_read;
-         t_init_stmt_read( &stmt_read );
-         stmt_read.labels = &impl->labels;
-         t_read_block( task, &stmt_read );
-         impl->body = stmt_read.block;
+         struct stmt_reading body;
+         t_init_stmt_reading( &body, &impl->labels );
+         t_read_top_stmt( task, &body, true );
+         impl->body = body.block_node;
       }
       else {
          t_skip_block( task );
@@ -1913,11 +1911,10 @@ void read_script_flag( struct task* task, struct script* script ) {
 }
 
 void read_script_body( struct task* task, struct script* script ) {
-   struct stmt_read stmt;
-   t_init_stmt_read( &stmt );
-   stmt.labels = &script->labels;
-   t_read_stmt( task, &stmt );
-   script->body = stmt.node;
+   struct stmt_reading body;
+   t_init_stmt_reading( &body, &script->labels );
+   t_read_top_stmt( task, &body, false );
+   script->body = body.node;
 }
 
 void t_test( struct task* task ) {

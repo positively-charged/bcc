@@ -833,7 +833,6 @@ struct dec {
    struct name* name_offset;
    struct dim* dim;
    struct initial* initial;
-   struct stmt_read* stmt_read;
    struct list* vars;
    int storage;
    int storage_index;
@@ -845,11 +844,10 @@ struct dec {
    bool leave;
 };
 
-struct stmt_read {
+struct stmt_reading {
    struct list* labels;
-   struct block* block;
    struct node* node;
-   int depth;
+   struct block* block_node;
 };
 
 struct stmt_test {
@@ -1345,8 +1343,8 @@ void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
 void t_read( struct task* );
 void t_test( struct task* );
-void t_read_stmt( struct task*, struct stmt_read* );
-void t_read_block( struct task*, struct stmt_read* );
+void t_read_top_stmt( struct task*, struct stmt_reading*,
+   bool need_block );
 struct name* t_make_name( struct task*, const char*, struct name* );
 struct format_item* t_read_format_item( struct task*, bool colon );
 void t_add_scope( struct task* );
@@ -1382,7 +1380,7 @@ void t_init_dec( struct dec* );
 void t_read_dec( struct task*, struct dec* );
 void t_init_expr_test( struct expr_test* );
 void t_test_expr( struct task*, struct expr_test*, struct expr* );
-void t_init_stmt_read( struct stmt_read* );
+void t_init_stmt_reading( struct stmt_reading*, struct list* labels );
 void t_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void t_test_top_block( struct task*, struct stmt_test*, struct block* );
 void t_test_stmt( struct task*, struct stmt_test*, struct node* );

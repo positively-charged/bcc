@@ -4,24 +4,26 @@
 
 #include "task.h"
 
-static void read_case( struct task*, struct stmt_read* );
-static void read_default_case( struct task*, struct stmt_read* );
-static void read_label( struct task*, struct stmt_read* );
-static void read_if( struct task*, struct stmt_read* );
-static void read_switch( struct task*, struct stmt_read* );
-static void read_while( struct task*, struct stmt_read* );
-static void read_do( struct task*, struct stmt_read* );
-static void read_for( struct task*, struct stmt_read* );
-static void read_jump( struct task*, struct stmt_read* );
-static void read_script_jump( struct task*, struct stmt_read* );
-static void read_return( struct task*, struct stmt_read* );
-static void read_goto( struct task*, struct stmt_read* );
-static void read_paltrans( struct task*, struct stmt_read* );
-static void read_format_item( struct task*, struct stmt_read* );
+static void read_block( struct task*, struct stmt_reading* );
+static void read_case( struct task*, struct stmt_reading* );
+static void read_default_case( struct task*, struct stmt_reading* );
+static void read_label( struct task*, struct stmt_reading* );
+static void read_stmt( struct task*, struct stmt_reading* );
+static void read_if( struct task*, struct stmt_reading* );
+static void read_switch( struct task*, struct stmt_reading* );
+static void read_while( struct task*, struct stmt_reading* );
+static void read_do( struct task*, struct stmt_reading* );
+static void read_for( struct task*, struct stmt_reading* );
+static void read_jump( struct task*, struct stmt_reading* );
+static void read_script_jump( struct task*, struct stmt_reading* );
+static void read_return( struct task*, struct stmt_reading* );
+static void read_goto( struct task*, struct stmt_reading* );
+static void read_paltrans( struct task*, struct stmt_reading* );
+static void read_format_item( struct task*, struct stmt_reading* );
 static void read_palrange_rgb_field( struct task*, struct expr**,
    struct expr**, struct expr** );
-static void read_packed_expr( struct task*, struct stmt_read* );
-static struct label* new_label( char*, struct pos );
+static void read_packed_expr( struct task*, struct stmt_reading* );
+static struct label* alloc_label( char*, struct pos );
 static void link_usable_strings( struct task* );
 static void add_usable_string( struct indexed_string**,
    struct indexed_string**, struct indexed_string* );
@@ -104,65 +106,24 @@ struct object* t_get_region_object( struct task* task, struct region* region,
    return object;
 }
 
-void t_init_stmt_read( struct stmt_read* read ) {
-   read->labels = NULL;
-   read->block = NULL;
-   read->node = NULL;
-   read->depth = 0;
+void t_init_stmt_reading( struct stmt_reading* reading, struct list* labels ) {
+   reading->labels = labels;
+   reading->node = NULL;
+   reading->block_node = NULL;
 }
 
-void t_read_block( struct task* task, struct stmt_read* read ) {
-   t_test_tk( task, TK_BRACE_L );
-   ++read->depth;
-   struct block* block = mem_alloc( sizeof( *block ) );
-   block->node.type = NODE_BLOCK;
-   list_init( &block->stmts );
-   block->pos = task->tk_pos;
-   t_read_tk( task );
-   while ( true ) {
-      if ( t_is_dec( task ) ) {
-         struct dec dec;
-         t_init_dec( &dec );
-         dec.area = DEC_LOCAL;
-         dec.name_offset = task->region->body;
-         dec.stmt_read = read;
-         dec.vars = &block->stmts;
-         t_read_dec( task, &dec );
-      }
-      else if ( task->tk == TK_CASE ) {
-         read_case( task, read );
-         list_append( &block->stmts, read->node );
-      }
-      else if ( task->tk == TK_DEFAULT ) {
-         read_default_case( task, read );
-         list_append( &block->stmts, read->node );
-      }
-      else if ( task->tk == TK_ID && t_peek( task ) == TK_COLON ) {
-         read_label( task, read );
-         list_append( &block->stmts, read->node );
-      }
-      else if ( task->tk == TK_IMPORT ) {
-         t_read_import( task, &block->stmts );
-      }
-      else if ( task->tk == TK_BRACE_R ) {
-         t_read_tk( task );
-         break;
-      }
-      else {
-         read->node = NULL;
-         t_read_stmt( task, read );
-         if ( read->node->type != NODE_NONE ) {
-            list_append( &block->stmts, read->node );
-         }
-      }
+void t_read_top_stmt( struct task* task, struct stmt_reading* reading,
+   bool need_block ) {
+   if ( need_block ) {
+      read_block( task, reading );
    }
-   read->node = ( struct node* ) block;
-   read->block = block;
-   --read->depth;
+   else {
+      read_stmt( task, reading );
+   }
    // All goto statements need to refer to valid labels.
-   if ( read->depth == 0 ) {
+   if ( reading->node->type == NODE_BLOCK ) {
       list_iter_t i;
-      list_iter_init( &i, read->labels );
+      list_iter_init( &i, reading->labels );
       while ( ! list_end( &i ) ) {
          struct label* label = list_data( &i );
          if ( ! label->defined ) {
@@ -175,7 +136,53 @@ void t_read_block( struct task* task, struct stmt_read* read ) {
    }
 }
 
-void read_case( struct task* task, struct stmt_read* read ) {
+void read_block( struct task* task, struct stmt_reading* reading ) {
+   t_test_tk( task, TK_BRACE_L );
+   struct block* block = mem_alloc( sizeof( *block ) );
+   block->node.type = NODE_BLOCK;
+   list_init( &block->stmts );
+   block->pos = task->tk_pos;
+   t_read_tk( task );
+   while ( true ) {
+      if ( t_is_dec( task ) ) {
+         struct dec dec;
+         t_init_dec( &dec );
+         dec.area = DEC_LOCAL;
+         dec.name_offset = task->region->body;
+         dec.vars = &block->stmts;
+         t_read_dec( task, &dec );
+      }
+      else if ( task->tk == TK_CASE ) {
+         read_case( task, reading );
+         list_append( &block->stmts, reading->node );
+      }
+      else if ( task->tk == TK_DEFAULT ) {
+         read_default_case( task, reading );
+         list_append( &block->stmts, reading->node );
+      }
+      else if ( task->tk == TK_ID && t_peek( task ) == TK_COLON ) {
+         read_label( task, reading );
+         list_append( &block->stmts, reading->node );
+      }
+      else if ( task->tk == TK_IMPORT ) {
+         t_read_import( task, &block->stmts );
+      }
+      else if ( task->tk == TK_BRACE_R ) {
+         t_read_tk( task );
+         break;
+      }
+      else {
+         read_stmt( task, reading );
+         if ( reading->node->type != NODE_NONE ) {
+            list_append( &block->stmts, reading->node );
+         }
+      }
+   }
+   reading->node = &block->node;
+   reading->block_node = block;
+}
+
+void read_case( struct task* task, struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE;
    label->offset = 0;
@@ -188,10 +195,10 @@ void read_case( struct task* task, struct stmt_read* read ) {
    label->number = number.output_node;
    t_test_tk( task, TK_COLON );
    t_read_tk( task );
-   read->node = &label->node;
+   reading->node = &label->node;
 }
 
-void read_default_case( struct task* task, struct stmt_read* read ) {
+void read_default_case( struct task* task, struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE_DEFAULT;
    label->pos = task->tk_pos;
@@ -199,13 +206,13 @@ void read_default_case( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    t_test_tk( task, TK_COLON );
    t_read_tk( task );
-   read->node = &label->node;
+   reading->node = &label->node;
 }
 
-void read_label( struct task* task, struct stmt_read* read ) {
+void read_label( struct task* task, struct stmt_reading* reading ) {
    struct label* label = NULL;
    list_iter_t i;
-   list_iter_init( &i, read->labels );
+   list_iter_init( &i, reading->labels );
    while ( ! list_end( &i ) ) {
       struct label* prev = list_data( &i );
       if ( strcmp( prev->name, task->tk_text ) == 0 ) {
@@ -216,8 +223,8 @@ void read_label( struct task* task, struct stmt_read* read ) {
    }
    if ( label ) {
       if ( label->defined ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &task->tk_pos, "duplicate label '%s'", task->tk_text );
+         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+            "duplicate label '%s'", task->tk_text );
          t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
             "label '%s' is found here", task->tk_text );
          t_bail( task );
@@ -228,64 +235,85 @@ void read_label( struct task* task, struct stmt_read* read ) {
       }
    }
    else {
-      label = new_label( task->tk_text, task->tk_pos );
+      label = alloc_label( task->tk_text, task->tk_pos );
       label->defined = true;
-      list_append( read->labels, label );
+      list_append( reading->labels, label );
    }
    t_read_tk( task );
    t_read_tk( task );
-   read->node = &label->node;
+   reading->node = &label->node;
 }
 
-void t_read_stmt( struct task* task, struct stmt_read* read ) {
-   if ( task->tk == TK_BRACE_L ) {
-      t_read_block( task, read );
-   }
-   else if ( task->tk == TK_IF ) {
-      read_if( task, read );
-   }
-   else if ( task->tk == TK_SWITCH ) {
-      read_switch( task, read );
-   }
-   else if ( task->tk == TK_WHILE || task->tk == TK_UNTIL ) {
-      read_while( task, read );
-   }
-   else if ( task->tk == TK_DO ) {
-      read_do( task, read );
-   }
-   else if ( task->tk == TK_FOR ) {
-      read_for( task, read );
-   }
-   else if ( task->tk == TK_BREAK || task->tk == TK_CONTINUE ) {
-      read_jump( task, read );
-   }
-   else if ( task->tk == TK_TERMINATE || task->tk == TK_RESTART ||
-      task->tk == TK_SUSPEND ) {
-      read_script_jump( task, read );
-   }
-   else if ( task->tk == TK_RETURN ) {
-      read_return( task, read );
-   }
-   else if ( task->tk == TK_GOTO ) {
-      read_goto( task, read );
-   }
-   else if ( task->tk == TK_PALTRANS ) {
-      read_paltrans( task, read );
-   }
-   else if ( task->tk == TK_ID && t_peek( task ) == TK_ASSIGN_COLON ) {
-      read_format_item( task, read );
-   }
-   else if ( task->tk == TK_SEMICOLON ) {
-      static struct node node = { NODE_NONE };
-      read->node = &node;
-      t_read_tk( task );
-   }
-   else {
-      read_packed_expr( task, read ); 
+struct label* alloc_label( char* name, struct pos pos ) {
+   struct label* label = mem_alloc( sizeof( *label ) );
+   label->node.type = NODE_GOTO_LABEL;
+   label->name = name;
+   label->defined = false;
+   label->pos = pos;
+   label->users = NULL;
+   label->obj_pos = 0;
+   label->format_block = NULL;
+   return label;
+}
+
+void read_stmt( struct task* task, struct stmt_reading* reading ) {
+   switch ( task->tk ) {
+   case TK_BRACE_L:
+      read_block( task, reading );
+      break;
+   case TK_IF:
+      read_if( task, reading );
+      break;
+   case TK_SWITCH:
+      read_switch( task, reading );
+      break;
+   case TK_WHILE:
+   case TK_UNTIL:
+      read_while( task, reading );
+      break;
+   case TK_DO:
+      read_do( task, reading );
+      break;
+   case TK_FOR:
+      read_for( task, reading );
+      break;
+   case TK_BREAK:
+   case TK_CONTINUE:
+      read_jump( task, reading );
+      break;
+   case TK_TERMINATE:
+   case TK_RESTART:
+   case TK_SUSPEND:
+      read_script_jump( task, reading );
+      break;
+   case TK_RETURN:
+      read_return( task, reading );
+      break;
+   case TK_GOTO:
+      read_goto( task, reading );
+      break;
+   case TK_PALTRANS:
+      read_paltrans( task, reading );
+      break;
+   case TK_SEMICOLON:
+      {
+         static struct node node = { NODE_NONE };
+         reading->node = &node;
+         t_read_tk( task );
+      }
+      break;
+   default:
+      // Format item in a format block:
+      if ( task->tk == TK_ID && t_peek( task ) == TK_ASSIGN_COLON ) {
+         read_format_item( task, reading );
+      }
+      else {
+         read_packed_expr( task, reading );
+      }
    }
 }
 
-void read_if( struct task* task, struct stmt_read* read ) {
+void read_if( struct task* task, struct stmt_reading* reading ) {
    t_read_tk( task );
    struct if_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_IF;
@@ -297,13 +325,14 @@ void read_if( struct task* task, struct stmt_read* read ) {
    stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   // It is assumed that a semicolon is the empty statement.
+   // Warn when the body of an `if` statement is empty. It is assumed that a
+   // semicolon is the empty statement.
    if ( task->tk == TK_SEMICOLON ) {
       t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &task->tk_pos, "body of `if` statement is empty (`;`)" );
    }
-   t_read_stmt( task, read );
-   stmt->body = read->node;
+   read_stmt( task, reading );
+   stmt->body = reading->node;
    stmt->else_body = NULL;
    if ( task->tk == TK_ELSE ) {
       t_read_tk( task );
@@ -311,13 +340,13 @@ void read_if( struct task* task, struct stmt_read* read ) {
          t_diag( task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &task->tk_pos, "body of `else` is empty (`;`)" );
       }
-      t_read_stmt( task, read );
-      stmt->else_body = read->node;
+      read_stmt( task, reading );
+      stmt->else_body = reading->node;
    }
-   read->node = &stmt->node;
+   reading->node = &stmt->node;
 }
 
-void read_switch( struct task* task, struct stmt_read* read ) {
+void read_switch( struct task* task, struct stmt_reading* reading ) {
    t_read_tk( task );
    struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SWITCH;
@@ -329,12 +358,12 @@ void read_switch( struct task* task, struct stmt_read* read ) {
    stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   t_read_stmt( task, read );
-   stmt->body = read->node;
-   read->node = ( struct node* ) stmt;
+   read_stmt( task, reading );
+   stmt->body = reading->node;
+   reading->node = &stmt->node;
 }
 
-void read_while( struct task* task, struct stmt_read* read ) {
+void read_while( struct task* task, struct stmt_reading* reading ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_WHILE;
@@ -354,20 +383,20 @@ void read_while( struct task* task, struct stmt_read* read ) {
    stmt->cond = cond.output_node;
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   t_read_stmt( task, read );
-   stmt->body = read->node;
+   read_stmt( task, reading );
+   stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_do( struct task* task, struct stmt_read* read ) {
+void read_do( struct task* task, struct stmt_reading* reading ) {
    t_read_tk( task );
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_DO_WHILE;
-   t_read_stmt( task, read );
-   stmt->body = read->node;
+   read_stmt( task, reading );
+   stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
    if ( task->tk == TK_WHILE ) {
@@ -388,10 +417,10 @@ void read_do( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
    t_read_tk( task );
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_for( struct task* task, struct stmt_read* read ) {
+void read_for( struct task* task, struct stmt_reading* reading ) {
    t_read_tk( task );
    struct for_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_FOR;
@@ -462,12 +491,12 @@ void read_for( struct task* task, struct stmt_read* read ) {
    }
    t_test_tk( task, TK_PAREN_R );
    t_read_tk( task );
-   t_read_stmt( task, read );
-   stmt->body = read->node;
-   read->node = ( struct node* ) stmt;
+   read_stmt( task, reading );
+   stmt->body = reading->node;
+   reading->node = &stmt->node;
 }
 
-void read_jump( struct task* task, struct stmt_read* read ) {
+void read_jump( struct task* task, struct stmt_reading* reading ) {
    struct jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_JUMP;
    stmt->type = JUMP_BREAK;
@@ -480,10 +509,10 @@ void read_jump( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
    t_read_tk( task );
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_script_jump( struct task* task, struct stmt_read* read ) {
+void read_script_jump( struct task* task, struct stmt_reading* reading ) {
    struct script_jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SCRIPT_JUMP;
    stmt->type = SCRIPT_JUMP_TERMINATE;
@@ -497,10 +526,10 @@ void read_script_jump( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
    t_read_tk( task );
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_return( struct task* task, struct stmt_read* read ) {
+void read_return( struct task* task, struct stmt_reading* reading ) {
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
    stmt->return_value = NULL;
@@ -510,19 +539,19 @@ void read_return( struct task* task, struct stmt_read* read ) {
       t_read_tk( task );
    }
    else {
-      read_packed_expr( task, read );
-      stmt->return_value = ( struct packed_expr* ) read->node;
+      read_packed_expr( task, reading );
+      stmt->return_value = ( struct packed_expr* ) reading->node;
    }
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_goto( struct task* task, struct stmt_read* read ) {
+void read_goto( struct task* task, struct stmt_reading* reading ) {
    struct pos pos = task->tk_pos;
    t_read_tk( task );
    t_test_tk( task, TK_ID );
    struct label* label = NULL;
    list_iter_t i;
-   list_iter_init( &i, read->labels );
+   list_iter_init( &i, reading->labels );
    while ( ! list_end( &i ) ) {
       struct label* prev = list_data( &i );
       if ( strcmp( prev->name, task->tk_text ) == 0 ) {
@@ -532,8 +561,8 @@ void read_goto( struct task* task, struct stmt_read* read ) {
       list_next( &i );
    }
    if ( ! label ) {
-      label = new_label( task->tk_text, task->tk_pos );
-      list_append( read->labels, label );
+      label = alloc_label( task->tk_text, task->tk_pos );
+      list_append( reading->labels, label );
    }
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
@@ -546,10 +575,10 @@ void read_goto( struct task* task, struct stmt_read* read ) {
    stmt->obj_pos = 0;
    stmt->format_block = NULL;
    stmt->pos = pos;
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
-void read_paltrans( struct task* task, struct stmt_read* read ) {
+void read_paltrans( struct task* task, struct stmt_reading* reading ) {
    t_read_tk( task );
    struct paltrans* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_PALTRANS;
@@ -608,7 +637,7 @@ void read_paltrans( struct task* task, struct stmt_read* read ) {
    t_read_tk( task );
    t_test_tk( task, TK_SEMICOLON );
    t_read_tk( task );
-   read->node = ( struct node* ) stmt;
+   reading->node = &stmt->node;
 }
 
 void read_palrange_rgb_field( struct task* task, struct expr** r,
@@ -633,14 +662,14 @@ void read_palrange_rgb_field( struct task* task, struct expr** r,
    t_read_tk( task ); 
 }
 
-void read_format_item( struct task* task, struct stmt_read* read ) {
+void read_format_item( struct task* task, struct stmt_reading* reading ) {
    struct format_item* item = t_read_format_item( task, false );
-   read->node = &item->node;
+   reading->node = &item->node;
    t_test_tk( task, TK_SEMICOLON );
    t_read_tk( task );
 }
 
-void read_packed_expr( struct task* task, struct stmt_read* read ) {
+void read_packed_expr( struct task* task, struct stmt_reading* reading ) {
    struct expr_reading expr;
    t_init_expr_reading( &expr, false, false, false );
    t_read_expr( task, &expr );
@@ -648,29 +677,17 @@ void read_packed_expr( struct task* task, struct stmt_read* read ) {
    packed->node.type = NODE_PACKED_EXPR;
    packed->expr = expr.output_node;
    packed->block = NULL;
-   // Format block.
+   // With format block.
    if ( task->tk == TK_ASSIGN_COLON ) {
       t_read_tk( task );
-      t_read_block( task, read );
-      packed->block = read->block;
+      read_block( task, reading );
+      packed->block = reading->block_node;
    }
    else {
       t_test_tk( task, TK_SEMICOLON );
       t_read_tk( task );
    }
-   read->node = &packed->node;
-}
-
-struct label* new_label( char* name, struct pos pos ) {
-   struct label* label = mem_alloc( sizeof( *label ) );
-   label->node.type = NODE_GOTO_LABEL;
-   label->name = name;
-   label->defined = false;
-   label->pos = pos;
-   label->users = NULL;
-   label->obj_pos = 0;
-   label->format_block = NULL;
-   return label;
+   reading->node = &packed->node;
 }
 
 void link_usable_strings( struct task* task ) {
