@@ -869,10 +869,12 @@ struct stmt_test {
 struct expr_reading {
    struct node* node;
    struct expr* output_node;
+   struct pos pos;
    bool has_str;
    bool in_constant;
    bool skip_assign;
    bool skip_call;
+   bool expect_expr;
 };
 
 struct expr_test {
@@ -1373,7 +1375,7 @@ void t_flush( struct task* );
 int t_get_script_number( struct script* );
 void t_publish_usercode( struct task* );
 void t_init_expr_reading( struct expr_reading*, bool in_constant,
-   bool skip_assign, bool skip_func_call );
+   bool skip_assign, bool skip_func_call, bool expect_expr );
 void t_read_expr( struct task*, struct expr_reading* );
 bool t_is_dec( struct task* );
 void t_init_dec( struct dec* );
@@ -1406,5 +1408,6 @@ void t_align_4byte( struct task* );
 struct source* t_load_included_source( struct task* );
 void t_make_main_lib( struct task* );
 void t_read_lib( struct task* );
+bool t_same_pos( struct pos*, struct pos* );
 
 #endif

@@ -646,7 +646,7 @@ void read_define( struct task* task ) {
    }
    t_read_tk( task );
    struct expr_reading value;
-   t_init_expr_reading( &value, true, false, false );
+   t_init_expr_reading( &value, true, false, false, true );
    t_read_expr( task, &value );
    constant->value_node = value.output_node;
    constant->value = 0;
@@ -1032,7 +1032,7 @@ void read_enum( struct task* task, struct dec* dec ) {
          if ( task->tk == TK_ASSIGN ) {
             t_read_tk( task );
             struct expr_reading value;
-            t_init_expr_reading( &value, true, false, false );
+            t_init_expr_reading( &value, true, false, false, true );
             t_read_expr( task, &value );
             constant->value_node = value.output_node;
          }
@@ -1087,7 +1087,7 @@ void read_enum( struct task* task, struct dec* dec ) {
       t_test_tk( task, TK_ASSIGN );
       t_read_tk( task );
       struct expr_reading value;
-      t_init_expr_reading( &value, true, false, false );
+      t_init_expr_reading( &value, true, false, false, true );
       t_read_expr( task, &value );
       constant->value_node = value.output_node;
       if ( dec->vars ) {
@@ -1282,7 +1282,7 @@ void read_dim( struct task* task, struct dec* dec ) {
       }
       else {
          struct expr_reading size;
-         t_init_expr_reading( &size, false, false, false );
+         t_init_expr_reading( &size, false, false, false, true );
          t_read_expr( task, &size );
          dim->size_node = size.output_node;
          t_test_tk( task, TK_BRACKET_R );
@@ -1336,7 +1336,7 @@ void read_init( struct task* task, struct dec* dec ) {
          struct value* value = mem_alloc( sizeof( *value ) );
          init_initial( &value->initial, false );
          struct expr_reading expr;
-         t_init_expr_reading( &expr, false, false, false );
+         t_init_expr_reading( &expr, false, false, false, true );
          t_read_expr( task, &expr );
          value->expr = expr.output_node;
          dec->initial = &value->initial;
@@ -1385,7 +1385,7 @@ void read_multi_init( struct task* task, struct dec* dec,
       }
       else {
          struct expr_reading expr;
-         t_init_expr_reading( &expr, false, false, false );
+         t_init_expr_reading( &expr, false, false, false, true );
          t_read_expr( task, &expr );
          struct value* value = mem_alloc( sizeof( *value ) );
          init_initial( &value->initial, false );
@@ -1638,7 +1638,7 @@ void read_params( struct task* task, struct params* params ) {
       if ( task->tk == TK_ASSIGN ) {
          t_read_tk( task );
          struct expr_reading value;
-         t_init_expr_reading( &value, false, true, false );
+         t_init_expr_reading( &value, false, true, false, true );
          t_read_expr( task, &value );
          param->default_value = value.output_node;
          if ( params->script ) {
@@ -1798,7 +1798,7 @@ void read_script_number( struct task* task, struct script* script ) {
       // When reading the script number, the left parenthesis of the parameter
       // list can be mistaken for a function call. Don't read function calls.
       struct expr_reading number;
-      t_init_expr_reading( &number, false, false, true );
+      t_init_expr_reading( &number, false, false, true, true );
       t_read_expr( task, &number );
       script->number = number.output_node;
    }

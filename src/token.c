@@ -1039,26 +1039,16 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
 
 void t_test_tk( struct task* task, enum tk expected ) {
    if ( task->tk != expected ) {
-      if ( task->tk == TK_END ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-            "need %s but reached end of file",
-            t_get_token_name( expected ) );
-      }
-      else if ( task->tk == TK_LIB_END ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-            "need %s but reached end of library",
-            t_get_token_name( expected ) );
-      }
-      else if ( task->tk == TK_RESERVED ) {
+      if ( task->tk == TK_RESERVED ) {
          t_diag( task, DIAG_POS_ERR, &task->tk_pos,
             "`%s` is a reserved identifier that is not currently used",
             task->tk_text );
       }
       else {
          t_diag( task, DIAG_POS_ERR, &task->tk_pos, 
-            "unexpected token" );
-         t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos, 
-            "need %s but got %s", t_get_token_name( expected ),
+            "unexpected %s", t_get_token_name( task->tk ) );
+         t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
+            "expecting %s here", t_get_token_name( expected ),
             t_get_token_name( task->tk ) );
       }
       t_bail( task );
@@ -1166,13 +1156,14 @@ const char* t_get_token_name( enum tk tk ) {
       { TK_LIT_HEX, "hexadecimal number" },
       { TK_LIT_FIXED, "fixed-point number" },
       { TK_NL, "newline character" },
+      { TK_END, "end-of-input" },
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
       { TK_COLON_2, "`::`" } };
    STATIC_ASSERT( TK_TOTAL == 106 );
    switch ( tk ) {
    case TK_LIT_STRING:
-      return "string";
+      return "string literal";
    case TK_LIT_CHAR:
       return "character literal";
    case TK_ID:
@@ -1324,4 +1315,11 @@ void t_skip_block( struct task* task ) {
    }
    t_test_tk( task, TK_BRACE_R );
    t_read_tk( task );
+}
+
+bool t_same_pos( struct pos* a, struct pos* b ) {
+   return (
+      a->id == b->id &&
+      a->line == b->line &&
+      a->column == b->column );
 }

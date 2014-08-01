@@ -57,22 +57,23 @@ static void test_access( struct task*, struct expr_test*, struct operand*,
    struct access* );
 
 void t_init_expr_reading( struct expr_reading* reading, bool in_constant,
-   bool skip_assign, bool skip_call ) {
+   bool skip_assign, bool skip_call, bool expect_expr ) {
    reading->node = NULL;
    reading->output_node = NULL;
    reading->has_str = false;
    reading->in_constant = in_constant;
    reading->skip_assign = skip_assign;
    reading->skip_call = skip_call;
+   reading->expect_expr = expect_expr;
 }
 
 void t_read_expr( struct task* task, struct expr_reading* reading ) {
-   struct pos pos = task->tk_pos;
+   reading->pos = task->tk_pos;
    read_op( task, reading );
    struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
    expr->node.type = NODE_EXPR;
    expr->root = reading->node;
-   expr->pos = pos;
+   expr->pos = reading->pos;
    expr->value = 0;
    expr->folded = false;
    expr->has_str = reading->has_str;
@@ -374,7 +375,6 @@ void read_operand( struct task* task, struct expr_reading* reading ) {
       reading->node = &unary->node;
    }
    else {
-      reading->node = NULL;
       read_primary( task, reading );
       read_postfix( task, reading );
    }
@@ -443,7 +443,14 @@ void read_primary( struct task* task, struct expr_reading* reading ) {
          break;
       default:
          t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-            "missing primary expression" );
+            "unexpected %s", t_get_token_name( task->tk ) );
+         // For areas of code where an expression is to be expected. Only show
+         // this message when not a single piece of the expression is read.
+         if ( reading->expect_expr &&
+            t_same_pos( &task->tk_pos, &reading->pos ) ) {
+            t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
+               "expecting an expression here" );
+         }
          t_bail( task );
       }
       struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
@@ -564,7 +571,8 @@ void read_postfix( struct task* task, struct expr_reading* reading ) {
          sub->pos = task->tk_pos;
          t_read_tk( task );
          struct expr_reading index;
-         t_init_expr_reading( &index, reading->in_constant, false, false );
+         t_init_expr_reading( &index, reading->in_constant, false, false,
+            true );
          t_read_expr( task, &index );
          t_test_tk( task, TK_BRACKET_R );
          t_read_tk( task );
@@ -686,7 +694,7 @@ void read_call_args( struct task* task, struct expr_reading* reading,
    struct list* args ) {
    while ( true ) {
       struct expr_reading arg;
-      t_init_expr_reading( &arg, reading->in_constant, false, false );
+      t_init_expr_reading( &arg, reading->in_constant, false, false, true );
       t_read_expr( task, &arg );
       list_append( args, arg.output_node );
       if ( task->tk == TK_COMMA ) {
@@ -743,7 +751,7 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
          t_read_tk( task );
       }
       struct expr_reading value;
-      t_init_expr_reading( &value, false, false, false );
+      t_init_expr_reading( &value, false, false, false, true );
       t_read_expr( task, &value );
       item->value = value.output_node;
       if ( head ) {
