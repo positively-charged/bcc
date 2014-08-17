@@ -217,7 +217,7 @@ void visit_var( struct task* task, struct var* var ) {
    }
    else if ( var->storage == STORAGE_WORLD ||
       var->storage == STORAGE_GLOBAL ) {
-      if ( var->initial ) {
+      if ( var->initial && ! var->is_constant_init ) {
          if ( var->initial->multi ) {
             init_world_array( task, var );
          }
@@ -255,14 +255,22 @@ void init_world_array( struct task* task, struct var* var ) {
    // Assign elements.
    struct value* value = var->value;
    while ( value ) {
-      t_add_opc( task, PCD_PUSHNUMBER );
-      t_add_arg( task, value->index );
-      t_add_opc( task, PCD_PUSHNUMBER );
-      t_add_arg( task, value->expr->value );
-      if ( value->expr->has_str && task->library_main->importable ) {
-         t_add_opc( task, PCD_TAGSTRING );
+      // Initialize an element only if the value is not 0, because the array
+      // is already nullified. String values from libraries are an exception,
+      // because they need to be tagged regardless of the value.
+      if ( ( ! value->expr->folded || value->expr->value ) ||
+         ( value->expr->has_str && task->library_main->importable ) ) {
+         t_add_opc( task, PCD_PUSHNUMBER );
+         t_add_arg( task, value->index );
+         if ( value->expr->folded && ! value->expr->has_str ) { 
+            t_add_opc( task, PCD_PUSHNUMBER );
+            t_add_arg( task, value->expr->value );
+         }
+         else {
+            push_expr( task, value->expr, false );
+         }
+         update_element( task, var->storage, var->index, AOP_NONE );
       }
-      update_element( task, var->storage, var->index, AOP_NONE );
       value = value->next;
    }
 }

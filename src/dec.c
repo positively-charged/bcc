@@ -47,6 +47,7 @@ struct multi_value_test {
    bool undef_err;
    bool undef_erred;
    bool has_string;
+   bool is_constant;
 };
 
 struct value_list {
@@ -119,7 +120,7 @@ static void test_var( struct task*, struct var*, bool );
 static void test_init( struct task*, struct var*, bool, bool* );
 static void init_multi_value_test( struct multi_value_test*,
    struct multi_value_test*, struct multi_value*, struct dim*, struct type*,
-   struct type_member*, bool );
+   struct type_member*, bool, bool );
 static void test_multi_value( struct task*, struct multi_value_test* );
 static void test_multi_value_struct( struct task*, struct multi_value_test* );
 static void calc_dim_size( struct dim*, struct type* );
@@ -1467,8 +1468,10 @@ void add_var( struct task* task, struct dec* dec ) {
    var->used = false;
    var->initial_has_str = false;
    var->imported = task->library->imported;
+   var->is_constant_init = false;
    if ( dec->is_static ) {
       var->hidden = true;
+      var->is_constant_init = true;
    }
    if ( dec->area == DEC_TOP ) {
       add_unresolved( task->region, &var->object );
@@ -2734,7 +2737,8 @@ void test_init( struct task* task, struct var* var, bool undef_err,
             var->dim,
             var->type,
             var->type->member,
-            undef_err );
+            undef_err,
+            var->is_constant_init );
          test_multi_value( task, &test );
          if ( test.undef_erred ) {
             *undef_erred = true;
@@ -2758,7 +2762,8 @@ void test_init( struct task* task, struct var* var, bool undef_err,
             NULL,
             var->type,
             var->type->member,
-            undef_err );
+            undef_err,
+            var->is_constant_init );
          test_multi_value_struct( task, &test );
          if ( test.undef_erred ) {
             *undef_erred = true;
@@ -2796,7 +2801,7 @@ void test_init( struct task* task, struct var* var, bool undef_err,
 void init_multi_value_test( struct multi_value_test* test,
    struct multi_value_test* parent, struct multi_value* multi_value,
    struct dim* dim, struct type* type, struct type_member* type_member,
-   bool undef_err ) {
+   bool undef_err, bool is_constant ) {
    test->parent = parent;
    test->multi_value = multi_value;
    test->dim = dim;
@@ -2806,6 +2811,7 @@ void init_multi_value_test( struct multi_value_test* test,
    test->undef_err = undef_err;
    test->undef_erred = false;
    test->has_string = false;
+   test->is_constant = is_constant;
 }
 
 void test_multi_value( struct task* task, struct multi_value_test* test ) {
@@ -2830,7 +2836,7 @@ void test_multi_value( struct task* task, struct multi_value_test* test ) {
          }
          struct multi_value_test nested_test;
          init_multi_value_test( &nested_test, test, multi_value, NULL,
-            test->type, NULL, test->undef_err );
+            test->type, NULL, test->undef_err, test->is_constant );
          if ( test->dim->next ) {
             nested_test.dim = test->dim->next;
          }
@@ -2866,10 +2872,12 @@ void test_multi_value( struct task* task, struct multi_value_test* test ) {
                &expr_test.pos, "missing another brace initializer" );
             t_bail( task );
          }
-         if ( ! value->expr->folded ) {
-            t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &expr_test.pos, "initial value not constant" );
-            t_bail( task );
+         if ( test->is_constant ) {
+            if ( ! value->expr->folded ) {
+               t_diag( task, DIAG_POS_ERR, &expr_test.pos,
+                  "initial value not constant" );
+               t_bail( task );
+            }
          }
          initial->tested = true;
          if ( expr_test.has_string ) {
@@ -2906,12 +2914,14 @@ void test_multi_value_struct( struct task* task,
          struct multi_value_test nested_test;
          if ( member->dim ) {
             init_multi_value_test( &nested_test, test, multi_value,
-               member->dim, member->type, NULL, test->undef_err );
+               member->dim, member->type, NULL, test->undef_err,
+               test->is_constant );
             test_multi_value( task, &nested_test );
          }
          else {
             init_multi_value_test( &nested_test, test, multi_value,
-               member->dim, member->type, NULL, test->undef_err );
+               member->dim, member->type, NULL, test->undef_err,
+               test->is_constant );
             test_multi_value_struct( task, &nested_test );
          }
          if ( nested_test.undef_erred ) {
@@ -2935,10 +2945,12 @@ void test_multi_value_struct( struct task* task,
                "missing another brace initializer" );
             t_bail( task );
          }
-         if ( ! value->expr->folded ) {
-            t_diag( task, DIAG_POS_ERR, &expr_test.pos,
-               "initial value not constant" );
-            t_bail( task );
+         if ( test->is_constant ) {
+            if ( ! value->expr->folded ) {
+               t_diag( task, DIAG_POS_ERR, &expr_test.pos,
+                  "initial value not constant" );
+               t_bail( task );
+            }
          }
          // At this time, I know of no good way to initialize a string member.
          // The user will have to initialize the member manually, by using an

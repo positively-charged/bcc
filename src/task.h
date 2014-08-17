@@ -526,6 +526,7 @@ struct var {
    bool used;
    bool initial_has_str;
    bool imported;
+   bool is_constant_init;
 };
 
 struct param {
