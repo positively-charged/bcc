@@ -743,6 +743,8 @@ void read_source( struct task* task, struct token* token ) {
       ++save;
       ch = read_ch( task );
    }
+   *save = 0;
+   ++save;
    tk = TK_LIT_FIXED;
    goto state_finish_number;
 
