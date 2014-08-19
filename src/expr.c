@@ -545,7 +545,29 @@ int t_extract_literal_value( struct task* task ) {
       return strtol( task->tk_text, NULL, 8 );
    }
    else if ( task->tk == TK_LIT_HEX ) {
-      return strtol( task->tk_text, NULL, 16 );
+      // NOTE: The hexadecimal literal is converted without considering whether
+      // the number can fit into a signed integer, the destination type.
+      int value = 0;
+      int i = 0;
+      while ( task->tk_text[ i ] ) {
+         int digit_value = 0;
+         switch ( task->tk_text[ i ] ) {
+         case 'a': case 'A': digit_value = 0xA; break;
+         case 'b': case 'B': digit_value = 0xB; break;
+         case 'c': case 'C': digit_value = 0xC; break;
+         case 'd': case 'D': digit_value = 0xD; break;
+         case 'e': case 'E': digit_value = 0xE; break;
+         case 'f': case 'F': digit_value = 0xF; break;
+         default:
+            digit_value = task->tk_text[ i ] - '0';
+            break;
+         }
+         // NOTE: Undefined behavior may occur when shifting of a signed
+         // integer leads to overflow.
+         value = ( ( value << 4 ) | digit_value );
+         ++i;
+      }
+      return value;
    }
    else if ( task->tk == TK_LIT_FIXED ) {
       double value = atof( task->tk_text );
