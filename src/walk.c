@@ -693,9 +693,7 @@ void visit_ext_call( struct task* task, struct operand* operand,
    t_add_opc( task, PCD_CALLFUNC );
    t_add_arg( task, count );
    t_add_arg( task, impl->id );
-   if ( call->func->return_type ) {
-      operand->pushed = true;
-   }
+   operand->pushed = true;
 }
 
 void visit_ded_call( struct task* task, struct operand* operand,
