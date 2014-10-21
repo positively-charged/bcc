@@ -555,7 +555,7 @@ It is important to provide correct arguments. `start` must not be negative and m
 
 <h5>Technical</h5>
 
-This feature uses a special instruction. At this time, Zandronum does not support this instruction so existing instructions need to used to emulate this feature. This means your object file will be bigger and the number of instructions executed will be larger.
+This feature uses a special instruction. At this time, Zandronum does not support this instruction so existing instructions need to be used to emulate this feature. This means your object file will be bigger and the number of instructions executed will be larger.
 
 <h3>Miscellaneous</h3>
 
