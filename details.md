@@ -529,6 +529,34 @@ script 1 enter {
 }
 ```
 
+<h3>Printing Section of an Array</h3>
+
+<h5>Syntax</h5>
+<pre>
+Print( a:( array<b>[</b>, start<b>[</b>, length<b>]]</b> ) );
+</pre>
+
+If `start` is specified, printing will begin from this index. If `length` is also specified, then `length` amount of characters will be printed.
+
+It is important to provide correct arguments. `start` must not be negative and must not be greater than or equal to the array size. `length` must be between zero and the array size, inclusive. If these requirements are not met, bad things will happen!
+
+<h5>Example</h5>
+<pre>
+#include "zcommon.acs"
+
+<b>int</b> array[] = { 'a', 'b', 'c', 'd' };
+
+<b>script</b> 1 <b>open</b> {
+   Print( a:( array ) );       // Output: abcd
+   Print( a:( array, 1 ) );    // Output: bcd
+   Print( a:( array, 1, 1 ) ); // Output: c
+}
+</pre>
+
+<h5>Technical</h5>
+
+This feature uses a special instruction. At this time, Zandronum does not support this instruction so existing instructions need to used to emulate this feature. This means your object file will be bigger and the number of instructions executed will be larger.
+
 <h3>Miscellaneous</h3>
 
 There are new keywords: `enum`, `false`, `fixed`, `region`, `struct`, `true`, and `upmost`. `fixed` is currently reserved but is not used. In acc, the `goto` keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
