@@ -593,6 +593,12 @@ struct format_item {
    struct pos pos;
    struct format_item* next;
    struct expr* value;
+   void* extra;
+};
+
+struct format_item_array {
+   struct expr* offset;
+   struct expr* length;
 };
 
 struct format_block_usage {

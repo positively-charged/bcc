@@ -59,6 +59,7 @@ static void visit_ext_call( struct task*, struct operand*, struct call* );
 static void visit_ded_call( struct task*, struct operand*, struct call* );
 static void visit_format_call( struct task*, struct operand*, struct call* );
 static void visit_format_item( struct task*, struct format_item* );
+static void visit_array_format_item( struct task*, struct format_item* );
 static void visit_user_call( struct task*, struct operand*, struct call* );
 static void visit_internal_call( struct task*, struct operand*, struct call* );
 static void visit_binary( struct task*, struct operand*, struct binary* );
@@ -840,24 +841,7 @@ void visit_format_call( struct task* task, struct operand* operand,
 void visit_format_item( struct task* task, struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
-         struct operand object;
-         init_operand( &object );
-         object.action = ACTION_PUSH_VAR;
-         visit_operand( task, &object, item->value->root );
-         t_add_opc( task, PCD_PUSHNUMBER );
-         t_add_arg( task, object.index );
-         int code = PCD_PRINTMAPCHARARRAY;
-         switch ( object.storage ) {
-         case STORAGE_WORLD:
-            code = PCD_PRINTWORLDCHARARRAY;
-            break;
-         case STORAGE_GLOBAL:
-            code = PCD_PRINTGLOBALCHARARRAY;
-            break;
-         default:
-            break;
-         }
-         t_add_opc( task, code );
+         visit_array_format_item( task, item );
       }
       else {
          static const int casts[] = {
@@ -875,6 +859,83 @@ void visit_format_item( struct task* task, struct format_item* item ) {
          t_add_opc( task, casts[ item->cast - 1 ] );
       }
       item = item->next;
+   }
+}
+
+// Example: Print( a:( array, offset ) );
+// Implementation:
+//    int *offset_array = array + offset
+//    Print( a: offset_array )
+// Example: Print( a:( array, offset, length ) );
+// Implementation:
+//    int *offset_array = array + offset;
+//    int last_ch = offset_array[ length - 1 ];
+//    array[ length - 1 ] = 0;
+//    Print( a: offset_array, c: last_ch );
+//    array[ length - 1 ] = last_ch;
+void visit_array_format_item( struct task* task, struct format_item* item ) {
+   int label_zerolength = 0;
+   int label_done = 0;
+   int local_start = 0;
+   struct format_item_array* extra = item->extra;
+   struct operand object;
+   init_operand( &object );
+   object.action = ACTION_PUSH_VAR;
+   visit_operand( task, &object, item->value->root );
+   if ( extra && extra->offset ) {
+      push_expr( task, extra->offset, true );
+      t_add_opc( task, PCD_ADD );
+   }
+   if ( extra && extra->length ) {
+      local_start = alloc_script_var( task );
+      t_add_opc( task, PCD_ASSIGNSCRIPTVAR );
+      t_add_arg( task, local_start );
+      push_expr( task, extra->length, false );
+      label_zerolength = t_tell( task );
+      t_add_opc( task, PCD_CASEGOTO );
+      t_add_arg( task, 0 );
+      t_add_arg( task, 0 );
+      t_add_opc( task, PCD_PUSHSCRIPTVAR );
+      t_add_arg( task, local_start );
+      t_add_opc( task, PCD_ADD );
+      t_add_opc( task, PCD_PUSHNUMBER );
+      t_add_arg( task, 1 );
+      t_add_opc( task, PCD_SUBTRACT );
+      t_add_opc( task, PCD_DUP );
+      t_add_opc( task, PCD_DUP );
+      push_element( task, object.storage, object.index );
+      t_add_opc( task, PCD_SWAP );
+      t_add_opc( task, PCD_PUSHNUMBER );
+      t_add_arg( task, 0 );
+      update_element( task, object.storage, object.index, AOP_NONE );
+      t_add_opc( task, PCD_PUSHSCRIPTVAR );
+      t_add_arg( task, local_start );
+      dealloc_last_script_var( task );
+   }
+   t_add_opc( task, PCD_PUSHNUMBER );
+   t_add_arg( task, object.index );
+   int code = PCD_PRINTMAPCHARARRAY;
+   switch ( object.storage ) {
+   case STORAGE_WORLD:
+      code = PCD_PRINTWORLDCHARARRAY;
+      break;
+   case STORAGE_GLOBAL:
+      code = PCD_PRINTGLOBALCHARARRAY;
+      break;
+   default:
+      break;
+   }
+   t_add_opc( task, code );
+   if ( extra && extra->length ) {
+      t_add_opc( task, PCD_DUP );
+      t_add_opc( task, PCD_PRINTCHARACTER );
+      update_element( task, object.storage, object.index, AOP_NONE );
+      label_done = t_tell( task );
+      t_seek( task, label_zerolength );
+      t_add_opc( task, PCD_CASEGOTO );
+      t_add_arg( task, 0 );
+      t_add_arg( task, label_done );
+      t_seek_end( task );
    }
 }
 

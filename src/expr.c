@@ -739,6 +739,7 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
       item->pos = task->tk_pos;
       item->next = NULL;
       item->value = NULL;
+      item->extra = NULL;
       bool unknown = false;
       switch ( task->tk_text[ 0 ] ) {
       case 'a': item->cast = FCAST_ARRAY; break;
@@ -772,10 +773,51 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
          t_test_tk( task, TK_ASSIGN_COLON );
          t_read_tk( task );
       }
-      struct expr_reading value;
-      t_init_expr_reading( &value, false, false, false, true );
-      t_read_expr( task, &value );
-      item->value = value.output_node;
+      if ( item->cast == FCAST_ARRAY ) {
+         bool paren = false;
+         if ( task->tk == TK_PAREN_L ) {
+            paren = true;
+            t_read_tk( task );
+         }
+         // Array.
+         struct expr_reading expr;
+         t_init_expr_reading( &expr, false, false, false, true );
+         t_read_expr( task, &expr );
+         item->value = expr.output_node;
+         if ( paren ) {
+            struct expr* offset = NULL;
+            struct expr* length = NULL;
+            // Offset.
+            if ( task->tk == TK_COMMA ) {
+               t_read_tk( task );
+               t_init_expr_reading( &expr, false, false, false, true );
+               t_read_expr( task, &expr );
+               offset = expr.output_node;
+               // Length.
+               if ( task->tk == TK_COMMA ) {
+                  t_read_tk( task );
+                  t_init_expr_reading( &expr, false, false, false, true );
+                  t_read_expr( task, &expr );
+                  length = expr.output_node;
+               }
+            }
+            t_test_tk( task, TK_PAREN_R );
+            t_read_tk( task );
+            // Only add extra field if extra details have been specified.
+            if ( offset ) {
+               struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
+               extra->offset = offset;
+               extra->length = length;
+               item->extra = extra;
+            }
+         }
+      }
+      else {
+         struct expr_reading value;
+         t_init_expr_reading( &value, false, false, false, true );
+         t_read_expr( task, &value );
+         item->value = value.output_node;
+      }
       if ( head ) {
          tail->next = item;
       }
@@ -1442,6 +1484,23 @@ void t_test_format_item( struct task* task, struct format_item* item,
             t_diag( task, DIAG_POS_ERR, &item->value->pos,
                "array argument not of single dimension" );
             t_bail( task );
+         }
+         if ( item->extra ) {
+            struct format_item_array* extra = item->extra;
+            // Test offset.
+            t_init_expr_test( &expr );
+            expr.stmt_test = stmt_test;
+            expr.format_block = format_block;
+            expr.undef_err = true;
+            t_test_expr( task, &expr, extra->offset );
+            // Test length.
+            if ( extra->length ) {
+               t_init_expr_test( &expr );
+               expr.stmt_test = stmt_test;
+               expr.format_block = format_block;
+               expr.undef_err = true;
+               t_test_expr( task, &expr, extra->length );
+            }
          }
       }
       item = item->next;
