@@ -353,8 +353,12 @@ void read_source( struct task* task, struct token* token ) {
    }
    else if ( ch == '0' ) {
       ch = read_ch( task );
+      // Binary.
+      if ( ch == 'b' || ch == 'B' ) {
+         goto binary_literal;
+      }
       // Hexadecimal.
-      if ( ch == 'x' || ch == 'X' ) {
+      else if ( ch == 'x' || ch == 'X' ) {
          char* start = save;
          ch = read_ch( task );
          while (
@@ -715,6 +719,37 @@ void read_source( struct task* task, struct token* token ) {
          else {
             i += 2;
          }
+      }
+   }
+
+   binary_literal:
+   // -----------------------------------------------------------------------
+   ch = read_ch( task );
+   while ( true ) {
+      if ( ch == '0' || ch == '1' ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+      }
+      else if ( isalnum( ch ) ) {
+         struct pos pos = { task->source->line, task->source->column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "invalid digit in binary literal" );
+         t_bail( task );
+      }
+      else if ( save == task->source->save ) {
+         struct pos pos = { task->source->line, column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "no digits found in binary literal" );
+         t_bail( task );
+      }
+      else {
+         *save = 0;
+         ++save;
+         tk = TK_LIT_BINARY;
+         goto state_finish;
       }
    }
 
@@ -1156,13 +1191,14 @@ const char* t_get_token_name( enum tk tk ) {
       { TK_LIT_OCTAL, "octal number" },
       { TK_LIT_DECIMAL, "decimal number" },
       { TK_LIT_HEX, "hexadecimal number" },
+      { TK_LIT_BINARY, "binary number" },
       { TK_LIT_FIXED, "fixed-point number" },
       { TK_NL, "newline character" },
       { TK_END, "end-of-input" },
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
       { TK_COLON_2, "`::`" } };
-   STATIC_ASSERT( TK_TOTAL == 106 );
+   STATIC_ASSERT( TK_TOTAL == 107 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

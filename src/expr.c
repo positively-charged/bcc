@@ -438,6 +438,7 @@ void read_primary( struct task* task, struct expr_reading* reading ) {
       case TK_LIT_DECIMAL:
       case TK_LIT_OCTAL:
       case TK_LIT_HEX:
+      case TK_LIT_BINARY:
       case TK_LIT_FIXED:
       case TK_LIT_CHAR:
          break;
@@ -567,6 +568,15 @@ int t_extract_literal_value( struct task* task ) {
          value = ( ( value << 4 ) | digit_value );
          ++i;
       }
+      return value;
+   }
+   else if ( task->tk == TK_LIT_BINARY ) {
+      unsigned int temp = 0;
+      for ( int i = 0; task->tk_text[ i ]; ++i ) {
+         temp = ( temp << 1 ) | ( task->tk_text[ i ] - '0' );
+      }
+      int value = 0;
+      memcpy( &value, &temp, sizeof( value ) );
       return value;
    }
    else if ( task->tk == TK_LIT_FIXED ) {

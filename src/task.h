@@ -128,6 +128,7 @@ enum tk {
    TK_NL,
    TK_LIB,
    TK_LIB_END,
+   TK_LIT_BINARY,
    TK_TOTAL
 };
 
