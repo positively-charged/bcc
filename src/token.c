@@ -359,50 +359,7 @@ void read_source( struct task* task, struct token* token ) {
       }
       // Hexadecimal.
       else if ( ch == 'x' || ch == 'X' ) {
-         char* start = save;
-         ch = read_ch( task );
-         while (
-            ( ch >= '0' && ch <= '9' ) ||
-            ( ch >= 'a' && ch <= 'f' ) ||
-            ( ch >= 'A' && ch <= 'F' ) ) {
-            *save = ch;
-            ++save;
-            ch = read_ch( task );
-         }
-         if ( save == start ) {
-            struct pos pos = {
-               task->source->line,
-               task->source->column,
-               task->source->active_id };
-            t_diag( task, DIAG_POS_ERR, &pos,
-               "missing digits" );
-            t_bail( task );
-         }
-         *save = 0;
-         ++save;
-         tk = TK_LIT_HEX;
-         goto state_finish_number;
-      }
-      // Octal.
-      else if ( isdigit( ch ) ) {
-         while ( isdigit( ch ) ) {
-            if ( ch == '8' || ch == '9' ) {
-               struct pos pos = {
-                  task->source->line,
-                  task->source->column,
-                  task->source->active_id };
-               t_diag( task, DIAG_POS_ERR, &pos,
-                  "invalid digit in octal literal" );
-               t_bail( task );
-            }
-            *save = ch;
-            ++save;
-            ch = read_ch( task );
-         }
-         *save = 0;
-         ++save;
-         tk = TK_LIT_OCTAL;
-         goto state_finish_number;
+         goto hex_literal;
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
@@ -410,36 +367,15 @@ void read_source( struct task* task, struct token* token ) {
          save[ 1 ] = '.';
          save += 2;
          ch = read_ch( task );
-         goto state_fraction;
+         goto fraction;
       }
-      // Decimal zero.
+      // Octal.
       else {
-         save[ 0 ] = '0';
-         save[ 1 ] = 0;
-         save += 2;
-         tk = TK_LIT_DECIMAL;
-         goto state_finish_number;
+         goto octal_literal;
       }
    }
    else if ( isdigit( ch ) ) {
-      while ( isdigit( ch ) ) {
-         *save = ch;
-         ++save;
-         ch = read_ch( task );
-      }
-      // Fixed-point number.
-      if ( ch == '.' ) {
-         *save = ch;
-         ++save;
-         ch = read_ch( task );
-         goto state_fraction;
-      }
-      else {
-         *save = 0;
-         ++save;
-         tk = TK_LIT_DECIMAL;
-         goto state_finish_number;
-      }
+      goto decimal_literal;
    }
    else if ( ch == '"' ) {
       ch = read_ch( task );
@@ -731,6 +667,11 @@ void read_source( struct task* task, struct token* token ) {
          ++save;
          ch = read_ch( task );
       }
+      // Underscores can be used to improve readability of a numeric literal
+      // by grouping digits, and are ignored.
+      else if ( ch == '_' ) {
+         ch = read_ch( task );
+      }
       else if ( isalnum( ch ) ) {
          struct pos pos = { task->source->line, task->source->column,
             task->source->active_id };
@@ -753,35 +694,140 @@ void read_source( struct task* task, struct token* token ) {
       }
    }
 
-   state_finish_number:
+   hex_literal:
    // -----------------------------------------------------------------------
-   // Numbers need to be separated from identifiers.
-   if ( isalpha( ch ) ) {
-      struct pos pos = { task->source->line, column,
-         task->source->active_id };
-      t_diag( task, DIAG_POS_ERR, &pos, "number combined with identifier" );
-      t_bail( task );
+   ch = read_ch( task );
+   while ( true ) {
+      if ( isxdigit( ch ) ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+      }
+      else if ( ch == '_' ) {
+         ch = read_ch( task );
+      }
+      else if ( isalnum( ch ) ) {
+         struct pos pos = { task->source->line, task->source->column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "invalid digit in hexadecimal literal" );
+         t_bail( task );
+      }
+      else if ( save == task->source->save ) {
+         struct pos pos = { task->source->line, column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "no digits found in hexadecimal literal" );
+         t_bail( task );
+      }
+      else {
+         *save = 0;
+         ++save;
+         tk = TK_LIT_HEX;
+         goto state_finish;
+      }
    }
-   goto state_finish;
 
-   state_fraction:
+   octal_literal:
    // -----------------------------------------------------------------------
-   if ( ! isdigit( ch ) ) {
-      struct pos pos = { task->source->line, column,
-         task->source->active_id };
-      t_diag( task, DIAG_POS_ERR, &pos,
-         "fixed-point number missing fractional part" );
-      t_bail( task );
+   while ( true ) {
+      if ( ch >= '0' && ch <= '7' ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+      }
+      else if ( ch == '_' ) {
+         ch = read_ch( task );
+      }
+      else if ( isalnum( ch ) ) {
+         struct pos pos = { task->source->line, task->source->column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "invalid digit in octal literal" );
+         t_bail( task );
+      }
+      else {
+         // We consider the number zero to be a decimal literal.
+         if ( save == task->source->save ) {
+            save[ 0 ] = '0';
+            save[ 1 ] = 0;
+            save += 2;
+            tk = TK_LIT_DECIMAL;
+         }
+         else {
+            *save = 0;
+            ++save;
+            tk = TK_LIT_OCTAL;
+         }
+         goto state_finish;
+      }
    }
-   while ( isdigit( ch ) ) {
-      *save = ch;
-      ++save;
-      ch = read_ch( task );
+
+   decimal_literal:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isdigit( ch ) ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+      }
+      else if ( ch == '_' ) {
+         ch = read_ch( task );
+      }
+      // Fixed-point number.
+      else if ( ch == '.' ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+         goto fraction;
+      }
+      else if ( isalpha( ch ) ) {
+         struct pos pos = { task->source->line, task->source->column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "invalid digit in octal literal" );
+         t_bail( task );
+      }
+      else {
+         *save = 0;
+         ++save;
+         tk = TK_LIT_DECIMAL;
+         goto state_finish;
+      }
    }
-   *save = 0;
-   ++save;
-   tk = TK_LIT_FIXED;
-   goto state_finish_number;
+
+   fraction:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isdigit( ch ) ) {
+         *save = ch;
+         ++save;
+         ch = read_ch( task );
+      }
+      else if ( ch == '_' ) {
+         ch = read_ch( task );
+      }
+      else if ( isalpha( ch ) ) {
+         struct pos pos = { task->source->line, task->source->column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "invalid digit in fractional part of fixed-point literal" );
+         t_bail( task );
+      }
+      else if ( save[ -1 ] == '.' ) {
+         struct pos pos = { task->source->line, column,
+            task->source->active_id };
+         t_diag( task, DIAG_POS_ERR, &pos,
+            "no digits found in fractional part of fixed-point literal" );
+         t_bail( task );
+      }
+      else {
+         *save = 0;
+         ++save;
+         tk = TK_LIT_FIXED;
+         goto state_finish;
+      }
+   }
 
    state_string:
    // -----------------------------------------------------------------------
