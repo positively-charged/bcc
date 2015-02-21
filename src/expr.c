@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <string.h>
 
 #include "task.h"
@@ -540,10 +541,10 @@ void read_string( struct task* task, struct expr_reading* reading ) {
 
 int t_extract_literal_value( struct task* task ) {
    if ( task->tk == TK_LIT_DECIMAL ) {
-      return strtol( task->tk_text, NULL, 10 );
+      return t_convert_string_to_literal( task, 10 );
    }
    else if ( task->tk == TK_LIT_OCTAL ) {
-      return strtol( task->tk_text, NULL, 8 );
+      return t_convert_string_to_literal( task, 8 );
    }
    else if ( task->tk == TK_LIT_HEX ) {
       // NOTE: The hexadecimal literal is converted without considering whether
@@ -593,6 +594,23 @@ int t_extract_literal_value( struct task* task ) {
    else {
       return 0;
    }
+}
+
+int t_convert_string_to_literal( struct task* task, int base ) {
+   errno = 0;
+   char* temp;
+   int value = strtol( task->tk_text, &temp, base );
+   if ( temp == task->tk_text || *temp != '\0' ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         "invalid numeric value `%s`", task->tk_text );
+      t_bail( task );
+   }
+   else if ( ( value == LONG_MIN || value == LONG_MAX ) && errno == ERANGE ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         "numeric value `%s` is too large", task->tk_text );
+      t_bail( task );
+   }
+   return value;
 }
 
 void read_postfix( struct task* task, struct expr_reading* reading ) {
