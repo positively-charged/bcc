@@ -1200,7 +1200,7 @@ void test_unary( struct task* task, struct expr_test* test,
    else {
       test_node( task, test, &target, unary->operand );
       // Remaining operations require a value to work on.
-      if ( ! target.assignable ) {
+      if ( ! target.usable ) {
          t_diag( task, DIAG_POS_ERR, &unary->pos,
             "operand of unary operation not a value" );
          t_bail( task );
