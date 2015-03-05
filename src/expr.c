@@ -10,9 +10,9 @@ struct operand {
    struct region* region;
    struct type* type;
    int value;
-   bool is_result;
-   bool is_usable;
-   bool is_space;
+   bool complete;
+   bool usable;
+   bool assignable;
    bool folded;
    bool in_paren;
 };
@@ -892,9 +892,9 @@ void init_operand( struct operand* operand ) {
    operand->type = NULL;
    operand->region = NULL;
    operand->value = 0;
-   operand->is_result = false;
-   operand->is_usable = false;
-   operand->is_space = false;
+   operand->complete = false;
+   operand->usable = false;
+   operand->assignable = false;
    operand->folded = false;
    operand->in_paren = false;
 }
@@ -910,8 +910,8 @@ void test_expr( struct task* task, struct expr_test* test, struct expr* expr,
    struct operand* operand ) {
    if ( setjmp( test->bail ) == 0 ) {
       test_node( task, test, operand, expr->root );
-      if ( operand->is_result ) {
-         if ( test->need_value && ! operand->is_usable ) {
+      if ( operand->complete ) {
+         if ( test->need_value && ! operand->usable ) {
             t_diag( task, DIAG_POS_ERR, &expr->pos,
                "expression does not produce a value" );
             t_bail( task );
@@ -984,8 +984,8 @@ void test_literal( struct task* task, struct operand* operand,
    struct literal* literal ) {
    operand->value = literal->value;
    operand->folded = true;
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    operand->type = task->type_int;
 }
 
@@ -993,8 +993,8 @@ void test_string_usage( struct task* task, struct expr_test* test,
    struct operand* operand, struct indexed_string_usage* usage ) {
    operand->value = usage->string->index;
    operand->folded = true;
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    operand->type = task->type_str;
    test->has_string = true;
 }
@@ -1003,8 +1003,8 @@ void test_boolean( struct task* task, struct operand* operand,
    struct boolean* boolean ) {
    operand->value = boolean->value;
    operand->folded = true;
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    operand->type = task->type_bool;
 }
 
@@ -1111,8 +1111,8 @@ void use_object( struct task* task, struct expr_test* test,
       operand->type = task->type_int;
       operand->value = constant->value;
       operand->folded = true;
-      operand->is_result = true;
-      operand->is_usable = true;
+      operand->complete = true;
+      operand->usable = true;
    }
    else if ( object->node.type == NODE_VAR ) {
       struct var* var = ( struct var* ) object;
@@ -1122,13 +1122,13 @@ void use_object( struct task* task, struct expr_test* test,
          // NOTE: I'm not too happy with the idea of this field. It is
          // contagious. Blame the Hypnotoad.
          if ( test->accept_array ) {
-            operand->is_result = true;
+            operand->complete = true;
          }
       }
       else if ( var->type->primitive ) {
-         operand->is_result = true;
-         operand->is_usable = true;
-         operand->is_space = true;
+         operand->complete = true;
+         operand->usable = true;
+         operand->assignable = true;
       }
       var->used = true;
    }
@@ -1138,13 +1138,13 @@ void use_object( struct task* task, struct expr_test* test,
       if ( member->dim ) {
          operand->dim = member->dim;
          if ( test->accept_array ) {
-            operand->is_result = true;
+            operand->complete = true;
          }
       }
       else if ( member->type->primitive ) {
-         operand->is_result = true;
-         operand->is_usable = true;
-         operand->is_space = true;
+         operand->complete = true;
+         operand->usable = true;
+         operand->assignable = true;
       }
    }
    else if ( object->node.type == NODE_FUNC ) {
@@ -1156,8 +1156,8 @@ void use_object( struct task* task, struct expr_test* test,
       // When using just the name of an action special, a value is produced,
       // which is the ID of the action special.
       else if ( operand->func->type == FUNC_ASPEC ) {
-         operand->is_result = true;
-         operand->is_usable = true;
+         operand->complete = true;
+         operand->usable = true;
          struct func_aspec* impl = operand->func->impl;
          operand->value = impl->id;
          operand->folded = true;
@@ -1166,9 +1166,9 @@ void use_object( struct task* task, struct expr_test* test,
    else if ( object->node.type == NODE_PARAM ) {
       struct param* param = ( struct param* ) object;
       operand->type = param->type;
-      operand->is_result = true;
-      operand->is_usable = true;
-      operand->is_space = true;
+      operand->complete = true;
+      operand->usable = true;
+      operand->assignable = true;
    }
    else if ( object->node.type == NODE_ALIAS ) {
       struct alias* alias = ( struct alias* ) object;
@@ -1184,7 +1184,7 @@ void test_unary( struct task* task, struct expr_test* test,
       unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
       test_node( task, test, &target, unary->operand );
       // Only an l-value can be incremented.
-      if ( ! target.is_space ) {
+      if ( ! target.assignable ) {
          const char* action = "incremented";
          if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
             action = "decremented";
@@ -1197,7 +1197,7 @@ void test_unary( struct task* task, struct expr_test* test,
    else {
       test_node( task, test, &target, unary->operand );
       // Remaining operations require a value to work on.
-      if ( ! target.is_usable ) {
+      if ( ! target.assignable ) {
          t_diag( task, DIAG_POS_ERR, &unary->pos,
             "operand of unary operation not a value" );
          t_bail( task );
@@ -1223,8 +1223,8 @@ void test_unary( struct task* task, struct expr_test* test,
       }
       operand->folded = true;
    }
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    // Type of the result.
    if ( unary->op == UOP_LOG_NOT ) {
       operand->type = task->type_bool;
@@ -1264,14 +1264,14 @@ void test_subscript( struct task* task, struct expr_test* test,
    operand->dim = lside.dim->next;
    if ( operand->dim ) {
       if ( test->accept_array ) {
-         operand->is_result = true;
+         operand->complete = true;
       }
    }
    else {
       if ( operand->type->primitive ) {
-         operand->is_result = true;
-         operand->is_usable = true;
-         operand->is_space = true;
+         operand->complete = true;
+         operand->usable = true;
+         operand->assignable = true;
       }
    }
 }
@@ -1454,10 +1454,10 @@ void test_call( struct task* task, struct expr_test* test,
    }
    call->func = callee.func;
    operand->type = callee.func->return_type;
-   operand->is_result = true;
+   operand->complete = true;
    // Only functions that return a value produce a usable value.
    if ( operand->type ) {
-      operand->is_usable = true;
+      operand->usable = true;
    }
 }
 
@@ -1528,7 +1528,7 @@ void test_binary( struct task* task, struct expr_test* test,
    struct operand lside;
    init_operand( &lside );
    test_node( task, test, &lside, binary->lside );
-   if ( ! lside.is_usable ) {
+   if ( ! lside.usable ) {
       t_diag( task, DIAG_POS_ERR, &binary->pos,
          "operand on left side not a value" );
       t_bail( task );
@@ -1536,7 +1536,7 @@ void test_binary( struct task* task, struct expr_test* test,
    struct operand rside;
    init_operand( &rside );
    test_node( task, test, &rside, binary->rside );
-   if ( ! rside.is_usable ) {
+   if ( ! rside.usable ) {
       t_diag( task, DIAG_POS_ERR, &binary->pos,
          "operand on right side not a value" );
       t_bail( task );
@@ -1575,8 +1575,8 @@ void test_binary( struct task* task, struct expr_test* test,
       operand->value = l;
       operand->folded = true;
    }
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    // Type of the result.
    switch ( binary->op ) {
    case BOP_NONE:
@@ -1617,7 +1617,7 @@ void test_assign( struct task* task, struct expr_test* test,
    struct operand lside;
    init_operand( &lside );
    test_node( task, test, &lside, assign->lside );
-   if ( ! lside.is_space ) {
+   if ( ! lside.assignable ) {
       t_diag( task, DIAG_POS_ERR, &assign->pos,
          "cannot assign to operand on left side" );
       t_bail( task );
@@ -1625,13 +1625,13 @@ void test_assign( struct task* task, struct expr_test* test,
    struct operand rside;
    init_operand( &rside );
    test_node( task, test, &rside, assign->rside );
-   if ( ! rside.is_usable ) {
+   if ( ! rside.usable ) {
       t_diag( task, DIAG_POS_ERR, &assign->pos,
          "right side of assignment not a value" );
       t_bail( task );
    }
-   operand->is_result = true;
-   operand->is_usable = true;
+   operand->complete = true;
+   operand->usable = true;
    operand->type = lside.type;
 }
 
