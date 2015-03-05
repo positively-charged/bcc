@@ -28,6 +28,8 @@ static void read_call( struct task*, struct expr_reading* );
 static void read_call_args( struct task* task, struct expr_reading*,
    struct list* );
 static void read_string( struct task*, struct expr_reading* );
+static struct indexed_string* intern_indexed_string( struct task*, char* value,
+   int length, bool* first_time );
 static int convert_numerictoken_to_int( struct task*, int base );
 static void test_expr( struct task*, struct expr_test*, struct expr*,
    struct operand* );
@@ -464,69 +466,18 @@ void read_primary( struct task* task, struct expr_reading* reading ) {
 
 void read_string( struct task* task, struct expr_reading* reading ) {
    t_test_tk( task, TK_LIT_STRING );
-   struct indexed_string* prev = NULL;
-   struct indexed_string* string = task->str_table.head_sorted;
-   while ( string ) {
-      int result = strcmp( string->value, task->tk_text );
-      if ( result == 0 ) {
-         break;
-      }
-      else if ( result > 0 ) {
-         string = NULL;
-         break;
-      }
-      prev = string;
-      string = string->next_sorted;
-   }
-   // Allocate new string.
-   if ( ! string ) {
-      void* block = mem_alloc( sizeof( struct indexed_string ) +
-         task->tk_length + 1 );
-      string = block;
-      string->value = ( ( char* ) block ) + sizeof( *string );
-      memcpy( string->value, task->tk_text, task->tk_length );
-      string->value[ task->tk_length ] = 0;
-      string->length = task->tk_length;
-      string->index = 0;
-      string->next = NULL;
-      string->next_sorted = NULL;
-      string->next_usable = NULL;
-      string->in_constant = reading->in_constant;
-      string->used = false;
-      if ( task->library->imported ) {
-         string->imported = true;
-      }
-      else {
-         string->imported = false;
-      }
-      if ( task->source == task->source_main ) {
-         string->in_main_file = true;
-      }
-      else {
-         string->in_main_file = false;
-      }
-      // Insert based on appearance.
-      if ( task->str_table.head ) {
-         task->str_table.tail->next = string;
-      }
-      else {
-         task->str_table.head = string;
-      }
-      task->str_table.tail = string;
-      // Sorted insert.
-      if ( prev ) {
-         string->next_sorted = prev->next_sorted;
-         prev->next_sorted = string;
-      }
-      else {
-         string->next_sorted = task->str_table.head_sorted;
-         task->str_table.head_sorted = string;
-      }
+   bool first_time = false;
+   struct indexed_string* string = intern_indexed_string( task, task->tk_text,
+      task->tk_length, &first_time );
+   string->in_constant = reading->in_constant;
+   string->in_main_file = ( task->source == task->source_main );
+   if ( first_time ) {
+      string->imported = task->library->imported;
    }
    else {
       // If an imported string is found in the main library, then the string
       // should NOT be considered imported.
-      if ( ! task->library->imported ) {
+      if ( task->library == task->library_main ) {
          string->imported = false;
       }
    }
@@ -536,6 +487,58 @@ void read_string( struct task* task, struct expr_reading* reading ) {
    reading->node = &usage->node;
    reading->has_str = true;
    t_read_tk( task );
+}
+
+struct indexed_string* intern_indexed_string( struct task* task, char* value,
+   int length, bool* first_time ) {
+   struct indexed_string* prev_string = NULL;
+   struct indexed_string* string = task->str_table.head_sorted;
+   while ( string ) {
+      int result = strcmp( string->value, value );
+      if ( result == 0 ) {
+         break;
+      }
+      else if ( result > 0 ) {
+         string = NULL;
+         break;
+      }
+      prev_string = string;
+      string = string->next_sorted;
+   }
+   // Allocate a new indexed-string when one isn't interned.
+   if ( ! string ) {
+      string = mem_alloc( sizeof( *string ) );
+      string->value = value;
+      string->length = length;
+      string->index = 0;
+      string->next = NULL;
+      string->next_sorted = NULL;
+      string->next_usable = NULL;
+      string->in_constant = false;
+      string->used = false;
+      string->imported = false;
+      string->in_main_file = false;
+      if ( task->str_table.head ) {
+         task->str_table.tail->next = string;
+      }
+      else {
+         task->str_table.head = string;
+      }
+      task->str_table.tail = string;
+      // List sorted alphabetically.
+      if ( prev_string ) {
+         string->next_sorted = prev_string->next_sorted;
+         prev_string->next_sorted = string;
+      }
+      else {
+         string->next_sorted = task->str_table.head_sorted;
+         task->str_table.head_sorted = string;
+      }
+      if ( first_time ) {
+         *first_time = true;
+      }
+   }
+   return string;
 }
 
 int t_extract_literal_value( struct task* task ) {
