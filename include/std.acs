@@ -923,6 +923,9 @@ enum {
 enum DB_ORDER_DESC = false;
 enum DB_ORDER_ASC = true;
 
+enum INT_MIN = -INT_MAX - 1;
+enum INT_MAX = 2147483647;
+
 // Action specials
 // Tail format: = <action-special-number> , <script-callable>
 int Polyobj_StartLine( int, int, int, int ) = 1, 0;
