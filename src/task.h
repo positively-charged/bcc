@@ -1412,7 +1412,6 @@ void t_read_region( struct task* );
 void t_read_import( struct task*, struct list* );
 void t_import( struct task*, struct import* );
 int t_extract_literal_value( struct task* );
-int t_convert_string_to_literal( struct task* task, int base );
 void t_align_4byte( struct task* );
 struct source* t_load_included_source( struct task* );
 void t_make_main_lib( struct task* );
