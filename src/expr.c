@@ -1,4 +1,6 @@
+#include <errno.h>
 #include <string.h>
+#include <limits.h>
 
 #include "task.h"
 
@@ -29,6 +31,7 @@ static void read_call( struct task*, struct expr_reading* );
 static void read_call_args( struct task* task, struct expr_reading*,
    struct list* );
 static void read_string( struct task*, struct expr_reading* );
+static int convert_numerictoken_to_int( struct task*, int base );
 static void test_expr( struct task*, struct expr_test*, struct expr*,
    struct operand* );
 static void init_operand( struct operand* );
@@ -540,10 +543,10 @@ void read_string( struct task* task, struct expr_reading* reading ) {
 
 int t_extract_literal_value( struct task* task ) {
    if ( task->tk == TK_LIT_DECIMAL ) {
-      return strtol( task->tk_text, NULL, 10 );
+      return convert_numerictoken_to_int( task, 10 );
    }
    else if ( task->tk == TK_LIT_OCTAL ) {
-      return strtol( task->tk_text, NULL, 8 );
+      return convert_numerictoken_to_int( task, 8 );
    }
    else if ( task->tk == TK_LIT_HEX ) {
       // NOTE: The hexadecimal literal is converted without considering whether
@@ -593,6 +596,36 @@ int t_extract_literal_value( struct task* task ) {
    else {
       return 0;
    }
+}
+
+// Maximum positive number the game engine will consider valid. It is assumed
+// that the `long` type on the host system running the compiler can hold this
+// value.
+#define ENGINE_MAX_INT_VALUE 2147483647
+
+// It is assumed this function accepts a numeric token as input. Token of a
+// negative number is not possible because negating a number is a unary
+// operation, and is done elsewhere.
+// TODO: Do underflow/overflow check on intermediate results of a constant
+// expression, not just on a literal operand.
+int convert_numerictoken_to_int( struct task* task, int base ) {
+   errno = 0;
+   char* temp = NULL;
+   long value = strtol( task->tk_text, &temp, base );
+   // NOTE: The token should already be of the form that strtol() accepts.
+   // Maybe make this an internal compiler error, as a sanity check?
+   if ( temp == task->tk_text || *temp != '\0' ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         "invalid numeric value `%s`", task->tk_text );
+      t_bail( task );
+   }
+   if ( ( value == LONG_MAX && errno == ERANGE ) ||
+      value > ( long ) ENGINE_MAX_INT_VALUE ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         "numeric value `%s` is too large", task->tk_text );
+      t_bail( task );
+   }
+   return ( int ) value;
 }
 
 void read_postfix( struct task* task, struct expr_reading* reading ) {
