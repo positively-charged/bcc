@@ -1210,7 +1210,7 @@ void test_paltrans( struct task* task, struct stmt_test* test,
 
 void test_format_item( struct task* task, struct stmt_test* test,
    struct format_item* item ) {
-   t_test_format_item( task, item, test, NULL, task->region->body, NULL );
+   t_test_format_item( task, item, test, NULL, NULL );
    struct stmt_test* target = test;
    while ( target && ! target->format_block ) {
       target = target->parent;

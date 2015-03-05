@@ -1396,7 +1396,7 @@ void t_test_top_block( struct task*, struct stmt_test*, struct block* );
 void t_test_stmt( struct task*, struct stmt_test*, struct node* );
 void t_test_block( struct task*, struct stmt_test*, struct block* );
 void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
-   struct expr_test*, struct name* name_offset, struct block* );
+   struct expr_test*, struct block* );
 struct object* t_get_region_object( struct task*, struct region*,
    struct name* );
 void diag_dup( struct task*, const char* text, struct pos*, struct name* );

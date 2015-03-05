@@ -9,14 +9,11 @@ struct operand {
    struct dim* dim;
    struct region* region;
    struct type* type;
-   struct name* name_offset;
    int value;
    bool is_result;
    bool is_usable;
    bool is_space;
    bool folded;
-   bool state_access;
-   bool state_modify;
    bool in_paren;
 };
 
@@ -894,14 +891,11 @@ void init_operand( struct operand* operand ) {
    operand->dim = NULL;
    operand->type = NULL;
    operand->region = NULL;
-   operand->name_offset = NULL;
    operand->value = 0;
    operand->is_result = false;
    operand->is_usable = false;
    operand->is_space = false;
    operand->folded = false;
-   operand->state_access = false;
-   operand->state_modify = false;
    operand->in_paren = false;
 }
 
@@ -909,16 +903,12 @@ void t_test_expr( struct task* task, struct expr_test* test,
    struct expr* expr ) {
    struct operand operand;
    init_operand( &operand );
-   operand.name_offset = task->region->body;
    test_expr( task, test, expr, &operand );
 }
 
 void test_expr( struct task* task, struct expr_test* test, struct expr* expr,
    struct operand* operand ) {
    if ( setjmp( test->bail ) == 0 ) {
-      if ( test->need_value ) {
-         operand->state_access = true;
-      }
       test_node( task, test, operand, expr->root );
       if ( operand->is_result ) {
          if ( test->need_value && ! operand->is_usable ) {
@@ -1190,13 +1180,8 @@ void test_unary( struct task* task, struct expr_test* test,
    struct operand* operand, struct unary* unary ) {
    struct operand target;
    init_operand( &target );
-   target.name_offset = operand->name_offset;
    if ( unary->op == UOP_PRE_INC || unary->op == UOP_PRE_DEC ||
       unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
-      target.state_modify = true;
-      if ( operand->state_access ) {
-         target.state_access = true;
-      }
       test_node( task, test, &target, unary->operand );
       // Only an l-value can be incremented.
       if ( ! target.is_space ) {
@@ -1210,7 +1195,6 @@ void test_unary( struct task* task, struct expr_test* test,
       }
    }
    else {
-      target.state_access = true;
       test_node( task, test, &target, unary->operand );
       // Remaining operations require a value to work on.
       if ( ! target.is_usable ) {
@@ -1254,14 +1238,6 @@ void test_subscript( struct task* task, struct expr_test* test,
    struct operand* operand, struct subscript* subscript ) {
    struct operand lside;
    init_operand( &lside );
-   lside.name_offset = operand->name_offset;
-   if ( operand->state_modify ) {
-      lside.state_modify = true;
-      lside.state_access = operand->state_access;
-   }
-   else {
-      lside.state_access = true;
-   }
    test_node( task, test, &lside, subscript->lside );
    if ( ! lside.dim ) {
       t_diag( task, DIAG_POS_ERR, &subscript->pos, "operand not an array" );
@@ -1304,7 +1280,6 @@ void test_call( struct task* task, struct expr_test* test,
    struct operand* operand, struct call* call ) {
    struct operand callee;
    init_operand( &callee );
-   callee.name_offset = operand->name_offset;
    test_node( task, test, &callee, call->operand );
    if ( ! callee.func ) {
       t_diag( task, DIAG_POS_ERR, &call->pos, "operand not a function" );
@@ -1367,8 +1342,7 @@ void test_call( struct task* task, struct expr_test* test,
                break;
             }
             t_test_format_item( task, ( struct format_item* ) node,
-               test->stmt_test, test, operand->name_offset,
-               test->format_block );
+               test->stmt_test, test, test->format_block );
             list_next( &i );
          }
       }
@@ -1491,7 +1465,7 @@ void test_call( struct task* task, struct expr_test* test,
 // and a free format-item, the one found in a format-block.
 void t_test_format_item( struct task* task, struct format_item* item,
    struct stmt_test* stmt_test, struct expr_test* expr_test,
-   struct name* name_offset, struct block* format_block ) {
+   struct block* format_block ) {
    while ( item ) {
       struct expr_test expr;
       t_init_expr_test( &expr );
@@ -1511,7 +1485,6 @@ void t_test_format_item( struct task* task, struct format_item* item,
       }
       struct operand arg;
       init_operand( &arg );
-      arg.name_offset = name_offset;
       test_expr( task, &expr, item->value, &arg );
       if ( expr.undef_erred ) {
          expr_test->undef_erred = true;
@@ -1554,8 +1527,6 @@ void test_binary( struct task* task, struct expr_test* test,
    struct operand* operand, struct binary* binary ) {
    struct operand lside;
    init_operand( &lside );
-   lside.name_offset = operand->name_offset;
-   lside.state_access = true;
    test_node( task, test, &lside, binary->lside );
    if ( ! lside.is_usable ) {
       t_diag( task, DIAG_POS_ERR, &binary->pos,
@@ -1564,8 +1535,6 @@ void test_binary( struct task* task, struct expr_test* test,
    }
    struct operand rside;
    init_operand( &rside );
-   rside.name_offset = operand->name_offset;
-   rside.state_access = true;
    test_node( task, test, &rside, binary->rside );
    if ( ! rside.is_usable ) {
       t_diag( task, DIAG_POS_ERR, &binary->pos,
@@ -1647,9 +1616,6 @@ void test_assign( struct task* task, struct expr_test* test,
    }
    struct operand lside;
    init_operand( &lside );
-   lside.name_offset = operand->name_offset;
-   lside.state_modify = true;
-   lside.state_access = operand->state_access;
    test_node( task, test, &lside, assign->lside );
    if ( ! lside.is_space ) {
       t_diag( task, DIAG_POS_ERR, &assign->pos,
@@ -1658,8 +1624,6 @@ void test_assign( struct task* task, struct expr_test* test,
    }
    struct operand rside;
    init_operand( &rside );
-   rside.name_offset = operand->name_offset;
-   rside.state_access = true;
    test_node( task, test, &rside, assign->rside );
    if ( ! rside.is_usable ) {
       t_diag( task, DIAG_POS_ERR, &assign->pos,
@@ -1676,14 +1640,6 @@ void test_access( struct task* task, struct expr_test* test,
    struct object* object = NULL;
    struct operand lside;
    init_operand( &lside );
-   lside.name_offset = operand->name_offset;
-   if ( operand->state_modify ) {
-      lside.state_modify = true;
-      lside.state_access = operand->state_access;
-   }
-   else {
-      lside.state_access = true;
-   }
    test_node( task, test, &lside, access->lside );
    // `::` operator.
    if ( access->is_region ) {
