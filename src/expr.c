@@ -27,6 +27,8 @@ static struct access* alloc_access( char*, struct pos );
 static void read_call( struct task*, struct expr_reading* );
 static void read_call_args( struct task* task, struct expr_reading*,
    struct list* );
+static struct format_item* read_format_item( struct task*, bool colon );
+static void read_format_item_array_value( struct task*, struct format_item* );
 static void read_string( struct task*, struct expr_reading* );
 static struct indexed_string* intern_indexed_string( struct task*, char* value,
    int length, bool* first_time );
@@ -775,92 +777,7 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
    struct format_item* head = NULL;
    struct format_item* tail;
    while ( true ) {
-      t_test_tk( task, TK_ID );
-      struct format_item* item = mem_alloc( sizeof( *item ) );
-      item->node.type = NODE_FORMAT_ITEM;
-      item->cast = FCAST_DECIMAL;
-      item->pos = task->tk_pos;
-      item->next = NULL;
-      item->value = NULL;
-      item->extra = NULL;
-      bool unknown = false;
-      switch ( task->tk_text[ 0 ] ) {
-      case 'a': item->cast = FCAST_ARRAY; break;
-      case 'b': item->cast = FCAST_BINARY; break;
-      case 'c': item->cast = FCAST_CHAR; break;
-      case 'd':
-      case 'i': break;
-      case 'f': item->cast = FCAST_FIXED; break;
-      case 'k': item->cast = FCAST_KEY; break;
-      case 'l': item->cast = FCAST_LOCAL_STRING; break;
-      case 'n': item->cast = FCAST_NAME; break;
-      case 's': item->cast = FCAST_STRING; break;
-      case 'x': item->cast = FCAST_HEX; break;
-      default:
-         unknown = true;
-         break;
-      }
-      if ( unknown || task->tk_length != 1 ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unknown format cast `%s`",
-            task->tk_text );
-         t_bail( task );
-      }
-      t_read_tk( task );
-      // In a format block, the `:=` separator is used, because an identifier
-      // and a colon creates a goto-statement label.
-      if ( colon ) {
-         t_test_tk( task, TK_COLON );
-         t_read_tk( task );
-      }
-      else {
-         t_test_tk( task, TK_ASSIGN_COLON );
-         t_read_tk( task );
-      }
-      if ( item->cast == FCAST_ARRAY ) {
-         bool paren = false;
-         if ( task->tk == TK_PAREN_L ) {
-            paren = true;
-            t_read_tk( task );
-         }
-         // Array.
-         struct expr_reading expr;
-         t_init_expr_reading( &expr, false, false, false, true );
-         t_read_expr( task, &expr );
-         item->value = expr.output_node;
-         if ( paren ) {
-            struct expr* offset = NULL;
-            struct expr* length = NULL;
-            // Offset.
-            if ( task->tk == TK_COMMA ) {
-               t_read_tk( task );
-               t_init_expr_reading( &expr, false, false, false, true );
-               t_read_expr( task, &expr );
-               offset = expr.output_node;
-               // Length.
-               if ( task->tk == TK_COMMA ) {
-                  t_read_tk( task );
-                  t_init_expr_reading( &expr, false, false, false, true );
-                  t_read_expr( task, &expr );
-                  length = expr.output_node;
-               }
-            }
-            t_test_tk( task, TK_PAREN_R );
-            t_read_tk( task );
-            // Only add extra field if extra details have been specified.
-            if ( offset ) {
-               struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
-               extra->offset = offset;
-               extra->length = length;
-               item->extra = extra;
-            }
-         }
-      }
-      else {
-         struct expr_reading value;
-         t_init_expr_reading( &value, false, false, false, true );
-         t_read_expr( task, &value );
-         item->value = value.output_node;
-      }
+      struct format_item* item = read_format_item( task, colon );
       if ( head ) {
          tail->next = item;
       }
@@ -874,6 +791,97 @@ struct format_item* t_read_format_item( struct task* task, bool colon ) {
       else {
          return head;
       }
+   }
+}
+
+struct format_item* read_format_item( struct task* task, bool colon ) {
+   t_test_tk( task, TK_ID );
+   struct format_item* item = mem_alloc( sizeof( *item ) );
+   item->node.type = NODE_FORMAT_ITEM;
+   item->cast = FCAST_DECIMAL;
+   item->pos = task->tk_pos;
+   item->next = NULL;
+   item->value = NULL;
+   item->extra = NULL;
+   bool unknown = false;
+   switch ( task->tk_text[ 0 ] ) {
+   case 'a': item->cast = FCAST_ARRAY; break;
+   case 'b': item->cast = FCAST_BINARY; break;
+   case 'c': item->cast = FCAST_CHAR; break;
+   case 'd':
+   case 'i': break;
+   case 'f': item->cast = FCAST_FIXED; break;
+   case 'k': item->cast = FCAST_KEY; break;
+   case 'l': item->cast = FCAST_LOCAL_STRING; break;
+   case 'n': item->cast = FCAST_NAME; break;
+   case 's': item->cast = FCAST_STRING; break;
+   case 'x': item->cast = FCAST_HEX; break;
+   default:
+      unknown = true;
+      break;
+   }
+   if ( unknown || task->tk_length != 1 ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos, "unknown format cast `%s`",
+         task->tk_text );
+      t_bail( task );
+   }
+   t_read_tk( task );
+   // In a format block, the `:=` separator is used, because an identifier
+   // and a colon creates a goto-statement label.
+   if ( colon ) {
+      t_test_tk( task, TK_COLON );
+      t_read_tk( task );
+   }
+   else {
+      t_test_tk( task, TK_ASSIGN_COLON );
+      t_read_tk( task );
+   }
+   if ( item->cast == FCAST_ARRAY ) {
+      read_format_item_array_value( task, item );
+   }
+   else {
+      struct expr_reading value;
+      t_init_expr_reading( &value, false, false, false, true );
+      t_read_expr( task, &value );
+      item->value = value.output_node;
+   }
+   return item;
+}
+
+void read_format_item_array_value( struct task* task,
+   struct format_item* item ) {
+   bool paren = false;
+   if ( task->tk == TK_PAREN_L ) {
+      paren = true;
+      t_read_tk( task );
+   }
+   // Array field.
+   struct expr_reading expr;
+   t_init_expr_reading( &expr, false, false, false, true );
+   t_read_expr( task, &expr );
+   item->value = expr.output_node;
+   if ( paren ) {
+      // Offset field.
+      if ( task->tk == TK_COMMA ) {
+         t_read_tk( task );
+         t_init_expr_reading( &expr, false, false, false, true );
+         t_read_expr( task, &expr );
+         struct expr* offset = expr.output_node;
+         // Length field.
+         struct expr* length = NULL;
+         if ( task->tk == TK_COMMA ) {
+            t_read_tk( task );
+            t_init_expr_reading( &expr, false, false, false, true );
+            t_read_expr( task, &expr );
+            length = expr.output_node;
+         }
+         struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
+         extra->offset = offset;
+         extra->length = length;
+         item->extra = extra;
+      }
+      t_test_tk( task, TK_PAREN_R );
+      t_read_tk( task );
    }
 }
 
