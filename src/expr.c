@@ -17,6 +17,13 @@ struct operand {
    bool in_paren;
 };
 
+struct call_test {
+   struct call* call;
+   struct func* func;
+   list_iter_t* i;
+   int num_args;
+};
+
 static void read_op( struct task*, struct expr_reading* );
 static void read_operand( struct task*, struct expr_reading* );
 static struct binary* alloc_binary( int, struct pos* );
@@ -53,6 +60,12 @@ static void test_subscript( struct task*, struct expr_test*, struct operand*,
    struct subscript* );
 static void test_call( struct task*, struct expr_test*, struct operand*,
    struct call* );
+static void test_call_args( struct task*, struct expr_test*,
+   struct call_test* );
+static void test_call_first_arg( struct task*, struct expr_test*,
+   struct call_test* );
+static void test_call_format_arg( struct task*, struct expr_test*,
+   struct call_test* );
 static void test_binary( struct task*, struct expr_test*, struct operand*,
    struct binary* );
 static void test_assign( struct task*, struct expr_test*, struct operand*,
@@ -1287,189 +1300,193 @@ void test_subscript( struct task* task, struct expr_test* test,
    }
 }
 
-void test_call( struct task* task, struct expr_test* test,
+void test_call( struct task* task, struct expr_test* expr_test,
    struct operand* operand, struct call* call ) {
+   struct call_test test = {
+      .call = call,
+      .func = NULL,
+      .i = NULL,
+      .num_args = 0
+   };
    struct operand callee;
    init_operand( &callee );
-   test_node( task, test, &callee, call->operand );
+   test_node( task, expr_test, &callee, call->operand );
    if ( ! callee.func ) {
       t_diag( task, DIAG_POS_ERR, &call->pos, "operand not a function" );
       t_bail( task );
    }
-   // Some action specials cannot be called from a script.
-   if ( callee.func->type == FUNC_ASPEC ) {
-      struct func_aspec* impl = callee.func->impl;
+   test.func = callee.func;
+   test_call_args( task, expr_test, &test );
+   // Some action-specials cannot be called from a script.
+   if ( test.func->type == FUNC_ASPEC ) {
+      struct func_aspec* impl = test.func->impl;
       if ( ! impl->script_callable ) {
          struct str str;
          str_init( &str );
-         t_copy_name( callee.func->name, false, &str );
+         t_copy_name( test.func->name, false, &str );
          t_diag( task, DIAG_POS_ERR, &call->pos,
             "action-special `%s` called from script", str.value );
          t_bail( task );
       }
    }
-   int count = 0;
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
-   if ( callee.func->type == FUNC_FORMAT ) {
-      struct node* node = NULL;
-      if ( ! list_end( &i ) ) {
-         node = list_data( &i );
-      }
-      if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
-         node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
-         t_diag( task, DIAG_POS_ERR, &call->pos,
-            "function call missing format argument" );
-         t_bail( task );
-      }
-      // Format-block:
-      if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
-         if ( ! test->format_block ) {
+   // Latent function cannot be called in a function or a format block.
+   if ( test.func->type == FUNC_DED ) {
+      struct func_ded* impl = test.func->impl;
+      if ( impl->latent ) {
+         bool erred = false;
+         struct stmt_test* stmt = expr_test->stmt_test;
+         while ( stmt && ! stmt->format_block ) {
+            stmt = stmt->parent;
+         }
+         if ( stmt || task->in_func ) {
             t_diag( task, DIAG_POS_ERR, &call->pos,
-               "function call missing format block" );
+               "calling latent function inside a %s",
+               stmt ? "format block" : "function" );
+            // Show educational note to user.
+            if ( task->in_func ) {
+               struct str str;
+               str_init( &str );
+               t_copy_name( test.func->name, false, &str );
+               t_diag( task, DIAG_FILE, &call->pos,
+                  "waiting functions like `%s` can only be called inside a "
+                  "script", str.value );
+            }
             t_bail( task );
          }
-         struct format_block_usage* usage =
-            ( struct format_block_usage* ) node;
-         usage->block = test->format_block;
-         // Attach usage to the end of the usage list.
-         struct format_block_usage* prev = test->format_block_usage;
-         while ( prev && prev->next ) {
-            prev = prev->next;
-         }
-         if ( prev ) {
-            prev->next = usage;
-         }
-         else {
-            test->format_block_usage = usage;
-         }
-         list_next( &i );
       }
-      // Format-list:
-      else {
-         while ( ! list_end( &i ) ) {
-            struct node* node = list_data( &i );
-            if ( node->type != NODE_FORMAT_ITEM ) {
-               break;
-            }
-            t_test_format_item( task, ( struct format_item* ) node,
-               test->stmt_test, test, test->format_block );
-            list_next( &i );
-         }
+   }
+   call->func = test.func;
+   operand->type = test.func->return_type;
+   operand->complete = true;
+   if ( test.func->return_type ) {
+      operand->usable = true;
+   }
+}
+
+void test_call_args( struct task* task, struct expr_test* expr_test,
+   struct call_test* test ) {
+   struct call* call = test->call;
+   struct func* func = test->func;
+   list_iter_t i;
+   list_iter_init( &i, &call->args );
+   test->i = &i;
+   test_call_first_arg( task, expr_test, test );
+   // Test remaining arguments.
+   while ( ! list_end( &i ) ) {
+      struct expr_test arg;
+      t_init_expr_test( &arg );
+      arg.format_block = expr_test->format_block;
+      arg.need_value = true;
+      arg.undef_err = expr_test->undef_err;
+      t_test_expr( task, &arg, list_data( &i ) );
+      if ( arg.undef_erred ) {
+         expr_test->undef_erred = true;
+         longjmp( expr_test->bail, 1 );
       }
-      // Both a format-block or a format-list count as a single argument.
-      ++count;
+      ++test->num_args;
+      list_next( &i );
+   }
+   // Number of arguments must be correct.
+   if ( test->num_args < func->min_param ) {
+      t_diag( task, DIAG_POS_ERR, &call->pos,
+         "not enough arguments in function call" );
+      struct str str;
+      str_init( &str );
+      t_copy_name( func->name, false, &str );
+      t_diag( task, DIAG_FILE, &call->pos,
+         "function `%s` needs %s%d argument%s", str.value,
+         func->min_param != func->max_param ? "at least " : "",
+         func->min_param, func->min_param != 1 ? "s" : "" );
+      t_bail( task );
+   }
+   if ( test->num_args > func->max_param ) {
+      t_diag( task, DIAG_POS_ERR, &call->pos,
+         "too many arguments in function call" );
+      struct str str;
+      str_init( &str );
+      t_copy_name( func->name, false, &str );
+      t_diag( task, DIAG_FILE, &call->pos,
+         "function `%s` takes %s%d argument%s", str.value,
+         func->min_param != func->max_param ? "up_to " : "",
+         func->max_param, func->max_param != 1 ? "s" : "" );
+      t_bail( task );
+   }
+}
+
+void test_call_first_arg( struct task* task, struct expr_test* expr_test,
+   struct call_test* test ) {
+   if ( test->func->type == FUNC_FORMAT ) {
+      test_call_format_arg( task, expr_test, test );
    }
    else {
-      if ( list_size( &call->args ) ) {
-         struct node* node = list_data( &i );
+      if ( ! list_end( &test->i ) ) {
+         struct node* node = list_data( test->i );
          if ( node->type == NODE_FORMAT_ITEM ) {
             struct format_item* item = ( struct format_item* ) node;
             t_diag( task, DIAG_POS_ERR, &item->pos,
-               "passing format item to non-format function" );
+               "passing format-item to non-format function" );
             t_bail( task );
          }
          else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
             struct format_block_usage* usage =
                ( struct format_block_usage* ) node;
             t_diag( task, DIAG_POS_ERR, &usage->pos,
-               "passing format block to non-format function" );
+               "passing format-block to non-format function" );
             t_bail( task );
          }
       }
    }
-   // Arguments:
-   while ( ! list_end( &i ) ) {
-      struct expr_test arg;
-      t_init_expr_test( &arg );
-      arg.format_block = test->format_block;
-      arg.need_value = true;
-      arg.undef_err = test->undef_err;
-      t_test_expr( task, &arg, list_data( &i ) );
-      if ( arg.undef_erred ) {
-         test->undef_erred = true;
-         longjmp( test->bail, 1 );
-      }
-      list_next( &i );
-      ++count;
+}
+
+void test_call_format_arg( struct task* task, struct expr_test* expr_test,
+   struct call_test* test ) {
+   list_iter_t* i = test->i;
+   struct node* node = NULL;
+   if ( ! list_end( i ) ) {
+      node = list_data( i );
    }
-   if ( count < callee.func->min_param ) {
-      t_diag( task, DIAG_POS_ERR, &call->pos,
-         "not enough arguments in function call" );
-      const char* at_least = "";
-      if ( callee.func->min_param != callee.func->max_param ) {
-         at_least = "at least ";
-      }
-      const char* s = "";
-      if ( callee.func->min_param != 1 ) {
-         s = "s";
-      }
-      struct str str;
-      str_init( &str );
-      t_copy_name( callee.func->name, false, &str );
-      t_diag( task, DIAG_FILE, &call->pos, "function `%s` needs %s%d argument%s",
-         str.value, at_least, callee.func->min_param, s );
+   if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
+      node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
+      t_diag( task, DIAG_POS_ERR, &test->call->pos,
+         "function call missing format argument" );
       t_bail( task );
    }
-   else if ( count > callee.func->max_param ) {
-      t_diag( task, DIAG_POS_ERR, &call->pos,
-         "too many arguments in function call" );
-      const char* up_to = "";
-      if ( callee.func->min_param != callee.func->max_param ) {
-         up_to = "up to ";
+   // Format-block:
+   if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
+      if ( ! expr_test->format_block ) {
+         t_diag( task, DIAG_POS_ERR, &test->call->pos,
+            "function call missing format-block" );
+         t_bail( task );
       }
-      const char* s = "";
-      if ( callee.func->max_param != 1 ) {
-         s = "s";
+      struct format_block_usage* usage = ( struct format_block_usage* ) node;
+      usage->block = expr_test->format_block;
+      // Attach usage to the end of the usage list.
+      struct format_block_usage* prev = expr_test->format_block_usage;
+      while ( prev && prev->next ) {
+         prev = prev->next;
       }
-      struct str str;
-      str_init( &str );
-      t_copy_name( callee.func->name, false, &str );
-      t_diag( task, DIAG_FILE, &call->pos,
-         "function `%s` takes %s%d argument%s",
-         str.value, up_to, callee.func->max_param, s );
-      t_bail( task );
+      if ( prev ) {
+         prev->next = usage;
+      }
+      else {
+         expr_test->format_block_usage = usage;
+      }
+      list_next( i );
    }
-   // Latent function cannot be called in a function or a format block.
-   if ( callee.func->type == FUNC_DED ) {
-      struct func_ded* impl = callee.func->impl;
-      if ( impl->latent ) {
-         bool erred = false;
-         struct stmt_test* stmt = test->stmt_test;
-         while ( stmt && ! stmt->format_block ) {
-            stmt = stmt->parent;
+   // Format-list:
+   else {
+      while ( ! list_end( i ) ) {
+         struct node* node = list_data( i );
+         if ( node->type != NODE_FORMAT_ITEM ) {
+            break;
          }
-         if ( stmt ) {
-            t_diag( task, DIAG_POS_ERR, &call->pos,
-               "calling latent function inside format block" );
-            erred = true;
-         }
-         else {
-            if ( task->in_func ) {
-               t_diag( task, DIAG_POS_ERR, &call->pos,
-                  "calling latent function inside function body" );
-               erred = true;
-            }
-         }
-         // Show small educational note and bail.
-         if ( erred ) {
-            struct str str;
-            str_init( &str );
-            t_copy_name( callee.func->name, false, &str );
-            t_diag( task, DIAG_FILE, &call->pos,
-               "waiting functions like `%s` can only be called inside a "
-               "script", str.value );
-            t_bail( task );
-         }
+         t_test_format_item( task, ( struct format_item* ) node,
+            expr_test->stmt_test, expr_test, expr_test->format_block );
+         list_next( i );
       }
    }
-   call->func = callee.func;
-   operand->type = callee.func->return_type;
-   operand->complete = true;
-   // Only functions that return a value produce a usable value.
-   if ( operand->type ) {
-      operand->usable = true;
-   }
+   // Both a format-block or a format-list count as a single argument.
+   ++test->num_args;
 }
 
 // This function handles a format-item found inside a function call,
