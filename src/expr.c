@@ -901,8 +901,8 @@ void read_format_item_array_value( struct task* task,
 void t_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required, bool undef_err,
    bool suggest_paren_assign ) {
-   test->stmt_test = NULL;
-   test->format_block = NULL;
+   test->stmt_test = stmt_test;
+   test->format_block = format_block;
    test->format_block_usage = NULL;
    test->result_required = result_required;
    test->has_string = false;
@@ -1415,7 +1415,7 @@ void test_call_first_arg( struct task* task, struct expr_test* expr_test,
       test_call_format_arg( task, expr_test, test );
    }
    else {
-      if ( ! list_end( &test->i ) ) {
+      if ( ! list_end( test->i ) ) {
          struct node* node = list_data( test->i );
          if ( node->type == NODE_FORMAT_ITEM ) {
             struct format_item* item = ( struct format_item* ) node;
