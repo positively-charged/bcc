@@ -66,6 +66,12 @@ static void test_call_first_arg( struct task*, struct expr_test*,
    struct call_test* );
 static void test_call_format_arg( struct task*, struct expr_test*,
    struct call_test* );
+static void test_format_item( struct task* task, struct stmt_test* stmt_test,
+   struct expr_test* test, struct block* format_block,
+   struct format_item* item );
+static void test_array_format_item( struct task* task,
+   struct stmt_test* stmt_test, struct expr_test* test,
+   struct block* format_block, struct format_item* item );
 static void test_binary( struct task*, struct expr_test*, struct operand*,
    struct binary* );
 static void test_assign( struct task*, struct expr_test*, struct operand*,
@@ -1488,50 +1494,68 @@ void test_call_format_arg( struct task* task, struct expr_test* expr_test,
 // This function handles a format-item found inside a function call,
 // and a free format-item, the one found in a format-block.
 void t_test_format_item( struct task* task, struct format_item* item,
-   struct stmt_test* stmt_test, struct expr_test* expr_test,
+   struct stmt_test* stmt_test, struct expr_test* test,
    struct block* format_block ) {
    while ( item ) {
-      struct expr_test expr;
-      t_init_expr_test( &expr, stmt_test, format_block, false,
-         expr_test ? expr_test->undef_err : true, false );
-      // When using the array cast, make acceptable an expression whose
-      // result is an array.
       if ( item->cast == FCAST_ARRAY ) {
-         expr.accept_array = true;
+         test_array_format_item( task, stmt_test, test, format_block, item );
       }
-      struct operand arg;
-      init_operand( &arg );
-      test_expr( task, &expr, item->value, &arg );
-      if ( expr.undef_erred ) {
-         expr_test->undef_erred = true;
-         longjmp( expr_test->bail, 1 );
-      }
-      if ( item->cast == FCAST_ARRAY ) {
-         if ( ! arg.dim ) {
-            t_diag( task, DIAG_POS_ERR, &item->value->pos,
-               "argument not an array" );
-            t_bail( task );
-         }
-         if ( arg.dim->next ) {
-            t_diag( task, DIAG_POS_ERR, &item->value->pos,
-               "array argument not of single dimension" );
-            t_bail( task );
-         }
-         if ( item->extra ) {
-            struct format_item_array* extra = item->extra;
-            // Test offset.
-            t_init_expr_test( &expr, stmt_test, format_block, true, true,
-               false );
-            t_test_expr( task, &expr, extra->offset );
-            // Test length.
-            if ( extra->length ) {
-               t_init_expr_test( &expr, stmt_test, format_block, true, true,
-                  false );
-               t_test_expr( task, &expr, extra->length );
-            }
-         }
+      else {
+         test_format_item( task, stmt_test, test, format_block, item );
       }
       item = item->next;
+   }
+}
+
+void test_format_item( struct task* task, struct stmt_test* stmt_test,
+   struct expr_test* test, struct block* format_block,
+   struct format_item* item ) {
+   struct expr_test value;
+   t_init_expr_test( &value, stmt_test, format_block, false,
+      test ? test->undef_err : true, false );
+   t_test_expr( task, &value, item->value );
+   if ( value.undef_erred ) {
+      test->undef_erred = true;
+      longjmp( test->bail, 1 );
+   }
+}
+
+void test_array_format_item( struct task* task, struct stmt_test* stmt_test,
+   struct expr_test* test, struct block* format_block,
+   struct format_item* item ) {
+   struct expr_test value;
+   t_init_expr_test( &value, stmt_test, format_block, false,
+      test ? test->undef_err : true, false );
+   // When using the array format cast, accept an array as the result of the
+   // expression.
+   value.accept_array = true;
+   struct operand array;
+   init_operand( &array );
+   test_expr( task, &value, item->value, &array );
+   if ( value.undef_erred ) {
+      test->undef_erred = true;
+      longjmp( test->bail, 1 );
+   }
+   if ( ! array.dim ) {
+      t_diag( task, DIAG_POS_ERR, &item->value->pos,
+         "argument not an array" );
+      t_bail( task );
+   }
+   if ( array.dim->next ) {
+      t_diag( task, DIAG_POS_ERR, &item->value->pos,
+         "array argument not of single dimension" );
+      t_bail( task );
+   }
+   // Test optional fields: offset and length.
+   if ( item->extra ) {
+      struct format_item_array* extra = item->extra;
+      t_init_expr_test( &value, stmt_test, format_block, true, true, false );
+      t_test_expr( task, &value, extra->offset );
+      if ( extra->length ) {
+         t_init_expr_test( &value, stmt_test, format_block, true, true,
+            false );
+         t_test_expr( task, &value, extra->length );
+      }
    }
 }
 
