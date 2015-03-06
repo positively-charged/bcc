@@ -46,6 +46,7 @@ static void test_return( struct task*, struct stmt_test*,
    struct return_stmt* );
 static void test_goto( struct task*, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct task*, struct stmt_test*, struct paltrans* );
+static void test_paltrans_arg( struct task* task, struct expr* expr );
 static void test_format_item( struct task*, struct stmt_test*,
    struct format_item* );
 static void test_packed_expr( struct task*, struct stmt_test*,
@@ -1150,37 +1151,31 @@ void test_goto( struct task* task, struct stmt_test* test,
 
 void test_paltrans( struct task* task, struct stmt_test* test,
    struct paltrans* stmt ) {
-   struct expr_test expr;
-   t_init_expr_test( &expr, NULL, NULL, true, true, false );
-   t_test_expr( task, &expr, stmt->number );
+   test_paltrans_arg( task, stmt->number );
    struct palrange* range = stmt->ranges;
    while ( range ) {
-      t_init_expr_test( &expr, NULL, NULL, true, true, false );
-      t_test_expr( task, &expr, range->begin );
-      t_init_expr_test( &expr, NULL, NULL, true, true, false );
-      t_test_expr( task, &expr, range->end );
+      test_paltrans_arg( task, range->begin );
+      test_paltrans_arg( task, range->end );
       if ( range->rgb ) {
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.red1 );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.green1 );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.blue1 );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.red2 );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.green2 );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.rgb.blue2 );
+         test_paltrans_arg( task, range->value.rgb.red1 );
+         test_paltrans_arg( task, range->value.rgb.green1 );
+         test_paltrans_arg( task, range->value.rgb.blue1 );
+         test_paltrans_arg( task, range->value.rgb.red2 );
+         test_paltrans_arg( task, range->value.rgb.green2 );
+         test_paltrans_arg( task, range->value.rgb.blue2 );
       }
       else {
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.ent.begin );
-         t_init_expr_test( &expr, NULL, NULL, true, true, false );
-         t_test_expr( task, &expr, range->value.ent.end );
+         test_paltrans_arg( task, range->value.ent.begin );
+         test_paltrans_arg( task, range->value.ent.end );
       }
       range = range->next;
    }
+}
+
+void test_paltrans_arg( struct task* task, struct expr* expr ) {
+   struct expr_test arg;
+   t_init_expr_test( &arg, NULL, NULL, true, true, false );
+   t_test_expr( task, &arg, expr );
 }
 
 void test_format_item( struct task* task, struct stmt_test* test,
