@@ -78,6 +78,10 @@ static void test_assign( struct task*, struct expr_test*, struct operand*,
    struct assign* );
 static void test_access( struct task*, struct expr_test*, struct operand*,
    struct access* );
+static void test_region_access( struct task* task, struct expr_test* test,
+   struct operand* operand, struct access* access );
+static void test_struct_access( struct task* task, struct expr_test* test,
+   struct operand* operand, struct access* access );
 
 void t_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
@@ -1673,79 +1677,87 @@ void test_assign( struct task* task, struct expr_test* test,
 
 void test_access( struct task* task, struct expr_test* test,
    struct operand* operand, struct access* access ) {
-   struct object* object = NULL;
-   struct operand lside;
-   init_operand( &lside );
-   test_node( task, test, &lside, access->lside );
    // `::` operator.
    if ( access->is_region ) {
-      if ( lside.region ) {
-         struct name* name = t_make_name( task, access->name,
-            lside.region->body );
-         object = t_get_region_object( task, lside.region, name );
-         if ( ! object ) {
-            if ( ! test->undef_err ) {
-               test->undef_erred = true;
-               longjmp( test->bail, 0 );
-            }
-            t_diag( task, DIAG_POS_ERR, &access->pos,
-               "`%s` not found in region", access->name );
-            t_bail( task );
-         }
-      }
-      else {
-         t_diag( task, DIAG_POS_ERR, &access->pos,
-            "left operand not a region" );
-         t_bail( task );
-      }
+      test_region_access( task, test, operand, access );
    }
    // `.` operator.
    else {
-      if ( lside.type && ! lside.dim ) {
-         struct name* name = t_make_name( task, access->name,
-            lside.type->body );
-         object = name->object;
-         if ( ! object ) {
-            // The right operand might be a member of a struct type that hasn't
-            // been processed yet because the struct appears later in the
-            // source code. Leave for now.
-            if ( ! test->undef_err ) {
-               test->undef_erred = true;
-               longjmp( test->bail, 0 );
-            }
-            // Anonymous struct.
-            if ( lside.type->anon ) {
-               t_diag( task, DIAG_POS_ERR, &access->pos,
-                  "`%s` not member of anonymous struct", access->name );
-               t_bail( task );
-            }
-            // Named struct.
-            else {
-               struct str str;
-               str_init( &str );
-               t_copy_name( lside.type->name, false, &str );
-               t_diag( task, DIAG_POS_ERR, &access->pos,
-                  "`%s` not member of struct `%s`", access->name,
-                  str.value );
-               t_bail( task );
-            }
-         }
+      test_struct_access( task, test, operand, access );
+   }
+}
+
+void test_region_access( struct task* task, struct expr_test* test,
+   struct operand* operand, struct access* access ) {
+   struct operand lside;
+   init_operand( &lside );
+   test_node( task, test, &lside, access->lside );
+   if ( ! lside.region ) {
+      t_diag( task, DIAG_POS_ERR, &access->pos,
+         "left operand not a region" );
+      t_bail( task );
+   }
+   struct name* name = t_make_name( task, access->name,
+      lside.region->body );
+   struct object* object = t_get_region_object( task, lside.region, name );
+   if ( ! object ) {
+      t_diag( task, DIAG_POS_ERR, &access->pos,
+         "`%s` not found in region", access->name );
+      t_bail( task );
+   }
+   if ( ! object->resolved ) {
+      if ( ! test->undef_err ) {
+         test->undef_erred = true;
+         longjmp( test->bail, 1 );
+      }
+      t_diag( task, DIAG_POS_ERR, &access->pos,
+         "right operand `%s` undefined", access->name );
+      t_bail( task );
+   }
+   use_object( task, test, operand, object );
+   access->rside = ( struct node* ) object;
+}
+
+void test_struct_access( struct task* task, struct expr_test* test,
+   struct operand* operand, struct access* access ) {
+   struct operand lside;
+   init_operand( &lside );
+   test_node( task, test, &lside, access->lside );
+   if ( ! ( lside.type && ! lside.dim ) ) {
+      t_diag( task, DIAG_POS_ERR, &access->pos,
+         "left operand not of struct type" );
+      t_bail( task );
+   }
+   struct name* name = t_make_name( task, access->name, lside.type->body );
+   if ( ! name->object ) {
+      // The right operand might be a member of a structure that hasn't been
+      // processed yet because the structure appears later in the source code.
+      // Leave for now.
+      // TODO: The name should already refer to a valid member by this stage.
+      // Need to refactor the declaration code, then remove this.
+      if ( ! test->undef_err ) {
+         test->undef_erred = true;
+         longjmp( test->bail, 1 );
+      }
+      if ( lside.type->anon ) {
+         t_diag( task, DIAG_POS_ERR, &access->pos,
+            "`%s` not member of anonymous struct", access->name );
+         t_bail( task );
       }
       else {
+         struct str str;
+         str_init( &str );
+         t_copy_name( lside.type->name, false, &str );
          t_diag( task, DIAG_POS_ERR, &access->pos,
-            "left operand does not work with . operator" );
+            "`%s` not member of struct `%s`", access->name,
+            str.value );
          t_bail( task );
       }
    }
-   // Object needs to be valid before proceeding.
-   if ( object->resolved ) {
-      use_object( task, test, operand, object );
-      access->rside = ( struct node* ) object;
-   }
-   else {
+   if ( ! name->object->resolved ) {
       if ( test->undef_err ) {
-         t_diag( task, DIAG_POS_ERR, &access->pos, "operand `%s` undefined",
-            access->name );
+         t_diag( task, DIAG_POS_ERR, &access->pos,
+            "right operand `%s` undefined", access->name );
          t_bail( task );
       }
       else {
@@ -1753,4 +1765,6 @@ void test_access( struct task* task, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
+   use_object( task, test, operand, name->object );
+   access->rside = ( struct node* ) name->object;
 }
