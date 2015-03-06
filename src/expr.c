@@ -898,16 +898,18 @@ void read_format_item_array_value( struct task* task,
    }
 }
 
-void t_init_expr_test( struct expr_test* test ) {
+void t_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
+   struct block* format_block, bool result_required, bool undef_err,
+   bool suggest_paren_assign ) {
    test->stmt_test = NULL;
    test->format_block = NULL;
    test->format_block_usage = NULL;
-   test->need_value = true;
+   test->result_required = result_required;
    test->has_string = false;
-   test->undef_err = false;
+   test->undef_err = undef_err;
    test->undef_erred = false;
    test->accept_array = false;
-   test->suggest_paren_assign = false;
+   test->suggest_paren_assign = suggest_paren_assign;
 }
 
 void init_operand( struct operand* operand ) {
@@ -934,20 +936,18 @@ void test_expr( struct task* task, struct expr_test* test, struct expr* expr,
    struct operand* operand ) {
    if ( setjmp( test->bail ) == 0 ) {
       test_node( task, test, operand, expr->root );
-      if ( operand->complete ) {
-         if ( test->need_value && ! operand->usable ) {
-            t_diag( task, DIAG_POS_ERR, &expr->pos,
-               "expression does not produce a value" );
-            t_bail( task );
-         }
-         expr->folded = operand->folded;
-         expr->value = operand->value;
-         test->pos = expr->pos;
-      }
-      else {
-         t_diag( task, DIAG_POS_ERR, &expr->pos, "expression is incomplete" );
+      if ( ! operand->complete ) {
+         t_diag( task, DIAG_POS_ERR, &expr->pos, "expression incomplete" );
          t_bail( task );
       }
+      if ( test->result_required && ! operand->usable ) {
+         t_diag( task, DIAG_POS_ERR, &expr->pos,
+            "expression does not produce a value" );
+         t_bail( task );
+      }
+      expr->folded = operand->folded;
+      expr->value = operand->value;
+      test->pos = expr->pos;
    }
 }
 
@@ -1268,10 +1268,8 @@ void test_subscript( struct task* task, struct expr_test* test,
       t_bail( task );
    }
    struct expr_test index;
-   t_init_expr_test( &index );
-   index.format_block = test->format_block;
-   index.need_value = true;
-   index.undef_err = test->undef_err;
+   t_init_expr_test( &index, test->stmt_test, test->format_block, true,
+      test->undef_err, false );
    t_test_expr( task, &index, subscript->index );
    if ( index.undef_erred ) {
       test->undef_erred = true;
@@ -1374,10 +1372,8 @@ void test_call_args( struct task* task, struct expr_test* expr_test,
    // Test remaining arguments.
    while ( ! list_end( &i ) ) {
       struct expr_test arg;
-      t_init_expr_test( &arg );
-      arg.format_block = expr_test->format_block;
-      arg.need_value = true;
-      arg.undef_err = expr_test->undef_err;
+      t_init_expr_test( &arg, expr_test->stmt_test, expr_test->format_block,
+         true, expr_test->undef_err, false );
       t_test_expr( task, &arg, list_data( &i ) );
       if ( arg.undef_erred ) {
          expr_test->undef_erred = true;
@@ -1496,20 +1492,12 @@ void t_test_format_item( struct task* task, struct format_item* item,
    struct block* format_block ) {
    while ( item ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.stmt_test = stmt_test;
-      expr.format_block = format_block;
-      if ( expr_test ) {
-         expr.undef_err = expr_test->undef_err;
-      }
-      else {
-         expr.undef_err = true;
-      }
+      t_init_expr_test( &expr, stmt_test, format_block, false,
+         expr_test ? expr_test->undef_err : true, false );
       // When using the array cast, make acceptable an expression whose
       // result is an array.
       if ( item->cast == FCAST_ARRAY ) {
          expr.accept_array = true;
-         expr.need_value = false;
       }
       struct operand arg;
       init_operand( &arg );
@@ -1532,17 +1520,13 @@ void t_test_format_item( struct task* task, struct format_item* item,
          if ( item->extra ) {
             struct format_item_array* extra = item->extra;
             // Test offset.
-            t_init_expr_test( &expr );
-            expr.stmt_test = stmt_test;
-            expr.format_block = format_block;
-            expr.undef_err = true;
+            t_init_expr_test( &expr, stmt_test, format_block, true, true,
+               false );
             t_test_expr( task, &expr, extra->offset );
             // Test length.
             if ( extra->length ) {
-               t_init_expr_test( &expr );
-               expr.stmt_test = stmt_test;
-               expr.format_block = format_block;
-               expr.undef_err = true;
+               t_init_expr_test( &expr, stmt_test, format_block, true, true,
+                  false );
                t_test_expr( task, &expr, extra->length );
             }
          }

@@ -2349,8 +2349,7 @@ void t_test_constant( struct task* task, struct constant* constant,
    }
    // Test expression.
    struct expr_test expr;
-   t_init_expr_test( &expr );
-   expr.undef_err = undef_err;
+   t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
    t_test_expr( task, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
       if ( constant->value_node->folded ) {
@@ -2390,8 +2389,7 @@ void t_test_constant_set( struct task* task, struct constant_set* set,
       }
       if ( constant->value_node ) {
          struct expr_test expr;
-         t_init_expr_test( &expr );
-         expr.undef_err = undef_err;
+         t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
          t_test_expr( task, &expr, constant->value_node );
          if ( expr.undef_erred ) {
             return;
@@ -2485,8 +2483,7 @@ void test_type_member( struct task* task, struct type_member* member,
    }
    while ( dim ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = undef_err;
+      t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
       t_test_expr( task, &expr, dim->size_node );
       if ( expr.undef_erred ) {
          return;
@@ -2675,8 +2672,7 @@ void test_var( struct task* task, struct var* var, bool undef_err ) {
    while ( dim ) {
       if ( dim->size_node ) {
          struct expr_test expr;
-         t_init_expr_test( &expr );
-         expr.undef_err = undef_err;
+         t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
          t_test_expr( task, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return;
@@ -2778,8 +2774,7 @@ void test_init( struct task* task, struct var* var, bool undef_err,
       if ( ! var->imported ) {
          struct value* value = ( struct value* ) var->initial;
          struct expr_test expr_test;
-         t_init_expr_test( &expr_test );
-         expr_test.undef_err = undef_err;
+         t_init_expr_test( &expr_test, NULL, NULL, true, undef_err, false );
          t_test_expr( task, &expr_test, value->expr );
          if ( expr_test.undef_erred ) {
             *undef_erred = true;
@@ -2860,8 +2855,8 @@ void test_multi_value( struct task* task, struct multi_value_test* test ) {
       else {
          struct value* value = ( struct value* ) initial;
          struct expr_test expr_test;
-         t_init_expr_test( &expr_test );
-         expr_test.undef_err = test->undef_err;
+         t_init_expr_test( &expr_test, NULL, NULL, true, test->undef_err,
+            false );
          t_test_expr( task, &expr_test, value->expr );
          if ( expr_test.undef_erred ) {
             test->undef_erred = true;
@@ -2933,8 +2928,8 @@ void test_multi_value_struct( struct task* task,
       else {
          struct value* value = ( struct value* ) initial;
          struct expr_test expr_test;
-         t_init_expr_test( &expr_test );
-         expr_test.undef_err = test->undef_err;
+         t_init_expr_test( &expr_test, NULL, NULL, true, test->undef_err,
+            false );
          t_test_expr( task, &expr_test, value->expr );
          if ( expr_test.undef_erred ) {
             test->undef_erred = true;
@@ -2988,8 +2983,7 @@ void test_func( struct task* task, struct func* func, bool undef_err ) {
       while ( param ) {
          if ( param->default_value ) {
             struct expr_test expr;
-            t_init_expr_test( &expr );
-            expr.undef_err = undef_err;
+            t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
             t_test_expr( task, &expr, param->default_value );
             if ( expr.undef_erred ) {
                break;
@@ -3042,8 +3036,7 @@ void test_func( struct task* task, struct func* func, bool undef_err ) {
       while ( param ) {
          if ( param->default_value ) {
             struct expr_test expr;
-            t_init_expr_test( &expr );
-            expr.undef_err = undef_err;
+            t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
             t_test_expr( task, &expr, param->default_value );
             if ( expr.undef_erred ) {
                return;
@@ -3085,8 +3078,7 @@ void test_func_body( struct task* task, struct func* func ) {
 void test_script( struct task* task, struct script* script ) {
    if ( script->number ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, false );
       t_test_expr( task, &expr, script->number );
       if ( ! script->number->folded ) {
          t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,

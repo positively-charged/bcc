@@ -891,7 +891,7 @@ struct expr_test {
    struct block* format_block;
    struct format_block_usage* format_block_usage;
    struct pos pos;
-   bool need_value;
+   bool result_required;
    bool has_string;
    bool undef_err;
    bool undef_erred;
@@ -1388,7 +1388,9 @@ void t_read_expr( struct task*, struct expr_reading* );
 bool t_is_dec( struct task* );
 void t_init_dec( struct dec* );
 void t_read_dec( struct task*, struct dec* );
-void t_init_expr_test( struct expr_test* );
+void t_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
+   struct block* format_block, bool result_required, bool undef_err,
+   bool suggest_paren_assign );
 void t_test_expr( struct task*, struct expr_test*, struct expr* );
 void t_init_stmt_reading( struct stmt_reading*, struct list* labels );
 void t_init_stmt_test( struct stmt_test*, struct stmt_test* );

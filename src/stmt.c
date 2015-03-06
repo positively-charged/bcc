@@ -829,8 +829,7 @@ void test_case( struct task* task, struct stmt_test* test,
       t_bail( task );
    }
    struct expr_test expr;
-   t_init_expr_test( &expr );
-   expr.undef_err = true;
+   t_init_expr_test( &expr, NULL, NULL, true, true, false );
    t_test_expr( task, &expr, label->number );
    if ( ! label->number->folded ) {
       t_diag( task, DIAG_POS_ERR, &expr.pos, "case value not constant" );
@@ -934,9 +933,7 @@ void t_test_stmt( struct task* task, struct stmt_test* test,
 void test_if( struct task* task, struct stmt_test* test,
    struct if_stmt* stmt ) {
    struct expr_test expr;
-   t_init_expr_test( &expr );
-   expr.undef_err = true;
-   expr.suggest_paren_assign = true;
+   t_init_expr_test( &expr, NULL, NULL, true, true, true );
    t_test_expr( task, &expr, stmt->cond );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
@@ -950,8 +947,7 @@ void test_if( struct task* task, struct stmt_test* test,
 void test_switch( struct task* task, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    struct expr_test expr;
-   t_init_expr_test( &expr );
-   expr.undef_err = true;
+   t_init_expr_test( &expr, NULL, NULL, true, true, true );
    t_test_expr( task, &expr, stmt->cond );
    struct stmt_test body;
    t_init_stmt_test( &body, test );
@@ -966,9 +962,7 @@ void test_while( struct task* task, struct stmt_test* test,
    struct while_stmt* stmt ) {
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
-      expr.suggest_paren_assign = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, true );
       t_test_expr( task, &expr, stmt->cond );
    }
    struct stmt_test body;
@@ -979,9 +973,7 @@ void test_while( struct task* task, struct stmt_test* test,
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
-      expr.suggest_paren_assign = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, true );
       t_test_expr( task, &expr, stmt->cond );
    }
 }
@@ -996,9 +988,7 @@ void test_for( struct task* task, struct stmt_test* test,
       struct node* node = list_data( &i );
       if ( node->type == NODE_EXPR ) {
          struct expr_test expr;
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
-         expr.need_value = false;
+         t_init_expr_test( &expr, NULL, NULL, false, true, false );
          t_test_expr( task, &expr, ( struct expr* ) node );
       }
       else {
@@ -1009,18 +999,14 @@ void test_for( struct task* task, struct stmt_test* test,
    // Condition.
    if ( stmt->cond ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
-      expr.suggest_paren_assign = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, true );
       t_test_expr( task, &expr, stmt->cond );
    }
    // Post expressions.
    list_iter_init( &i, &stmt->post );
    while ( ! list_end( &i ) ) {
       struct expr_test expr;
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
-      expr.need_value = false;
+      t_init_expr_test( &expr, NULL, NULL, false, true, false );
       t_test_expr( task, &expr, list_data( &i ) );
       list_next( &i );
    }
@@ -1165,43 +1151,32 @@ void test_goto( struct task* task, struct stmt_test* test,
 void test_paltrans( struct task* task, struct stmt_test* test,
    struct paltrans* stmt ) {
    struct expr_test expr;
-   t_init_expr_test( &expr );
-   expr.undef_err = true;
+   t_init_expr_test( &expr, NULL, NULL, true, true, false );
    t_test_expr( task, &expr, stmt->number );
    struct palrange* range = stmt->ranges;
    while ( range ) {
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, false );
       t_test_expr( task, &expr, range->begin );
-      t_init_expr_test( &expr );
-      expr.undef_err = true;
+      t_init_expr_test( &expr, NULL, NULL, true, true, false );
       t_test_expr( task, &expr, range->end );
       if ( range->rgb ) {
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.red1 );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.green1 );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.blue1 );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.red2 );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.green2 );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.rgb.blue2 );
       }
       else {
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.ent.begin );
-         t_init_expr_test( &expr );
-         expr.undef_err = true;
+         t_init_expr_test( &expr, NULL, NULL, true, true, false );
          t_test_expr( task, &expr, range->value.ent.end );
       }
       range = range->next;
@@ -1226,11 +1201,7 @@ void test_packed_expr( struct task* task, struct stmt_test* test,
    struct packed_expr* packed, struct pos* expr_pos ) {
    // Test expression.
    struct expr_test expr_test;
-   t_init_expr_test( &expr_test );
-   expr_test.stmt_test = test;
-   expr_test.undef_err = true;
-   expr_test.need_value = false;
-   expr_test.format_block = packed->block;
+   t_init_expr_test( &expr_test, test, packed->block, false, true, false );
    t_test_expr( task, &expr_test, packed->expr );
    if ( expr_pos ) {
       *expr_pos = expr_test.pos;
