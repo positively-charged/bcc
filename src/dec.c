@@ -114,6 +114,7 @@ static void add_var( struct task*, struct dec* );
 static void bind_names( struct task* task );
 static void bind_regionobject_name( struct task* task, struct object* object );
 static void bind_object_name( struct task*, struct name*, struct object* );
+static void import_region_objects( struct task* task );
 static void alias_imported( struct task*, char*, struct pos*, struct object* );
 static void test_region( struct task*, int*, bool*, bool* );
 static void test_type_member( struct task*, struct type_member*, bool );
@@ -1933,19 +1934,7 @@ void read_script_body( struct task* task, struct script* script ) {
 
 void t_test( struct task* task ) {
    bind_names( task );
-   // Import region objects.
-   list_iter_t i;
-   list_iter_init( &i, &task->regions );
-   while ( ! list_end( &i ) ) {
-      task->region = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &task->region->imports );
-      while ( ! list_end( &k ) ) {
-         t_import( task, list_data( &k ) );
-         list_next( &k );
-      }
-      list_next( &i );
-   }
+   import_region_objects( task );
    // Resolve region objects.
    int resolved = 0;
    bool undef_err = false;
@@ -1972,6 +1961,7 @@ void t_test( struct task* task ) {
       }
    }
    // Determine which scripts and functions to publish.
+   list_iter_t i;
    list_iter_init( &i, &task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
@@ -2146,6 +2136,22 @@ void bind_object_name( struct task* task, struct name* name,
       t_bail( task );
    }
    name->object = object;
+}
+
+// Executes import-statements found in regions.
+void import_region_objects( struct task* task ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->regions );
+   while ( ! list_end( &i ) ) {
+      task->region = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &task->region->imports );
+      while ( ! list_end( &k ) ) {
+         t_import( task, list_data( &k ) );
+         list_next( &k );
+      }
+      list_next( &i );
+   }
 }
 
 void t_import( struct task* task, struct import* stmt ) {
