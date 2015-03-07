@@ -2404,44 +2404,45 @@ void t_test_constant( struct task* task, struct constant* constant,
 void t_test_constant_set( struct task* task, struct constant_set* set,
    bool undef_err ) {
    int value = 0;
-   // Find the next unresolved constant.
-   struct constant* constant = set->head;
-   while ( constant && constant->object.resolved ) {
-      value = constant->value;
-      constant = constant->next;
+   // Find the next unresolved enumerator.
+   struct constant* enumerator = set->head;
+   while ( enumerator && enumerator->object.resolved ) {
+      value = enumerator->value;
+      enumerator = enumerator->next;
    }
-   while ( constant ) {
+   while ( enumerator ) {
       if ( task->depth ) {
-         if ( ! constant->name->object ||
-            constant->name->object->depth != task->depth ) {
-            t_use_local_name( task, constant->name, &constant->object );
+         if ( ! enumerator->name->object ||
+            enumerator->name->object->depth != task->depth ) {
+            t_use_local_name( task, enumerator->name, &enumerator->object );
          }
          else {
             struct str str;
             str_init( &str );
-            t_copy_name( constant->name, false, &str );
-            diag_dup( task, str.value, &constant->object.pos, constant->name );
+            t_copy_name( enumerator->name, false, &str );
+            diag_dup( task, str.value, &enumerator->object.pos,
+               enumerator->name );
             t_bail( task );
          }
       }
-      if ( constant->value_node ) {
+      if ( enumerator->value_node ) {
          struct expr_test expr;
          t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
-         t_test_expr( task, &expr, constant->value_node );
+         t_test_expr( task, &expr, enumerator->value_node );
          if ( expr.undef_erred ) {
             return;
          }
-         if ( ! constant->value_node->folded ) {
+         if ( ! enumerator->value_node->folded ) {
             t_diag( task, DIAG_POS_ERR, &expr.pos,
                "enumerator expression not constant" );
             t_bail( task );
          }
-         value = constant->value_node->value;
+         value = enumerator->value_node->value;
       }
-      constant->value = value;
+      enumerator->value = value;
       ++value;
-      constant->object.resolved = true;
-      constant = constant->next;
+      enumerator->object.resolved = true;
+      enumerator = enumerator->next;
    }
    // Set is resolved when all of the constants in it are resolved.
    set->object.resolved = true;
