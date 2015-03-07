@@ -111,8 +111,9 @@ static void read_multi_init( struct task*, struct dec*,
    struct multi_value_read* );
 static void add_struct_member( struct task*, struct dec* );
 static void add_var( struct task*, struct dec* );
-static void bind_region( struct task*, struct region* );
-static void bind_object( struct task*, struct name*, struct object* );
+static void bind_names( struct task* task );
+static void bind_regionobject_name( struct task* task, struct object* object );
+static void bind_object_name( struct task*, struct name*, struct object* );
 static void alias_imported( struct task*, char*, struct pos*, struct object* );
 static void test_region( struct task*, int*, bool*, bool* );
 static void test_type_member( struct task*, struct type_member*, bool );
@@ -1931,14 +1932,9 @@ void read_script_body( struct task* task, struct script* script ) {
 }
 
 void t_test( struct task* task ) {
-   // Associate name with region object.
-   list_iter_t i;
-   list_iter_init( &i, &task->regions );
-   while ( ! list_end( &i ) ) {
-      bind_region( task, list_data( &i ) );
-      list_next( &i );
-   }
+   bind_names( task );
    // Import region objects.
+   list_iter_t i;
    list_iter_init( &i, &task->regions );
    while ( ! list_end( &i ) ) {
       task->region = list_data( &i );
@@ -2090,49 +2086,61 @@ void t_test( struct task* task ) {
    }
 }
 
-void bind_region( struct task* task, struct region* region ) {
-   struct object* object = region->unresolved;
-   while ( object ) {
-      if ( object->node.type == NODE_CONSTANT ) {
-         struct constant* constant = ( struct constant* ) object;
-         bind_object( task, constant->name, &constant->object );
+// Goes through every object in every region and connects the name of the
+// object to the object.
+void bind_names( struct task* task ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->regions );
+   while ( ! list_end( &i ) ) {
+      struct region* region = list_data( &i );
+      struct object* object = region->unresolved;
+      while ( object ) {
+         bind_regionobject_name( task, object );
+         object = object->next;
       }
-      else if ( object->node.type == NODE_CONSTANT_SET ) {
-         struct constant_set* set = ( struct constant_set* ) object;
-         struct constant* constant = set->head;
-         while ( constant ) {
-            bind_object( task, constant->name, &constant->object );
-            constant = constant->next;
-         }
-      }
-      else if ( object->node.type == NODE_VAR ) {
-         struct var* var = ( struct var* ) object;
-         bind_object( task, var->name, &var->object );
-      }
-      else if ( object->node.type == NODE_FUNC ) {
-         struct func* func = ( struct func* ) object;
-         bind_object( task, func->name, &func->object );
-      }
-      else if ( object->node.type == NODE_TYPE ) {
-         struct type* type = ( struct type* ) object;
-         if ( type->name->object ) {
-            diag_dup_struct( task, type->name, &type->object.pos );
-            t_bail( task );
-         }
-         type->name->object = &type->object;
-      }
-      object = object->next;
+      list_next( &i );
    }
 }
 
-void bind_object( struct task* task, struct name* name,
+void bind_regionobject_name( struct task* task, struct object* object ) {
+   if ( object->node.type == NODE_CONSTANT ) {
+      struct constant* constant = ( struct constant* ) object;
+      bind_object_name( task, constant->name, &constant->object );
+   }
+   else if ( object->node.type == NODE_CONSTANT_SET ) {
+      struct constant_set* set = ( struct constant_set* ) object;
+      struct constant* constant = set->head;
+      while ( constant ) {
+         bind_object_name( task, constant->name, &constant->object );
+         constant = constant->next;
+      }
+   }
+   else if ( object->node.type == NODE_VAR ) {
+      struct var* var = ( struct var* ) object;
+      bind_object_name( task, var->name, &var->object );
+   }
+   else if ( object->node.type == NODE_FUNC ) {
+      struct func* func = ( struct func* ) object;
+      bind_object_name( task, func->name, &func->object );
+   }
+   else if ( object->node.type == NODE_TYPE ) {
+      struct type* type = ( struct type* ) object;
+      if ( type->name->object ) {
+         diag_dup_struct( task, type->name, &type->object.pos );
+         t_bail( task );
+      }
+      type->name->object = &type->object;
+   }
+}
+
+void bind_object_name( struct task* task, struct name* name,
    struct object* object ) {
    if ( name->object ) {
       struct str str;
       str_init( &str );
       t_copy_name( name, false, &str );
-      t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &object->pos, "duplicate name `%s`", str.value );
+      t_diag( task, DIAG_POS_ERR, &object->pos,
+         "duplicate name `%s`", str.value );
       t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
          "name already used here", str.value );
       t_bail( task );
