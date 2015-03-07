@@ -115,8 +115,11 @@ static void bind_names( struct task* task );
 static void bind_regionobject_name( struct task* task, struct object* object );
 static void bind_object_name( struct task*, struct name*, struct object* );
 static void import_region_objects( struct task* task );
+static void resolve_region_objects( struct task* task );
 static void alias_imported( struct task*, char*, struct pos*, struct object* );
-static void test_region( struct task*, int*, bool*, bool* );
+static void test_region( struct task*, bool*, bool*, bool );
+static void test_region_object( struct task* task, struct object* object,
+   bool undef_err );
 static void test_type_member( struct task*, struct type_member*, bool );
 static struct type* find_type( struct task*, struct path* );
 static struct object* find_type_head( struct task*, struct path* );
@@ -1935,31 +1938,7 @@ void read_script_body( struct task* task, struct script* script ) {
 void t_test( struct task* task ) {
    bind_names( task );
    import_region_objects( task );
-   // Resolve region objects.
-   int resolved = 0;
-   bool undef_err = false;
-   bool retry = false;
-   while ( true ) {
-      list_iter_t i;
-      list_iter_init( &i, &task->regions );
-      while ( ! list_end( &i ) ) {
-         task->region = list_data( &i );
-         test_region( task, &resolved, &undef_err, &retry );
-         list_next( &i );
-      }
-      if ( retry ) {
-         retry = false;
-         if ( resolved ) {
-            resolved = 0;
-         }
-         else {
-            undef_err = true;
-         }
-      }
-      else {
-         break;
-      }
-   }
+   resolve_region_objects( task );
    // Determine which scripts and functions to publish.
    list_iter_t i;
    list_iter_init( &i, &task->library_main->scripts );
@@ -2311,33 +2290,44 @@ void alias_imported( struct task* task, char* alias_name,
    }
 }
 
-void test_region( struct task* task, int* resolved, bool* undef_err,
-   bool* retry ) {
+// Analyzes the objects found in regions. The bodies of scripts and functions
+// are analyzed elsewhere.
+void resolve_region_objects( struct task* task ) {
+   bool undef_err = false;
+   while ( true ) {
+      bool resolved = false;
+      bool retry = false;
+      list_iter_t i;
+      list_iter_init( &i, &task->regions );
+      while ( ! list_end( &i ) ) {
+         task->region = list_data( &i );
+         test_region( task, &resolved, &retry, undef_err );
+         list_next( &i );
+      }
+      if ( retry ) {
+         // Continue resolving as long as something got resolved. If nothing
+         // gets resolved during the last run, then nothing can be resolved
+         // anymore. So report errors.
+         undef_err = ( ! resolved );
+      }
+      else {
+         break;
+      }
+   }
+}
+
+void test_region( struct task* task, bool* resolved, bool* retry,
+   bool undef_err ) {
    struct object* object = task->region->unresolved;
    struct object* tail = NULL;
    task->region->unresolved = NULL;
    while ( object ) {
-      if ( object->node.type == NODE_CONSTANT ) {
-         t_test_constant( task, ( struct constant* ) object, *undef_err );
-      }
-      else if ( object->node.type == NODE_CONSTANT_SET ) {
-         t_test_constant_set( task, ( struct constant_set* ) object,
-            *undef_err );
-      }
-      else if ( object->node.type == NODE_TYPE ) {
-         t_test_type( task, ( struct type* ) object, *undef_err );
-      }
-      else if ( object->node.type == NODE_VAR ) {
-         test_var( task, ( struct var* ) object, *undef_err );
-      }
-      else if ( object->node.type == NODE_FUNC ) {
-         test_func( task, ( struct func* ) object, *undef_err );
-      }
+      test_region_object( task, object, undef_err );
       if ( object->resolved ) {
          struct object* next = object->next;
          object->next = NULL;
          object = next;
-         ++*resolved;
+         *resolved = true;
       }
       else {
          if ( tail ) {
@@ -2352,6 +2342,29 @@ void test_region( struct task* task, int* resolved, bool* undef_err,
          object = next;
          *retry = true;
       }
+   }
+}
+
+void test_region_object( struct task* task, struct object* object,
+   bool undef_err ) {
+   switch ( object->node.type ) {
+   case NODE_CONSTANT:
+      t_test_constant( task, ( struct constant* ) object, undef_err );
+      break;
+   case NODE_CONSTANT_SET:
+      t_test_constant_set( task, ( struct constant_set* ) object, undef_err );
+      break;
+   case NODE_TYPE:
+      t_test_type( task, ( struct type* ) object, undef_err );
+      break;
+   case NODE_VAR:
+      test_var( task, ( struct var* ) object, undef_err );
+      break;
+   case NODE_FUNC:
+      test_func( task, ( struct func* ) object, undef_err );
+   default:
+      // TODO: Add internal compiler error.
+      break;
    }
 }
 
