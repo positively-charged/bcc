@@ -86,6 +86,8 @@ static void read_qual( struct task*, struct dec* );
 static void read_storage( struct task*, struct dec* );
 static void read_type( struct task*, struct dec* );
 static void read_enum( struct task*, struct dec* );
+static void read_enum_def( struct task* task, struct dec* dec );
+static void read_manifest_constant( struct task* task, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct task*, struct dec* );
 static void read_storage_index( struct task*, struct dec* );
@@ -1015,91 +1017,10 @@ void read_enum( struct task* task, struct dec* dec ) {
    t_test_tk( task, TK_ENUM );
    t_read_tk( task );
    if ( task->tk == TK_BRACE_L || dec->type_needed ) {
-      t_test_tk( task, TK_BRACE_L );
-      t_read_tk( task );
-      if ( task->tk == TK_BRACE_R ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos, "empty enum" );
-         t_bail( task );
-      }
-      struct constant* head = NULL;
-      struct constant* tail;
-      while ( true ) {
-         t_test_tk( task, TK_ID );
-         struct constant* constant = alloc_constant();
-         constant->object.pos = task->tk_pos;
-         constant->name = t_make_name( task, task->tk_text,
-            task->region->body );
-         t_read_tk( task );
-         if ( task->tk == TK_ASSIGN ) {
-            t_read_tk( task );
-            struct expr_reading value;
-            t_init_expr_reading( &value, true, false, false, true );
-            t_read_expr( task, &value );
-            constant->value_node = value.output_node;
-         }
-         if ( head ) {
-            tail->next = constant;
-         }
-         else {
-            head = constant;
-         }
-         tail = constant;
-         if ( task->tk == TK_COMMA ) {
-            t_read_tk( task );
-            if ( task->tk == TK_BRACE_R ) {
-               t_read_tk( task );
-               break;
-            }
-         }
-         else {
-            t_test_tk( task, TK_BRACE_R );
-            t_read_tk( task );
-            break;
-         }
-      }
-      struct constant_set* set = mem_alloc( sizeof( *set ) );
-      init_object( &set->object, NODE_CONSTANT_SET );
-      set->head = head;
-      if ( dec->vars ) {
-         list_append( dec->vars, set );
-      }
-      else {
-         add_unresolved( task->region, &set->object );
-      }
-      dec->type = task->type_int;
-      if ( ! dec->type_needed ) {
-         // Only enum declared.
-         if ( task->tk == TK_SEMICOLON ) {
-            t_read_tk( task );
-            dec->leave = true;
-         }
-      }
-      if ( dec->area == DEC_MEMBER ) {
-         t_diag( task, DIAG_POS_ERR, &pos, "enum inside struct" );
-         t_bail( task );
-      }
+      read_enum_def( task, dec );
    }
    else {
-      t_test_tk( task, TK_ID );
-      struct constant* constant = alloc_constant();
-      constant->object.pos = task->tk_pos;
-      constant->name = t_make_name( task, task->tk_text, task->region->body );
-      t_read_tk( task );
-      t_test_tk( task, TK_ASSIGN );
-      t_read_tk( task );
-      struct expr_reading value;
-      t_init_expr_reading( &value, true, false, false, true );
-      t_read_expr( task, &value );
-      constant->value_node = value.output_node;
-      if ( dec->vars ) {
-         list_append( dec->vars, constant );
-      }
-      else {
-         add_unresolved( task->region, &constant->object );
-      }
-      t_test_tk( task, TK_SEMICOLON );
-      t_read_tk( task );
-      dec->leave = true;
+      read_manifest_constant( task, dec );
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {
@@ -1107,6 +1028,95 @@ void read_enum( struct task* task, struct dec* dec ) {
          "enum in for-loop initialization" );
       t_bail( task );
    }
+}
+
+void read_enum_def( struct task* task, struct dec* dec ) {
+   t_test_tk( task, TK_BRACE_L );
+   t_read_tk( task );
+   if ( task->tk == TK_BRACE_R ) {
+      t_diag( task, DIAG_POS_ERR, &task->tk_pos, "empty enum" );
+      t_bail( task );
+   }
+   struct constant* head = NULL;
+   struct constant* tail;
+   while ( true ) {
+      t_test_tk( task, TK_ID );
+      struct constant* constant = alloc_constant();
+      constant->object.pos = task->tk_pos;
+      constant->name = t_make_name( task, task->tk_text,
+         task->region->body );
+      t_read_tk( task );
+      if ( task->tk == TK_ASSIGN ) {
+         t_read_tk( task );
+         struct expr_reading value;
+         t_init_expr_reading( &value, true, false, false, true );
+         t_read_expr( task, &value );
+         constant->value_node = value.output_node;
+      }
+      if ( head ) {
+         tail->next = constant;
+      }
+      else {
+         head = constant;
+      }
+      tail = constant;
+      if ( task->tk == TK_COMMA ) {
+         t_read_tk( task );
+         if ( task->tk == TK_BRACE_R ) {
+            t_read_tk( task );
+            break;
+         }
+      }
+      else {
+         t_test_tk( task, TK_BRACE_R );
+         t_read_tk( task );
+         break;
+      }
+   }
+   struct constant_set* set = mem_alloc( sizeof( *set ) );
+   init_object( &set->object, NODE_CONSTANT_SET );
+   set->head = head;
+   if ( dec->vars ) {
+      list_append( dec->vars, set );
+   }
+   else {
+      add_unresolved( task->region, &set->object );
+   }
+   dec->type = task->type_int;
+   if ( ! dec->type_needed ) {
+      // Only enum declared.
+      if ( task->tk == TK_SEMICOLON ) {
+         t_read_tk( task );
+         dec->leave = true;
+      }
+   }
+   if ( dec->area == DEC_MEMBER ) {
+      t_diag( task, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
+      t_bail( task );
+   }
+}
+
+void read_manifest_constant( struct task* task, struct dec* dec ) {
+   t_test_tk( task, TK_ID );
+   struct constant* constant = alloc_constant();
+   constant->object.pos = task->tk_pos;
+   constant->name = t_make_name( task, task->tk_text, task->region->body );
+   t_read_tk( task );
+   t_test_tk( task, TK_ASSIGN );
+   t_read_tk( task );
+   struct expr_reading value;
+   t_init_expr_reading( &value, true, false, false, true );
+   t_read_expr( task, &value );
+   constant->value_node = value.output_node;
+   if ( dec->vars ) {
+      list_append( dec->vars, constant );
+   }
+   else {
+      add_unresolved( task->region, &constant->object );
+   }
+   t_test_tk( task, TK_SEMICOLON );
+   t_read_tk( task );
+   dec->leave = true;
 }
 
 struct constant* alloc_constant( void ) {
