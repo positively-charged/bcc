@@ -158,6 +158,7 @@ static void test_builtin_func( struct task* task, struct func* func,
    bool undef_err );
 static void test_objects_bodies( struct task* task );
 static void test_func_body( struct task*, struct func* );
+static void check_dup_scripts( struct task* task );
 static void calc_type_size( struct type* );
 static void calc_map_value_index( struct task* );
 static void calc_var_value_index( struct var* );
@@ -1966,38 +1967,12 @@ void t_test( struct task* task ) {
    import_region_objects( task );
    resolve_region_objects( task );
    test_objects_bodies( task );
-   // There should be no duplicate scripts.
-   list_iter_t i;
-   list_iter_init( &i, &task->scripts );
-   while ( ! list_end( &i ) ) {
-      struct script* script = list_data( &i );
-      list_iter_t k = i;
-      list_next( &k );
-      bool dup = false;
-      while ( ! list_end( &k ) ) {
-         struct script* other_script = list_data( &k );
-         if ( t_get_script_number( script ) ==
-            t_get_script_number( other_script ) ) {
-            if ( ! dup ) {
-               t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-                  &script->pos, "duplicate script %d",
-                  t_get_script_number( script ) );
-               dup = true;
-            }
-            t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &other_script->pos,
-               "script found here", t_get_script_number( script ) );
-         }
-         list_next( &k );
-      }
-      if ( dup ) {
-         t_bail( task );
-      }
-      list_next( &i );
-   }
+   check_dup_scripts( task );
    calc_map_var_size( task );
    calc_map_value_index( task );
    count_string_usage( task );
    // Any library that has its contents used is dynamically loaded.
+   list_iter_t i;
    list_iter_init( &i, &task->libraries );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -3217,6 +3192,36 @@ void test_script( struct task* task, struct script* script ) {
    t_test_stmt( task, &test, script->body );
    t_pop_scope( task );
    script->tested = true;
+}
+
+void check_dup_scripts( struct task* task ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      list_iter_t k = i;
+      list_next( &k );
+      bool dup = false;
+      while ( ! list_end( &k ) ) {
+         struct script* other_script = list_data( &k );
+         if ( t_get_script_number( script ) ==
+            t_get_script_number( other_script ) ) {
+            if ( ! dup ) {
+               t_diag( task, DIAG_POS_ERR, &script->pos,
+                  "duplicate script %d", t_get_script_number( script ) );
+               dup = true;
+            }
+            t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+               &other_script->pos, "script found here",
+               t_get_script_number( script ) );
+         }
+         list_next( &k );
+      }
+      if ( dup ) {
+         t_bail( task );
+      }
+      list_next( &i );
+   }
 }
 
 void calc_map_var_size( struct task* task ) {
