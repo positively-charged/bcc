@@ -154,9 +154,10 @@ static void calc_dim_size( struct dim*, struct type* );
 static void test_func( struct task*, struct func*, bool );
 static void test_user_func( struct task* task, struct func* func,
    bool undef_err );
-static void test_func_body( struct task*, struct func* );
 static void test_builtin_func( struct task* task, struct func* func,
    bool undef_err );
+static void test_objects_bodies( struct task* task );
+static void test_func_body( struct task*, struct func* );
 static void calc_type_size( struct type* );
 static void calc_map_value_index( struct task* );
 static void calc_var_value_index( struct var* );
@@ -1964,34 +1965,9 @@ void t_test( struct task* task ) {
    bind_names( task );
    import_region_objects( task );
    resolve_region_objects( task );
-   // Test the body of functions, and scripts.
-   list_iter_t i;
-   list_iter_init( &i, &task->regions );
-   while ( ! list_end( &i ) ) {
-      task->region = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &task->region->items );
-      while ( ! list_end( &k ) ) {
-         struct node* node = list_data( &k );
-         if ( node->type == NODE_FUNC ) {
-            struct func* func = ( struct func* ) node;
-            struct func_user* impl = func->impl;
-            if ( impl->publish ) {
-               test_func_body( task, func );
-            }
-         }
-         else {
-            struct script* script = ( struct script* ) node;
-            if ( script->publish ) {
-               test_script( task, script );
-               list_append( &task->scripts, script );
-            }
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
+   test_objects_bodies( task );
    // There should be no duplicate scripts.
+   list_iter_t i;
    list_iter_init( &i, &task->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
@@ -3118,27 +3094,6 @@ void test_user_func( struct task* task, struct func* func, bool undef_err ) {
    func->object.resolved = true;
 }
 
-void test_func_body( struct task* task, struct func* func ) {
-   t_add_scope( task );
-   struct param* param = func->params;
-   while ( param ) {
-      if ( param->name ) {
-         t_use_local_name( task, param->name, ( struct object* ) param );
-      }
-      param = param->next;
-   }
-   struct func_user* impl = func->impl;
-   struct stmt_test test;
-   t_init_stmt_test( &test, NULL );
-   test.func = func;
-   test.manual_scope = true;
-   test.labels = &impl->labels;
-   task->in_func = true;
-   t_test_block( task, &test, impl->body );
-   task->in_func = false;
-   t_pop_scope( task );
-}
-
 void test_builtin_func( struct task* task, struct func* func,
    bool undef_err ) {
    // Default arguments:
@@ -3161,6 +3116,57 @@ void test_builtin_func( struct task* task, struct func* func,
       param = param->next;
    }
    func->object.resolved = true;
+}
+
+// Analyzes the body of functions, and scripts.
+void test_objects_bodies( struct task* task ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->regions );
+   while ( ! list_end( &i ) ) {
+      task->region = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &task->region->items );
+      while ( ! list_end( &k ) ) {
+         struct node* node = list_data( &k );
+         if ( node->type == NODE_FUNC ) {
+            struct func* func = ( struct func* ) node;
+            struct func_user* impl = func->impl;
+            if ( impl->publish ) {
+               test_func_body( task, func );
+            }
+         }
+         else {
+            struct script* script = ( struct script* ) node;
+            if ( script->publish ) {
+               test_script( task, script );
+               list_append( &task->scripts, script );
+            }
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+}
+
+void test_func_body( struct task* task, struct func* func ) {
+   t_add_scope( task );
+   struct param* param = func->params;
+   while ( param ) {
+      if ( param->name ) {
+         t_use_local_name( task, param->name, ( struct object* ) param );
+      }
+      param = param->next;
+   }
+   struct func_user* impl = func->impl;
+   struct stmt_test test;
+   t_init_stmt_test( &test, NULL );
+   test.func = func;
+   test.manual_scope = true;
+   test.labels = &impl->labels;
+   task->in_func = true;
+   t_test_block( task, &test, impl->body );
+   task->in_func = false;
+   t_pop_scope( task );
 }
 
 void test_script( struct task* task, struct script* script ) {
