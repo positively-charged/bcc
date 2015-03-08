@@ -109,6 +109,7 @@ static void read_multi_init( struct task*, struct dec*,
    struct multi_value_read* );
 static void add_struct_member( struct task*, struct dec* );
 static void add_var( struct task*, struct dec* );
+static void determine_publishable_objects( struct task* task );
 static void bind_names( struct task* task );
 static void bind_regionobject_name( struct task* task, struct object* object );
 static void bind_object_name( struct task*, struct name*, struct object* );
@@ -1959,25 +1960,12 @@ void read_script_body( struct task* task, struct script* script ) {
 }
 
 void t_test( struct task* task ) {
+   determine_publishable_objects( task );
    bind_names( task );
    import_region_objects( task );
    resolve_region_objects( task );
-   // Determine which scripts and functions to publish.
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->scripts );
-   while ( ! list_end( &i ) ) {
-      struct script* script = list_data( &i );
-      script->publish = true;
-      list_next( &i );
-   }
-   list_iter_init( &i, &task->library_main->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      impl->publish = true;
-      list_next( &i );
-   }
    // Test the body of functions, and scripts.
+   list_iter_t i;
    list_iter_init( &i, &task->regions );
    while ( ! list_end( &i ) ) {
       task->region = list_data( &i );
@@ -2074,6 +2062,24 @@ void t_test( struct task* task ) {
             }
          }
       }
+      list_next( &i );
+   }
+}
+
+// Determines which objects be written into the object file.
+void determine_publishable_objects( struct task* task ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      script->publish = true;
+      list_next( &i );
+   }
+   list_iter_init( &i, &task->library_main->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      impl->publish = true;
       list_next( &i );
    }
 }
