@@ -113,8 +113,8 @@ static void determine_publishable_objects( struct task* task );
 static void bind_names( struct task* task );
 static void bind_regionobject_name( struct task* task, struct object* object );
 static void bind_object_name( struct task*, struct name*, struct object* );
-static void import_region_objects( struct task* task );
-static void resolve_region_objects( struct task* task );
+static void import_objects( struct task* task );
+static void test_objects( struct task* task );
 static void alias_imported( struct task*, char*, struct pos*, struct object* );
 static void test_region( struct task*, bool*, bool*, bool );
 static void test_region_object( struct task* task, struct object* object,
@@ -180,6 +180,7 @@ static void read_library( struct task*, struct pos* );
 static void read_define( struct task* );
 static struct path* read_path( struct task* );
 static struct path* alloc_path( struct pos );
+static void bind_local_name( struct task*, struct name*, struct object* );
 static void add_loadable_libs( struct task* task );
 
 void t_init_fields_dec( struct task* task ) {
@@ -1965,8 +1966,8 @@ void read_script_body( struct task* task, struct script* script ) {
 void t_test( struct task* task ) {
    determine_publishable_objects( task );
    bind_names( task );
-   import_region_objects( task );
-   resolve_region_objects( task );
+   import_objects( task );
+   test_objects( task );
    test_objects_bodies( task );
    check_dup_scripts( task );
    calc_map_var_size( task );
@@ -2056,7 +2057,7 @@ void bind_object_name( struct task* task, struct name* name,
 }
 
 // Executes import-statements found in regions.
-void import_region_objects( struct task* task ) {
+void import_objects( struct task* task ) {
    list_iter_t i;
    list_iter_init( &i, &task->regions );
    while ( ! list_end( &i ) ) {
@@ -2220,7 +2221,7 @@ void alias_imported( struct task* task, char* alias_name,
       alias->object.resolved = true;
       alias->target = object;
       if ( task->depth ) {
-         t_use_local_name( task, name, &alias->object );
+         bind_local_name( task, name, &alias->object );
       }
       else {
          name->object = &alias->object;
@@ -2230,7 +2231,7 @@ void alias_imported( struct task* task, char* alias_name,
 
 // Analyzes the objects found in regions. The bodies of scripts and functions
 // are analyzed elsewhere.
-void resolve_region_objects( struct task* task ) {
+void test_objects( struct task* task ) {
    bool undef_err = false;
    while ( true ) {
       bool resolved = false;
@@ -2312,7 +2313,7 @@ void t_test_constant( struct task* task, struct constant* constant,
    if ( task->depth ) {
       if ( ! constant->name->object ||
          constant->name->object->depth != task->depth ) {
-         t_use_local_name( task, constant->name, &constant->object );
+         bind_local_name( task, constant->name, &constant->object );
       }
       else {
          struct str str;
@@ -2352,7 +2353,7 @@ void t_test_constant_set( struct task* task, struct constant_set* set,
       if ( task->depth ) {
          if ( ! enumerator->name->object ||
             enumerator->name->object->depth != task->depth ) {
-            t_use_local_name( task, enumerator->name, &enumerator->object );
+            bind_local_name( task, enumerator->name, &enumerator->object );
          }
          else {
             struct str str;
@@ -2393,7 +2394,7 @@ void t_test_type( struct task* task, struct type* type, bool undef_err ) {
          diag_dup_struct( task, type->name, &type->object.pos );
          t_bail( task );
       }
-      t_use_local_name( task, type->name, &type->object );
+      bind_local_name( task, type->name, &type->object );
    }
    // Members.
    struct type_member* member = type->member;
@@ -2433,7 +2434,7 @@ void test_type_member( struct task* task, struct type_member* member,
    if ( task->depth ) {
       if ( ! member->name->object ||
          member->name->object->depth != task->depth ) {
-         t_use_local_name( task, member->name, &member->object );
+         bind_local_name( task, member->name, &member->object );
       }
       else {
          diag_dup_struct_member( task, member->name, &member->object.pos );
@@ -2645,7 +2646,7 @@ void test_name( struct task* task, struct var* var, bool undef_err ) {
          diag_dup( task, str.value, &var->object.pos, var->name );
          t_bail( task );
       }
-      t_use_local_name( task, var->name, &var->object );
+      bind_local_name( task, var->name, &var->object );
    }
 }
 
@@ -3086,7 +3087,7 @@ void test_func_body( struct task* task, struct func* func ) {
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
-         t_use_local_name( task, param->name, ( struct object* ) param );
+         bind_local_name( task, param->name, ( struct object* ) param );
       }
       param = param->next;
    }
@@ -3137,7 +3138,7 @@ void test_script( struct task* task, struct script* script ) {
             diag_dup( task, str.value, &param->object.pos, param->name );
             t_bail( task );
          }
-         t_use_local_name( task, param->name, &param->object );
+         bind_local_name( task, param->name, &param->object );
       }
       param->object.resolved = true;
       param = param->next;
@@ -3679,7 +3680,7 @@ void t_pop_scope( struct task* task ) {
    --task->depth;
 }
 
-void t_use_local_name( struct task* task, struct name* name,
+void bind_local_name( struct task* task, struct name* name,
    struct object* object ) {
    struct sweep* sweep = task->scope->sweep;
    if ( ! sweep || sweep->size == SWEEP_MAX_SIZE ) {

@@ -1403,7 +1403,6 @@ struct object* t_get_region_object( struct task*, struct region*,
    struct name* );
 void diag_dup( struct task*, const char* text, struct pos*, struct name* );
 void diag_dup_struct( struct task*, struct name*, struct pos* );
-void t_use_local_name( struct task*, struct name*, struct object* );
 enum tk t_peek( struct task* );
 void t_read_region_body( struct task*, bool is_brace );
 const char* t_get_token_name( enum tk );
