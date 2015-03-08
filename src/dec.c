@@ -91,6 +91,9 @@ static void read_struct( struct task*, struct dec* );
 static void read_storage_index( struct task*, struct dec* );
 static void add_unresolved( struct region*, struct object* );
 static void test_script( struct task*, struct script* );
+static void test_script_number( struct task* task, struct script* script );
+static void test_script_params( struct task* task, struct script* script );
+static void test_script_body( struct task* task, struct script* script );
 static void read_func( struct task*, struct dec* );
 static void read_bfunc( struct task*, struct func* );
 static void read_script( struct task* );
@@ -1813,7 +1816,6 @@ void read_script( struct task* task ) {
    script->num_param = 0;
    script->offset = 0;
    script->size = 0;
-   script->tested = false;
    script->publish = false;
    struct script_reading reading;
    read_script_number( task, script );
@@ -3104,43 +3106,57 @@ void test_func_body( struct task* task, struct func* func ) {
 }
 
 void test_script( struct task* task, struct script* script ) {
+   test_script_number( task, script );
+   test_script_params( task, script );
+   test_script_body( task, script );
+}
+
+void test_script_number( struct task* task, struct script* script ) {
    if ( script->number ) {
       struct expr_test expr;
       t_init_expr_test( &expr, NULL, NULL, true, true, false );
       t_test_expr( task, &expr, script->number );
       if ( ! script->number->folded ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         t_diag( task, DIAG_POS_ERR, &expr.pos,
             "script number not a constant expression" );
          t_bail( task );
       }
       if ( script->number->value < SCRIPT_MIN_NUM ||
          script->number->value > SCRIPT_MAX_NUM ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         t_diag( task, DIAG_POS_ERR, &expr.pos,
             "script number not between %d and %d", SCRIPT_MIN_NUM,
             SCRIPT_MAX_NUM );
          t_bail( task );
       }
       if ( script->number->value == 0 ) {
-         t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         t_diag( task, DIAG_POS_ERR, &expr.pos,
             "script number 0 not between << and >>" );
          t_bail( task );
       }
    }
+}
+
+void test_script_params( struct task* task, struct script* script ) {
+   struct param* param = script->params;
+   while ( param ) {
+      if ( param->name && param->name->object &&
+         param->name->object->node.type == NODE_PARAM ) {
+         struct str str;
+         str_init( &str );
+         t_copy_name( param->name, false, &str );
+         diag_dup( task, str.value, &param->object.pos, param->name );
+         t_bail( task );
+      }
+      param->object.resolved = true;
+      param = param->next;
+   }
+}
+
+void test_script_body( struct task* task, struct script* script ) {
    t_add_scope( task );
    struct param* param = script->params;
    while ( param ) {
-      if ( param->name ) {
-         if ( param->name->object &&
-            param->name->object->node.type == NODE_PARAM ) {
-            struct str str;
-            str_init( &str );
-            t_copy_name( param->name, false, &str );
-            diag_dup( task, str.value, &param->object.pos, param->name );
-            t_bail( task );
-         }
-         bind_local_name( task, param->name, &param->object );
-      }
-      param->object.resolved = true;
+      bind_local_name( task, param->name, &param->object );
       param = param->next;
    }
    struct stmt_test test;
@@ -3150,7 +3166,6 @@ void test_script( struct task* task, struct script* script ) {
    test.labels = &script->labels;
    t_test_stmt( task, &test, script->body );
    t_pop_scope( task );
-   script->tested = true;
 }
 
 void check_dup_scripts( struct task* task ) {

@@ -714,7 +714,6 @@ struct script {
    int num_param;
    int offset;
    int size;
-   bool tested;
    bool publish;
 };
 
