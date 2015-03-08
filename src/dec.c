@@ -180,6 +180,7 @@ static void read_library( struct task*, struct pos* );
 static void read_define( struct task* );
 static struct path* read_path( struct task* );
 static struct path* alloc_path( struct pos );
+static void add_loadable_libs( struct task* task );
 
 void t_init_fields_dec( struct task* task ) {
    task->depth = 0;
@@ -1971,50 +1972,7 @@ void t_test( struct task* task ) {
    calc_map_var_size( task );
    calc_map_value_index( task );
    count_string_usage( task );
-   // Any library that has its contents used is dynamically loaded.
-   list_iter_t i;
-   list_iter_init( &i, &task->libraries );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      if ( lib != task->library_main ) {
-         bool used = false;
-         // Functions.
-         list_iter_t k;
-         list_iter_init( &k, &lib->funcs );
-         while ( ! list_end( &k ) ) {
-            struct func* func = list_data( &k );
-            struct func_user* impl = func->impl;
-            if ( impl->usage ) {
-               used = true;
-               break;
-            }
-            list_next( &k );
-         }
-         // Variables.
-         if ( ! used ) {
-            list_iter_init( &k, &lib->vars );
-            while ( ! list_end( &k ) ) {
-               struct var* var = list_data( &k );
-               if ( var->storage == STORAGE_MAP && var->used ) {
-                  used = true;
-                  break;
-               }
-               list_next( &k );
-            }
-         }
-         // Add library.
-         if ( used ) {
-            list_iter_init( &k, &task->library_main->dynamic );
-            while ( ! list_end( &k ) && list_data( &i ) != lib ) {
-               list_next( &k );
-            }
-            if ( list_end( &i ) ) {
-               list_append( &task->library_main->dynamic, lib );
-            }
-         }
-      }
-      list_next( &i );
-   }
+   add_loadable_libs( task );
 }
 
 // Determines which objects be written into the object file.
@@ -3741,4 +3699,52 @@ void t_use_local_name( struct task* task, struct name* name,
    object->depth = task->depth;
    object->next_scope = name->object;
    name->object = object;
+}
+
+// NOTE: Maybe move this to the back-end?
+void add_loadable_libs( struct task* task ) {
+   // Any library that has its contents used is dynamically loaded.
+   list_iter_t i;
+   list_iter_init( &i, &task->libraries );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      if ( lib != task->library_main ) {
+         bool used = false;
+         // Functions.
+         list_iter_t k;
+         list_iter_init( &k, &lib->funcs );
+         while ( ! list_end( &k ) ) {
+            struct func* func = list_data( &k );
+            struct func_user* impl = func->impl;
+            if ( impl->usage ) {
+               used = true;
+               break;
+            }
+            list_next( &k );
+         }
+         // Variables.
+         if ( ! used ) {
+            list_iter_init( &k, &lib->vars );
+            while ( ! list_end( &k ) ) {
+               struct var* var = list_data( &k );
+               if ( var->storage == STORAGE_MAP && var->used ) {
+                  used = true;
+                  break;
+               }
+               list_next( &k );
+            }
+         }
+         // Add library.
+         if ( used ) {
+            list_iter_init( &k, &task->library_main->dynamic );
+            while ( ! list_end( &k ) && list_data( &i ) != lib ) {
+               list_next( &k );
+            }
+            if ( list_end( &i ) ) {
+               list_append( &task->library_main->dynamic, lib );
+            }
+         }
+      }
+      list_next( &i );
+   }
 }
