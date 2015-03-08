@@ -151,7 +151,11 @@ static bool test_struct_value( struct task* task,
    struct value* value );
 static void calc_dim_size( struct dim*, struct type* );
 static void test_func( struct task*, struct func*, bool );
+static void test_user_func( struct task* task, struct func* func,
+   bool undef_err );
 static void test_func_body( struct task*, struct func* );
+static void test_builtin_func( struct task* task, struct func* func,
+   bool undef_err );
 static void calc_type_size( struct type* );
 static void calc_map_value_index( struct task* );
 static void calc_var_value_index( struct var* );
@@ -3052,84 +3056,60 @@ void t_test_local_var( struct task* task, struct var* var ) {
 
 void test_func( struct task* task, struct func* func, bool undef_err ) {
    if ( func->type == FUNC_USER ) {
-      struct param* start = func->params;
-      while ( start && start->object.resolved ) {
-         start = start->next;
-      }
-      // Default arguments:
-      struct param* param = start;
-      while ( param ) {
-         if ( param->default_value ) {
-            struct expr_test expr;
-            t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
-            t_test_expr( task, &expr, param->default_value );
-            if ( expr.undef_erred ) {
-               break;
-            }
-         }
-         // Any previous parameter is visible inside the expression of a
-         // default parameter.
-         if ( param->name ) {
-            if ( param->name->object &&
-               param->name->object->node.type == NODE_PARAM ) {               
-               struct str str;
-               str_init( &str );
-               t_copy_name( param->name, false, &str );
-               diag_dup( task, str.value, &param->object.pos, param->name );
-               t_bail( task );
-            }
-            param->object.next_scope = param->name->object;
-            param->name->object = &param->object;
-         }
-         param->object.resolved = true;
-         param = param->next;
-      }
-      // Remove parameters from the top scope.
-      struct param* stop = param;
-      param = start;
-      while ( param != stop ) {
-         if ( param->name ) {
-            param->name->object = param->object.next_scope;
-         }
-         param = param->next;
-      }
-      // When stopped at a parameter, that parameter has not been resolved.
-      if ( stop ) {
-         return;
-      }
-      // Name:
-      //test_unique_name( task, func->name, &func->object.pos );
-      struct func_user* impl = func->impl;
-      //if ( ! impl->imported || ! impl->hidden ) { 
-      //   func->name->object = ( struct object* ) func;
-      //}
-      func->object.resolved = true;
+      test_user_func( task, func, undef_err );
    }
    else {
-      // Default arguments:
-      struct param* param = func->params;
-      while ( param && param->object.resolved ) {
-         param = param->next;
-      }
-      while ( param ) {
-         if ( param->default_value ) {
-            struct expr_test expr;
-            t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
-            t_test_expr( task, &expr, param->default_value );
-            if ( expr.undef_erred ) {
-               return;
-            }
-            // NOTE: For now, for a built-in function, a previous parameter
-            // is not visible to a following parameter.
-         }
-         param->object.resolved = true;
-         param = param->next;
-      }
-      // Name:
-      // test_unique_name( task, func->name, &func->object.pos );
-      func->name->object = ( struct object* ) func;
-      func->object.resolved = true;
+      test_builtin_func( task, func, undef_err );
    }
+}
+
+void test_user_func( struct task* task, struct func* func, bool undef_err ) {
+   struct param* start = func->params;
+   while ( start && start->object.resolved ) {
+      start = start->next;
+   }
+   // Default arguments:
+   struct param* param = start;
+   while ( param ) {
+      if ( param->default_value ) {
+         struct expr_test expr;
+         t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         t_test_expr( task, &expr, param->default_value );
+         if ( expr.undef_erred ) {
+            break;
+         }
+      }
+      // Any previous parameter is visible inside the expression of a
+      // default parameter.
+      if ( param->name ) {
+         if ( param->name->object &&
+            param->name->object->node.type == NODE_PARAM ) {               
+            struct str str;
+            str_init( &str );
+            t_copy_name( param->name, false, &str );
+            diag_dup( task, str.value, &param->object.pos, param->name );
+            t_bail( task );
+         }
+         param->object.next_scope = param->name->object;
+         param->name->object = &param->object;
+      }
+      param->object.resolved = true;
+      param = param->next;
+   }
+   // Remove parameters from the top scope.
+   struct param* stop = param;
+   param = start;
+   while ( param != stop ) {
+      if ( param->name ) {
+         param->name->object = param->object.next_scope;
+      }
+      param = param->next;
+   }
+   // When stopped at a parameter, that parameter has not been resolved.
+   if ( stop ) {
+      return;
+   }
+   func->object.resolved = true;
 }
 
 void test_func_body( struct task* task, struct func* func ) {
@@ -3151,6 +3131,30 @@ void test_func_body( struct task* task, struct func* func ) {
    t_test_block( task, &test, impl->body );
    task->in_func = false;
    t_pop_scope( task );
+}
+
+void test_builtin_func( struct task* task, struct func* func,
+   bool undef_err ) {
+   // Default arguments:
+   struct param* param = func->params;
+   while ( param && param->object.resolved ) {
+      param = param->next;
+   }
+   while ( param ) {
+      if ( param->default_value ) {
+         struct expr_test expr;
+         t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         t_test_expr( task, &expr, param->default_value );
+         if ( expr.undef_erred ) {
+            return;
+         }
+         // NOTE: For now, for a built-in function, a previous parameter
+         // is not visible to a following parameter.
+      }
+      param->object.resolved = true;
+      param = param->next;
+   }
+   func->object.resolved = true;
 }
 
 void test_script( struct task* task, struct script* script ) {
