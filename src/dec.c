@@ -2872,7 +2872,7 @@ bool test_value( struct task* task, struct multi_value_test* test,
 void t_test_local_var( struct task* task, struct var* var ) {
    test_var( task, var, true );
    calc_var_size( var );
-   if ( var->initial && var->initial->multi ) {
+   if ( var->initial ) {
       calc_var_value_index( var );
    }
 }
@@ -3191,8 +3191,7 @@ void calc_map_value_index( struct task* task ) {
    list_iter_init( &i, &task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->initial &&
-         var->initial->multi ) {
+      if ( var->initial ) {
          calc_var_value_index( var );
       }
       list_next( &i );
@@ -3200,22 +3199,29 @@ void calc_map_value_index( struct task* task ) {
 }
 
 void calc_var_value_index( struct var* var ) {
-   struct value_list list;
-   list.head = NULL;
-   list.tail = NULL;
-   make_value_list( &list, ( struct multi_value* ) var->initial );
-   var->value = list.head;
-   struct value_index_alloc alloc;
-   alloc.value = list.head;
-   alloc.index = 0;
-   if ( var->dim ) {
-      alloc_value_index( &alloc,
-         ( struct multi_value* ) var->initial,
-         var->type, var->dim );
+   if ( var->initial->multi ) {
+      struct value_list list = {
+         .head = NULL,
+         .tail = NULL
+      };
+      make_value_list( &list, ( struct multi_value* ) var->initial );
+      var->value = list.head;
+      struct value_index_alloc alloc = {
+         .value = list.head,
+         .index = 0
+      };
+      if ( var->dim ) {
+         alloc_value_index( &alloc,
+            ( struct multi_value* ) var->initial,
+            var->type, var->dim );
+      }
+      else {
+         alloc_value_index_struct( &alloc,
+            ( struct multi_value* ) var->initial, var->type );
+      }
    }
    else {
-      alloc_value_index_struct( &alloc,
-         ( struct multi_value* ) var->initial, var->type );
+      var->value = ( struct value* ) var->initial;
    }
 }
 
@@ -3266,8 +3272,6 @@ void alloc_value_index( struct value_index_alloc* alloc,
       else {
          alloc->value->index = alloc->index;
          if ( alloc->value->string_initz ) {
-            struct indexed_string_usage* usage =
-               ( struct indexed_string_usage* ) alloc->value->expr->root;
             alloc->index += dim->next->size;
          }
          else {
@@ -3290,6 +3294,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
             alloc_value_index( alloc,
                ( struct multi_value* ) initial,
                member->type, member->dim );
+            // Skip elements not specified.
             int used = alloc->index - index;
             alloc->index += ( member->dim->size *
                member->dim->element_size ) - used;
@@ -3298,6 +3303,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
             int index = alloc->index;
             alloc_value_index_struct( alloc,
                ( struct multi_value* ) initial, member->type );
+            // Skip members not specified.
             int used = alloc->index - index;
             alloc->index += member->type->size - used;
          }
@@ -3305,8 +3311,6 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
       else {
          alloc->value->index = alloc->index;
          if ( alloc->value->string_initz ) {
-            struct indexed_string_usage* usage =
-               ( struct indexed_string_usage* ) alloc->value->expr->root;
             alloc->index += member->dim->size;
          }
          else {
