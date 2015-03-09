@@ -45,6 +45,7 @@ struct multi_value_test {
    bool undef_err;
    bool constant;
    bool nested;
+   bool has_string;
 };
 
 struct value_list {
@@ -2714,16 +2715,20 @@ bool test_object_initz( struct task* task, struct var* var, bool undef_err ) {
       if ( ! resolved ) {
          return false;
       }
-      // Size of implicit dimension.
+      // Update size of implicit dimension.
       if ( var->dim && ! var->dim->size_node ) {
          var->dim->size = test.count;
       }
-      return true;
    }
    else {
-      return test_value( task, &test, var->dim, var->type,
+      bool resolved = test_value( task, &test, var->dim, var->type,
          ( struct value* ) var->initial );
+      if ( ! resolved ) {
+         return false;
+      }
    }
+   var->initial_has_str = test.has_string;
+   return true;
 }
 
 bool test_imported_object_initz( struct var* var ) {
@@ -2751,6 +2756,7 @@ void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
    test->undef_err = undef_err;
    test->constant = constant;
    test->nested = nested;
+   test->has_string = false;
 }
 
 bool test_multi_value( struct task* task, struct multi_value_test* test,
@@ -2796,8 +2802,12 @@ bool test_multi_value_child( struct task* task, struct multi_value_test* test,
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->type : test->member->type ),
          test->undef_err, test->constant, true );
-      return test_multi_value( task, &nested,
+      bool resolved = test_multi_value( task, &nested,
          ( struct multi_value* ) initial );
+      if ( nested.has_string ) {
+         test->has_string = true;
+      }
+      return resolved;
    }
    else {
       bool resolved = test_value( task, test,
@@ -2865,6 +2875,9 @@ bool test_value( struct task* task, struct multi_value_test* test,
          dim->size = usage->string->length + 1;
       }
       value->string_initz = true;
+   }
+   if ( expr.has_string ) {
+      test->has_string = true;
    }
    return true;
 }
