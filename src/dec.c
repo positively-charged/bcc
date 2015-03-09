@@ -38,14 +38,13 @@ struct multi_value_read {
 };
 
 struct multi_value_test {
-   struct multi_value_test* parent;
-   struct multi_value* multi_value;
    struct dim* dim;
    struct type* type;
-   struct type_member* type_member;
+   struct type_member* member;
    int count;
    bool undef_err;
-   bool is_constant;
+   bool constant;
+   bool nested;
 };
 
 struct value_list {
@@ -108,6 +107,7 @@ static void read_name( struct task*, struct dec* );
 static void read_dim( struct task*, struct dec* );
 static void read_init( struct task*, struct dec* );
 static void init_initial( struct initial*, bool );
+static struct value* alloc_value( void );
 static void read_multi_init( struct task*, struct dec*,
    struct multi_value_read* );
 static void add_struct_member( struct task*, struct dec* );
@@ -130,29 +130,19 @@ static bool test_spec( struct task* task, struct var* var, bool undef_err );
 static void test_name( struct task* task, struct var* var, bool undef_err );
 static bool test_dim( struct task* task, struct var* var, bool undef_err );
 static bool test_initz( struct task* task, struct var* var, bool undef_err );
-static bool test_importedarray_initz( struct var* var );
-static bool test_array_initz( struct task* task, struct var* var,
+static bool test_object_initz( struct task* task, struct var* var,
    bool undef_err );
-static bool test_struct_initz( struct task* task, struct var* var,
-   bool undef_err );
-static bool test_scalar_initz( struct task* task, struct var* var,
-   bool undef_err );
+static bool test_imported_object_initz( struct var* var );
 static void test_init( struct task*, struct var*, bool, bool* );
-static void init_multi_value_test( struct multi_value_test*,
-   struct multi_value_test*, struct multi_value*, struct dim*, struct type*,
-   struct type_member*, bool, bool );
-static bool test_array_multi_value( struct task*, struct multi_value_test* );
-static bool test_child_array_multi_value( struct task* task,
-   struct multi_value_test* test, struct multi_value* multi_value );
-static bool test_array_value( struct task* task, struct multi_value_test* test,
-   struct value* value );
-static bool test_struct_multi_value( struct task*, struct multi_value_test* );
-static bool test_child_struct_multi_value( struct task* task,
-   struct multi_value_test* test, struct type_member* member,
+static void init_multi_value_test( struct multi_value_test*, struct dim*,
+   struct type*, bool undef_err, bool constant, bool nested );
+static bool test_multi_value( struct task*, struct multi_value_test*,
    struct multi_value* multi_value );
-static bool test_struct_value( struct task* task,
-   struct multi_value_test* test, struct type_member* member,
-   struct value* value );
+static bool test_multi_value_child( struct task* task,
+   struct multi_value_test* test, struct multi_value* multi_value,
+   struct initial* initial );
+static bool test_value( struct task* task, struct multi_value_test* test,
+   struct dim* dim, struct type* type, struct value* value );
 static void calc_dim_size( struct dim*, struct type* );
 static void test_func( struct task*, struct func*, bool );
 static void test_user_func( struct task* task, struct func* func,
@@ -1375,16 +1365,10 @@ void read_init( struct task* task, struct dec* dec ) {
          }
       }
       else {
-         if ( dec->dim ) {
-            t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-               "missing brace initializer" );
-            t_bail( task );
-         }
-         struct value* value = mem_alloc( sizeof( *value ) );
-         init_initial( &value->initial, false );
          struct expr_reading expr;
          t_init_expr_reading( &expr, false, false, false, true );
          t_read_expr( task, &expr );
+         struct value* value = alloc_value();
          value->expr = expr.output_node;
          dec->initial = &value->initial;
          dec->initz_str = expr.has_str;
@@ -1408,6 +1392,16 @@ void init_initial( struct initial* initial, bool multi ) {
    initial->next = NULL;
    initial->multi = multi;
    initial->tested = false;
+}
+
+struct value* alloc_value( void ) {
+   struct value* value = mem_alloc( sizeof( *value ) );
+   init_initial( &value->initial, false );
+   value->expr = NULL;
+   value->next = NULL;
+   value->index = 0;
+   value->string_initz = false;
+   return value;
 }
 
 void read_multi_init( struct task* task, struct dec* dec,
@@ -1434,11 +1428,8 @@ void read_multi_init( struct task* task, struct dec* dec,
          struct expr_reading expr;
          t_init_expr_reading( &expr, false, false, false, true );
          t_read_expr( task, &expr );
-         struct value* value = mem_alloc( sizeof( *value ) );
-         init_initial( &value->initial, false );
+         struct value* value = alloc_value();
          value->expr = expr.output_node;
-         value->next = NULL;
-         value->index = 0;
          if ( read.tail ) {
             read.tail->next = &value->initial;
          }
@@ -1514,10 +1505,10 @@ void add_var( struct task* task, struct dec* dec ) {
    var->used = false;
    var->initial_has_str = false;
    var->imported = task->library->imported;
-   var->is_constant_init = false;
+   var->is_constant_init =
+      ( dec->is_static || dec->area == DEC_TOP ) ? true : false;
    if ( dec->is_static ) {
       var->hidden = true;
-      var->is_constant_init = true;
    }
    if ( dec->area == DEC_TOP ) {
       add_unresolved( task->region, &var->object );
@@ -2704,262 +2695,176 @@ bool test_dim( struct task* task, struct var* var, bool undef_err ) {
 bool test_initz( struct task* task, struct var* var, bool undef_err ) {
    if ( var->initial ) {
       if ( var->imported ) {
-         if ( var->dim ) {
-            return test_importedarray_initz( var );
+         return test_imported_object_initz( var );
+      }
+      else {
+         return test_object_initz( task, var, undef_err );
+      }
+   }
+   return true;
+}
+
+bool test_object_initz( struct task* task, struct var* var, bool undef_err ) {
+   struct multi_value_test test;
+   init_multi_value_test( &test, var->dim, var->type, undef_err,
+      var->is_constant_init, false );
+   if ( var->initial->multi ) {
+      bool resolved = test_multi_value( task, &test,
+         ( struct multi_value* ) var->initial );
+      if ( ! resolved ) {
+         return false;
+      }
+      // Size of implicit dimension.
+      if ( var->dim && ! var->dim->size_node ) {
+         var->dim->size = test.count;
+      }
+      return true;
+   }
+   else {
+      return test_value( task, &test, var->dim, var->type,
+         ( struct value* ) var->initial );
+   }
+}
+
+bool test_imported_object_initz( struct var* var ) {
+   if ( var->dim ) {
+      // TODO: Add error checking.
+      if ( ! var->dim->size_node && ! var->dim->size ) {
+         struct multi_value* multi_value =
+            ( struct multi_value* ) var->initial;
+         struct initial* initial = multi_value->body;
+         while ( initial ) {
+            initial = initial->next;
+            ++var->dim->size;
+         }
+      }
+   }
+   return true;
+}
+
+void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
+   struct type* type, bool undef_err, bool constant, bool nested ) {
+   test->dim = dim;
+   test->type = type;
+   test->member = ( ! dim ? type->member : NULL ); 
+   test->count = 0;
+   test->undef_err = undef_err;
+   test->constant = constant;
+   test->nested = nested;
+}
+
+bool test_multi_value( struct task* task, struct multi_value_test* test,
+   struct multi_value* multi_value ) {
+   struct initial* initial = multi_value->body;
+   while ( initial ) {
+      if ( ! initial->tested ) {
+         if ( ! test_multi_value_child( task, test, multi_value, initial ) ) {
+            return false;
+         }
+         initial->tested = true;
+      }
+      if ( test->member ) {
+         test->member = test->member->next;
+      }
+      ++test->count;
+      initial = initial->next;
+   }
+   return true;
+}
+
+bool test_multi_value_child( struct task* task, struct multi_value_test* test,
+   struct multi_value* multi_value, struct initial* initial ) {
+   bool capacity = ( ( test->dim && ( ! test->dim->size_node ||
+      test->count < test->dim->size ) ) || test->member );
+   if ( ! capacity ) {
+      t_diag( task, DIAG_POS_ERR, &multi_value->pos,
+         "too many values in brace initializer" );
+      t_bail( task );
+   }
+   if ( initial->multi ) {
+      // There needs to be an element or member to initialize.
+      bool deeper = ( ( test->dim && ( test->dim->next ||
+         ! test->type->primitive ) ) || ( test->member &&
+         ( test->member->dim || ! test->member->type->primitive ) ) );
+      if ( ! deeper ) {
+         t_diag( task, DIAG_POS_ERR, &multi_value->pos,
+            "too many brace initializers" );
+         t_bail( task );
+      }
+      struct multi_value_test nested;
+      init_multi_value_test( &nested,
+         ( test->dim ? test->dim->next : test->member->dim ),
+         ( test->dim ? test->type : test->member->type ),
+         test->undef_err, test->constant, true );
+      return test_multi_value( task, &nested,
+         ( struct multi_value* ) initial );
+   }
+   else {
+      bool resolved = test_value( task, test,
+         ( test->dim ? test->dim->next : test->member->dim ),
+         ( test->dim ? test->type : test->member->type ),
+         ( struct value* ) initial );
+      if ( ! resolved ) {
+         return false;
+      }
+      // At this time, I know of no good way to initialize a string member.
+      // The user will have to initialize the member manually, by using an
+      // assignment operation.
+      if ( test->member && test->member->type == task->type_str ) {
+         struct value* value = ( struct value* ) initial;
+         t_diag( task, DIAG_POS_ERR, &value->expr->pos,
+            "initializing struct member of `str` type" );
+         t_bail( task );
+      }
+      return true;
+   }
+}
+
+bool test_value( struct task* task, struct multi_value_test* test,
+   struct dim* dim, struct type* type, struct value* value ) {
+   struct expr_test expr;
+   t_init_expr_test( &expr, NULL, NULL, true, test->undef_err, false );
+   t_test_expr( task, &expr, value->expr );
+   if ( expr.undef_erred ) {
+      return false;
+   }
+   if ( test->constant && ! value->expr->folded ) {
+      t_diag( task, DIAG_POS_ERR, &expr.pos,
+         "non-constant initializer" );
+      t_bail( task );
+   }
+   // Only initialize a primitive element or an array of a single dimension--
+   // using the string initializer.
+   if ( ! ( ! dim && type->primitive ) && ! ( dim && ! dim->next &&
+      value->expr->root->type == NODE_INDEXED_STRING_USAGE &&
+      type->primitive ) ) {
+      t_diag( task, DIAG_POS_ERR, &expr.pos,
+         "missing %sbrace initializer", test->nested ? "another " : "" );
+      t_bail( task );
+   }
+   // String initializer.
+   if ( dim ) {
+      // Even though it doesn't matter what primitive type is specified, for
+      // readability purposes, restrict the string initializer to an array of
+      // `int` type.
+      if ( type != task->type_int ) {
+         t_diag( task, DIAG_POS_ERR, &expr.pos,
+            "string initializer specified for a non-int array" );
+         t_bail( task );
+      }
+      struct indexed_string_usage* usage =
+         ( struct indexed_string_usage* ) value->expr->root;
+      if ( dim->size_node ) {
+         if ( usage->string->length >= dim->size ) {
+            t_diag( task, DIAG_POS_ERR, &expr.pos,
+               "string initializer too long" );
+            t_bail( task );
          }
       }
       else {
-         if ( var->dim ) {
-            return test_array_initz( task, var, undef_err );
-         }
-         else if ( ! var->type->primitive ) {
-            return test_struct_initz( task, var, undef_err );
-         }
-         else {
-            return test_scalar_initz( task, var, undef_err );
-         }
+         dim->size = usage->string->length + 1;
       }
-   }
-   return true;
-}
-
-bool test_importedarray_initz( struct var* var ) {
-   // TODO: Add error checking.
-   if ( ! var->dim->size_node && ! var->dim->size ) {
-      struct multi_value* multi_value = ( struct multi_value* ) var->initial;
-      struct initial* initial = multi_value->body;
-      while ( initial ) {
-         initial = initial->next;
-         ++var->dim->size;
-      }
-   }
-   return true;
-}
-
-bool test_array_initz( struct task* task, struct var* var, bool undef_err ) {
-   struct multi_value_test test;
-   init_multi_value_test( &test, NULL, ( struct multi_value* ) var->initial,
-      var->dim, var->type, var->type->member, undef_err,
-      var->is_constant_init );
-   bool resolved = test_array_multi_value( task, &test );
-   if ( ! resolved ) {
-      return false;
-   }
-   // Size of implicit dimension.
-   if ( ! var->dim->size_node ) {
-      var->dim->size = test.count;
-   }
-   return true;
-}
-
-bool test_struct_initz( struct task* task, struct var* var, bool undef_err ) {
-   struct multi_value_test test;
-   init_multi_value_test( &test, NULL, ( struct multi_value* ) var->initial,
-      NULL, var->type, var->type->member, undef_err, var->is_constant_init );
-   bool resolved = test_struct_multi_value( task, &test );
-   if ( ! resolved ) {
-      return false;
-   }
-   return true;
-}
-
-bool test_scalar_initz( struct task* task, struct var* var, bool undef_err ) {
-   struct value* value = ( struct value* ) var->initial;
-   struct expr_test expr;
-   t_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
-   t_test_expr( task, &expr, value->expr );
-   if ( expr.undef_erred ) {
-      return false;
-   }
-   if ( var->storage == STORAGE_MAP && ! value->expr->folded ) {
-      t_diag( task, DIAG_POS_ERR, &expr.pos,
-         "initial value not constant" );
-      t_bail( task );
-   }
-   var->value = value;
-   var->initial_has_str = expr.has_string;
-   return true;
-}
-
-void init_multi_value_test( struct multi_value_test* test,
-   struct multi_value_test* parent, struct multi_value* multi_value,
-   struct dim* dim, struct type* type, struct type_member* type_member,
-   bool undef_err, bool is_constant ) {
-   test->parent = parent;
-   test->multi_value = multi_value;
-   test->dim = dim;
-   test->type = type;
-   test->type_member = type_member;
-   test->count = 0;
-   test->undef_err = undef_err;
-   test->is_constant = is_constant;
-}
-
-bool test_array_multi_value( struct task* task,
-   struct multi_value_test* test ) {
-   struct initial* initial = test->multi_value->body;
-   while ( initial ) {
-      if ( ! initial->tested ) {
-         // Overflow.
-         if ( test->dim->size && test->count == test->dim->size ) {
-            t_diag( task, DIAG_POS_ERR, &test->multi_value->pos,
-               "too many values in brace initializer" );
-            t_bail( task );
-         }
-         if ( initial->multi ) {
-            bool resolved = test_child_array_multi_value( task, test,
-               ( struct multi_value* ) initial );
-            if ( ! resolved ) {
-               return false;
-            }
-         }
-         else {
-            bool resolved = test_array_value( task, test,
-               ( struct value* ) initial );
-            if ( ! resolved ) {
-               return false;
-            }
-         }
-         initial->tested = true;
-      }
-      initial = initial->next;
-      ++test->count;
-   }
-   return true;
-}
-
-bool test_child_array_multi_value( struct task* task,
-   struct multi_value_test* test, struct multi_value* multi_value ) {
-   // There needs to be an element to initialize.
-   if ( ! test->dim->next && test->type->primitive ) {
-      t_diag( task, DIAG_POS_ERR, &multi_value->pos,
-         "too many brace initializers" );
-      t_bail( task );
-   }
-   struct multi_value_test child_test;
-   init_multi_value_test( &child_test, test, multi_value, test->dim->next,
-      test->type, NULL, test->undef_err, test->is_constant );
-   if ( child_test.dim ) {
-      bool resolved = test_array_multi_value( task, &child_test );
-      if ( ! resolved ) {
-         return false;
-      }
-   }
-   else {
-      bool resolved = test_struct_multi_value( task, &child_test );
-      if ( ! resolved ) {
-         return false;
-      }
-   }
-   return true;
-}
-
-bool test_array_value( struct task* task, struct multi_value_test* test,
-   struct value* value ) {
-   struct expr_test expr;
-   t_init_expr_test( &expr, NULL, NULL, true, test->undef_err, false );
-   t_test_expr( task, &expr, value->expr );
-   if ( expr.undef_erred ) {
-      return false;
-   }
-   if ( test->is_constant && ! value->expr->folded ) {
-      t_diag( task, DIAG_POS_ERR, &expr.pos,
-         "value not constant" );
-      t_bail( task );
-   }
-   if ( test->dim->next || ! test->type->primitive ) {
-      t_diag( task, DIAG_POS_ERR, &expr.pos,
-         "missing another brace initializer" );
-      t_bail( task );
-   }
-   return true;
-}
-
-bool test_struct_multi_value( struct task* task,
-   struct multi_value_test* test ) {
-   struct type_member* member = test->type->member;
-   struct initial* initial = test->multi_value->body;
-   while ( initial ) {
-      if ( ! initial->tested ) {
-         if ( ! member ) {
-            t_diag( task, DIAG_POS_ERR, &test->multi_value->pos,
-               "too many values in brace initializer" );
-            t_bail( task );
-         }
-         if ( initial->multi ) {
-            bool resolved = test_child_struct_multi_value( task, test, member,
-               ( struct multi_value* ) initial );
-            if ( ! resolved ) {
-               return false;
-            }
-         }
-         else {
-            bool resolved = test_struct_value( task, test, member,
-               ( struct value* ) initial );
-            if ( ! resolved ) {
-               return false;
-            }
-         }
-         initial->tested = true;
-      }
-      initial = initial->next;
-      ++test->count;
-      member = member->next;
-   }
-   return true;
-}
-
-bool test_child_struct_multi_value( struct task* task,
-   struct multi_value_test* test, struct type_member* member,
-   struct multi_value* multi_value ) {
-   if ( ! ( member->dim || ! member->type->primitive ) ) {
-      t_diag( task, DIAG_POS_ERR, &multi_value->pos,
-         "too many brace initializers" );
-      t_bail( task );
-   }
-   struct multi_value_test child_test;
-   init_multi_value_test( &child_test, test, multi_value, member->dim,
-      member->type, NULL, test->undef_err, test->is_constant );
-   if ( child_test.dim ) {
-      bool resolved = test_array_multi_value( task, &child_test );
-      if ( ! resolved ) {
-         return false;
-      }
-   }
-   else {
-      bool resolved = test_struct_multi_value( task, &child_test );
-      if ( ! resolved ) {
-         return false;
-      }
-   }
-   return true;
-}
-
-bool test_struct_value( struct task* task, struct multi_value_test* test,
-   struct type_member* member, struct value* value ) {
-   struct expr_test expr;
-   t_init_expr_test( &expr, NULL, NULL, true, test->undef_err, false );
-   t_test_expr( task, &expr, value->expr );
-   if ( expr.undef_erred ) {
-      return false;
-   }
-   if ( test->is_constant && ! value->expr->folded ) {
-      t_diag( task, DIAG_POS_ERR, &expr.pos,
-         "initial value not constant" );
-      t_bail( task );
-   }
-   if ( member->dim || ! member->type->primitive ) {
-      t_diag( task, DIAG_POS_ERR, &expr.pos,
-         "missing another brace initializer" );
-      t_bail( task );
-   }
-   // At this time, I know of no good way to initialize a string member.
-   // The user will have to initialize the member manually, by using an
-   // assignment operation.
-   if ( member->type->is_str ) {
-      t_diag( task, DIAG_POS_ERR, &value->expr->pos,
-         "initializing struct member of string type" );
-      t_bail( task );
+      value->string_initz = true;
    }
    return true;
 }
@@ -3360,8 +3265,15 @@ void alloc_value_index( struct value_index_alloc* alloc,
       }
       else {
          alloc->value->index = alloc->index;
+         if ( alloc->value->string_initz ) {
+            struct indexed_string_usage* usage =
+               ( struct indexed_string_usage* ) alloc->value->expr->root;
+            alloc->index += dim->next->size;
+         }
+         else {
+            ++alloc->index;
+         }
          alloc->value = alloc->value->next;
-         ++alloc->index;
       }
       initial = initial->next;
    }
@@ -3392,8 +3304,15 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
       }
       else {
          alloc->value->index = alloc->index;
+         if ( alloc->value->string_initz ) {
+            struct indexed_string_usage* usage =
+               ( struct indexed_string_usage* ) alloc->value->expr->root;
+            alloc->index += member->dim->size;
+         }
+         else {
+            ++alloc->index;
+         }
          alloc->value = alloc->value->next;
-         ++alloc->index;
       }
       member = member->next;
       initial = initial->next;
@@ -3504,8 +3423,12 @@ void count_string_usage_node( struct node* node ) {
    }
    else if ( node->type == NODE_VAR ) {
       struct var* var = ( struct var* ) node;
-      if ( var->initial ) {
-         count_string_usage_initial( var->initial );
+      struct value* value = var->value;
+      while ( value ) {
+         if ( ! value->string_initz ) {
+            count_string_usage_node( &value->expr->node );
+         }
+         value = value->next;
       }
    }
    else if ( node->type == NODE_EXPR ) {

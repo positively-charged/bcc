@@ -666,28 +666,48 @@ void do_aini_single( struct task* task, struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
-      if ( value->expr->value ) {
-         count = value->index + 1;
+      if ( value->string_initz ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         count = value->index + usage->string->length;
+      }
+      else {
+         if ( value->expr->value ) {
+            count = value->index + 1;
+         }
       }
       value = value->next;
    }
-   if ( count ) {
-      t_add_str( task, "AINI" );
-      t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-      t_add_int( task, var->index );
-      count = 0;
-      value = var->value;
-      while ( value ) {
+   if ( ! count ) {
+      return;
+   }
+   t_add_str( task, "AINI" );
+   t_add_int( task, sizeof( int ) + sizeof( int ) * count );
+   t_add_int( task, var->index );
+   count = 0;
+   value = var->value;
+   while ( value ) {
+      // Nullify uninitialized space.
+      if ( count < value->index && ( ( value->expr->value &&
+         ! value->string_initz ) || value->string_initz ) ) {
+         t_add_int_zero( task, value->index - count );
+         count = value->index;
+      }
+      if ( value->string_initz ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         for ( int i = 0; i < usage->string->length; ++i ) {
+            t_add_int( task, usage->string->value[ i ] );
+         }
+         count += usage->string->length;
+      }
+      else {
          if ( value->expr->value ) {
-            if ( count < value->index ) {
-               t_add_int_zero( task, value->index - count );
-               count = value->index;
-            }
             t_add_int( task, value->expr->value );
             ++count;
          }
-         value = value->next;
       }
+      value = value->next;
    }
 }
 

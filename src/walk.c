@@ -39,6 +39,7 @@ static void pop_block_visit( struct task* );
 static int alloc_script_var( struct task* );
 static void dealloc_last_script_var( struct task* );
 static void visit_var( struct task*, struct var* );
+static void write_world_initz( struct task* task, struct var* var );
 static void init_world_array( struct task*, struct var* );
 static void visit_node( struct task*, struct node* );
 static void visit_script_jump( struct task*, struct script_jump* );
@@ -223,10 +224,27 @@ void visit_var( struct task* task, struct var* var ) {
             init_world_array( task, var );
          }
          else {
-            push_expr( task, var->value->expr, false );
-            update_indexed( task, var->storage, var->index, AOP_NONE );
+            write_world_initz( task, var );
          }
       }
+   }
+}
+
+void write_world_initz( struct task* task, struct var* var ) {
+   if ( var->value->string_initz ) {
+      struct indexed_string_usage* usage =
+         ( struct indexed_string_usage* ) var->value->expr->root;
+      for ( int i = 0; i < usage->string->length; ++i ) {
+         t_add_opc( task, PCD_PUSHNUMBER );
+         t_add_arg( task, i );
+         t_add_opc( task, PCD_PUSHNUMBER );
+         t_add_arg( task, usage->string->value[ i ] );
+         update_element( task, var->storage, var->index, AOP_NONE );
+      }
+   }
+   else {
+      push_expr( task, var->value->expr, false );
+      update_indexed( task, var->storage, var->index, AOP_NONE );
    }
 }
 

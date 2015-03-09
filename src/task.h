@@ -494,6 +494,7 @@ struct value {
    struct expr* expr;
    struct value* next;
    int index;
+   bool string_initz;
 };
 
 struct multi_value {
