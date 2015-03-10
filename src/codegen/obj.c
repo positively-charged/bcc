@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "task.h"
+#include "pcode.h"
 
 static void add_buffer( struct task* );
 static void write_opc( struct task*, int );
