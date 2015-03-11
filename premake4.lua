@@ -29,7 +29,8 @@ solution 'bcc'
          'src/*.c',
       }
       links {
-         'src_codegen'
+         'src_codegen',
+         'src_parse'
       }
 
    project 'src_codegen'
@@ -38,4 +39,12 @@ solution 'bcc'
       kind 'StaticLib'
       files {
          'src/codegen/*.c'
+      }
+
+   project 'src_parse'
+      location 'build/src_parse'
+      targetdir 'build/src_parse'
+      kind 'StaticLib'
+      files {
+         'src/parse/*.c'
       }
