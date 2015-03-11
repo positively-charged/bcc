@@ -899,20 +899,6 @@ struct expr_test {
    bool suggest_paren_assign;
 };
 
-#define BUFFER_SIZE 65536
-
-struct buffer {
-   struct buffer* next;
-   char data[ BUFFER_SIZE ];
-   int used;
-   int pos;
-};
-
-struct immediate {
-   struct immediate* next;
-   int value;
-};
-
 #define TK_BUFFER_SIZE 5
 
 struct task {
@@ -952,19 +938,7 @@ struct task {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
-   struct buffer* buffer_head;
-   struct buffer* buffer;
-   bool compress;
    bool in_func;
-   int opc;
-   int opc_args;
-   struct immediate* immediate;
-   struct immediate* immediate_tail;
-   struct immediate* free_immediate;
-   int immediate_count;
-   bool push_immediate;
-   struct block_visit* block_visit;
-   struct block_visit* block_visit_free;
 };
 
 #define DIAG_NONE 0
@@ -978,8 +952,6 @@ struct task {
 void t_init( struct task*, struct options*, jmp_buf* );
 void t_init_fields_token( struct task* );
 void t_init_fields_dec( struct task* );
-void t_init_fields_chunk( struct task* );
-void t_init_fields_obj( struct task* );
 void t_load_main_source( struct task* );
 void t_read_tk( struct task* );
 void t_test_tk( struct task*, enum tk );
@@ -998,22 +970,7 @@ void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
 void t_test_local_var( struct task*, struct var* );
 void t_skip_block( struct task* );
-void t_publish( struct task* );
-void t_add_byte( struct task*, char );
-void t_add_short( struct task*, short );
-void t_add_int( struct task*, int );
-void t_add_int_zero( struct task*, int );
-// NOTE: Does not include the NUL character.
-void t_add_str( struct task*, const char* );
-void t_add_sized( struct task*, const void*, int size );
-void t_add_opc( struct task*, int );
-void t_add_arg( struct task*, int );
-void t_seek( struct task*, int );
-void t_seek_end( struct task* );
-int t_tell( struct task* );
-void t_flush( struct task* );
 int t_get_script_number( struct script* );
-void t_publish_usercode( struct task* );
 void t_init_expr_reading( struct expr_reading*, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );
 void t_read_expr( struct task*, struct expr_reading* );
@@ -1045,7 +1002,6 @@ void t_read_region( struct task* );
 void t_read_import( struct task*, struct list* );
 void t_import( struct task*, struct import* );
 int t_extract_literal_value( struct task* );
-void t_align_4byte( struct task* );
 struct source* t_load_included_source( struct task* );
 void t_make_main_lib( struct task* );
 void t_read_lib( struct task* );

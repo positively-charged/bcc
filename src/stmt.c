@@ -62,8 +62,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->str_table.head_sorted = NULL;
    task->str_table.head_usable = NULL;
    task->str_table.tail = NULL;
-   t_init_fields_chunk( task );
-   t_init_fields_obj( task );
    list_init( &task->loaded_sources );
    list_init( &task->scripts );
    str_init( &task->tokens.text );

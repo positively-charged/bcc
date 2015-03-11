@@ -3,6 +3,7 @@
 #include <setjmp.h>
 
 #include "task.h"
+#include "codegen/phase.h"
 
 #define TAB_SIZE_MIN 1
 #define TAB_SIZE_MAX 100
@@ -74,7 +75,9 @@ int main( int argc, char* argv[] ) {
    if ( setjmp( bail ) == 0 ) {
       t_read( &task );
       t_test( &task );
-      t_publish( &task );
+      struct codegen codegen;
+      c_init( &codegen, &task );
+      c_publish( &codegen );
       result = EXIT_SUCCESS;
    }
    if ( task.err_file ) {

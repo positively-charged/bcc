@@ -1,83 +1,77 @@
 #include <string.h>
 #include <limits.h>
 
-#include "task.h"
+#include "phase.h"
 
 #define MAX_MAP_LOCATIONS 128
 #define DEFAULT_SCRIPT_SIZE 20
 #define STR_ENCRYPTION_CONSTANT 157135
 
-static void alloc_index( struct task* );
-static void do_sptr( struct task* );
-static void do_svct( struct task* );
-static void do_sflg( struct task* );
-static void do_func( struct task* );
-static void do_fnam( struct task* );
-static void do_strl( struct task* );
-static void do_mini( struct task* );
-static void do_aray( struct task* );
-static void do_aini( struct task* );
-static void do_aini_single( struct task*, struct var* );
-static void do_load( struct task* );
-static void do_mimp( struct task* );
-static void do_aimp( struct task* );
-static void do_mexp( struct task* );
-static void do_mstr( struct task* );
-static void do_astr( struct task* );
+static void alloc_index( struct codegen* phase );
+static void do_sptr( struct codegen* phase );
+static void do_svct( struct codegen* phase );
+static void do_sflg( struct codegen* phase );
+static void do_func( struct codegen* phase );
+static void do_fnam( struct codegen* phase );
+static void do_strl( struct codegen* phase );
+static void do_mini( struct codegen* phase );
+static void do_aray( struct codegen* phase );
+static void do_aini( struct codegen* phase );
+static void do_aini_single( struct codegen* phase, struct var* var );
+static void do_load( struct codegen* phase );
+static void do_mimp( struct codegen* phase );
+static void do_aimp( struct codegen* phase );
+static void do_mexp( struct codegen* phase );
+static void do_mstr( struct codegen* phase );
+static void do_astr( struct codegen* phase );
 
-void t_init_fields_chunk( struct task* task ) {
-   task->compress = false;
-   task->block_visit = NULL;
-   task->block_visit_free = NULL;
-}
-
-void t_publish( struct task* task ) {
-   alloc_index( task );
-   if ( task->library_main->format == FORMAT_LITTLE_E ) {
-      task->compress = true;
+void c_write_chunk_obj( struct codegen* phase ) {
+   alloc_index( phase );
+   if ( phase->task->library_main->format == FORMAT_LITTLE_E ) {
+      phase->compress = true;
    }
    // Reserve header.
-   t_add_int( task, 0 );
-   t_add_int( task, 0 );
-   t_publish_usercode( task );
-   int chunk_pos = t_tell( task );
-   do_sptr( task );
-   do_svct( task );
-   do_sflg( task );
-   do_func( task );
-   do_fnam( task );
-   do_strl( task );
-   do_mini( task );
-   do_aray( task );
-   do_aini( task );
-   do_load( task );
-   do_mimp( task );
-   do_aimp( task );
-   if ( task->library_main->importable ) {
-      do_mexp( task );
-      do_mstr( task );
-      do_astr( task );
+   c_add_int( phase, 0 );
+   c_add_int( phase, 0 );
+   c_write_user_code( phase );
+   int chunk_pos = c_tell( phase );
+   do_sptr( phase );
+   do_svct( phase );
+   do_sflg( phase );
+   do_func( phase );
+   do_fnam( phase );
+   do_strl( phase );
+   do_mini( phase );
+   do_aray( phase );
+   do_aini( phase );
+   do_load( phase );
+   do_mimp( phase );
+   do_aimp( phase );
+   if ( phase->task->library_main->importable ) {
+      do_mexp( phase );
+      do_mstr( phase );
+      do_astr( phase );
    }
    // NOTE: When a BEHAVIOR lump is below 32 bytes in size, the engine will not
    // process it. It will consider the lump as being of unknown format, even
    // though it appears to be valid, just empty. An unknown format is an error,
    // and will cause the engine to halt execution of other scripts. Pad up to
    // the minimum limit to avoid this situation.
-   while ( t_tell( task ) < 32 ) {
-      t_add_byte( task, 0 );
+   while ( c_tell( phase ) < 32 ) {
+      c_add_byte( phase, 0 );
    }
-   t_seek( task, 0 );
-   if ( task->library_main->format == FORMAT_LITTLE_E ) {
-      t_add_str( task, "ACSe" );
+   c_seek( phase, 0 );
+   if ( phase->task->library_main->format == FORMAT_LITTLE_E ) {
+      c_add_str( phase, "ACSe" );
    }
    else {
-      t_add_str( task, "ACSE" );
+      c_add_str( phase, "ACSE" );
    }
-   t_add_int( task, chunk_pos );
-   t_flush( task );
+   c_add_int( phase, chunk_pos );
+   c_flush( phase );
 }
 
-void alloc_index( struct task* task ) {
+void alloc_index( struct codegen* phase ) {
    // Variables:
    // 
    // Order of allocation:
@@ -93,7 +87,7 @@ void alloc_index( struct task* task ) {
    // Arrays.
    int index = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
@@ -104,7 +98,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Scalars, with-no-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -116,7 +110,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Scalars, with-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -128,7 +122,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Scalars, with-value, hidden.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -140,7 +134,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Scalars, with-no-value, hidden.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -152,7 +146,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Arrays, hidden.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
@@ -163,7 +157,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Imported.
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -180,15 +174,16 @@ void alloc_index( struct task* task ) {
    }
    // Don't go over the variable limit.
    if ( index > MAX_MAP_LOCATIONS ) {
-      t_diag( task, DIAG_ERR | DIAG_FILE, &task->library_main->file_pos,
+      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
+         &phase->task->library_main->file_pos,
          "library uses over maximum %d variables", MAX_MAP_LOCATIONS );
-      t_bail( task );
+      t_bail( phase->task );
    }
    // Functions:
    // -----------------------------------------------------------------------
    index = 0;
    // Imported functions:
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -205,7 +200,7 @@ void alloc_index( struct task* task ) {
       list_next( &i );
    }
    // Functions:
-   list_iter_init( &i, &task->library_main->funcs );
+   list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
@@ -219,44 +214,45 @@ void alloc_index( struct task* task ) {
    // index of the function is a byte in size, allowing up to 256 different
    // functions to be called.
    // NOTE: Maybe automatically switch to the Big-E format? 
-   if ( task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
-      t_diag( task, DIAG_ERR | DIAG_FILE, &task->library_main->file_pos,
+   if ( phase->task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
+      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
+         &phase->task->library_main->file_pos,
          "library uses over maximum 256 functions" );
-      t_diag( task, DIAG_FILE, &task->library_main->file_pos,
+      t_diag( phase->task, DIAG_FILE, &phase->task->library_main->file_pos,
          "to use more functions, try using the #nocompact directive" );
-      t_bail( task );
+      t_bail( phase->task );
    }
 }
 
-void do_sptr( struct task* task ) {
-   if ( list_size( &task->library_main->scripts ) ) {
+void do_sptr( struct codegen* phase ) {
+   if ( list_size( &phase->task->library_main->scripts ) ) {
       struct {
          short number;
          short type;
          int offset;
          int num_param;
       } entry;
-      t_add_str( task, "SPTR" );
-      t_add_int( task, sizeof( entry ) *
-         list_size( &task->library_main->scripts ) );
+      c_add_str( phase, "SPTR" );
+      c_add_int( phase, sizeof( entry ) *
+         list_size( &phase->task->library_main->scripts ) );
       list_iter_t i;
-      list_iter_init( &i, &task->library_main->scripts );
+      list_iter_init( &i, &phase->task->library_main->scripts );
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
          entry.number = ( short ) t_get_script_number( script );
          entry.type = ( short ) script->type;
          entry.offset = script->offset;
          entry.num_param = script->num_param;
-         t_add_sized( task, &entry, sizeof( entry ) );
+         c_add_sized( phase, &entry, sizeof( entry ) );
          list_next( &i );
       }
    }
 }
 
-void do_svct( struct task* task ) {
+void do_svct( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->scripts );
+   list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       if ( script->size > DEFAULT_SCRIPT_SIZE ) {
@@ -269,25 +265,25 @@ void do_svct( struct task* task ) {
          short number;
          short size;
       } entry;
-      t_add_str( task, "SVCT" );
-      t_add_int( task, sizeof( entry ) * count );
-      list_iter_init( &i, &task->library_main->scripts );
+      c_add_str( phase, "SVCT" );
+      c_add_int( phase, sizeof( entry ) * count );
+      list_iter_init( &i, &phase->task->library_main->scripts );
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
          if ( script->size > DEFAULT_SCRIPT_SIZE ) {
             entry.number = ( short ) t_get_script_number( script );
             entry.size = ( short ) script->size;
-            t_add_sized( task, &entry, sizeof( entry ) );
+            c_add_sized( phase, &entry, sizeof( entry ) );
          }
          list_next( &i );
       }
    }
 }
 
-void do_sflg( struct task* task ) {
+void do_sflg( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->scripts );
+   list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       if ( script->flags ) {
@@ -300,26 +296,26 @@ void do_sflg( struct task* task ) {
          short number;
          short flags;
       } entry;
-      t_add_str( task, "SFLG" );
-      t_add_int( task, sizeof( entry ) * count );
-      list_iter_init( &i, &task->library_main->scripts );
+      c_add_str( phase, "SFLG" );
+      c_add_int( phase, sizeof( entry ) * count );
+      list_iter_init( &i, &phase->task->library_main->scripts );
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
          if ( script->flags ) {
             entry.number = ( short ) t_get_script_number( script );
             entry.flags = ( short ) script->flags;
-            t_add_sized( task, &entry, sizeof( entry ) );
+            c_add_sized( phase, &entry, sizeof( entry ) );
          }
          list_next( &i );
       }
    }
 }
 
-void do_func( struct task* task ) {
-   int count = list_size( &task->library_main->funcs );
+void do_func( struct codegen* phase ) {
+   int count = list_size( &phase->task->library_main->funcs );
    // Imported functions:
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -345,10 +341,10 @@ void do_func( struct task* task ) {
       int offset;
    } entry;
    entry.padding = 0;
-   t_add_str( task, "FUNC" );
-   t_add_int( task, sizeof( entry ) * count );
+   c_add_str( phase, "FUNC" );
+   c_add_int( phase, sizeof( entry ) * count );
    // Imported functions:
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -367,14 +363,14 @@ void do_func( struct task* task ) {
                ++entry.params;
             }
             entry.value = ( char ) ( func->return_type != NULL );
-            t_add_sized( task, &entry, sizeof( entry ) );
+            c_add_sized( phase, &entry, sizeof( entry ) );
          }
          list_next( &k );
       }
       list_next( &i );
    }
    // Visible functions:
-   list_iter_init( &i, &task->library_main->funcs );
+   list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
@@ -385,17 +381,17 @@ void do_func( struct task* task ) {
       entry.size = ( char ) impl->size;
       entry.value = ( char ) ( func->return_type != NULL );
       entry.offset = impl->obj_pos;
-      t_add_sized( task, &entry, sizeof( entry ) );
+      c_add_sized( phase, &entry, sizeof( entry ) );
       list_next( &i );
    }
 }
 
-void do_fnam( struct task* task ) {
+void do_fnam( struct codegen* phase ) {
    int count = 0;
    int size = 0;
    // Imported functions:
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -412,7 +408,7 @@ void do_fnam( struct task* task ) {
       list_next( &i );
    }
    // Functions:
-   list_iter_init( &i, &task->library_main->funcs );
+   list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       size += t_full_name_length( func->name ) + 1;
@@ -426,13 +422,13 @@ void do_fnam( struct task* task ) {
       sizeof( int ) +
       sizeof( int ) * count;
    int padding = alignpad( offset + size, 4 );
-   t_add_str( task, "FNAM" );
-   t_add_int( task, offset + size + padding );
-   t_add_int( task, count );
+   c_add_str( phase, "FNAM" );
+   c_add_int( phase, offset + size + padding );
+   c_add_int( phase, count );
    // Offsets:
    // -----------------------------------------------------------------------
    // Imported functions.
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -441,7 +437,7 @@ void do_fnam( struct task* task ) {
          struct func* func = list_data( &k );
          struct func_user* impl = func->impl;
          if ( impl->usage ) {
-            t_add_int( task, offset );
+            c_add_int( phase, offset );
             offset += t_full_name_length( func->name ) + 1;
          }
          list_next( &k );
@@ -449,10 +445,10 @@ void do_fnam( struct task* task ) {
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &task->library_main->funcs );
+   list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      t_add_int( task, offset );
+      c_add_int( phase, offset );
       offset += t_full_name_length( func->name ) + 1;
       list_next( &i );
    }
@@ -461,7 +457,7 @@ void do_fnam( struct task* task ) {
    // Imported functions.
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -471,32 +467,32 @@ void do_fnam( struct task* task ) {
          struct func_user* impl = func->impl;
          if ( impl->usage ) {
             t_copy_name( func->name, true, &str );
-            t_add_sized( task, str.value, str.length + 1 );
+            c_add_sized( phase, str.value, str.length + 1 );
          }
          list_next( &k );
       }
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &task->library_main->funcs );
+   list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       t_copy_name( func->name, true, &str );
-      t_add_sized( task, str.value, str.length + 1 );
+      c_add_sized( phase, str.value, str.length + 1 );
       list_next( &i );
    }
    str_deinit( &str );
    while ( padding ) {
-      t_add_byte( task, 0 );
+      c_add_byte( phase, 0 );
       --padding;
    }
 }
 
-void do_strl( struct task* task ) {
+void do_strl( struct codegen* phase ) {
    int i = 0;
    int count = 0;
    int size = 0;
-   struct indexed_string* string = task->str_table.head_usable;
+   struct indexed_string* string = phase->task->str_table.head_usable;
    while ( string ) {
       ++i;
       if ( string->used ) {
@@ -517,63 +513,63 @@ void do_strl( struct task* task ) {
    int padding = alignpad( offset + size, 4 );
    int offset_initial = offset;
    const char* name = "STRL";
-   if ( task->library_main->encrypt_str ) {
+   if ( phase->task->library_main->encrypt_str ) {
       name = "STRE";
    }
-   t_add_str( task, name );
-   t_add_int( task, offset + size + padding );
+   c_add_str( phase, name );
+   c_add_int( phase, offset + size + padding );
    // String count.
-   t_add_int( task, 0 );
-   t_add_int( task, count );
-   t_add_int( task, 0 );
+   c_add_int( phase, 0 );
+   c_add_int( phase, count );
+   c_add_int( phase, 0 );
    // Offsets.
    i = 0;
-   string = task->str_table.head_usable;
+   string = phase->task->str_table.head_usable;
    while ( i < count ) {
       if ( string->used ) {
-         t_add_int( task, offset );
+         c_add_int( phase, offset );
          // Plus one for the NUL character.
          offset += string->length + 1;
       }
       else {
-         t_add_int( task, 0 );
+         c_add_int( phase, 0 );
       }
       string = string->next_usable;
       ++i;
    }
    // Strings.
    offset = offset_initial;
-   string = task->str_table.head_usable;
+   string = phase->task->str_table.head_usable;
    while ( string ) {
       if ( string->used ) {
-         if ( task->library_main->encrypt_str ) {
+         if ( phase->task->library_main->encrypt_str ) {
             int key = offset * STR_ENCRYPTION_CONSTANT;
             // Each character of the string is encoded, including the NUL
             // character.
             for ( int i = 0; i <= string->length; ++i ) {
                char ch = ( char )
                   ( ( ( int ) string->value[ i ] ) ^ ( key + i / 2 ) );
-               t_add_byte( task, ch );
+               c_add_byte( phase, ch );
             }
             offset += string->length + 1;
          }
          else {
-            t_add_sized( task, string->value, string->length + 1 );
+            c_add_sized( phase, string->value, string->length + 1 );
          }
       }
       string = string->next_usable;
    }
    while ( padding ) {
-      t_add_byte( task, 0 );
+      c_add_byte( phase, 0 );
       --padding;
    }
 }
 
-void do_mini( struct task* task ) {
+void do_mini( struct codegen* phase ) {
    struct var* first_var = NULL;
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -588,24 +584,24 @@ void do_mini( struct task* task ) {
    if ( ! count ) {
       return;
    }
-   t_add_str( task, "MINI" );
-   t_add_int( task, sizeof( int ) * ( count + 1 ) );
-   t_add_int( task, first_var->index );
-   list_iter_init( &i, &task->library_main->vars );
+   c_add_str( phase, "MINI" );
+   c_add_int( phase, sizeof( int ) * ( count + 1 ) );
+   c_add_int( phase, first_var->index );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
          var->type->primitive && var->value && var->value->expr->value ) {
-         t_add_int( task, var->value->expr->value );
+         c_add_int( phase, var->value->expr->value );
       }
       list_next( &i );
    }
 }
 
-void do_aray( struct task* task ) {
+void do_aray( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
@@ -621,48 +617,48 @@ void do_aray( struct task* task ) {
       int number;
       int size;
    } entry;
-   t_add_str( task, "ARAY" );
-   t_add_int( task, sizeof( entry ) * count );
+   c_add_str( phase, "ARAY" );
+   c_add_int( phase, sizeof( entry ) * count );
    // Arrays.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
          ( var->dim || ! var->type->primitive ) && ! var->hidden ) { 
          entry.number = var->index;
          entry.size = var->size;
-         t_add_sized( task, &entry, sizeof( entry ) );
+         c_add_sized( phase, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
    // Hidden arrays.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
          ( var->dim || ! var->type->primitive ) && var->hidden ) {
          entry.number = var->index;
          entry.size = var->size;
-         t_add_sized( task, &entry, sizeof( entry ) );
+         c_add_sized( phase, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
 }
 
-void do_aini( struct task* task ) {
+void do_aini( struct codegen* phase ) {
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
          ( var->dim || ! var->type->primitive ) && var->value ) {
-         do_aini_single( task, var );
+         do_aini_single( phase, var );
       }
       list_next( &i );
    }
 }
 
-void do_aini_single( struct task* task, struct var* var ) {
+void do_aini_single( struct codegen* phase, struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
@@ -681,29 +677,29 @@ void do_aini_single( struct task* task, struct var* var ) {
    if ( ! count ) {
       return;
    }
-   t_add_str( task, "AINI" );
-   t_add_int( task, sizeof( int ) + sizeof( int ) * count );
-   t_add_int( task, var->index );
+   c_add_str( phase, "AINI" );
+   c_add_int( phase, sizeof( int ) + sizeof( int ) * count );
+   c_add_int( phase, var->index );
    count = 0;
    value = var->value;
    while ( value ) {
       // Nullify uninitialized space.
       if ( count < value->index && ( ( value->expr->value &&
          ! value->string_initz ) || value->string_initz ) ) {
-         t_add_int_zero( task, value->index - count );
+         c_add_int_zero( phase, value->index - count );
          count = value->index;
       }
       if ( value->string_initz ) {
          struct indexed_string_usage* usage =
             ( struct indexed_string_usage* ) value->expr->root;
          for ( int i = 0; i < usage->string->length; ++i ) {
-            t_add_int( task, usage->string->value[ i ] );
+            c_add_int( phase, usage->string->value[ i ] );
          }
          count += usage->string->length;
       }
       else {
          if ( value->expr->value ) {
-            t_add_int( task, value->expr->value );
+            c_add_int( phase, value->expr->value );
             ++count;
          }
       }
@@ -711,10 +707,10 @@ void do_aini_single( struct task* task, struct var* var ) {
    }
 }
 
-void do_load( struct task* task ) {
+void do_load( struct codegen* phase ) {
    int size = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       size += lib->name.length + 1;
@@ -722,26 +718,26 @@ void do_load( struct task* task ) {
    }
    if ( size ) {
       int padding = alignpad( size, 4 );
-      t_add_str( task, "LOAD" );
-      t_add_int( task, size + padding );
-      list_iter_init( &i, &task->library_main->dynamic );
+      c_add_str( phase, "LOAD" );
+      c_add_int( phase, size + padding );
+      list_iter_init( &i, &phase->task->library_main->dynamic );
       while ( ! list_end( &i ) ) {
          struct library* lib = list_data( &i );
-         t_add_sized( task, lib->name.value, lib->name.length + 1 );
+         c_add_sized( phase, lib->name.value, lib->name.length + 1 );
          list_next( &i );
       }
       while ( padding ) {
-         t_add_byte( task, 0 );
+         c_add_byte( phase, 0 );
          --padding;
       }
    }
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
-void do_mimp( struct task* task ) {
+void do_mimp( struct codegen* phase ) {
    int size = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -759,11 +755,11 @@ void do_mimp( struct task* task ) {
    if ( ! size ) {
       return;
    }
-   t_add_str( task, "MIMP" );
-   t_add_int( task, size );
+   c_add_str( phase, "MIMP" );
+   c_add_int( phase, size );
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &task->library_main->dynamic );
+   list_iter_init( &i, &phase->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -772,9 +768,9 @@ void do_mimp( struct task* task ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
             var->type->primitive ) {
-            t_add_int( task, var->index );
+            c_add_int( phase, var->index );
             t_copy_name( var->name, true, &str );
-            t_add_sized( task, str.value, str.length + 1 );
+            c_add_sized( phase, str.value, str.length + 1 );
          }
          list_next( &k );
       }
@@ -784,11 +780,11 @@ void do_mimp( struct task* task ) {
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
-void do_aimp( struct task* task ) {
+void do_aimp( struct codegen* phase ) {
    int count = 0;
    int size = sizeof( int );
    list_iter_t i;
-   list_iter_init( &i, &task->libraries );
+   list_iter_init( &i, &phase->task->libraries );
    list_next( &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -814,12 +810,12 @@ void do_aimp( struct task* task ) {
    if ( ! count ) {
       return;
    }
-   t_add_str( task, "AIMP" );
-   t_add_int( task, size );
-   t_add_int( task, count );
+   c_add_str( phase, "AIMP" );
+   c_add_int( phase, size );
+   c_add_int( phase, count );
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &task->libraries );
+   list_iter_init( &i, &phase->task->libraries );
    list_next( &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -829,10 +825,10 @@ void do_aimp( struct task* task ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->used &&
             ( ! var->type->primitive || var->dim ) ) {
-            t_add_int( task, var->index );
-            t_add_int( task, var->size );
+            c_add_int( phase, var->index );
+            c_add_int( phase, var->size );
             t_copy_name( var->name, true, &str );
-            t_add_sized( task, str.value, str.length + 1 );
+            c_add_sized( phase, str.value, str.length + 1 );
          }
          list_next( &k );
       }
@@ -841,11 +837,11 @@ void do_aimp( struct task* task ) {
    str_deinit( &str );
 }
 
-void do_mexp( struct task* task ) {
+void do_mexp( struct codegen* phase ) {
    int count = 0;
    int size = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->hidden ) {
@@ -862,43 +858,43 @@ void do_mexp( struct task* task ) {
       sizeof( int ) +
       sizeof( int ) * count;
    int padding = alignpad( offset + size, 4 );
-   t_add_str( task, "MEXP" );
-   t_add_int( task, offset + size + padding );
+   c_add_str( phase, "MEXP" );
+   c_add_int( phase, offset + size + padding );
    // Number of variables.
-   t_add_int( task, count );
+   c_add_int( phase, count );
    // Offsets
    // -----------------------------------------------------------------------
    // Arrays.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
          ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
-         t_add_int( task, offset );
+         c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
       list_next( &i );
    }
    // Scalars, with-no-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
          var->type->primitive && ! var->hidden &&
          ( ! var->value || ! var->value->expr->value ) ) {
-         t_add_int( task, offset );
+         c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
       list_next( &i );
    }
    // Scalars, with-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
          var->type->primitive && ! var->hidden && var->value &&
          var->value->expr->value ) {
-         t_add_int( task, offset );
+         c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
       list_next( &i );
@@ -908,51 +904,51 @@ void do_mexp( struct task* task ) {
    struct str str;
    str_init( &str );
    // Arrays.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
          ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
          t_copy_name( var->name, true, &str );
-         t_add_sized( task, str.value, str.length + 1 );
+         c_add_sized( phase, str.value, str.length + 1 );
       }
       list_next( &i );
    }
    // Scalars, with-no-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
          var->type->primitive && ! var->hidden &&
          ( ! var->value || ! var->value->expr->value ) ) {
          t_copy_name( var->name, true, &str );
-         t_add_sized( task, str.value, str.length + 1 );
+         c_add_sized( phase, str.value, str.length + 1 );
       }
       list_next( &i );
    }
    // Scalars, with-value.
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
          var->type->primitive && ! var->hidden && var->value &&
          var->value->expr->value ) {
          t_copy_name( var->name, true, &str );
-         t_add_sized( task, str.value, str.length + 1 );
+         c_add_sized( phase, str.value, str.length + 1 );
       }
       list_next( &i );
    }
    str_deinit( &str );
    while ( padding ) {
-      t_add_byte( task, 0 );
+      c_add_byte( phase, 0 );
       --padding;
    }
 }
 
-void do_mstr( struct task* task ) {
+void do_mstr( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -962,24 +958,24 @@ void do_mstr( struct task* task ) {
       list_next( &i );
    }
    if ( count ) {
-      t_add_str( task, "MSTR" );
-      t_add_int( task, sizeof( int ) * count );
-      list_iter_init( &i, &task->library_main->vars );
+      c_add_str( phase, "MSTR" );
+      c_add_int( phase, sizeof( int ) * count );
+      list_iter_init( &i, &phase->task->library_main->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
          if ( var->storage == STORAGE_MAP && ! var->dim &&
             var->type->primitive && var->initial_has_str ) {
-            t_add_int( task, var->index );
+            c_add_int( phase, var->index );
          }
          list_next( &i );
       }
    }
 }
 
-void do_astr( struct task* task ) {
+void do_astr( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->dim &&
@@ -989,14 +985,14 @@ void do_astr( struct task* task ) {
       list_next( &i );
    }
    if ( count ) {
-      t_add_str( task, "ASTR" );
-      t_add_int( task, sizeof( int ) * count );
-      list_iter_init( &i, &task->library_main->vars );
+      c_add_str( phase, "ASTR" );
+      c_add_int( phase, sizeof( int ) * count );
+      list_iter_init( &i, &phase->task->library_main->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
          if ( var->storage == STORAGE_MAP && var->dim &&
             var->type->primitive && var->initial_has_str ) {
-            t_add_int( task, var->index );
+            c_add_int( phase, var->index );
          }
          list_next( &i );
       }
