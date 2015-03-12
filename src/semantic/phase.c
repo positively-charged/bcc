@@ -118,7 +118,7 @@ void bind_regionobject_name( struct semantic* phase, struct object* object ) {
       struct type* type = ( struct type* ) object;
       if ( type->name->object ) {
          diag_dup_struct( phase->task, type->name, &type->object.pos );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       type->name->object = &type->object;
    }
@@ -130,11 +130,11 @@ void bind_object_name( struct semantic* phase, struct name* name,
       struct str str;
       str_init( &str );
       t_copy_name( name, false, &str );
-      t_diag( phase->task, DIAG_POS_ERR, &object->pos,
+      s_diag( phase, DIAG_POS_ERR, &object->pos,
          "duplicate name `%s`", str.value );
-      t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
+      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
          "name already used here", str.value );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    name->object = object;
 }
@@ -276,18 +276,18 @@ void check_dup_scripts( struct semantic* phase ) {
          if ( t_get_script_number( script ) ==
             t_get_script_number( other_script ) ) {
             if ( ! dup ) {
-               t_diag( phase->task, DIAG_POS_ERR, &script->pos,
+               s_diag( phase, DIAG_POS_ERR, &script->pos,
                   "duplicate script %d", t_get_script_number( script ) );
                dup = true;
             }
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &other_script->pos, "script found here",
                t_get_script_number( script ) );
          }
          list_next( &k );
       }
       if ( dup ) {
-         t_bail( phase->task );
+         s_bail( phase );
       }
       list_next( &i );
    }
@@ -650,4 +650,15 @@ void s_bind_local_name( struct semantic* phase, struct name* name,
    object->depth = phase->depth;
    object->next_scope = name->object;
    name->object = object;
+}
+
+void s_diag( struct semantic* phase, int flags, ... ) {
+   va_list args;
+   va_start( args, flags );
+   t_diag_args( phase->task, flags, &args );
+   va_end( args );
+}
+
+void s_bail( struct semantic* phase ) {
+   t_bail( phase->task );
 }

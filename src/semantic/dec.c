@@ -73,7 +73,7 @@ void s_test_constant( struct semantic* phase, struct constant* constant,
          str_init( &str );
          t_copy_name( constant->name, false, &str );
          diag_dup( phase->task, str.value, &constant->object.pos, constant->name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    // Test expression.
@@ -86,9 +86,9 @@ void s_test_constant( struct semantic* phase, struct constant* constant,
          constant->object.resolved = true;
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &constant->value_node->pos,
+         s_diag( phase, DIAG_POS_ERR, &constant->value_node->pos,
             "expression not constant" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
 }
@@ -114,7 +114,7 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set,
             t_copy_name( enumerator->name, false, &str );
             diag_dup( phase->task, str.value, &enumerator->object.pos,
                enumerator->name );
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
       if ( enumerator->value_node ) {
@@ -125,9 +125,9 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set,
             return;
          }
          if ( ! enumerator->value_node->folded ) {
-            t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+            s_diag( phase, DIAG_POS_ERR, &expr.pos,
                "enumerator expression not constant" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          value = enumerator->value_node->value;
       }
@@ -145,7 +145,7 @@ void s_test_type( struct semantic* phase, struct type* type, bool undef_err ) {
    if ( phase->depth ) {
       if ( type->name->object && type->name->object->depth == phase->depth ) {
          diag_dup_struct( phase->task, type->name, &type->object.pos );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       s_bind_local_name( phase, type->name, &type->object );
    }
@@ -176,9 +176,9 @@ void test_type_member( struct semantic* phase, struct type_member* member,
             while ( path->next ) {
                path = path->next;
             }
-            t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &path->pos,
+            s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &path->pos,
                "struct `%s` undefined", path->text );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          return;
       }
@@ -191,7 +191,7 @@ void test_type_member( struct semantic* phase, struct type_member* member,
       }
       else {
          diag_dup_struct_member( phase->task, member->name, &member->object.pos );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    else {
@@ -201,7 +201,7 @@ void test_type_member( struct semantic* phase, struct type_member* member,
          }
          else {
             diag_dup_struct_member( phase->task, member->name, &member->object.pos );
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
    }
@@ -219,14 +219,14 @@ void test_type_member( struct semantic* phase, struct type_member* member,
          return;
       }
       if ( ! dim->size_node->folded ) {
-         t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
          "array size not a constant expression" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       if ( dim->size_node->value <= 0 ) {
-         t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
             "array size must be greater than 0" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       dim->size = dim->size_node->value;
       dim = dim->next;
@@ -283,8 +283,8 @@ struct type* find_type( struct semantic* phase, struct path* path ) {
       if ( ! path->next ) {
          msg = "struct `%s` not found";
       }
-      t_diag( phase->task, DIAG_POS_ERR, &path->pos, msg, path->text );
-      t_bail( phase->task );
+      s_diag( phase, DIAG_POS_ERR, &path->pos, msg, path->text );
+      s_bail( phase );
    }
    // When using a region link, make sure no other object with the same name
    // can be found.
@@ -302,19 +302,19 @@ struct type* find_type( struct semantic* phase, struct path* path ) {
                type = "struct";
             }
             if ( ! dup ) {
-               t_diag( phase->task, DIAG_POS_ERR, &path->pos,
+               s_diag( phase, DIAG_POS_ERR, &path->pos,
                   "%s `%s` found in multiple modules", type, path->text );
-               t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
+               s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
                   "%s found here", type );
                dup = true;
             }
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &name->object->pos, "%s found here", type );
          }
          link = link->next;
       }
       if ( dup ) {
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    // Navigate rest of path.
@@ -339,20 +339,20 @@ struct type* find_type( struct semantic* phase, struct path* path ) {
          }
          else {
             if ( path->next ) {
-               t_diag( phase->task, DIAG_POS_ERR, &path->pos, "region `%s` not found",
+               s_diag( phase, DIAG_POS_ERR, &path->pos, "region `%s` not found",
                   path->text );
             }
             else {
-               t_diag( phase->task, DIAG_POS_ERR, &path->pos, "struct `%s` not found",
+               s_diag( phase, DIAG_POS_ERR, &path->pos, "struct `%s` not found",
                   path->text ); 
             }
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &path->pos,
+         s_diag( phase, DIAG_POS_ERR, &path->pos,
             "accessing something not a region" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       path = path->next;
    }
@@ -381,9 +381,9 @@ bool test_spec( struct semantic* phase, struct var* var, bool undef_err ) {
       // storage because there's no standard or efficient way to allocate such
       // a variable.
       if ( var->storage == STORAGE_LOCAL ) {
-         t_diag( phase->task, DIAG_POS_ERR, &var->object.pos,
+         s_diag( phase, DIAG_POS_ERR, &var->object.pos,
             "variable of struct type in local storage" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    return true;
@@ -397,7 +397,7 @@ void test_name( struct semantic* phase, struct var* var, bool undef_err ) {
          str_init( &str );
          t_copy_name( var->name, false, &str );
          diag_dup( phase->task, str.value, &var->object.pos, var->name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       s_bind_local_name( phase, var->name, &var->object );
    }
@@ -423,31 +423,31 @@ bool test_dim( struct semantic* phase, struct var* var, bool undef_err ) {
             return false;
          }
          if ( ! dim->size_node->folded ) {
-            t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+            s_diag( phase, DIAG_POS_ERR, &expr.pos,
                "dimension size not a constant expression" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          if ( dim->size_node->value <= 0 ) {
-            t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+            s_diag( phase, DIAG_POS_ERR, &expr.pos,
                "dimension size less than or equal to 0" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          dim->size = dim->size_node->value;
       }
       else {
          // Only the first dimension can have an implicit size.
          if ( dim != var->dim ) {
-            t_diag( phase->task, DIAG_POS_ERR, &dim->pos,
+            s_diag( phase, DIAG_POS_ERR, &dim->pos,
                "implicit size in subsequent dimension" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
       dim = dim->next;
    }
    if ( var->storage == STORAGE_LOCAL ) {
-      t_diag( phase->task, DIAG_POS_ERR, &var->object.pos,
+      s_diag( phase, DIAG_POS_ERR, &var->object.pos,
          "array in local storage" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    return true;
 }
@@ -542,9 +542,9 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
    bool capacity = ( ( test->dim && ( ! test->dim->size_node ||
       test->count < test->dim->size ) ) || test->member );
    if ( ! capacity ) {
-      t_diag( phase->task, DIAG_POS_ERR, &multi_value->pos,
+      s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
          "too many values in brace initializer" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( initial->multi ) {
       // There needs to be an element or member to initialize.
@@ -552,9 +552,9 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
          ! test->type->primitive ) ) || ( test->member &&
          ( test->member->dim || ! test->member->type->primitive ) ) );
       if ( ! deeper ) {
-         t_diag( phase->task, DIAG_POS_ERR, &multi_value->pos,
+         s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
             "too many brace initializers" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       struct multi_value_test nested;
       init_multi_value_test( &nested,
@@ -581,9 +581,9 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
       // assignment operation.
       if ( test->member && test->member->type == phase->task->type_str ) {
          struct value* value = ( struct value* ) initial;
-         t_diag( phase->task, DIAG_POS_ERR, &value->expr->pos,
+         s_diag( phase, DIAG_POS_ERR, &value->expr->pos,
             "initializing struct member of `str` type" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       return true;
    }
@@ -598,18 +598,18 @@ bool test_value( struct semantic* phase, struct multi_value_test* test,
       return false;
    }
    if ( test->constant && ! value->expr->folded ) {
-      t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+      s_diag( phase, DIAG_POS_ERR, &expr.pos,
          "non-constant initializer" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    // Only initialize a primitive element or an array of a single dimension--
    // using the string initializer.
    if ( ! ( ! dim && type->primitive ) && ! ( dim && ! dim->next &&
       value->expr->root->type == NODE_INDEXED_STRING_USAGE &&
       type->primitive ) ) {
-      t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+      s_diag( phase, DIAG_POS_ERR, &expr.pos,
          "missing %sbrace initializer", test->nested ? "another " : "" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    // String initializer.
    if ( dim ) {
@@ -617,17 +617,17 @@ bool test_value( struct semantic* phase, struct multi_value_test* test,
       // readability purposes, restrict the string initializer to an array of
       // `int` type.
       if ( type != phase->task->type_int ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+         s_diag( phase, DIAG_POS_ERR, &expr.pos,
             "string initializer specified for a non-int array" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       struct indexed_string_usage* usage =
          ( struct indexed_string_usage* ) value->expr->root;
       if ( dim->size_node ) {
          if ( usage->string->length >= dim->size ) {
-            t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+            s_diag( phase, DIAG_POS_ERR, &expr.pos,
                "string initializer too long" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
       else {
@@ -683,7 +683,7 @@ void test_user_func( struct semantic* phase, struct func* func, bool undef_err )
             str_init( &str );
             t_copy_name( param->name, false, &str );
             diag_dup( phase->task, str.value, &param->object.pos, param->name );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          param->object.next_scope = param->name->object;
          param->name->object = &param->object;
@@ -764,21 +764,21 @@ void test_script_number( struct semantic* phase, struct script* script ) {
       s_init_expr_test( &expr, NULL, NULL, true, true, false );
       s_test_expr( phase, &expr, script->number );
       if ( ! script->number->folded ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+         s_diag( phase, DIAG_POS_ERR, &expr.pos,
             "script number not a constant expression" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       if ( script->number->value < SCRIPT_MIN_NUM ||
          script->number->value > SCRIPT_MAX_NUM ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+         s_diag( phase, DIAG_POS_ERR, &expr.pos,
             "script number not between %d and %d", SCRIPT_MIN_NUM,
             SCRIPT_MAX_NUM );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       if ( script->number->value == 0 ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr.pos,
+         s_diag( phase, DIAG_POS_ERR, &expr.pos,
             "script number 0 not between << and >>" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
 }
@@ -792,7 +792,7 @@ void test_script_params( struct semantic* phase, struct script* script ) {
          str_init( &str );
          t_copy_name( param->name, false, &str );
          diag_dup( phase->task, str.value, &param->object.pos, param->name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       param->object.resolved = true;
       param = param->next;

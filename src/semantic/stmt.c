@@ -103,16 +103,17 @@ void test_case( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      t_diag( phase->task, DIAG_POS_ERR, &label->pos,
+      s_diag( phase, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, true, false );
    s_test_expr( phase, &expr, label->number );
    if ( ! label->number->folded ) {
-      t_diag( phase->task, DIAG_POS_ERR, &expr.pos, "case value not constant" );
-      t_bail( phase->task );
+      s_diag( phase, DIAG_POS_ERR, &expr.pos,
+         "case value not constant" );
+      s_bail( phase );
    }
    struct case_label* prev = NULL;
    struct case_label* curr = target->case_head;
@@ -121,10 +122,10 @@ void test_case( struct semantic* phase, struct stmt_test* test,
       curr = curr->next;
    }
    if ( curr && curr->number->value == label->number->value ) {
-      t_diag( phase->task, DIAG_POS_ERR, &label->pos, "duplicate case" );
-      t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
+      s_diag( phase, DIAG_POS_ERR, &label->pos, "duplicate case" );
+      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
          "case with value %d found here", curr->number->value );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( prev ) {
       label->next = prev->next;
@@ -143,16 +144,16 @@ void test_default_case( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      t_diag( phase->task, DIAG_POS_ERR, &label->pos,
+      s_diag( phase, DIAG_POS_ERR, &label->pos,
          "default outside switch statement" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( target->case_default ) {
-      t_diag( phase->task, DIAG_POS_ERR, &label->pos, "duplicate default case" );
-      t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( phase, DIAG_POS_ERR, &label->pos, "duplicate default case" );
+      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &target->case_default->pos,
          "default case found here" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    target->case_default = label;
 }
@@ -306,9 +307,9 @@ void test_jump( struct semantic* phase, struct stmt_test* test,
          target = target->parent;
       }
       if ( ! target ) {
-         t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &stmt->pos,
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
             "break outside loop or switch" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       stmt->next = target->jump_break;
       target->jump_break = stmt;
@@ -317,10 +318,9 @@ void test_jump( struct semantic* phase, struct stmt_test* test,
       target = test;
       while ( target != finish ) {
          if ( target->format_block ) {
-            t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &stmt->pos,
+            s_diag( phase, DIAG_POS_ERR, &stmt->pos,
                "leaving format block with a break statement" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          target = target->parent;
       }
@@ -331,9 +331,9 @@ void test_jump( struct semantic* phase, struct stmt_test* test,
          target = target->parent;
       }
       if ( ! target ) {
-         t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &stmt->pos,
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
             "continue outside loop" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       stmt->next = target->jump_continue;
       target->jump_continue = stmt;
@@ -341,10 +341,9 @@ void test_jump( struct semantic* phase, struct stmt_test* test,
       target = test;
       while ( target != finish ) {
          if ( target->format_block ) {
-            t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &stmt->pos,
+            s_diag( phase, DIAG_POS_ERR, &stmt->pos,
                "leaving format block with a continue statement" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          target = target->parent;
       }
@@ -360,18 +359,17 @@ void test_script_jump( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &stmt->pos,
+      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
          "`%s` outside script", names[ stmt->type ] );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct stmt_test* finish = target;
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &stmt->pos,
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
             "`%s` inside format block", names[ stmt->type ] );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       target = target->parent;
    }
@@ -384,32 +382,33 @@ void test_return( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      t_diag( phase->task, DIAG_POS_ERR, &stmt->pos,
+      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
          "return statement outside function" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( stmt->return_value ) {
       struct pos pos;
       test_packed_expr( phase, test, stmt->return_value, &pos );
       if ( ! target->func->return_type ) {
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         s_diag( phase, DIAG_POS_ERR, &pos,
             "returning value in void function" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    else {
       if ( target->func->return_type ) {
-         t_diag( phase->task, DIAG_POS_ERR, &stmt->pos, "missing return value" );
-         t_bail( phase->task );
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+            "missing return value" );
+         s_bail( phase );
       }
    }
    struct stmt_test* finish = target;
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         t_diag( phase->task, DIAG_POS_ERR, &stmt->pos,
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
             "leaving format block with a return statement" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       target = target->parent;
    }
@@ -464,9 +463,9 @@ void test_format_item( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      t_diag( phase->task, DIAG_POS_ERR, &item->pos,
+      s_diag( phase, DIAG_POS_ERR, &item->pos,
          "format item outside format block" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
 }
 
@@ -486,7 +485,7 @@ void test_packed_expr( struct semantic* phase, struct stmt_test* test,
       nested.format_block = packed->block;
       s_test_block( phase, &nested, nested.format_block );
       if ( ! expr_test.format_block_usage ) {
-         t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &packed->block->pos, "unused format block" );
       }
    }
@@ -502,11 +501,11 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
             struct goto_stmt* stmt = label->users;
             while ( stmt ) {
                if ( stmt->format_block != label->format_block ) {
-                  t_diag( phase->task, DIAG_POS_ERR, &stmt->pos,
+                  s_diag( phase, DIAG_POS_ERR, &stmt->pos,
                      "entering format block with a goto statement" );
-                  t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+                  s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
                      "point of entry is here" ); 
-                  t_bail( phase->task );
+                  s_bail( phase );
                }
                stmt = stmt->next;
             }
@@ -514,7 +513,7 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
          else {
             // If a label is unused, the user might have used the syntax of a
             // label to create a format-item.
-            t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &label->pos, "unused label in format block" );
          }
       }
@@ -522,11 +521,11 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
          struct goto_stmt* stmt = label->users;
          while ( stmt ) {
             if ( stmt->format_block ) {
-               t_diag( phase->task, DIAG_POS_ERR, &stmt->pos,
+               s_diag( phase, DIAG_POS_ERR, &stmt->pos,
                   "leaving format block with a goto statement" );
-               t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+               s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
                   "destination of goto statement is here" );
-               t_bail( phase->task );
+               s_bail( phase );
             }
             stmt = stmt->next;
          }
@@ -548,9 +547,9 @@ void s_import( struct semantic* phase, struct import* stmt ) {
    while ( path ) {
       struct name* name = t_make_name( phase->task, path->text, region->body );
       if ( ! name->object || name->object->node.type != NODE_REGION ) {
-         t_diag( phase->task, DIAG_POS_ERR, &path->pos,
+         s_diag( phase, DIAG_POS_ERR, &path->pos,
             "region `%s` not found", path->text );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       region = ( struct region* ) name->object;
       path = path->next;
@@ -566,22 +565,22 @@ void s_import( struct semantic* phase, struct import* stmt ) {
             struct object* object = t_get_region_object( phase->task, region, name );
             // The object needs to exist.
             if ( ! object ) {
-               t_diag( phase->task, DIAG_POS_ERR, &item->name_pos,
+               s_diag( phase, DIAG_POS_ERR, &item->name_pos,
                   "`%s` not found", item->name );
-               t_bail( phase->task );
+               s_bail( phase );
             }
             // The object needs to be a region.
             if ( object->node.type != NODE_REGION ) {
-               t_diag( phase->task, DIAG_POS_ERR, &item->name_pos,
+               s_diag( phase, DIAG_POS_ERR, &item->name_pos,
                   "`%s` not a region", item->name );
-               t_bail( phase->task );
+               s_bail( phase );
             }
             linked_region = ( struct region* ) object;
          }
          if ( linked_region == phase->region ) {
-            t_diag( phase->task, DIAG_POS_ERR, &item->pos,
+            s_diag( phase, DIAG_POS_ERR, &item->pos,
                "region importing self as default region" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          struct region_link* link = phase->region->link;
          while ( link && link->region != linked_region ) {
@@ -589,9 +588,9 @@ void s_import( struct semantic* phase, struct import* stmt ) {
          }
          // Duplicate links are allowed in the source code.
          if ( link ) {
-            t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &item->pos, "duplicate import of default region" );
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &link->pos,
+            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &link->pos,
                "import already made here" );
          }
          else {
@@ -609,9 +608,9 @@ void s_import( struct semantic* phase, struct import* stmt ) {
             path = path->next;
          }
          if ( ! path->text ) {
-            t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &item->pos, "region imported without name" );
-            t_bail( phase->task );
+            s_diag( phase, DIAG_POS_ERR, &item->pos,
+               "region imported without name" );
+            s_bail( phase );
          }
          alias_imported( phase, path->text, &path->pos, &region->object );
       }
@@ -635,10 +634,9 @@ void s_import( struct semantic* phase, struct import* stmt ) {
             if ( item->is_struct ) {
                prefix = "struct ";
             }
-            t_diag( phase->task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &item->name_pos, "%s`%s` not found in region", prefix,
-               item->name );
-            t_bail( phase->task );
+            s_diag( phase, DIAG_POS_ERR, &item->name_pos,
+               "%s`%s` not found in region", prefix, item->name );
+            s_bail( phase );
          }
          if ( item->alias ) {
             alias_imported( phase, item->alias, &item->alias_pos, object );
@@ -665,16 +663,16 @@ void alias_imported( struct semantic* phase, char* alias_name,
       if ( name->object->node.type == NODE_ALIAS ) {
          struct alias* alias = ( struct alias* ) name->object;
          if ( object == alias->target ) {
-            t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                alias_pos, "duplicate import name `%s`", alias_name );
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &alias->object.pos,
+            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &alias->object.pos,
                "import name already used here", alias_name );
             valid = true;
          }
       }
       if ( ! valid ) {
          diag_dup( phase->task, alias_name, alias_pos, name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    else {

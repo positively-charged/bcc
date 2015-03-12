@@ -72,5 +72,7 @@ void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
 void s_bind_local_name( struct semantic* phase, struct name* name,
    struct object* object );
+void s_diag( struct semantic* phase, int flags, ... );
+void s_bail( struct semantic* phase );
 
 #endif

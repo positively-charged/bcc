@@ -102,13 +102,14 @@ void test_expr( struct semantic* phase, struct expr_test* test, struct expr* exp
    if ( setjmp( test->bail ) == 0 ) {
       test_node( phase, test, operand, expr->root );
       if ( ! operand->complete ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr->pos, "expression incomplete" );
-         t_bail( phase->task );
+         s_diag( phase, DIAG_POS_ERR, &expr->pos,
+            "expression incomplete" );
+         s_bail( phase );
       }
       if ( test->result_required && ! operand->usable ) {
-         t_diag( phase->task, DIAG_POS_ERR, &expr->pos,
+         s_diag( phase, DIAG_POS_ERR, &expr->pos,
             "expression does not produce a value" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       expr->folded = operand->folded;
       expr->value = operand->value;
@@ -208,14 +209,14 @@ void test_name_usage( struct semantic* phase, struct expr_test* test,
    else {
       if ( test->undef_err ) {
          if ( object ) {
-            t_diag( phase->task, DIAG_POS_ERR, &usage->pos, "`%s` undefined",
-               usage->text );
+            s_diag( phase, DIAG_POS_ERR, &usage->pos,
+               "`%s` undefined", usage->text );
          }
          else {
-            t_diag( phase->task, DIAG_POS_ERR, &usage->pos, "`%s` not found",
-               usage->text );
+            s_diag( phase, DIAG_POS_ERR, &usage->pos,
+               "`%s` not found", usage->text );
          }
-         t_bail( phase->task );
+         s_bail( phase );
       }
       else {
          test->undef_erred = true;
@@ -272,13 +273,13 @@ struct object* find_usage_object( struct semantic* phase,
       name = t_make_name( phase->task, usage->text, link->region->body );
       if ( name->object ) {
          if ( ! dup ) {
-            t_diag( phase->task, DIAG_POS_ERR, &usage->pos,
+            s_diag( phase, DIAG_POS_ERR, &usage->pos,
                "multiple objects with name `%s`", usage->text );
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
+            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
                "object found here" );
          }
-         t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
-            "object found here" );
+         s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &name->object->pos, "object found here" );
          ++dup;
       }
       link = link->next;
@@ -378,18 +379,18 @@ void test_unary( struct semantic* phase, struct expr_test* test,
          if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
             action = "decremented";
          }
-         t_diag( phase->task, DIAG_POS_ERR, &unary->pos, "operand cannot be %s",
+         s_diag( phase, DIAG_POS_ERR, &unary->pos, "operand cannot be %s",
             action );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    else {
       test_node( phase, test, &target, unary->operand );
       // Remaining operations require a value to work on.
       if ( ! target.usable ) {
-         t_diag( phase->task, DIAG_POS_ERR, &unary->pos,
+         s_diag( phase, DIAG_POS_ERR, &unary->pos,
             "operand of unary operation not a value" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    // Compile-time evaluation.
@@ -429,8 +430,9 @@ void test_subscript( struct semantic* phase, struct expr_test* test,
    init_operand( &lside );
    test_node( phase, test, &lside, subscript->lside );
    if ( ! lside.dim ) {
-      t_diag( phase->task, DIAG_POS_ERR, &subscript->pos, "operand not an array" );
-      t_bail( phase->task );
+      s_diag( phase, DIAG_POS_ERR, &subscript->pos,
+         "operand not an array" );
+      s_bail( phase );
    }
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
@@ -444,7 +446,7 @@ void test_subscript( struct semantic* phase, struct expr_test* test,
    if ( lside.dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
       subscript->index->value >= lside.dim->size ) ) {
-      t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &subscript->index->pos, "array index out-of-bounds" );
    }
    operand->type = lside.type;
@@ -475,8 +477,9 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
    init_operand( &callee );
    test_node( phase, expr_test, &callee, call->operand );
    if ( ! callee.func ) {
-      t_diag( phase->task, DIAG_POS_ERR, &call->pos, "operand not a function" );
-      t_bail( phase->task );
+      s_diag( phase, DIAG_POS_ERR, &call->pos,
+         "operand not a function" );
+      s_bail( phase );
    }
    test.func = callee.func;
    test_call_args( phase, expr_test, &test );
@@ -487,9 +490,9 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
          struct str str;
          str_init( &str );
          t_copy_name( test.func->name, false, &str );
-         t_diag( phase->task, DIAG_POS_ERR, &call->pos,
+         s_diag( phase, DIAG_POS_ERR, &call->pos,
             "action-special `%s` called from script", str.value );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    // Latent function cannot be called in a function or a format block.
@@ -502,7 +505,7 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
             stmt = stmt->parent;
          }
          if ( stmt || phase->in_func ) {
-            t_diag( phase->task, DIAG_POS_ERR, &call->pos,
+            s_diag( phase, DIAG_POS_ERR, &call->pos,
                "calling latent function inside a %s",
                stmt ? "format block" : "function" );
             // Show educational note to user.
@@ -510,11 +513,11 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
                struct str str;
                str_init( &str );
                t_copy_name( test.func->name, false, &str );
-               t_diag( phase->task, DIAG_FILE, &call->pos,
+               s_diag( phase, DIAG_FILE, &call->pos,
                   "waiting functions like `%s` can only be called inside a "
                   "script", str.value );
             }
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
    }
@@ -549,28 +552,28 @@ void test_call_args( struct semantic* phase, struct expr_test* expr_test,
    }
    // Number of arguments must be correct.
    if ( test->num_args < func->min_param ) {
-      t_diag( phase->task, DIAG_POS_ERR, &call->pos,
+      s_diag( phase, DIAG_POS_ERR, &call->pos,
          "not enough arguments in function call" );
       struct str str;
       str_init( &str );
       t_copy_name( func->name, false, &str );
-      t_diag( phase->task, DIAG_FILE, &call->pos,
+      s_diag( phase, DIAG_FILE, &call->pos,
          "function `%s` needs %s%d argument%s", str.value,
          func->min_param != func->max_param ? "at least " : "",
          func->min_param, func->min_param != 1 ? "s" : "" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( test->num_args > func->max_param ) {
-      t_diag( phase->task, DIAG_POS_ERR, &call->pos,
+      s_diag( phase, DIAG_POS_ERR, &call->pos,
          "too many arguments in function call" );
       struct str str;
       str_init( &str );
       t_copy_name( func->name, false, &str );
-      t_diag( phase->task, DIAG_FILE, &call->pos,
+      s_diag( phase, DIAG_FILE, &call->pos,
          "function `%s` takes %s%d argument%s", str.value,
          func->min_param != func->max_param ? "up_to " : "",
          func->max_param, func->max_param != 1 ? "s" : "" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
 }
 
@@ -584,16 +587,16 @@ void test_call_first_arg( struct semantic* phase, struct expr_test* expr_test,
          struct node* node = list_data( test->i );
          if ( node->type == NODE_FORMAT_ITEM ) {
             struct format_item* item = ( struct format_item* ) node;
-            t_diag( phase->task, DIAG_POS_ERR, &item->pos,
+            s_diag( phase, DIAG_POS_ERR, &item->pos,
                "passing format-item to non-format function" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
          else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
             struct format_block_usage* usage =
                ( struct format_block_usage* ) node;
-            t_diag( phase->task, DIAG_POS_ERR, &usage->pos,
+            s_diag( phase, DIAG_POS_ERR, &usage->pos,
                "passing format-block to non-format function" );
-            t_bail( phase->task );
+            s_bail( phase );
          }
       }
    }
@@ -608,16 +611,16 @@ void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
    }
    if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
       node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
-      t_diag( phase->task, DIAG_POS_ERR, &test->call->pos,
+      s_diag( phase, DIAG_POS_ERR, &test->call->pos,
          "function call missing format argument" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    // Format-block:
    if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
       if ( ! expr_test->format_block ) {
-         t_diag( phase->task, DIAG_POS_ERR, &test->call->pos,
+         s_diag( phase, DIAG_POS_ERR, &test->call->pos,
             "function call missing format-block" );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       struct format_block_usage* usage = ( struct format_block_usage* ) node;
       usage->block = expr_test->format_block;
@@ -696,14 +699,14 @@ void test_array_format_item( struct semantic* phase, struct stmt_test* stmt_test
       longjmp( test->bail, 1 );
    }
    if ( ! array.dim ) {
-      t_diag( phase->task, DIAG_POS_ERR, &item->value->pos,
+      s_diag( phase, DIAG_POS_ERR, &item->value->pos,
          "argument not an array" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( array.dim->next ) {
-      t_diag( phase->task, DIAG_POS_ERR, &item->value->pos,
+      s_diag( phase, DIAG_POS_ERR, &item->value->pos,
          "array argument not of single dimension" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    // Test optional fields: offset and length.
    if ( item->extra ) {
@@ -724,17 +727,17 @@ void test_binary( struct semantic* phase, struct expr_test* test,
    init_operand( &lside );
    test_node( phase, test, &lside, binary->lside );
    if ( ! lside.usable ) {
-      t_diag( phase->task, DIAG_POS_ERR, &binary->pos,
+      s_diag( phase, DIAG_POS_ERR, &binary->pos,
          "operand on left side not a value" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct operand rside;
    init_operand( &rside );
    test_node( phase, test, &rside, binary->rside );
    if ( ! rside.usable ) {
-      t_diag( phase->task, DIAG_POS_ERR, &binary->pos,
+      s_diag( phase, DIAG_POS_ERR, &binary->pos,
          "operand on right side not a value" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
@@ -743,8 +746,8 @@ void test_binary( struct semantic* phase, struct expr_test* test,
       // Division and modulo get special treatment because of the possibility
       // of a division by zero.
       if ( ( binary->op == BOP_DIV || binary->op == BOP_MOD ) && ! r ) {
-         t_diag( phase->task, DIAG_POS_ERR, &binary->pos, "division by zero" );
-         t_bail( phase->task );
+         s_diag( phase, DIAG_POS_ERR, &binary->pos, "division by zero" );
+         s_bail( phase );
       }
       switch ( binary->op ) {
       case BOP_MOD: l %= r; break;
@@ -806,24 +809,24 @@ void test_assign( struct semantic* phase, struct expr_test* test,
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
    if ( test->suggest_paren_assign && ! operand->in_paren ) {
-      t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &assign->pos, "assignment operation not in parentheses" );
    }
    struct operand lside;
    init_operand( &lside );
    test_node( phase, test, &lside, assign->lside );
    if ( ! lside.assignable ) {
-      t_diag( phase->task, DIAG_POS_ERR, &assign->pos,
+      s_diag( phase, DIAG_POS_ERR, &assign->pos,
          "cannot assign to operand on left side" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct operand rside;
    init_operand( &rside );
    test_node( phase, test, &rside, assign->rside );
    if ( ! rside.usable ) {
-      t_diag( phase->task, DIAG_POS_ERR, &assign->pos,
+      s_diag( phase, DIAG_POS_ERR, &assign->pos,
          "right side of assignment not a value" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    operand->complete = true;
    operand->usable = true;
@@ -848,26 +851,26 @@ void test_region_access( struct semantic* phase, struct expr_test* test,
    init_operand( &lside );
    test_node( phase, test, &lside, access->lside );
    if ( ! lside.region ) {
-      t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+      s_diag( phase, DIAG_POS_ERR, &access->pos,
          "left operand not a region" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct name* name = t_make_name( phase->task, access->name,
       lside.region->body );
    struct object* object = t_get_region_object( phase->task, lside.region, name );
    if ( ! object ) {
-      t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+      s_diag( phase, DIAG_POS_ERR, &access->pos,
          "`%s` not found in region", access->name );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    if ( ! object->resolved ) {
       if ( ! test->undef_err ) {
          test->undef_erred = true;
          longjmp( test->bail, 1 );
       }
-      t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+      s_diag( phase, DIAG_POS_ERR, &access->pos,
          "right operand `%s` undefined", access->name );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    use_object( phase, test, operand, object );
    access->rside = ( struct node* ) object;
@@ -879,9 +882,9 @@ void test_struct_access( struct semantic* phase, struct expr_test* test,
    init_operand( &lside );
    test_node( phase, test, &lside, access->lside );
    if ( ! ( lside.type && ! lside.dim ) ) {
-      t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+      s_diag( phase, DIAG_POS_ERR, &access->pos,
          "left operand not of struct type" );
-      t_bail( phase->task );
+      s_bail( phase );
    }
    struct name* name = t_make_name( phase->task, access->name, lside.type->body );
    if ( ! name->object ) {
@@ -895,25 +898,25 @@ void test_struct_access( struct semantic* phase, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
       if ( lside.type->anon ) {
-         t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+         s_diag( phase, DIAG_POS_ERR, &access->pos,
             "`%s` not member of anonymous struct", access->name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       else {
          struct str str;
          str_init( &str );
          t_copy_name( lside.type->name, false, &str );
-         t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+         s_diag( phase, DIAG_POS_ERR, &access->pos,
             "`%s` not member of struct `%s`", access->name,
             str.value );
-         t_bail( phase->task );
+         s_bail( phase );
       }
    }
    if ( ! name->object->resolved ) {
       if ( test->undef_err ) {
-         t_diag( phase->task, DIAG_POS_ERR, &access->pos,
+         s_diag( phase, DIAG_POS_ERR, &access->pos,
             "right operand `%s` undefined", access->name );
-         t_bail( phase->task );
+         s_bail( phase );
       }
       else {
          test->undef_erred = true;
