@@ -29,16 +29,9 @@ solution 'bcc'
          'src/*.c',
       }
       links {
-         'src_codegen',
-         'src_parse'
-      }
-
-   project 'src_codegen'
-      location 'build/src_codegen'
-      targetdir 'build/src_codegen'
-      kind 'StaticLib'
-      files {
-         'src/codegen/*.c'
+         'src_parse',
+         'src_semantic',
+         'src_codegen'
       }
 
    project 'src_parse'
@@ -47,4 +40,20 @@ solution 'bcc'
       kind 'StaticLib'
       files {
          'src/parse/*.c'
+      }
+
+   project 'src_semantic'
+      location 'build/src_semantic'
+      targetdir 'build/src_semantic'
+      kind 'StaticLib'
+      files {
+         'src/semantic/*.c'
+      }
+
+   project 'src_codegen'
+      location 'build/src_codegen'
+      targetdir 'build/src_codegen'
+      kind 'StaticLib'
+      files {
+         'src/codegen/*.c'
       }
