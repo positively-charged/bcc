@@ -4,34 +4,38 @@
 
 #include "phase.h"
 
-struct source_request {
+struct request {
    const char* given_path;
    struct source* source;
    struct str path;
-   bool load_once;
+   struct fileid fileid;
    bool err_open;
    bool err_loading;
    bool err_loaded_before;
 };
 
-static void load_source( struct parse* phase, struct source_request* );
-static void init_source_request( struct source_request*, const char* );
+static void load_source( struct parse* phase, struct request* );
+static void init_request( struct request*, const char* );
+static bool find_source_file( struct parse* phase, struct request* request );
+static bool source_loading( struct parse* phase, struct request* request );
+static void open_source_file( struct parse* phase, struct request* request );
+static struct file_entry* assign_file_entry( struct parse* phase,
+   struct request* request );
 static struct file_entry* create_file_entry( struct parse* phase,
-   struct source_request* request, struct fileid* file_id );
-static struct file_entry* alloc_file_entry( void );
-static void add_file_entry( struct task* task, struct file_entry* entry );
+   struct request* request );
+static void link_file_entry( struct parse* phase, struct file_entry* entry );
 static enum tk peek( struct parse* phase, int );
 static void read_source( struct parse* phase, struct token* );
 static void escape_ch( struct parse* phase, char*, char**, bool );
 static char read_ch( struct parse* phase );
 
 void p_load_main_source( struct parse* phase ) {
-   struct source_request request;
-   init_source_request( &request, phase->options->source_file );
+   struct request request;
+   init_request( &request, phase->options->source_file );
    load_source( phase, &request );
    if ( request.source ) {
       phase->main_source = request.source;
-      phase->task->library_main->file_pos.id = request.source->id;
+      phase->task->library_main->file_pos.id = request.source->file->id;
    }
    else {
       p_diag( phase, DIAG_ERR, "failed to load source file: %s",
@@ -41,53 +45,65 @@ void p_load_main_source( struct parse* phase ) {
 }
 
 struct source* p_load_included_source( struct parse* phase ) {
-   struct source_request request;
-   init_source_request( &request, phase->tk_text );
+   struct request request;
+   init_request( &request, phase->tk_text );
    load_source( phase, &request );
    if ( ! request.source ) {
       if ( request.err_loading ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "file already being loaded" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "failed to load file: %s", phase->tk_text );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
    return request.source;
 }
 
-void init_source_request( struct source_request* request, const char* path ) {
+void init_request( struct request* request, const char* path ) {
    request->given_path = path;
    request->source = NULL;
    str_init( &request->path );
-   // NOTE: req->file_id not initialized.
-   request->load_once = false;
+   // NOTE: request->file_id NOT initialized.
    request->err_open = false;
    request->err_loaded_before = false;
    request->err_loading = false;
 }
 
-void load_source( struct parse* phase, struct source_request* request ) {
+void load_source( struct parse* phase, struct request* request ) {
+   if ( find_source_file( phase, request ) ) {
+      if ( ! source_loading( phase, request ) ) {
+         open_source_file( phase, request );
+      }
+      else {
+         request->err_loading = true;
+      }
+   }
+   else {
+      request->err_open = true;
+   }
+   // Deinitialize request.
+   str_deinit( &request->path );
+}
+
+bool find_source_file( struct parse* phase, struct request* request ) {
    // Try path directly.
-   struct str path;
-   str_init( &path );
-   str_append( &path, request->given_path );
-   struct fileid fileid;
-   if ( c_read_fileid( &fileid, path.value ) ) {
-      goto load_file;
+   str_append( &request->path, request->given_path );
+   if ( c_read_fileid( &request->fileid, request->path.value ) ) {
+      return true;
    }
    // Try directory of current file.
    if ( phase->source ) {
-      str_copy( &path, phase->source->file->full_path.value,
+      str_copy( &request->path, phase->source->file->full_path.value,
          phase->source->file->full_path.length );
-      c_extract_dirname( &path );
-      str_append( &path, "/" );
-      str_append( &path, request->given_path );
-      if ( c_read_fileid( &fileid, path.value ) ) {
-         goto load_file;
+      c_extract_dirname( &request->path );
+      str_append( &request->path, "/" );
+      str_append( &request->path, request->given_path );
+      if ( c_read_fileid( &request->fileid, request->path.value ) ) {
+         return true;
       }
    }
    // Try user-specified directories.
@@ -95,54 +111,32 @@ void load_source( struct parse* phase, struct source_request* request ) {
    list_iter_init( &i, &phase->options->includes );
    while ( ! list_end( &i ) ) {
       char* include = list_data( &i ); 
-      str_clear( &path );
-      str_append( &path, include );
-      str_append( &path, "/" );
-      str_append( &path, request->given_path );
-      if ( c_read_fileid( &fileid, path.value ) ) {
-         goto load_file;
+      str_clear( &request->path );
+      str_append( &request->path, include );
+      str_append( &request->path, "/" );
+      str_append( &request->path, request->given_path );
+      if ( c_read_fileid( &request->fileid, request->path.value ) ) {
+         return true;
       }
       list_next( &i );
    }
-   // Error:
-   request->err_open = true;
-   goto finish;
-   load_file:
-   // See if the file should be loaded once.
-   list_iter_init( &i, &phase->loaded_sources );
-   while ( ! list_end( &i ) ) {
-      struct source* source = list_data( &i );
-      if ( c_same_fileid( &fileid, &source->file->file_id ) ) {
-         if ( source->load_once ) {
-            request->err_loaded_before = true;
-            goto finish;
-         }
-         else {
-            break;
-         }
-      }
-      list_next( &i );
-   }
-   // The file should not currently be processing.
+   return false;
+}
+
+bool source_loading( struct parse* phase, struct request* request ) {
    struct source* source = phase->source;
-   while ( source ) {
-      if ( c_same_fileid( &source->file->file_id, &fileid ) ) {
-         if ( request->load_once ) {
-            source->load_once = true;
-            request->err_loaded_before = true;
-         }
-         else {
-            request->err_loading = true;
-         }
-         goto finish;
-      }
+   while ( source &&
+      ! c_same_fileid( &request->fileid, &source->file->file_id ) ) {
       source = source->prev;
    }
-   // Load file.
-   FILE* fh = fopen( path.value, "rb" );
+   return ( source != NULL );
+}
+
+void open_source_file( struct parse* phase, struct request* request ) {
+   FILE* fh = fopen( request->path.value, "rb" );
    if ( ! fh ) {
       request->err_open = true;
-      goto finish;
+      return;
    }
    fseek( fh, 0, SEEK_END );
    size_t size = ftell( fh );
@@ -150,16 +144,16 @@ void load_source( struct parse* phase, struct source_request* request ) {
    char* save = mem_alloc( size + 1 + 1 );
    char* text = save + 1;
    size_t num_read = fread( text, sizeof( char ), size, fh );
+   text[ size ] = 0;
    fclose( fh );
    if ( num_read != size ) {
       // For now, a read-error will be the same as an open-error.
       request->err_open = true;
-      goto finish;
+      return;
    }
-   text[ size ] = 0;
    // Create source.
-   source = mem_alloc( sizeof( *source ) );
-   source->file = create_file_entry( phase, request, &fileid );
+   struct source* source = mem_alloc( sizeof( *source ) );
+   source->file = assign_file_entry( phase, request );
    source->text = text;
    source->left = text;
    source->save = save;
@@ -167,48 +161,43 @@ void load_source( struct parse* phase, struct source_request* request ) {
    source->prev = phase->source;
    source->line = 1;
    source->column = 0;
-   source->id = list_size( &phase->loaded_sources ) + 1;
    source->find_dirc = true;
-   source->load_once = request->load_once;
    source->imported = false;
    source->ch = ' ';
-   list_append( &phase->loaded_sources, source );
+   request->source = source;
    phase->source = source;
    phase->tk = TK_END;
-   request->source = source;
-   finish:
-   str_deinit( &path );
+}
+
+struct file_entry* assign_file_entry( struct parse* phase,
+   struct request* request ) {
+   struct file_entry* entry = phase->task->file_entries;
+   while ( entry ) {
+      if ( c_same_fileid( &request->fileid, &entry->file_id ) ) {
+         return entry;
+      }
+      entry = entry->next;
+   }
+   return create_file_entry( phase, request );
 }
 
 struct file_entry* create_file_entry( struct parse* phase,
-   struct source_request* req, struct fileid* file_id ) {
-   struct file_entry* entry = phase->task->file_entries;
-   while ( entry && ! c_same_fileid( file_id, &entry->file_id ) ) {
-      entry = entry->next;
-   }
-   if ( ! entry ) {
-      entry = alloc_file_entry();
-      entry->file_id = *file_id;
-      str_append( &entry->path, req->given_path );
-      c_read_full_path( req->path.value, &entry->full_path );
-      entry->id = phase->last_id;
-      ++phase->last_id;
-      add_file_entry( phase->task, entry );
-   }
-   return entry;
-}
-
-struct file_entry* alloc_file_entry( void ) {
+   struct request* request ) {
    struct file_entry* entry = mem_alloc( sizeof( *entry ) );
    entry->next = NULL;
-   // NOT initialized: entry->file_id
+   entry->file_id = request->fileid;
    str_init( &entry->path );
+   str_append( &entry->path, request->given_path );
    str_init( &entry->full_path );
-   entry->id = 0;
+   c_read_full_path( request->path.value, &entry->full_path );
+   entry->id = phase->last_id;
+   ++phase->last_id;
+   link_file_entry( phase, entry );
    return entry;
 }
 
-void add_file_entry( struct task* task, struct file_entry* entry ) {
+void link_file_entry( struct parse* phase, struct file_entry* entry ) {
+   struct task* task = phase->task;
    if ( task->file_entries ) {
       struct file_entry* prev = task->file_entries;
       while ( prev->next ) {
@@ -419,9 +408,9 @@ void read_source( struct parse* phase, struct token* token ) {
             .column = phase->source->column,
             .id = phase->source->file->id
          };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "missing character in character literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       if ( ch == '\\' ) {
          ch = read_ch( phase );
@@ -444,9 +433,9 @@ void read_source( struct parse* phase, struct token* token ) {
       if ( ch != '\'' ) {
          struct pos pos = { phase->source->line, column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "multiple characters in character literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       ch = read_ch( phase );
       tk = TK_LIT_CHAR;
@@ -648,9 +637,9 @@ void read_source( struct parse* phase, struct token* token ) {
    else if ( ch == '\\' ) {
       struct pos pos = { phase->source->line, column,
          phase->source->file->id };
-      t_diag( phase->task, DIAG_POS_ERR, &pos,
+      p_diag( phase, DIAG_POS_ERR, &pos,
          "`\\` not followed with newline character" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    // End.
    else if ( ! ch ) {
@@ -682,8 +671,8 @@ void read_source( struct parse* phase, struct token* token ) {
          else if ( ! singles[ i ] ) {
             struct pos pos = { phase->source->line, column,
                phase->source->file->id };
-            t_diag( phase->task, DIAG_POS_ERR, &pos, "invalid character" );
-            t_bail( phase->task );
+            p_diag( phase, DIAG_POS_ERR, &pos, "invalid character" );
+            p_bail( phase );
          }
          else {
             i += 2;
@@ -708,16 +697,16 @@ void read_source( struct parse* phase, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos = { phase->source->line, phase->source->column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "invalid digit in binary literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else if ( save == phase->source->save ) {
          struct pos pos = { phase->source->line, column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "no digits found in binary literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          *save = 0;
@@ -742,16 +731,16 @@ void read_source( struct parse* phase, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos = { phase->source->line, phase->source->column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else if ( save == phase->source->save ) {
          struct pos pos = { phase->source->line, column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "no digits found in hexadecimal literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          *save = 0;
@@ -775,9 +764,9 @@ void read_source( struct parse* phase, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos = { phase->source->line, phase->source->column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          // We consider the number zero to be a decimal literal.
@@ -817,9 +806,9 @@ void read_source( struct parse* phase, struct token* token ) {
       else if ( isalpha( ch ) ) {
          struct pos pos = { phase->source->line, phase->source->column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          *save = 0;
@@ -843,16 +832,16 @@ void read_source( struct parse* phase, struct token* token ) {
       else if ( isalpha( ch ) ) {
          struct pos pos = { phase->source->line, phase->source->column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else if ( save[ -1 ] == '.' ) {
          struct pos pos = { phase->source->line, column,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "no digits found in fractional part of fixed-point literal" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          *save = 0;
@@ -867,9 +856,9 @@ void read_source( struct parse* phase, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos = { line, column, phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "unterminated string" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else if ( ch == '"' ) {
          ch = read_ch( phase );
@@ -930,8 +919,8 @@ void read_source( struct parse* phase, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos = { line, column, phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos, "unterminated comment" );
-         t_bail( phase->task );
+         p_diag( phase, DIAG_POS_ERR, &pos, "unterminated comment" );
+         p_bail( phase );
       }
       else if ( ch == '*' ) {
          ch = read_ch( phase );
@@ -1022,8 +1011,8 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
       empty: ;
       struct pos pos = { phase->source->line, phase->source->column,
          phase->source->file->id };
-      t_diag( phase->task, DIAG_POS_ERR, &pos, "empty escape sequence" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &pos, "empty escape sequence" );
+      p_bail( phase );
    }
    int slash = phase->source->column - 1;
    static const char singles[] = {
@@ -1110,7 +1099,7 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
          // TODO: Merge this code and the code above. Both handle the newline
          // character.
          if ( ch == '\n' ) {
-            t_bail( phase->task );
+            p_bail( phase );
          }
          save[ 0 ] = '\\';
          save[ 1 ] = ch;
@@ -1120,8 +1109,8 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
       else {
          struct pos pos = { phase->source->line, slash,
             phase->source->file->id };
-         t_diag( phase->task, DIAG_POS_ERR, &pos, "unknown escape sequence" );
-         t_bail( phase->task );
+         p_diag( phase, DIAG_POS_ERR, &pos, "unknown escape sequence" );
+         p_bail( phase );
       }
    }
    goto finish;
@@ -1132,8 +1121,8 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
    if ( code > 127 ) {
       struct pos pos = { phase->source->line, slash,
          phase->source->file->id };
-      t_diag( phase->task, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
+      p_bail( phase );
    }
    // In a string context, the NUL character must not be escaped. Leave it
    // for the engine to process it.

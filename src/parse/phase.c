@@ -2,6 +2,7 @@
 
 #include "phase.h"
 
+static void make_main_lib( struct parse* phase );
 static struct library* add_library( struct task* );
 static void read_region_body( struct parse* phase );
 static void read_dirc( struct parse* phase, struct pos* );
@@ -24,12 +25,11 @@ void p_init( struct parse* phase, struct task* task ) {
    phase->region_upmost = task->region_upmost;
    phase->region = phase->region_upmost;
    phase->options = task->options;
-   list_init( &phase->loaded_sources );
    phase->last_id = 0;
 }
 
 void p_read( struct parse* phase ) {
-   p_make_main_lib( phase );
+   make_main_lib( phase );
    p_load_main_source( phase );
    p_read_tk( phase );
    p_read_lib( phase );
@@ -37,7 +37,7 @@ void p_read( struct parse* phase ) {
    alloc_string_indexes( phase );
 }
 
-void p_make_main_lib( struct parse* phase ) {
+void make_main_lib( struct parse* phase ) {
    phase->task->library = add_library( phase->task );
    phase->task->library_main = phase->task->library;
 }
