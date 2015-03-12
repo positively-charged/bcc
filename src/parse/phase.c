@@ -16,15 +16,14 @@ static void alloc_string_indexes( struct parse* phase );
 
 void p_init( struct parse* phase, struct task* task ) {
    phase->task = task;
-   phase->tokens.peeked = 0;
+   // NOTE: phase->queue not initialized.
+   phase->peeked = 0;
    phase->tk = TK_END;
    phase->tk_text = "";
    phase->tk_length = 0;
    phase->source = NULL;
    phase->main_source = NULL;
-   phase->region_upmost = task->region_upmost;
-   phase->region = phase->region_upmost;
-   phase->options = task->options;
+   phase->region = task->region_upmost;
    phase->last_id = 0;
 }
 
@@ -74,7 +73,7 @@ void p_read_lib( struct parse* phase ) {
       if ( p_is_dec( phase ) ) {
          struct dec dec;
          p_init_dec( &dec );
-         dec.name_offset = phase->region_upmost->body;
+         dec.name_offset = phase->task->region_upmost->body;
          p_read_dec( phase, &dec );
       }
       else if ( phase->tk == TK_SCRIPT ) {
@@ -103,16 +102,17 @@ void p_read_lib( struct parse* phase ) {
          break;
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "unexpected %s", p_get_token_name( phase->tk ) );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
    // Library must have the #library directive.
-   if ( phase->task->library->imported && ! phase->task->library->name.length ) {
-      t_diag( phase->task, DIAG_ERR | DIAG_FILE, &phase->tk_pos,
+   if ( phase->task->library->imported &&
+      ! phase->task->library->name.length ) {
+      p_diag( phase, DIAG_ERR | DIAG_FILE, &phase->tk_pos,
          "#imported file missing #library directive" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
 }
 
@@ -181,18 +181,19 @@ void read_region_body( struct parse* phase ) {
          break;
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "unexpected %s", p_get_token_name( phase->tk ) );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
 }
 
 void read_dirc( struct parse* phase, struct pos* pos ) {
    // Directives can only appear in the upmost region.
-   if ( phase->region != phase->region_upmost ) {
-      t_diag( phase->task, DIAG_POS_ERR, pos, "directive not in upmost region" );
-      t_bail( phase->task );
+   if ( phase->region != phase->task->region_upmost ) {
+      p_diag( phase, DIAG_POS_ERR, pos,
+         "directive not in upmost region" );
+      p_bail( phase );
    }
    if ( phase->tk == TK_IMPORT ) {
       p_read_tk( phase );
@@ -234,14 +235,14 @@ void read_dirc( struct parse* phase, struct pos* pos ) {
       // NOTE: Not sure what these two are.
       strcmp( phase->tk_text, "wadauthor" ) == 0 ||
       strcmp( phase->tk_text, "nowadauthor" ) == 0 ) {
-      t_diag( phase->task, DIAG_POS_ERR, pos, "directive `%s` not supported",
+      p_diag( phase, DIAG_POS_ERR, pos, "directive `%s` not supported",
          phase->tk_text );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    else {
-      t_diag( phase->task, DIAG_POS_ERR, pos,
+      p_diag( phase, DIAG_POS_ERR, pos,
          "unknown directive '%s'", phase->tk_text );
-      t_bail( phase->task );
+      p_bail( phase );
    }
 }
 
@@ -265,15 +266,15 @@ void read_include( struct parse* phase, struct pos* pos, bool import ) {
 void read_library( struct parse* phase, struct pos* pos ) {
    p_test_tk( phase, TK_LIT_STRING );
    if ( ! phase->tk_length ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
          "library name is blank" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    int length = phase->tk_length;
    if ( length > MAX_LIB_NAME_LENGTH ) {
-      t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      p_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &phase->tk_pos, "library name too long" );
-      t_diag( phase->task, DIAG_FILE, &phase->tk_pos,
+      p_diag( phase, DIAG_FILE, &phase->tk_pos,
          "library name can be up to %d characters long",
          MAX_LIB_NAME_LENGTH );
       length = MAX_LIB_NAME_LENGTH;
@@ -286,10 +287,10 @@ void read_library( struct parse* phase, struct pos* pos ) {
    // name.
    if ( phase->task->library->name.length &&
       strcmp( phase->task->library->name.value, name ) != 0 ) {
-      t_diag( phase->task, DIAG_POS_ERR, pos, "library has multiple names" );
-      t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      p_diag( phase, DIAG_POS_ERR, pos, "library has multiple names" );
+      p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &phase->task->library->name_pos, "first name given here" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    // Each library must have a unique name.
    list_iter_t i;
@@ -297,11 +298,11 @@ void read_library( struct parse* phase, struct pos* pos ) {
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       if ( lib != phase->task->library && strcmp( name, lib->name.value ) == 0 ) {
-         t_diag( phase->task, DIAG_POS_ERR, pos,
+         p_diag( phase, DIAG_POS_ERR, pos,
             "duplicate library name" );
-         t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lib->name_pos,
+         p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lib->name_pos,
             "library name previously found here" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       list_next( &i );
    }
@@ -326,7 +327,7 @@ void read_define( struct parse* phase ) {
    }
    else {
       constant->name = t_make_name( phase->task, phase->tk_text,
-         phase->region_upmost->body );
+         phase->task->region_upmost->body );
    }
    p_read_tk( phase );
    struct expr_reading value;

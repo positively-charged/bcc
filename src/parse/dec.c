@@ -128,9 +128,9 @@ void p_read_dec( struct parse* phase, struct dec* dec ) {
             if ( dec->area == DEC_MEMBER ) {
                object = "struct member";
             }
-            t_diag( phase->task, DIAG_POS_ERR, &dec->type_pos,
+            p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
                "void type specified for %s", object );
-            t_bail( phase->task );
+            p_bail( phase );
          }
       }
    }
@@ -142,9 +142,9 @@ void p_read_dec( struct parse* phase, struct dec* dec ) {
    // struct member instead of an array index.
    if ( dec->type_struct && ! dec->dim && ( dec->storage == STORAGE_WORLD ||
       dec->storage == STORAGE_GLOBAL ) ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->name_pos,
+      p_diag( phase, DIAG_POS_ERR, &dec->name_pos,
          "variable of struct type in scalar portion of storage" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    read_init( phase, dec );
    if ( dec->area == DEC_MEMBER ) {
@@ -167,18 +167,19 @@ void read_qual( struct parse* phase, struct dec* dec ) {
    if ( phase->tk == TK_STATIC ) {
       STATIC_ASSERT( DEC_TOTAL == 4 )
       if ( dec->area == DEC_TOP ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "`static` in region scope" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       if ( dec->area == DEC_FOR ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "`static` in for-loop initialization" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       if ( dec->area == DEC_MEMBER ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "static struct member" );
-         t_bail( phase->task );
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+            "static struct member" );
+         p_bail( phase );
       }
       dec->is_static = true;
       dec->type_needed = true;
@@ -215,9 +216,9 @@ void read_storage( struct parse* phase, struct dec* dec ) {
    }
    // Storage cannot be specified for a structure member.
    if ( given && dec->area == DEC_MEMBER ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->storage_pos,
+      p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
          "storage specified for struct member" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
 }
 
@@ -247,8 +248,8 @@ void read_type( struct parse* phase, struct dec* dec ) {
       dec->type_struct = true;
    }
    else {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "missing type" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing type" );
+      p_bail( phase );
    }
 }
 
@@ -264,9 +265,9 @@ void read_enum( struct parse* phase, struct dec* dec ) {
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->type_pos,
+      p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
          "enum in for-loop initialization" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
 }
 
@@ -274,8 +275,8 @@ void read_enum_def( struct parse* phase, struct dec* dec ) {
    p_test_tk( phase, TK_BRACE_L );
    p_read_tk( phase );
    if ( phase->tk == TK_BRACE_R ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "empty enum" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty enum" );
+      p_bail( phase );
    }
    struct constant* head = NULL;
    struct constant* tail;
@@ -331,8 +332,8 @@ void read_enum_def( struct parse* phase, struct dec* dec ) {
       }
    }
    if ( dec->area == DEC_MEMBER ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
+      p_bail( phase );
    }
 }
 
@@ -384,9 +385,9 @@ void read_struct( struct parse* phase, struct dec* dec ) {
          // struct region.struct.my_struct var1;
          // struct upmost.struct.my_struct var2;
          if ( dec->area == DEC_MEMBER ) {
-            t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+            p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
                "name given to nested struct" );
-            t_bail( phase->task );
+            p_bail( phase );
          }
          name = t_make_name( phase->task, phase->tk_text, phase->region->body_struct );
          p_read_tk( phase );
@@ -405,8 +406,8 @@ void read_struct( struct parse* phase, struct dec* dec ) {
       p_test_tk( phase, TK_BRACE_L );
       p_read_tk( phase );
       if ( phase->tk == TK_BRACE_R ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "empty struct" );
-         t_bail( phase->task );
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty struct" );
+         p_bail( phase );
       }
       while ( true ) {
          struct dec member;
@@ -432,9 +433,9 @@ void read_struct( struct parse* phase, struct dec* dec ) {
       dec->type = type;
       STATIC_ASSERT( DEC_TOTAL == 4 );
       if ( dec->area == DEC_FOR ) {
-         t_diag( phase->task, DIAG_POS_ERR, &dec->type_pos,
+         p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
             "struct in for-loop initialization" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       // Only struct declared. Anonymous struct must be part of a variable
       // declaration, so it cannot be declared alone.
@@ -455,9 +456,9 @@ void read_storage_index( struct parse* phase, struct dec* dec ) {
    if ( phase->tk == TK_LIT_DECIMAL ) {
       struct pos pos = phase->tk_pos;
       if ( dec->area == DEC_MEMBER ) {
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "storage index specified for struct member" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       p_test_tk( phase, TK_LIT_DECIMAL );
       dec->storage_index = p_extract_literal_value( phase );
@@ -470,24 +471,24 @@ void read_storage_index( struct parse* phase, struct dec* dec ) {
             max = MAX_GLOBAL_LOCATIONS;
          }
          else  {
-            t_diag( phase->task, DIAG_POS_ERR, &pos,
+            p_diag( phase, DIAG_POS_ERR, &pos,
                "index specified for %s storage", dec->storage_name );
-            t_bail( phase->task );
+            p_bail( phase );
          }
       }
       if ( dec->storage_index >= max ) {
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "index for %s storage not between 0 and %d", dec->storage_name,
             max - 1 );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
    else {
       // Index must be explicitly specified for world and global storages.
       if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "missing index for %s storage", dec->storage_name );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
 }
@@ -499,8 +500,8 @@ void read_name( struct parse* phase, struct dec* dec ) {
       p_read_tk( phase );
    }
    else {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "missing name" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing name" );
+      p_bail( phase );
    }
 }
 
@@ -519,15 +520,15 @@ void read_dim( struct parse* phase, struct dec* dec ) {
       if ( phase->tk == TK_BRACKET_R ) {
          // Only the first dimension can have an implicit size.
          if ( tail ) {
-            t_diag( phase->task, DIAG_POS_ERR, &dim->pos,
+            p_diag( phase, DIAG_POS_ERR, &dim->pos,
                "implicit size in subsequent dimension" );
-            t_bail( phase->task );
+            p_bail( phase );
          }
          // Dimension with implicit size not allowed in struct.
          if ( dec->area == DEC_MEMBER ) {
-            t_diag( phase->task, DIAG_POS_ERR, &dim->pos,
+            p_diag( phase, DIAG_POS_ERR, &dim->pos,
                "dimension with implicit size in struct member" );
-            t_bail( phase->task );
+            p_bail( phase );
          }
          p_read_tk( phase );
       }
@@ -553,19 +554,19 @@ void read_init( struct parse* phase, struct dec* dec ) {
    dec->initial = NULL;
    if ( phase->tk == TK_ASSIGN ) {
       if ( dec->area == DEC_MEMBER ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "initializing a struct member" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       // At this time, there is no good way to initialize a variable having
       // world or global storage at runtime.
       if ( ( dec->storage == STORAGE_WORLD ||
          dec->storage == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
          dec->is_static ) ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "initializing %s variable at start of map",
             dec->storage_name );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       p_read_tk( phase );
       if ( phase->tk == TK_BRACE_L ) {
@@ -573,9 +574,9 @@ void read_init( struct parse* phase, struct dec* dec ) {
          if ( ! dec->dim && ( dec->type && dec->type->primitive ) ) {
             struct multi_value* multi_value =
                ( struct multi_value* ) dec->initial;
-            t_diag( phase->task, DIAG_POS_ERR, &multi_value->pos,
+            p_diag( phase, DIAG_POS_ERR, &multi_value->pos,
                "using brace initializer on scalar variable" );
-            t_bail( phase->task );
+            p_bail( phase );
          }
       }
       else {
@@ -595,9 +596,9 @@ void read_init( struct parse* phase, struct dec* dec ) {
       if ( dec->dim && ! dec->dim->size_node && ( (
          dec->storage != STORAGE_WORLD &&
          dec->storage != STORAGE_GLOBAL ) || dec->dim->next ) ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "missing initialization of implicit dimension" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
 }
@@ -631,8 +632,8 @@ void read_multi_init( struct parse* phase, struct dec* dec,
    read.tail = NULL;
    p_read_tk( phase );
    if ( phase->tk == TK_BRACE_R ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "empty initializer" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty initializer" );
+      p_bail( phase );
    }
    while ( true ) {
       if ( phase->tk == TK_BRACE_L ) { 
@@ -795,33 +796,33 @@ void read_func( struct parse* phase, struct dec* dec ) {
       p_read_tk( phase );
    }
    if ( dec->area != DEC_TOP ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->pos, "nested function" );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &dec->pos, "nested function" );
+      p_bail( phase );
    }
    if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->storage_pos,
+      p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
          "storage specified for function" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    // At this time, returning a struct is not possible. Maybe later, this can
    // be added as part of variable assignment.
    if ( dec->type_struct ) {
-      t_diag( phase->task, DIAG_POS_ERR, &dec->type_pos,
+      p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
          "function returning struct" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    if ( func->type == FUNC_FORMAT ) {
       if ( ! params.format ) {
-         t_diag( phase->task, DIAG_POS_ERR, &params_pos,
+         p_diag( phase, DIAG_POS_ERR, &params_pos,
             "parameter list missing format parameter" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
    else {
       if ( params.format ) {
-         t_diag( phase->task, DIAG_POS_ERR, &params.format_pos,
+         p_diag( phase, DIAG_POS_ERR, &params.format_pos,
             "format parameter outside format function" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
 }
@@ -868,9 +869,9 @@ void read_params( struct parse* phase, struct params* params ) {
          p_test_tk( phase, TK_INT );
       }
       if ( params->script && type != phase->task->type_int ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "script parameter not of `int` type" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       struct pos pos = phase->tk_pos;
       struct param* param = mem_slot_alloc( sizeof( *param ) );
@@ -896,15 +897,15 @@ void read_params( struct parse* phase, struct params* params ) {
          p_read_expr( phase, &value );
          param->default_value = value.output_node;
          if ( params->script ) {
-            t_diag( phase->task, DIAG_POS_ERR, &pos, "default parameter in script" );
-            t_bail( phase->task );
+            p_diag( phase, DIAG_POS_ERR, &pos, "default parameter in script" );
+            p_bail( phase );
          }
       }
       else {
          if ( tail && tail->default_value ) {
-            t_diag( phase->task, DIAG_POS_ERR, &pos,
+            p_diag( phase, DIAG_POS_ERR, &pos,
                "parameter missing default value" );
-            t_bail( phase->task );
+            p_bail( phase );
          }
          ++params->min;
       }
@@ -924,9 +925,9 @@ void read_params( struct parse* phase, struct params* params ) {
    }
    // Format parameter not allowed in a script parameter list.
    if ( params->script && params->format ) {
-      t_diag( phase->task, DIAG_POS_ERR, &params->format_pos,
+      p_diag( phase, DIAG_POS_ERR, &params->format_pos,
          "format parameter specified for script" );
-      t_bail( phase->task );
+      p_bail( phase );
    }
 }
 
@@ -997,9 +998,9 @@ void read_bfunc( struct parse* phase, struct func* func ) {
       impl->id = p_extract_literal_value( phase );
       p_read_tk( phase );
       if ( impl->id >= INTERN_FUNC_STANDALONE_TOTAL ) {
-         t_diag( phase->task, DIAG_POS_ERR, &pos,
+         p_diag( phase, DIAG_POS_ERR, &pos,
             "no internal function with ID of %d", impl->id );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       func->impl = impl;
    }
@@ -1043,8 +1044,8 @@ void read_script_number( struct parse* phase, struct script* script ) {
          p_read_tk( phase );
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "missing `0`" );
-         t_bail( phase->task );
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing `0`" );
+         p_bail( phase );
       }
    }
    else {
@@ -1099,42 +1100,42 @@ void read_script_type( struct parse* phase, struct script* script,
    // Correct number of parameters need to be specified for a script type.
    if ( script->type == SCRIPT_TYPE_CLOSED ) {
       if ( script->num_param > SCRIPT_MAX_PARAMS ) {
-         t_diag( phase->task, DIAG_POS_ERR, &reading->param_pos,
+         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
             "script has over %d parameters", SCRIPT_MAX_PARAMS );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
    else if ( script->type == SCRIPT_TYPE_DISCONNECT ) {
       // A disconnect script must have a single parameter. It is the number of
       // the player who exited the game.
       if ( script->num_param < 1 ) {
-         t_diag( phase->task, DIAG_POS_ERR, &reading->param_pos,
+         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
             "disconnect script missing player-number parameter" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       if ( script->num_param > 1 ) {
-         t_diag( phase->task, DIAG_POS_ERR, &reading->param_pos,
+         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in disconnect script" );
-         t_bail( phase->task );
+         p_bail( phase );
 
       }
       p_read_tk( phase );
    }
    else if ( script->type == SCRIPT_TYPE_EVENT ) {
       if ( script->num_param != 3 ) {
-         t_diag( phase->task, DIAG_POS_ERR, &reading->param_pos,
+         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
             "incorrect number of parameters in event script" );
-         t_diag( phase->task, DIAG_FILE, &reading->param_pos,
+         p_diag( phase, DIAG_FILE, &reading->param_pos,
             "an event script takes exactly 3 parameters" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       p_read_tk( phase );
    }
    else {
       if ( script->num_param ) {
-         t_diag( phase->task, DIAG_POS_ERR, &reading->param_pos,
+         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
             "parameter list of %s script not empty", phase->tk_text );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       p_read_tk( phase );
    }
@@ -1156,9 +1157,9 @@ void read_script_flag( struct parse* phase, struct script* script ) {
          p_read_tk( phase );
       }
       else {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "duplicate %s flag",
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "duplicate %s flag",
             phase->tk_text );
-         t_bail( phase->task );
+         p_bail( phase );
       }
    }
 }

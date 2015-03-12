@@ -203,10 +203,8 @@ struct expr_reading {
 
 struct parse {
    struct task* task;
-   struct {
-      struct token buffer[ TK_BUFFER_SIZE ];
-      int peeked;
-   } tokens;
+   struct token queue[ TK_BUFFER_SIZE ];
+   int peeked;
    enum tk tk;
    struct pos tk_pos;
    // The text contains the character content of the token. The text and the
@@ -218,8 +216,6 @@ struct parse {
    struct source* source;
    struct source* main_source;
    struct region* region;
-   struct region* region_upmost;
-   struct options* options;
    int last_id;
 };
 

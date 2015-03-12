@@ -409,16 +409,16 @@ void read_primary( struct parse* phase, struct expr_reading* reading ) {
       case TK_LIT_CHAR:
          break;
       default:
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "unexpected %s", p_get_token_name( phase->tk ) );
          // For areas of code where an expression is to be expected. Only show
          // this message when not a single piece of the expression is read.
          if ( reading->expect_expr &&
             t_same_pos( &phase->tk_pos, &reading->pos ) ) {
-            t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
+            p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
                "expecting an expression here" );
          }
-         t_bail( phase->task );
+         p_bail( phase );
       }
       struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
       literal->node.type = NODE_LITERAL;
@@ -579,15 +579,15 @@ int convert_numerictoken_to_int( struct parse* phase, int base ) {
    // NOTE: The token should already be of the form that strtol() accepts.
    // Maybe make this an internal compiler error, as a sanity check?
    if ( temp == phase->tk_text || *temp != '\0' ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
          "invalid numeric value `%s`", phase->tk_text );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    if ( ( value == LONG_MAX && errno == ERANGE ) ||
       value > ( long ) ENGINE_MAX_INT_VALUE ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
          "numeric value `%s` is too large", phase->tk_text );
-      t_bail( phase->task );
+      p_bail( phase );
    }
    return ( int ) value;
 }
@@ -783,9 +783,9 @@ struct format_item* read_format_item( struct parse* phase, bool colon ) {
       break;
    }
    if ( unknown || phase->tk_length != 1 ) {
-      t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos, "unknown format cast `%s`",
-         phase->tk_text );
-      t_bail( phase->task );
+      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         "unknown format cast `%s`", phase->tk_text );
+      p_bail( phase );
    }
    p_read_tk( phase );
    // In a format block, the `:=` separator is used, because an identifier

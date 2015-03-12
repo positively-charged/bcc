@@ -31,7 +31,7 @@ static char read_ch( struct parse* phase );
 
 void p_load_main_source( struct parse* phase ) {
    struct request request;
-   init_request( &request, phase->options->source_file );
+   init_request( &request, phase->task->options->source_file );
    load_source( phase, &request );
    if ( request.source ) {
       phase->main_source = request.source;
@@ -39,7 +39,7 @@ void p_load_main_source( struct parse* phase ) {
    }
    else {
       p_diag( phase, DIAG_ERR, "failed to load source file: %s",
-         phase->options->source_file );
+         phase->task->options->source_file );
       p_bail( phase );
    }
 }
@@ -108,7 +108,7 @@ bool find_source_file( struct parse* phase, struct request* request ) {
    }
    // Try user-specified directories.
    list_iter_t i;
-   list_iter_init( &i, &phase->options->includes );
+   list_iter_init( &i, &phase->task->options->includes );
    while ( ! list_end( &i ) ) {
       char* include = list_data( &i ); 
       str_clear( &request->path );
@@ -212,19 +212,19 @@ void link_file_entry( struct parse* phase, struct file_entry* entry ) {
 
 void p_read_tk( struct parse* phase ) {
    struct token* token = NULL;
-   if ( phase->tokens.peeked ) {
+   if ( phase->peeked ) {
       // When dequeuing, shift the queue elements. For now, this will suffice.
       // In the future, maybe use a circular buffer.
       int i = 0;
-      while ( i < phase->tokens.peeked ) {
-         phase->tokens.buffer[ i ] = phase->tokens.buffer[ i + 1 ];
+      while ( i < phase->peeked ) {
+         phase->queue[ i ] = phase->queue[ i + 1 ];
          ++i;
       }
-      token = &phase->tokens.buffer[ 0 ];
-      --phase->tokens.peeked;
+      token = &phase->queue[ 0 ];
+      --phase->peeked;
    }
    else {
-      token = &phase->tokens.buffer[ 0 ];
+      token = &phase->queue[ 0 ];
       read_source( phase, token );
       if ( token->type == TK_END ) {
          bool imported = phase->source->imported;
@@ -252,10 +252,10 @@ enum tk peek( struct parse* phase, int pos ) {
    int i = 0;
    while ( true ) {
       // Peeked tokens begin at position 1.
-      struct token* token = &phase->tokens.buffer[ i + 1 ];
-      if ( i == phase->tokens.peeked ) {
+      struct token* token = &phase->queue[ i + 1 ];
+      if ( i == phase->peeked ) {
          read_source( phase, token );
-         ++phase->tokens.peeked;
+         ++phase->peeked;
       }
       ++i;
       if ( i == pos ) {
@@ -962,9 +962,9 @@ char read_ch( struct parse* phase ) {
          phase->source->column = 0;
       }
       else if ( left[ -1 ] == '\t' ) {
-         phase->source->column += phase->options->tab_size -
-            ( ( phase->source->column + phase->options->tab_size ) %
-            phase->options->tab_size );
+         phase->source->column += phase->task->options->tab_size -
+            ( ( phase->source->column + phase->task->options->tab_size ) %
+            phase->task->options->tab_size );
       }
       else {
          ++phase->source->column;

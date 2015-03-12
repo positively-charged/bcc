@@ -73,9 +73,9 @@ void p_read_top_stmt( struct parse* phase, struct stmt_reading* reading,
       while ( ! list_end( &i ) ) {
          struct label* label = list_data( &i );
          if ( ! label->defined ) {
-            t_diag( phase->task, DIAG_POS_ERR, &label->pos,
+            p_diag( phase, DIAG_POS_ERR, &label->pos,
                "label `%s` not found", label->name );
-            t_bail( phase->task );
+            p_bail( phase );
          }
          list_next( &i );
       }
@@ -169,11 +169,11 @@ void read_label( struct parse* phase, struct stmt_reading* reading ) {
    }
    if ( label ) {
       if ( label->defined ) {
-         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "duplicate label `%s`", phase->tk_text );
-         t_diag( phase->task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+         p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
             "label already found here" );
-         t_bail( phase->task );
+         p_bail( phase );
       }
       else {
          label->defined = true;
@@ -274,7 +274,7 @@ void read_if( struct parse* phase, struct stmt_reading* reading ) {
    // Warn when the body of an `if` statement is empty. It is assumed that a
    // semicolon is the empty statement.
    if ( phase->tk == TK_SEMICOLON ) {
-      t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      p_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &phase->tk_pos, "body of `if` statement is empty (`;`)" );
    }
    read_stmt( phase, reading );
@@ -283,7 +283,7 @@ void read_if( struct parse* phase, struct stmt_reading* reading ) {
    if ( phase->tk == TK_ELSE ) {
       p_read_tk( phase );
       if ( phase->tk == TK_SEMICOLON ) {
-         t_diag( phase->task, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         p_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &phase->tk_pos, "body of `else` is empty (`;`)" );
       }
       read_stmt( phase, reading );
