@@ -3,6 +3,8 @@
 #include <setjmp.h>
 
 #include "task.h"
+#include "parse/phase.h"
+#include "semantic/phase.h"
 #include "codegen/phase.h"
 
 #define TAB_SIZE_MIN 1
@@ -73,8 +75,12 @@ int main( int argc, char* argv[] ) {
    struct task task;
    t_init( &task, &options, &bail );
    if ( setjmp( bail ) == 0 ) {
-      t_read( &task );
-      t_test( &task );
+      struct parse parse;
+      p_init( &parse, &task );
+      p_read( &parse );
+      struct semantic semantic;
+      s_init( &semantic, &task );
+      s_test( &semantic );
       struct codegen codegen;
       c_init( &codegen, &task );
       c_publish( &codegen );

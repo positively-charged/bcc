@@ -1,110 +1,104 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
 #include <ctype.h>
 
-#include "task.h"
+#include "phase.h"
 
 struct source_request {
-   const char* path;
+   const char* given_path;
    struct source* source;
+   struct str path;
    bool load_once;
    bool err_open;
    bool err_loading;
    bool err_loaded_before;
 };
 
-static void load_source( struct task* task, struct source_request* );
+static void load_source( struct parse* phase, struct source_request* );
 static void init_source_request( struct source_request*, const char* );
-static enum tk peek( struct task*, int );
-static void read_source( struct task*, struct token* );
-static void escape_ch( struct task*, char*, char**, bool );
-static char read_ch( struct task* );
-static void diag_acc( struct task*, int, va_list* );
-static void make_pos( struct task*, struct pos*, const char**, int*, int* );
+static struct file_entry* create_file_entry( struct parse* phase,
+   struct source_request* request, struct fileid* file_id );
+static struct file_entry* alloc_file_entry( void );
+static void add_file_entry( struct task* task, struct file_entry* entry );
+static enum tk peek( struct parse* phase, int );
+static void read_source( struct parse* phase, struct token* );
+static void escape_ch( struct parse* phase, char*, char**, bool );
+static char read_ch( struct parse* phase );
 
-void t_init_fields_token( struct task* task ) {
-   task->tk = TK_END;
-   task->tk_text = NULL;
-   task->tk_length = 0;
-   task->source = NULL;
-   task->source_main = NULL;
-   task->library = NULL;
-   task->library_main = NULL;
-}
-
-void t_load_main_source( struct task* task ) {
+void p_load_main_source( struct parse* phase ) {
    struct source_request request;
-   init_source_request( &request, task->options->source_file );
-   load_source( task, &request );
+   init_source_request( &request, phase->options->source_file );
+   load_source( phase, &request );
    if ( request.source ) {
-      task->source_main = request.source;
-      task->library_main->file_pos.id = request.source->id;
+      phase->main_source = request.source;
+      phase->task->library_main->file_pos.id = request.source->id;
    }
    else {
-      t_diag( task, DIAG_ERR, "failed to load source file: %s",
-         task->options->source_file );
-      t_bail( task );
+      p_diag( phase, DIAG_ERR, "failed to load source file: %s",
+         phase->options->source_file );
+      p_bail( phase );
    }
 }
 
-struct source* t_load_included_source( struct task* task ) {
+struct source* p_load_included_source( struct parse* phase ) {
    struct source_request request;
-   init_source_request( &request, task->tk_text );
-   load_source( task, &request );
+   init_source_request( &request, phase->tk_text );
+   load_source( phase, &request );
    if ( ! request.source ) {
       if ( request.err_loading ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
             "file already being loaded" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
-            "failed to load file: %s", task->tk_text );
-         t_bail( task );
+         t_diag( phase->task, DIAG_POS_ERR, &phase->tk_pos,
+            "failed to load file: %s", phase->tk_text );
+         t_bail( phase->task );
       }
    }
    return request.source;
 }
 
 void init_source_request( struct source_request* request, const char* path ) {
-   request->path = path;
+   request->given_path = path;
    request->source = NULL;
+   str_init( &request->path );
+   // NOTE: req->file_id not initialized.
    request->load_once = false;
    request->err_open = false;
    request->err_loaded_before = false;
    request->err_loading = false;
 }
 
-void load_source( struct task* task, struct source_request* request ) {
+void load_source( struct parse* phase, struct source_request* request ) {
    // Try path directly.
    struct str path;
    str_init( &path );
-   str_append( &path, request->path );
+   str_append( &path, request->given_path );
    struct fileid fileid;
    if ( c_read_fileid( &fileid, path.value ) ) {
       goto load_file;
    }
    // Try directory of current file.
-   if ( task->source ) {
-      str_copy( &path, task->source->full_path.value,
-         task->source->full_path.length );
+   if ( phase->source ) {
+      str_copy( &path, phase->source->file->full_path.value,
+         phase->source->file->full_path.length );
       c_extract_dirname( &path );
       str_append( &path, "/" );
-      str_append( &path, request->path );
+      str_append( &path, request->given_path );
       if ( c_read_fileid( &fileid, path.value ) ) {
          goto load_file;
       }
    }
    // Try user-specified directories.
    list_iter_t i;
-   list_iter_init( &i, &task->options->includes );
+   list_iter_init( &i, &phase->options->includes );
    while ( ! list_end( &i ) ) {
       char* include = list_data( &i ); 
       str_clear( &path );
       str_append( &path, include );
       str_append( &path, "/" );
-      str_append( &path, request->path );
+      str_append( &path, request->given_path );
       if ( c_read_fileid( &fileid, path.value ) ) {
          goto load_file;
       }
@@ -115,10 +109,10 @@ void load_source( struct task* task, struct source_request* request ) {
    goto finish;
    load_file:
    // See if the file should be loaded once.
-   list_iter_init( &i, &task->loaded_sources );
+   list_iter_init( &i, &phase->loaded_sources );
    while ( ! list_end( &i ) ) {
       struct source* source = list_data( &i );
-      if ( c_same_fileid( &fileid, &source->fileid ) ) {
+      if ( c_same_fileid( &fileid, &source->file->file_id ) ) {
          if ( source->load_once ) {
             request->err_loaded_before = true;
             goto finish;
@@ -130,9 +124,9 @@ void load_source( struct task* task, struct source_request* request ) {
       list_next( &i );
    }
    // The file should not currently be processing.
-   struct source* source = task->source;
+   struct source* source = phase->source;
    while ( source ) {
-      if ( c_same_fileid( &source->fileid, &fileid ) ) {
+      if ( c_same_fileid( &source->file->file_id, &fileid ) ) {
          if ( request->load_once ) {
             source->load_once = true;
             request->err_loaded_before = true;
@@ -165,78 +159,114 @@ void load_source( struct task* task, struct source_request* request ) {
    text[ size ] = 0;
    // Create source.
    source = mem_alloc( sizeof( *source ) );
+   source->file = create_file_entry( phase, request, &fileid );
    source->text = text;
    source->left = text;
    source->save = save;
    source->save[ 0 ] = 0;
-   source->prev = task->source;
-   source->fileid = fileid;
-   str_init( &source->path );
-   str_append( &source->path, request->path );
-   str_init( &source->full_path );
-   c_read_full_path( path.value, &source->full_path );
+   source->prev = phase->source;
    source->line = 1;
    source->column = 0;
-   source->id = list_size( &task->loaded_sources ) + 1;
-   source->active_id = source->id;
+   source->id = list_size( &phase->loaded_sources ) + 1;
    source->find_dirc = true;
    source->load_once = request->load_once;
    source->imported = false;
    source->ch = ' ';
-   list_append( &task->loaded_sources, source );
-   task->source = source;
-   task->tk = TK_END;
+   list_append( &phase->loaded_sources, source );
+   phase->source = source;
+   phase->tk = TK_END;
    request->source = source;
    finish:
    str_deinit( &path );
 }
 
-void t_read_tk( struct task* task ) {
+struct file_entry* create_file_entry( struct parse* phase,
+   struct source_request* req, struct fileid* file_id ) {
+   struct file_entry* entry = phase->task->file_entries;
+   while ( entry && ! c_same_fileid( file_id, &entry->file_id ) ) {
+      entry = entry->next;
+   }
+   if ( ! entry ) {
+      entry = alloc_file_entry();
+      entry->file_id = *file_id;
+      str_append( &entry->path, req->given_path );
+      c_read_full_path( req->path.value, &entry->full_path );
+      entry->id = phase->last_id;
+      ++phase->last_id;
+      add_file_entry( phase->task, entry );
+   }
+   return entry;
+}
+
+struct file_entry* alloc_file_entry( void ) {
+   struct file_entry* entry = mem_alloc( sizeof( *entry ) );
+   entry->next = NULL;
+   // NOT initialized: entry->file_id
+   str_init( &entry->path );
+   str_init( &entry->full_path );
+   entry->id = 0;
+   return entry;
+}
+
+void add_file_entry( struct task* task, struct file_entry* entry ) {
+   if ( task->file_entries ) {
+      struct file_entry* prev = task->file_entries;
+      while ( prev->next ) {
+         prev = prev->next;
+      }
+      prev->next = entry;
+   }
+   else {
+      task->file_entries = entry;
+   }
+}
+
+void p_read_tk( struct parse* phase ) {
    struct token* token = NULL;
-   if ( task->tokens.peeked ) {
+   if ( phase->tokens.peeked ) {
       // When dequeuing, shift the queue elements. For now, this will suffice.
       // In the future, maybe use a circular buffer.
       int i = 0;
-      while ( i < task->tokens.peeked ) {
-         task->tokens.buffer[ i ] = task->tokens.buffer[ i + 1 ];
+      while ( i < phase->tokens.peeked ) {
+         phase->tokens.buffer[ i ] = phase->tokens.buffer[ i + 1 ];
          ++i;
       }
-      token = &task->tokens.buffer[ 0 ];
-      --task->tokens.peeked;
+      token = &phase->tokens.buffer[ 0 ];
+      --phase->tokens.peeked;
    }
    else {
-      token = &task->tokens.buffer[ 0 ];
-      read_source( task, token );
+      token = &phase->tokens.buffer[ 0 ];
+      read_source( phase, token );
       if ( token->type == TK_END ) {
-         bool imported = task->source->imported;
-         if ( task->source->prev ) {
-            task->source = task->source->prev;
+         bool imported = phase->source->imported;
+         if ( phase->source->prev ) {
+            phase->source = phase->source->prev;
             if ( ! imported ) {
-               t_read_tk( task );
+               p_read_tk( phase );
                return;
             }
          }
       }
    }
-   task->tk = token->type;
-   task->tk_text = token->text;
-   task->tk_pos = token->pos;
-   task->tk_length = token->length;
+   phase->tk = token->type;
+   phase->tk_text = token->text;
+   phase->tk_pos = token->pos;
+   phase->tk_length = token->length;
 }
 
-enum tk t_peek( struct task* task ) {
-   return peek( task, 1 );
+enum tk p_peek( struct parse* phase ) {
+   return peek( phase, 1 );
 }
 
 // NOTE: Make sure @pos is not more than ( TK_BUFFER_SIZE - 1 ).
-enum tk peek( struct task* task, int pos ) {
+enum tk peek( struct parse* phase, int pos ) {
    int i = 0;
    while ( true ) {
       // Peeked tokens begin at position 1.
-      struct token* token = &task->tokens.buffer[ i + 1 ];
-      if ( i == task->tokens.peeked ) {
-         read_source( task, token );
-         ++task->tokens.peeked;
+      struct token* token = &phase->tokens.buffer[ i + 1 ];
+      if ( i == phase->tokens.peeked ) {
+         read_source( phase, token );
+         ++phase->tokens.peeked;
       }
       ++i;
       if ( i == pos ) {
@@ -245,9 +275,9 @@ enum tk peek( struct task* task, int pos ) {
    }
 }
 
-void read_source( struct task* task, struct token* token ) {
-   char ch = task->source->ch;
-   char* save = task->source->save;
+void read_source( struct parse* phase, struct token* token ) {
+   char ch = phase->source->ch;
+   char* save = phase->source->save;
    int line = 0;
    int column = 0;
    enum tk tk = TK_END;
@@ -255,20 +285,20 @@ void read_source( struct task* task, struct token* token ) {
    state_space:
    // -----------------------------------------------------------------------
    while ( isspace( ch ) ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
    }
 
    state_token:
    // -----------------------------------------------------------------------
-   line = task->source->line;
-   column = task->source->column;
+   line = phase->source->line;
+   column = phase->source->column;
    // Identifier:
    if ( isalpha( ch ) || ch == '_' ) {
       char* id = save;
       while ( isalnum( ch ) || ch == '_' ) {
          *save = tolower( ch );
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       *save = 0;
       ++save;
@@ -352,7 +382,7 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '0' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       // Binary.
       if ( ch == 'b' || ch == 'B' ) {
          goto binary_literal;
@@ -366,7 +396,7 @@ void read_source( struct task* task, struct token* token ) {
          save[ 0 ] = '0';
          save[ 1 ] = '.';
          save += 2;
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto fraction;
       }
       // Octal.
@@ -378,59 +408,62 @@ void read_source( struct task* task, struct token* token ) {
       goto decimal_literal;
    }
    else if ( ch == '"' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       goto state_string;
    }
    else if ( ch == '\'' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '\'' || ! ch ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = {
+            .line = phase->source->line,
+            .column = phase->source->column,
+            .id = phase->source->file->id
+         };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "missing character in character literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       if ( ch == '\\' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          if ( ch == '\'' ) {
             save[ 0 ] = ch;
             save[ 1 ] = 0;
             save += 2;
-            ch = read_ch( task );
+            ch = read_ch( phase );
          }
          else {
-            escape_ch( task, &ch, &save, false );
+            escape_ch( phase, &ch, &save, false );
          }
       }
       else  {
          save[ 0 ] = ch;
          save[ 1 ] = 0;
          save += 2;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       if ( ch != '\'' ) {
-         struct pos pos = { task->source->line, column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "multiple characters in character literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
-      ch = read_ch( task );
+      ch = read_ch( phase );
       tk = TK_LIT_CHAR;
       goto state_finish;
    }
    else if ( ch == '/' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_DIV;
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto state_finish;
       }
       else if ( ch == '/' ) {
          goto state_comment;
       }
       else if ( ch == '*' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto state_comment_m;
       }
       else {
@@ -439,10 +472,10 @@ void read_source( struct task* task, struct token* token ) {
       }
    }
    else if ( ch == '=' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_EQ;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_ASSIGN;
@@ -450,14 +483,14 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '+' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '+' ) {
          tk = TK_INC;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_ADD;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_PLUS;
@@ -465,14 +498,14 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '-' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '-' ) {
          tk = TK_DEC;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_SUB;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_MINUS;
@@ -480,16 +513,16 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '<' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_LTE;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '<' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          if ( ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_L;
-            ch = read_ch( task );
+            ch = read_ch( phase );
          }
          else {
             tk = TK_SHIFT_L;
@@ -501,16 +534,16 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '>' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_GTE;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '>' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          if ( ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_R;
-            ch = read_ch( task );
+            ch = read_ch( phase );
             goto state_finish;
          }
          else {
@@ -524,14 +557,14 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '&' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '&' ) {
          tk = TK_LOG_AND;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_AND;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_BIT_AND;
@@ -539,14 +572,14 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '|' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '|' ) {
          tk = TK_LOG_OR;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_OR;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_BIT_OR;
@@ -554,10 +587,10 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '^' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_XOR;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_BIT_XOR;
@@ -565,10 +598,10 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '!' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_NEQ;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_LOG_NOT;
@@ -576,10 +609,10 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '*' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_MUL;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_STAR;
@@ -587,10 +620,10 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '%' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_MOD;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_MOD;
@@ -598,14 +631,14 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == ':' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_COLON;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == ':' ) {
          tk = TK_COLON_2;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
          tk = TK_COLON;
@@ -613,11 +646,11 @@ void read_source( struct task* task, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '\\' ) {
-      struct pos pos = { task->source->line, column,
-         task->source->active_id };
-      t_diag( task, DIAG_POS_ERR, &pos,
+      struct pos pos = { phase->source->line, column,
+         phase->source->file->id };
+      t_diag( phase->task, DIAG_POS_ERR, &pos,
          "`\\` not followed with newline character" );
-      t_bail( task );
+      t_bail( phase->task );
    }
    // End.
    else if ( ! ch ) {
@@ -643,14 +676,14 @@ void read_source( struct task* task, struct token* token ) {
       while ( true ) {
          if ( singles[ i ] == ch ) {
             tk = singles[ i + 1 ];
-            ch = read_ch( task );
+            ch = read_ch( phase );
             goto state_finish;
          }
          else if ( ! singles[ i ] ) {
-            struct pos pos = { task->source->line, column,
-               task->source->active_id };
-            t_diag( task, DIAG_POS_ERR, &pos, "invalid character" );
-            t_bail( task );
+            struct pos pos = { phase->source->line, column,
+               phase->source->file->id };
+            t_diag( phase->task, DIAG_POS_ERR, &pos, "invalid character" );
+            t_bail( phase->task );
          }
          else {
             i += 2;
@@ -660,31 +693,31 @@ void read_source( struct task* task, struct token* token ) {
 
    binary_literal:
    // -----------------------------------------------------------------------
-   ch = read_ch( task );
+   ch = read_ch( phase );
    while ( true ) {
       if ( ch == '0' || ch == '1' ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       // Underscores can be used to improve readability of a numeric literal
       // by grouping digits, and are ignored.
       else if ( ch == '_' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "invalid digit in binary literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
-      else if ( save == task->source->save ) {
-         struct pos pos = { task->source->line, column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+      else if ( save == phase->source->save ) {
+         struct pos pos = { phase->source->line, column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "no digits found in binary literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
          *save = 0;
@@ -696,29 +729,29 @@ void read_source( struct task* task, struct token* token ) {
 
    hex_literal:
    // -----------------------------------------------------------------------
-   ch = read_ch( task );
+   ch = read_ch( phase );
    while ( true ) {
       if ( isxdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
-      else if ( save == task->source->save ) {
-         struct pos pos = { task->source->line, column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+      else if ( save == phase->source->save ) {
+         struct pos pos = { phase->source->line, column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "no digits found in hexadecimal literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
          *save = 0;
@@ -734,21 +767,21 @@ void read_source( struct task* task, struct token* token ) {
       if ( ch >= '0' && ch <= '7' ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
          // We consider the number zero to be a decimal literal.
-         if ( save == task->source->save ) {
+         if ( save == phase->source->save ) {
             save[ 0 ] = '0';
             save[ 1 ] = 0;
             save += 2;
@@ -769,24 +802,24 @@ void read_source( struct task* task, struct token* token ) {
       if ( isdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto fraction;
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
          *save = 0;
@@ -802,24 +835,24 @@ void read_source( struct task* task, struct token* token ) {
       if ( isdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else if ( save[ -1 ] == '.' ) {
-         struct pos pos = { task->source->line, column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { phase->source->line, column,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "no digits found in fractional part of fixed-point literal" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else {
          *save = 0;
@@ -833,48 +866,48 @@ void read_source( struct task* task, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos,
+         struct pos pos = { line, column, phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos,
             "unterminated string" );
-         t_bail( task );
+         t_bail( phase->task );
       }
       else if ( ch == '"' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto state_string_concat;
       }
       else if ( ch == '\\' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          if ( ch == '"' ) {
             *save = ch;
             ++save;
-            ch = read_ch( task );
+            ch = read_ch( phase );
          }
          // Color codes are not parsed.
          else if ( ch == 'c' || ch == 'C' ) {
             save[ 0 ] = '\\';
             save[ 1 ] = ch;
             save += 2;
-            ch = read_ch( task );
+            ch = read_ch( phase );
          }
          else {
-            escape_ch( task, &ch, &save, true );
+            escape_ch( phase, &ch, &save, true );
          }
       }
       else {
          *save = ch;
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
    }
 
    state_string_concat:
    // -----------------------------------------------------------------------
    while ( isspace( ch ) ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
    }
    // Next string.
    if ( ch == '"' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       goto state_string;
    }
    // Done.
@@ -888,7 +921,7 @@ void read_source( struct task* task, struct token* token ) {
    state_comment:
    // -----------------------------------------------------------------------
    while ( ch && ch != '\n' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
    }
    goto state_space;
 
@@ -896,30 +929,30 @@ void read_source( struct task* task, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos, "unterminated comment" );
-         t_bail( task );
+         struct pos pos = { line, column, phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos, "unterminated comment" );
+         t_bail( phase->task );
       }
       else if ( ch == '*' ) {
-         ch = read_ch( task );
+         ch = read_ch( phase );
          if ( ch == '/' ) {
-            ch = read_ch( task );
+            ch = read_ch( phase );
             goto state_space;
          }
       }
       else {
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
    }
 
    state_finish:
    // -----------------------------------------------------------------------
    token->type = tk;
-   if ( save != task->source->save ) {
-      token->text = task->source->save;
+   if ( save != phase->source->save ) {
+      token->text = phase->source->save;
       // Minus 1 so to not include the NUL character in the count.
-      token->length = save - task->source->save - 1;
-      task->source->save = save;
+      token->length = save - phase->source->save - 1;
+      phase->source->save = save;
    }
    else {
       token->text = NULL;
@@ -927,39 +960,39 @@ void read_source( struct task* task, struct token* token ) {
    }
    token->pos.line = line;
    token->pos.column = column;
-   token->pos.id = task->source->active_id;
-   task->source->ch = ch;
+   token->pos.id = phase->source->file->id;
+   phase->source->ch = ch;
 }
 
-char read_ch( struct task* task ) {
+char read_ch( struct parse* phase ) {
    // Determine position of character.
-   char* left = task->source->left;
+   char* left = phase->source->left;
    if ( left[ -1 ] ) {
       if ( left[ -1 ] == '\n' ) {
-         ++task->source->line;
-         task->source->column = 0;
+         ++phase->source->line;
+         phase->source->column = 0;
       }
       else if ( left[ -1 ] == '\t' ) {
-         task->source->column += task->options->tab_size -
-            ( ( task->source->column + task->options->tab_size ) %
-            task->options->tab_size );
+         phase->source->column += phase->options->tab_size -
+            ( ( phase->source->column + phase->options->tab_size ) %
+            phase->options->tab_size );
       }
       else {
-         ++task->source->column;
+         ++phase->source->column;
       }
    }
    // Line concatenation.
    while ( left[ 0 ] == '\\' ) {
       // Linux.
       if ( left[ 1 ] == '\n' ) {
-         ++task->source->line;
-         task->source->column = 0;
+         ++phase->source->line;
+         phase->source->column = 0;
          left += 2;
       }
       // Windows.
       else if ( left[ 1 ] == '\r' && left[ 2 ] == '\n' ) {
-         ++task->source->line;
-         task->source->column = 0;
+         ++phase->source->line;
+         phase->source->column = 0;
          left += 3;
       }
       else {
@@ -968,31 +1001,31 @@ char read_ch( struct task* task ) {
    }
    // Process character.
    if ( *left == '\n' ) {
-      task->source->left = left + 1;
+      phase->source->left = left + 1;
       return '\n';
    }
    else if ( *left == '\r' && left[ 1 ] == '\n' ) {
-      task->source->left = left + 2;
+      phase->source->left = left + 2;
       return '\n';
    }
    else {
-      task->source->left = left + 1;
+      phase->source->left = left + 1;
       return *left;
    }
 }
 
-void escape_ch( struct task* task, char* ch_out, char** save_out,
+void escape_ch( struct parse* phase, char* ch_out, char** save_out,
    bool in_string ) {
    char ch = *ch_out;
    char* save = *save_out;
    if ( ! ch ) {
       empty: ;
-      struct pos pos = { task->source->line, task->source->column,
-         task->source->active_id };
-      t_diag( task, DIAG_POS_ERR, &pos, "empty escape sequence" );
-      t_bail( task );
+      struct pos pos = { phase->source->line, phase->source->column,
+         phase->source->file->id };
+      t_diag( phase->task, DIAG_POS_ERR, &pos, "empty escape sequence" );
+      t_bail( phase->task );
    }
-   int slash = task->source->column - 1;
+   int slash = phase->source->column - 1;
    static const char singles[] = {
       'a', '\a',
       'b', '\b',
@@ -1008,7 +1041,7 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
       if ( singles[ i ] == ch ) {
          *save = singles[ i + 1 ];
          ++save;
-         ch = read_ch( task );
+         ch = read_ch( phase );
          goto finish;
       }
       i += 2;
@@ -1020,13 +1053,13 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
    while ( ch >= '0' && ch <= '7' ) {
       if ( i == 3 ) {
          too_many_digits: ;
-         struct pos pos = { task->source->line, task->source->column,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos, "too many digits" );
-         t_bail( task );
+         struct pos pos = { phase->source->line, phase->source->column,
+            phase->source->file->id };
+         p_diag( phase, DIAG_POS_ERR, &pos, "too many digits" );
+         p_bail( phase );
       }
       buffer[ i ] = ch;
-      ch = read_ch( task );
+      ch = read_ch( phase );
       ++i;
    }
    if ( i ) {
@@ -1046,11 +1079,11 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
          save[ 0 ] = '\\';
          save += 1;
       }
-      ch = read_ch( task );
+      ch = read_ch( phase );
    }
    // Hexadecimal notation.
    else if ( ch == 'x' || ch == 'X' ) {
-      ch = read_ch( task );
+      ch = read_ch( phase );
       i = 0;
       while (
          ( ch >= '0' && ch <= '9' ) ||
@@ -1060,7 +1093,7 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
             goto too_many_digits;
          }
          buffer[ i ] = ch;
-         ch = read_ch( task );
+         ch = read_ch( phase );
          ++i;
       }
       if ( ! i ) {
@@ -1077,18 +1110,18 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
          // TODO: Merge this code and the code above. Both handle the newline
          // character.
          if ( ch == '\n' ) {
-            t_bail( task );
+            t_bail( phase->task );
          }
          save[ 0 ] = '\\';
          save[ 1 ] = ch;
          save += 2;
-         ch = read_ch( task );
+         ch = read_ch( phase );
       }
       else {
-         struct pos pos = { task->source->line, slash,
-            task->source->active_id };
-         t_diag( task, DIAG_POS_ERR, &pos, "unknown escape sequence" );
-         t_bail( task );
+         struct pos pos = { phase->source->line, slash,
+            phase->source->file->id };
+         t_diag( phase->task, DIAG_POS_ERR, &pos, "unknown escape sequence" );
+         t_bail( phase->task );
       }
    }
    goto finish;
@@ -1097,10 +1130,10 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
    // -----------------------------------------------------------------------
    // Code needs to be a valid character.
    if ( code > 127 ) {
-      struct pos pos = { task->source->line, slash,
-         task->source->active_id };
-      t_diag( task, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
-      t_bail( task );
+      struct pos pos = { phase->source->line, slash,
+         phase->source->file->id };
+      t_diag( phase->task, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
+      t_bail( phase->task );
    }
    // In a string context, the NUL character must not be escaped. Leave it
    // for the engine to process it.
@@ -1120,25 +1153,25 @@ void escape_ch( struct task* task, char* ch_out, char** save_out,
    *save_out = save;
 }
 
-void t_test_tk( struct task* task, enum tk expected ) {
-   if ( task->tk != expected ) {
-      if ( task->tk == TK_RESERVED ) {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos,
+void p_test_tk( struct parse* phase, enum tk expected ) {
+   if ( phase->tk != expected ) {
+      if ( phase->tk == TK_RESERVED ) {
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "`%s` is a reserved identifier that is not currently used",
-            task->tk_text );
+            phase->tk_text );
       }
       else {
-         t_diag( task, DIAG_POS_ERR, &task->tk_pos, 
-            "unexpected %s", t_get_token_name( task->tk ) );
-         t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &task->tk_pos,
-            "expecting %s here", t_get_token_name( expected ),
-            t_get_token_name( task->tk ) );
+         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, 
+            "unexpected %s", p_get_token_name( phase->tk ) );
+         p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
+            "expecting %s here", p_get_token_name( expected ),
+            p_get_token_name( phase->tk ) );
       }
-      t_bail( task );
+      p_bail( phase );
    }
 }
 
-const char* t_get_token_name( enum tk tk ) {
+const char* p_get_token_name( enum tk tk ) {
    static const struct { enum tk tk; const char* name; } names[] = {
       { TK_BRACKET_L, "`[`" },
       { TK_BRACKET_R, "`]`" },
@@ -1262,148 +1295,37 @@ const char* t_get_token_name( enum tk tk ) {
    }
 }
 
-void t_diag( struct task* task, int flags, ... ) {
-   va_list args;
-   va_start( args, flags );
-   if ( task->options->acc_err ) {
-      diag_acc( task, flags, &args );
+void p_skip_block( struct parse* phase ) {
+   while ( phase->tk != TK_END && phase->tk != TK_BRACE_L ) {
+      p_read_tk( phase );
    }
-   else {
-      if ( flags & DIAG_FILE ) {
-         const char* file = NULL;
-         int line = 0, column = 0;
-         make_pos( task, va_arg( args, struct pos* ), &file, &line,
-            &column );
-         printf( "%s", file );
-         if ( flags & DIAG_LINE ) {
-            printf( ":%d", line );
-            if ( flags & DIAG_COLUMN ) {
-               printf( ":%d", column );
-            }
-         }
-         printf( ": " );
-      }
-      if ( flags & DIAG_ERR ) {
-         printf( "error: " );
-      }
-      else if ( flags & DIAG_WARN ) {
-         printf( "warning: " );
-      }
-      const char* format = va_arg( args, const char* );
-      vprintf( format, args );
-      printf( "\n" );
-   }
-   va_end( args );
-}
-
-// Line format: <file>:<line>: <message>
-void diag_acc( struct task* task, int flags, va_list* args ) {
-   if ( ! task->err_file ) {
-      struct str str;
-      str_init( &str );
-      if ( task->source_main ) {
-         str_copy( &str, task->source_main->path.value,
-            task->source_main->path.length );
-         while ( str.length && str.value[ str.length - 1 ] != '/' &&
-            str.value[ str.length - 1 ] != '\\' ) {
-            str.value[ str.length - 1 ] = 0;
-            --str.length;
-         }
-      }
-      str_append( &str, "acs.err" );
-      task->err_file = fopen( str.value, "w" );
-      if ( ! task->err_file ) {
-         printf( "error: failed to load error output file: %s\n", str.value );
-         t_bail( task );
-      }
-      str_deinit( &str );
-   }
-   if ( flags & DIAG_FILE ) {
-      const char* file = NULL;
-      int line = 0, column = 0;
-      make_pos( task, va_arg( *args, struct pos* ), &file, &line, &column );
-      fprintf( task->err_file, "%s:", file );
-      if ( flags & DIAG_LINE ) {
-         // For some reason, DB2 decrements the line number by one. Add one to
-         // make the number correct.
-         fprintf( task->err_file, "%d:", line + 1 );
-      }
-   }
-   fprintf( task->err_file, " " );
-   if ( flags & DIAG_ERR ) {
-      fprintf( task->err_file, "error: " );
-   }
-   else if ( flags & DIAG_WARN ) {
-      fprintf( task->err_file, "warning: " );
-   }
-   const char* message = va_arg( *args, const char* );
-   vfprintf( task->err_file, message, *args );
-   fprintf( task->err_file, "\n" );
-}
-
-void make_pos( struct task* task, struct pos* pos, const char** file,
-   int* line, int* column ) {
-   // Path of source file.
-   struct source* source = NULL;
-   list_iter_t i;
-   list_iter_init( &i, &task->loaded_sources );
-   while ( ! list_end( &i ) ) {
-      source = list_data( &i );
-      if ( source->id == pos->id ) {
-         break;
-      }
-      list_next( &i );
-   }
-   *file = source->path.value;
-   *line = pos->line;
-   *column = pos->column;
-   if ( task->options->one_column ) {
-      ++*column;
-   }
-}
- 
-void t_bail( struct task* task ) {
-   longjmp( *task->bail, 1 );
-}
-
-void t_skip_block( struct task* task ) {
-   while ( task->tk != TK_END && task->tk != TK_BRACE_L ) {
-      t_read_tk( task );
-   }
-   t_test_tk( task, TK_BRACE_L );
-   t_read_tk( task );
+   p_test_tk( phase, TK_BRACE_L );
+   p_read_tk( phase );
    int depth = 0;
    while ( true ) {
-      if ( task->tk == TK_BRACE_L ) {
+      if ( phase->tk == TK_BRACE_L ) {
          ++depth;
-         t_read_tk( task );
+         p_read_tk( phase );
       }
-      else if ( task->tk == TK_BRACE_R ) {
+      else if ( phase->tk == TK_BRACE_R ) {
          if ( depth ) {
             --depth;
-            t_read_tk( task );
+            p_read_tk( phase );
          }
          else {
             break;
          }
       }
-      else if ( task->tk == TK_LIB_END ) {
+      else if ( phase->tk == TK_LIB_END ) {
          break;
       }
-      else if ( task->tk == TK_END ) {
+      else if ( phase->tk == TK_END ) {
          break;
       }
       else {
-         t_read_tk( task );
+         p_read_tk( phase );
       }
    }
-   t_test_tk( task, TK_BRACE_R );
-   t_read_tk( task );
-}
-
-bool t_same_pos( struct pos* a, struct pos* b ) {
-   return (
-      a->id == b->id &&
-      a->line == b->line &&
-      a->column == b->column );
+   p_test_tk( phase, TK_BRACE_R );
+   p_read_tk( phase );
 }

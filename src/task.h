@@ -4,163 +4,24 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <setjmp.h>
+#include <stdarg.h>
 
 #include "common.h"
 
 #define MAX_LIB_NAME_LENGTH 8
 
-// Token types.
-enum tk {
-   // 0
-   TK_END,
-   TK_RESERVED,
-   TK_BRACKET_L,
-   TK_BRACKET_R,
-   TK_PAREN_L,
-   TK_PAREN_R,
-   TK_BRACE_L,
-   TK_BRACE_R,
-   TK_DOT,
-   TK_INC,
-   // 10
-   TK_DEC,
-   TK_ID,
-   TK_COMMA,
-   TK_COLON,
-   TK_COLON_2,
-   TK_SEMICOLON,
-   TK_ASSIGN,
-   TK_ASSIGN_ADD,
-   TK_ASSIGN_SUB,
-   TK_ASSIGN_MUL,
-   // 20
-   TK_ASSIGN_DIV,
-   TK_ASSIGN_MOD,
-   TK_ASSIGN_SHIFT_L,
-   TK_ASSIGN_SHIFT_R,
-   TK_ASSIGN_BIT_AND,
-   TK_ASSIGN_BIT_XOR,
-   TK_ASSIGN_BIT_OR,
-   TK_EQ,
-   TK_NEQ,
-   TK_LOG_NOT,
-   // 30
-   TK_LOG_AND,
-   TK_LOG_OR,
-   TK_BIT_AND,
-   TK_BIT_OR,
-   TK_BIT_XOR,
-   TK_BIT_NOT,
-   TK_LT,
-   TK_LTE,
-   TK_GT,
-   TK_GTE,
-   // 40
-   TK_PLUS,
-   TK_MINUS,
-   TK_SLASH,
-   TK_STAR,
-   TK_MOD,
-   TK_SHIFT_L,
-   TK_SHIFT_R,
-   TK_ASSIGN_COLON,
-   TK_BREAK,
-   TK_CASE,
-   // 50
-   TK_CONST,
-   TK_CONTINUE,
-   TK_DEFAULT,
-   TK_DO,
-   TK_ELSE,
-   TK_ENUM,
-   TK_FOR,
-   TK_IF,
-   TK_INT,
-   TK_RETURN,
-   // 60
-   TK_STATIC,
-   TK_STR,
-   TK_STRUCT,
-   TK_SWITCH,
-   TK_VOID,
-   TK_WHILE,
-   TK_BOOL,
-   TK_LIT_DECIMAL,
-   TK_LIT_OCTAL,
-   TK_LIT_HEX,
-   // 70
-   TK_LIT_CHAR,
-   TK_LIT_FIXED,
-   TK_LIT_STRING,
-   TK_HASH,    // #
-   TK_PALTRANS,
-   TK_GLOBAL,
-   TK_SCRIPT,
-   TK_UNTIL,
-   TK_WORLD,
-   TK_OPEN,
-   // 80
-   TK_RESPAWN,
-   TK_DEATH,
-   TK_ENTER,
-   TK_PICKUP,
-   TK_BLUE_RETURN,
-   TK_RED_RETURN,
-   TK_WHITE_RETURN,
-   TK_LIGHTNING,
-   TK_DISCONNECT,
-   TK_UNLOADING,
-   // 90
-   TK_CLIENTSIDE,
-   TK_NET,
-   TK_RESTART,
-   TK_SUSPEND,
-   TK_TERMINATE,
-   TK_FUNCTION,
-   TK_IMPORT,
-   TK_REGION,
-   TK_UPMOST,
-   TK_GOTO,
-   // 100
-   TK_TRUE,
-   TK_FALSE,
-   TK_EVENT,
-   TK_NL,
-   TK_LIB,
-   TK_LIB_END,
-   TK_LIT_BINARY,
-   TK_TOTAL
+struct file_entry {
+   struct file_entry* next;
+   struct fileid file_id;
+   struct str path;
+   struct str full_path;
+   int id;
 };
 
 struct pos {
    int line;
    int column;
    int id;
-};
-
-struct token {
-   char* text;
-   struct pos pos;
-   enum tk type;
-   int length;
-};
-
-struct source {
-   char* text;
-   char* left;
-   char* save;
-   struct source* prev;
-   struct fileid fileid;
-   struct str path;
-   struct str full_path;
-   int line;
-   int column;
-   int id;
-   int active_id;
-   bool find_dirc;
-   bool load_once;
-   bool imported;
-   char ch;
 };
 
 struct node {
@@ -821,124 +682,23 @@ struct import_item {
    bool is_link;
 };
 
-struct dec {
-   enum {
-      DEC_TOP,
-      DEC_LOCAL,
-      DEC_FOR,
-      DEC_MEMBER,
-      DEC_TOTAL
-   } area;
-   struct pos pos;
-   struct pos type_pos;
-   struct pos storage_pos;
-   struct pos name_pos;
-   const char* storage_name;
-   struct type* type;
-   struct type* type_make;
-   struct path* type_path;
-   struct name* name;
-   struct name* name_offset;
-   struct dim* dim;
-   struct initial* initial;
-   struct list* vars;
-   int storage;
-   int storage_index;
-   bool type_needed;
-   bool type_void;
-   bool type_struct;
-   bool initz_str;
-   bool is_static;
-   bool leave;
-};
-
-struct stmt_reading {
-   struct list* labels;
-   struct node* node;
-   struct block* block_node;
-};
-
-struct stmt_test {
-   struct stmt_test* parent;
-   struct func* func;
-   struct list* labels;
-   struct block* format_block;
-   struct case_label* case_head;
-   struct case_label* case_default;
-   struct jump* jump_break;
-   struct jump* jump_continue;
-   struct import2* import;
-   bool in_loop;
-   bool in_switch;
-   bool in_script;
-   bool manual_scope;
-};
-
-struct expr_reading {
-   struct node* node;
-   struct expr* output_node;
-   struct pos pos;
-   bool has_str;
-   bool in_constant;
-   bool skip_assign;
-   bool skip_call;
-   bool expect_expr;
-};
-
-struct expr_test {
-   jmp_buf bail;
-   struct stmt_test* stmt_test;
-   struct block* format_block;
-   struct format_block_usage* format_block_usage;
-   struct pos pos;
-   bool result_required;
-   bool has_string;
-   bool undef_err;
-   bool undef_erred;
-   bool accept_array;
-   bool suggest_paren_assign;
-};
-
-#define TK_BUFFER_SIZE 5
-
 struct task {
    struct options* options;
    FILE* err_file;
    jmp_buf* bail;
-   struct {
-      struct token buffer[ TK_BUFFER_SIZE ];
-      struct str text;
-      int peeked;
-   } tokens;
-   enum tk tk;
-   struct pos tk_pos;
-   // The text contains the character content of the token. The text and the
-   // length of the text are applicable only to a token that is an identifier,
-   // a string, a character literal, or any of the numbers. For the rest, the
-   // text will be NULL and the length will be zero.
-   char* tk_text;
-   int tk_length;
+   struct file_entry* file_entries;
    struct str_table str_table;
+   struct name* root_name;
+   struct name* anon_name;
+   struct region* region_upmost;
    struct type* type_int;
    struct type* type_str;
    struct type* type_bool;
-   struct region* region;
-   struct region* region_upmost;
-   struct source* source;
-   struct source* source_main;
    struct library* library;
    struct library* library_main;
    struct list libraries;
-   struct name* root_name;
-   struct name* anon_name;
-   struct list loaded_sources;
    struct list regions;
    struct list scripts;
-   int depth;
-   struct scope* scope;
-   struct scope* free_scope;
-   struct sweep* free_sweep;
-   bool in_func;
 };
 
 #define DIAG_NONE 0
@@ -950,61 +710,22 @@ struct task {
 #define DIAG_POS_ERR DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 
 void t_init( struct task*, struct options*, jmp_buf* );
-void t_init_fields_token( struct task* );
-void t_init_fields_dec( struct task* );
-void t_load_main_source( struct task* );
-void t_read_tk( struct task* );
-void t_test_tk( struct task*, enum tk );
-void t_read( struct task* );
-void t_test( struct task* );
-void t_read_top_stmt( struct task*, struct stmt_reading*,
-   bool need_block );
 struct name* t_make_name( struct task*, const char*, struct name* );
-struct format_item* t_read_format_item( struct task*, bool colon );
-void t_add_scope( struct task* );
-void t_pop_scope( struct task* );
-void t_test_constant( struct task*, struct constant*, bool undef_err );
-void t_test_constant_set( struct task*, struct constant_set*, bool undef_err );
-void t_test_type( struct task*, struct type*, bool undef_err );
 void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
-void t_test_local_var( struct task*, struct var* );
-void t_skip_block( struct task* );
 int t_get_script_number( struct script* );
-void t_init_expr_reading( struct expr_reading*, bool in_constant,
-   bool skip_assign, bool skip_func_call, bool expect_expr );
-void t_read_expr( struct task*, struct expr_reading* );
-bool t_is_dec( struct task* );
-void t_init_dec( struct dec* );
-void t_read_dec( struct task*, struct dec* );
-void t_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
-   struct block* format_block, bool result_required, bool undef_err,
-   bool suggest_paren_assign );
-void t_test_expr( struct task*, struct expr_test*, struct expr* );
-void t_init_stmt_reading( struct stmt_reading*, struct list* labels );
-void t_init_stmt_test( struct stmt_test*, struct stmt_test* );
-void t_test_top_block( struct task*, struct stmt_test*, struct block* );
-void t_test_stmt( struct task*, struct stmt_test*, struct node* );
-void t_test_block( struct task*, struct stmt_test*, struct block* );
-void t_test_format_item( struct task*, struct format_item*, struct stmt_test*,
-   struct expr_test*, struct block* );
-struct object* t_get_region_object( struct task*, struct region*,
-   struct name* );
-void diag_dup( struct task*, const char* text, struct pos*, struct name* );
-void diag_dup_struct( struct task*, struct name*, struct pos* );
-enum tk t_peek( struct task* );
-void t_read_region_body( struct task*, bool is_brace );
-const char* t_get_token_name( enum tk );
 void t_print_name( struct name* );
 void t_diag( struct task*, int flags, ... );
+void t_diag_args( struct task* task, int flags, va_list* args );
 void t_bail( struct task* );
-void t_read_region( struct task* );
-void t_read_import( struct task*, struct list* );
-void t_import( struct task*, struct import* );
-int t_extract_literal_value( struct task* );
-struct source* t_load_included_source( struct task* );
-void t_make_main_lib( struct task* );
-void t_read_lib( struct task* );
 bool t_same_pos( struct pos*, struct pos* );
+void t_init_object( struct object* object, int node_type );
+struct object* t_get_region_object( struct task* task, struct region*,
+   struct name* );
+void t_init_types( struct task* task );
+void t_init_type_members( struct task* );
+struct region* t_alloc_region( struct task* task, struct name* name,
+   bool upmost );
+struct type* t_create_type( struct task* task, struct name* name );
 
 #endif
