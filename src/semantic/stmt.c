@@ -12,6 +12,10 @@ static void test_while( struct semantic* phase, struct stmt_test*, struct while_
 static void test_for( struct semantic* phase, struct stmt_test* test,
    struct for_stmt* );
 static void test_jump( struct semantic* phase, struct stmt_test*, struct jump* );
+static void test_break( struct semantic* phase, struct stmt_test* test,
+   struct jump* stmt );
+static void test_continue( struct semantic* phase, struct stmt_test* test,
+   struct jump* stmt );
 static void test_script_jump( struct semantic* phase, struct stmt_test*,
    struct script_jump* );
 static void test_return( struct semantic* phase, struct stmt_test*,
@@ -305,52 +309,67 @@ void test_for( struct semantic* phase, struct stmt_test* test,
 
 void test_jump( struct semantic* phase, struct stmt_test* test,
    struct jump* stmt ) {
-   if ( stmt->type == JUMP_BREAK ) {
-      struct stmt_test* target = test;
-      while ( target && ! target->in_loop && ! target->in_switch ) {
-         target = target->parent;
-      }
-      if ( ! target ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
-            "break outside loop or switch" );
-         s_bail( phase );
-      }
-      stmt->next = target->jump_break;
-      target->jump_break = stmt;
-      // Jumping out of a format block is not allowed.
-      struct stmt_test* finish = target;
-      target = test;
-      while ( target != finish ) {
-         if ( target->format_block ) {
-            s_diag( phase, DIAG_POS_ERR, &stmt->pos,
-               "leaving format block with a break statement" );
-            s_bail( phase );
-         }
-         target = target->parent;
-      }
+   switch ( stmt->type ) {
+   case JUMP_BREAK:
+      test_break( phase, test, stmt );
+      break;
+   case JUMP_CONTINUE:
+      test_continue( phase, test, stmt );
+      break;
+   default:
+      // TODO: Internal compiler error.
+      break;
    }
-   else {
-      struct stmt_test* target = test;
-      while ( target && ! target->in_loop ) {
-         target = target->parent;
-      }
-      if ( ! target ) {
+}
+
+void test_break( struct semantic* phase, struct stmt_test* test,
+   struct jump* stmt ) {
+   struct stmt_test* target = test;
+   while ( target && ! target->in_loop && ! target->in_switch ) {
+      target = target->parent;
+   }
+   if ( ! target ) {
+      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         "break outside loop or switch" );
+      s_bail( phase );
+   }
+   stmt->next = target->jump_break;
+   target->jump_break = stmt;
+   // Jumping out of a format block is not allowed.
+   struct stmt_test* finish = target;
+   target = test;
+   while ( target != finish ) {
+      if ( target->format_block ) {
          s_diag( phase, DIAG_POS_ERR, &stmt->pos,
-            "continue outside loop" );
+            "leaving format block with a break statement" );
          s_bail( phase );
       }
-      stmt->next = target->jump_continue;
-      target->jump_continue = stmt;
-      struct stmt_test* finish = target;
-      target = test;
-      while ( target != finish ) {
-         if ( target->format_block ) {
-            s_diag( phase, DIAG_POS_ERR, &stmt->pos,
-               "leaving format block with a continue statement" );
-            s_bail( phase );
-         }
-         target = target->parent;
+      target = target->parent;
+   }
+}
+
+void test_continue( struct semantic* phase, struct stmt_test* test,
+   struct jump* stmt ) {
+   struct stmt_test* target = test;
+   while ( target && ! target->in_loop ) {
+      target = target->parent;
+   }
+   if ( ! target ) {
+      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         "continue outside loop" );
+      s_bail( phase );
+   }
+   stmt->next = target->jump_continue;
+   target->jump_continue = stmt;
+   struct stmt_test* finish = target;
+   target = test;
+   while ( target != finish ) {
+      if ( target->format_block ) {
+         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+            "leaving format block with a continue statement" );
+         s_bail( phase );
       }
+      target = target->parent;
    }
 }
 
