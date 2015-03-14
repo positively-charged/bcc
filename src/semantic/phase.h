@@ -12,7 +12,6 @@ struct stmt_test {
    struct case_label* case_default;
    struct jump* jump_break;
    struct jump* jump_continue;
-   struct import2* import;
    bool in_loop;
    bool in_switch;
    bool in_script;
@@ -39,8 +38,8 @@ struct semantic {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
+   struct stmt_test* func_test;
    int depth;
-   bool in_func;
 };
 
 void s_init( struct semantic* phase, struct task* task );

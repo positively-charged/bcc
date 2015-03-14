@@ -36,7 +36,6 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->case_default = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
-   test->import = NULL;
    test->in_loop = false;
    test->in_switch = false;
    test->in_script = false;
@@ -172,41 +171,46 @@ void test_label( struct semantic* phase, struct stmt_test* test,
 
 void s_test_stmt( struct semantic* phase, struct stmt_test* test,
    struct node* node ) {
-   if ( node->type == NODE_BLOCK ) {
+   switch ( node->type ) {
+   case NODE_BLOCK:
       s_test_block( phase, test, ( struct block* ) node );
-   }
-   else if ( node->type == NODE_IF ) {
+      break;
+   case NODE_IF:
       test_if( phase, test, ( struct if_stmt* ) node );
-   }
-   else if ( node->type == NODE_SWITCH ) {
+      break;
+   case NODE_SWITCH:
       test_switch( phase, test, ( struct switch_stmt* ) node );
-   }
-   else if ( node->type == NODE_WHILE ) {
+      break;
+   case NODE_WHILE:
       test_while( phase, test, ( struct while_stmt* ) node );
-   }
-   else if ( node->type == NODE_FOR ) {
+      break;
+   case NODE_FOR:
       test_for( phase, test, ( struct for_stmt* ) node );
-   }
-   else if ( node->type == NODE_JUMP ) {
+      break;
+   case NODE_JUMP:
       test_jump( phase, test, ( struct jump* ) node );
-   }
-   else if ( node->type == NODE_SCRIPT_JUMP ) {
+      break;
+   case NODE_SCRIPT_JUMP:
       test_script_jump( phase, test, ( struct script_jump* ) node );
-   }
-   else if ( node->type == NODE_RETURN ) {
+      break;
+   case NODE_RETURN:
       test_return( phase, test, ( struct return_stmt* ) node );
-   }
-   else if ( node->type == NODE_GOTO ) {
+      break;
+   case NODE_GOTO:
       test_goto( phase, test, ( struct goto_stmt* ) node );
-   }
-   else if ( node->type == NODE_PALTRANS ) {
+      break;
+   case NODE_PALTRANS:
       test_paltrans( phase, test, ( struct paltrans* ) node );
-   }
-   else if ( node->type == NODE_FORMAT_ITEM ) {
+      break;
+   case NODE_FORMAT_ITEM:
       test_format_item( phase, test, ( struct format_item* ) node );
-   }
-   else if ( node->type == NODE_PACKED_EXPR ) {
+      break;
+   case NODE_PACKED_EXPR:
       test_packed_expr( phase, test, ( struct packed_expr* ) node, NULL );
+      break;
+   default:
+      // TODO: Internal compiler error.
+      break;
    }
 }
 

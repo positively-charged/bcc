@@ -42,8 +42,8 @@ void s_init( struct semantic* phase, struct task* task ) {
    phase->scope = NULL;
    phase->free_scope = NULL;
    phase->free_sweep = NULL;
+   phase->func_test = NULL;
    phase->depth = 0;
-   phase->in_func = false;
 }
 
 void s_test( struct semantic* phase ) {

@@ -746,9 +746,9 @@ void s_test_func_body( struct semantic* phase, struct func* func ) {
    test.func = func;
    test.manual_scope = true;
    test.labels = &impl->labels;
-   phase->in_func = true;
+   phase->func_test = &test;
    s_test_block( phase, &test, impl->body );
-   phase->in_func = false;
+   phase->func_test = NULL;
    s_pop_scope( phase );
 }
 
@@ -811,7 +811,9 @@ void test_script_body( struct semantic* phase, struct script* script ) {
    test.in_script = true;
    test.manual_scope = true;
    test.labels = &script->labels;
+   phase->func_test = &test;
    s_test_stmt( phase, &test, script->body );
+   phase->func_test = NULL;
    s_pop_scope( phase );
 }
 

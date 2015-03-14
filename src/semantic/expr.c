@@ -504,12 +504,12 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
          while ( stmt && ! stmt->format_block ) {
             stmt = stmt->parent;
          }
-         if ( stmt || phase->in_func ) {
+         if ( stmt || phase->func_test->func ) {
             s_diag( phase, DIAG_POS_ERR, &call->pos,
                "calling latent function inside a %s",
                stmt ? "format block" : "function" );
             // Show educational note to user.
-            if ( phase->in_func ) {
+            if ( phase->func_test->func ) {
                struct str str;
                str_init( &str );
                t_copy_name( test.func->name, false, &str );
