@@ -23,10 +23,9 @@ static void bind_object_name( struct semantic* phase, struct name*,
    struct object* object );
 static void import_objects( struct semantic* phase );
 static void test_objects( struct semantic* phase );
-static void test_region( struct semantic* phase, bool* resolved, bool* retry,
-   bool undef_err );
-static void test_region_object( struct semantic* phase, struct object* object,
-   bool undef_err );
+static void test_region( struct semantic* phase, bool* resolved, bool* retry );
+static void test_region_object( struct semantic* phase,
+   struct object* object );
 static void test_objects_bodies( struct semantic* phase );
 static void check_dup_scripts( struct semantic* phase );
 static void calc_map_var_size( struct semantic* phase );
@@ -44,6 +43,7 @@ void s_init( struct semantic* phase, struct task* task ) {
    phase->free_sweep = NULL;
    phase->func_test = NULL;
    phase->depth = 0;
+   phase->undef_err = false;
 }
 
 void s_test( struct semantic* phase ) {
@@ -158,7 +158,6 @@ void import_objects( struct semantic* phase ) {
 // Analyzes the objects found in regions. The bodies of scripts and functions
 // are analyzed elsewhere.
 void test_objects( struct semantic* phase ) {
-   bool undef_err = false;
    while ( true ) {
       bool resolved = false;
       bool retry = false;
@@ -166,14 +165,14 @@ void test_objects( struct semantic* phase ) {
       list_iter_init( &i, &phase->task->regions );
       while ( ! list_end( &i ) ) {
          phase->region = list_data( &i );
-         test_region( phase, &resolved, &retry, undef_err );
+         test_region( phase, &resolved, &retry );
          list_next( &i );
       }
       if ( retry ) {
          // Continue resolving as long as something got resolved. If nothing
          // gets resolved during the last run, then nothing can be resolved
          // anymore. So report errors.
-         undef_err = ( ! resolved );
+         phase->undef_err = ( ! resolved );
       }
       else {
          break;
@@ -181,13 +180,12 @@ void test_objects( struct semantic* phase ) {
    }
 }
 
-void test_region( struct semantic* phase, bool* resolved, bool* retry,
-   bool undef_err ) {
+void test_region( struct semantic* phase, bool* resolved, bool* retry ) {
    struct object* object = phase->region->unresolved;
    struct object* tail = NULL;
    phase->region->unresolved = NULL;
    while ( object ) {
-      test_region_object( phase, object, undef_err );
+      test_region_object( phase, object );
       if ( object->resolved ) {
          struct object* next = object->next;
          object->next = NULL;
@@ -210,23 +208,22 @@ void test_region( struct semantic* phase, bool* resolved, bool* retry,
    }
 }
 
-void test_region_object( struct semantic* phase, struct object* object,
-   bool undef_err ) {
+void test_region_object( struct semantic* phase, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
-      s_test_constant( phase, ( struct constant* ) object, undef_err );
+      s_test_constant( phase, ( struct constant* ) object );
       break;
    case NODE_CONSTANT_SET:
-      s_test_constant_set( phase, ( struct constant_set* ) object, undef_err );
+      s_test_constant_set( phase, ( struct constant_set* ) object );
       break;
    case NODE_TYPE:
-      s_test_type( phase, ( struct type* ) object, undef_err );
+      s_test_type( phase, ( struct type* ) object );
       break;
    case NODE_VAR:
-      s_test_var( phase, ( struct var* ) object, undef_err );
+      s_test_var( phase, ( struct var* ) object );
       break;
    case NODE_FUNC:
-      s_test_func( phase, ( struct func* ) object, undef_err );
+      s_test_func( phase, ( struct func* ) object );
    default:
       // TODO: Add internal compiler error.
       break;
@@ -235,6 +232,7 @@ void test_region_object( struct semantic* phase, struct object* object,
 
 // Analyzes the body of functions, and scripts.
 void test_objects_bodies( struct semantic* phase ) {
+   phase->undef_err = true;
    list_iter_t i;
    list_iter_init( &i, &phase->task->regions );
    while ( ! list_end( &i ) ) {

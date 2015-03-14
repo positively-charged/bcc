@@ -71,16 +71,16 @@ void test_block_item( struct semantic* phase, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_CONSTANT:
-      s_test_constant( phase, ( struct constant* ) node, true );
+      s_test_constant( phase, ( struct constant* ) node );
       break;
    case NODE_CONSTANT_SET:
-      s_test_constant_set( phase, ( struct constant_set* ) node, true );
+      s_test_constant_set( phase, ( struct constant_set* ) node );
       break;
    case NODE_VAR:
       s_test_local_var( phase, ( struct var* ) node );
       break;
    case NODE_TYPE:
-      s_test_type( phase, ( struct type* ) node, true );
+      s_test_type( phase, ( struct type* ) node );
       break;
    case NODE_CASE:
       test_case( phase, test, ( struct case_label* ) node );

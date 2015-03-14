@@ -8,7 +8,6 @@ struct multi_value_test {
    struct type* type;
    struct type_member* member;
    int count;
-   bool undef_err;
    bool constant;
    bool nested;
    bool has_string;
@@ -27,18 +26,17 @@ struct value_index_alloc {
 static void test_script_number( struct semantic* phase, struct script* script );
 static void test_script_params( struct semantic* phase, struct script* script );
 static void test_script_body( struct semantic* phase, struct script* script );
-static void test_type_member( struct semantic* phase, struct type_member*, bool );
+static void test_type_member( struct semantic* phase, struct type_member* );
 static struct type* find_type( struct semantic* phase, struct path* );
-static bool test_spec( struct semantic* phase, struct var* var, bool undef_err );
-static void test_name( struct semantic* phase, struct var* var, bool undef_err );
-static bool test_dim( struct semantic* phase, struct var* var, bool undef_err );
-static bool test_initz( struct semantic* phase, struct var* var, bool undef_err );
-static bool test_object_initz( struct semantic* phase, struct var* var,
-   bool undef_err );
+static bool test_spec( struct semantic* phase, struct var* var );
+static void test_name( struct semantic* phase, struct var* var );
+static bool test_dim( struct semantic* phase, struct var* var );
+static bool test_initz( struct semantic* phase, struct var* var );
+static bool test_object_initz( struct semantic* phase, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void test_init( struct semantic* phase, struct var*, bool, bool* );
 static void init_multi_value_test( struct multi_value_test*, struct dim*,
-   struct type*, bool undef_err, bool constant, bool nested );
+   struct type*, bool constant, bool nested );
 static bool test_multi_value( struct semantic* phase, struct multi_value_test*,
    struct multi_value* multi_value );
 static bool test_multi_value_child( struct semantic* phase,
@@ -47,10 +45,8 @@ static bool test_multi_value_child( struct semantic* phase,
 static bool test_value( struct semantic* phase, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value );
 static void calc_dim_size( struct dim*, struct type* );
-static void test_user_func( struct semantic* phase, struct func* func,
-   bool undef_err );
-static void test_builtin_func( struct semantic* phase, struct func* func,
-   bool undef_err );
+static void test_user_func( struct semantic* phase, struct func* func );
+static void test_builtin_func( struct semantic* phase, struct func* func );
 static void test_func_body( struct semantic* phase, struct func* );
 static void calc_type_size( struct type* );
 static void make_value_list( struct value_list*, struct multi_value* );
@@ -60,8 +56,7 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct type* );
 static void diag_dup_struct_member( struct task* task, struct name*, struct pos* );
 
-void s_test_constant( struct semantic* phase, struct constant* constant,
-   bool undef_err ) {
+void s_test_constant( struct semantic* phase, struct constant* constant ) {
    // Test name. Only applies in a local scope.
    if ( phase->depth ) {
       if ( ! constant->name->object ||
@@ -78,7 +73,7 @@ void s_test_constant( struct semantic* phase, struct constant* constant,
    }
    // Test expression.
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+   s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
    s_test_expr( phase, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
       if ( constant->value_node->folded ) {
@@ -93,8 +88,7 @@ void s_test_constant( struct semantic* phase, struct constant* constant,
    }
 }
 
-void s_test_constant_set( struct semantic* phase, struct constant_set* set,
-   bool undef_err ) {
+void s_test_constant_set( struct semantic* phase, struct constant_set* set ) {
    int value = 0;
    // Find the next unresolved enumerator.
    struct constant* enumerator = set->head;
@@ -119,7 +113,7 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set,
       }
       if ( enumerator->value_node ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
          s_test_expr( phase, &expr, enumerator->value_node );
          if ( expr.undef_erred ) {
             return;
@@ -140,7 +134,7 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set,
    set->object.resolved = true;
 }
 
-void s_test_type( struct semantic* phase, struct type* type, bool undef_err ) {
+void s_test_type( struct semantic* phase, struct type* type ) {
    // Name.
    if ( phase->depth ) {
       if ( type->name->object && type->name->object->depth == phase->depth ) {
@@ -153,7 +147,7 @@ void s_test_type( struct semantic* phase, struct type* type, bool undef_err ) {
    struct type_member* member = type->member;
    while ( member ) {
       if ( ! member->object.resolved ) {
-         test_type_member( phase, member, undef_err );
+         test_type_member( phase, member );
          if ( ! member->object.resolved ) {
             return;
          }
@@ -163,15 +157,14 @@ void s_test_type( struct semantic* phase, struct type* type, bool undef_err ) {
    type->object.resolved = true;
 }
 
-void test_type_member( struct semantic* phase, struct type_member* member,
-   bool undef_err ) {
+void test_type_member( struct semantic* phase, struct type_member* member ) {
    // Type:
    if ( member->type_path ) {
       if ( ! member->type ) {
          member->type = find_type( phase, member->type_path );
       }
       if ( ! member->type->object.resolved ) {
-         if ( undef_err ) {
+         if ( phase->undef_err ) {
             struct path* path = member->type_path;
             while ( path->next ) {
                path = path->next;
@@ -213,7 +206,7 @@ void test_type_member( struct semantic* phase, struct type_member* member,
    }
    while ( dim ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+      s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
       s_test_expr( phase, &expr, dim->size_node );
       if ( expr.undef_erred ) {
          return;
@@ -359,16 +352,16 @@ struct type* find_type( struct semantic* phase, struct path* path ) {
    return ( struct type* ) object;
 }
 
-void s_test_var( struct semantic* phase, struct var* var, bool undef_err ) {
-   if ( test_spec( phase, var, undef_err ) ) {
-      test_name( phase, var, undef_err );
-      if ( test_dim( phase, var, undef_err ) ) {
-         var->object.resolved = test_initz( phase, var, undef_err );
+void s_test_var( struct semantic* phase, struct var* var ) {
+   if ( test_spec( phase, var ) ) {
+      test_name( phase, var );
+      if ( test_dim( phase, var ) ) {
+         var->object.resolved = test_initz( phase, var );
       }
    }
 }
 
-bool test_spec( struct semantic* phase, struct var* var, bool undef_err ) {
+bool test_spec( struct semantic* phase, struct var* var ) {
    bool resolved = false;
    if ( var->type_path ) {
       if ( ! var->type ) {
@@ -389,7 +382,7 @@ bool test_spec( struct semantic* phase, struct var* var, bool undef_err ) {
    return true;
 }
 
-void test_name( struct semantic* phase, struct var* var, bool undef_err ) {
+void test_name( struct semantic* phase, struct var* var ) {
    // Bind name of local variable.
    if ( phase->depth ) {
       if ( var->name->object && var->name->object->depth == phase->depth ) {
@@ -403,7 +396,7 @@ void test_name( struct semantic* phase, struct var* var, bool undef_err ) {
    }
 }
 
-bool test_dim( struct semantic* phase, struct var* var, bool undef_err ) {
+bool test_dim( struct semantic* phase, struct var* var ) {
    // No need to continue when the variable is not an array.
    if ( ! var->dim ) {
       return true;
@@ -417,7 +410,7 @@ bool test_dim( struct semantic* phase, struct var* var, bool undef_err ) {
    while ( dim ) {
       if ( dim->size_node ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
          s_test_expr( phase, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return false;
@@ -452,22 +445,22 @@ bool test_dim( struct semantic* phase, struct var* var, bool undef_err ) {
    return true;
 }
 
-bool test_initz( struct semantic* phase, struct var* var, bool undef_err ) {
+bool test_initz( struct semantic* phase, struct var* var ) {
    if ( var->initial ) {
       if ( var->imported ) {
          return test_imported_object_initz( var );
       }
       else {
-         return test_object_initz( phase, var, undef_err );
+         return test_object_initz( phase, var );
       }
    }
    return true;
 }
 
-bool test_object_initz( struct semantic* phase, struct var* var, bool undef_err ) {
+bool test_object_initz( struct semantic* phase, struct var* var ) {
    struct multi_value_test test;
-   init_multi_value_test( &test, var->dim, var->type, undef_err,
-      var->is_constant_init, false );
+   init_multi_value_test( &test, var->dim, var->type, var->is_constant_init,
+      false );
    if ( var->initial->multi ) {
       bool resolved = test_multi_value( phase, &test,
          ( struct multi_value* ) var->initial );
@@ -507,12 +500,11 @@ bool test_imported_object_initz( struct var* var ) {
 }
 
 void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
-   struct type* type, bool undef_err, bool constant, bool nested ) {
+   struct type* type, bool constant, bool nested ) {
    test->dim = dim;
    test->type = type;
    test->member = ( ! dim ? type->member : NULL ); 
    test->count = 0;
-   test->undef_err = undef_err;
    test->constant = constant;
    test->nested = nested;
    test->has_string = false;
@@ -560,7 +552,7 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
       init_multi_value_test( &nested,
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->type : test->member->type ),
-         test->undef_err, test->constant, true );
+         test->constant, true );
       bool resolved = test_multi_value( phase, &nested,
          ( struct multi_value* ) initial );
       if ( nested.has_string ) {
@@ -592,7 +584,7 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
 bool test_value( struct semantic* phase, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, test->undef_err, false );
+   s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
    s_test_expr( phase, &expr, value->expr );
    if ( expr.undef_erred ) {
       return false;
@@ -642,23 +634,23 @@ bool test_value( struct semantic* phase, struct multi_value_test* test,
 }
 
 void s_test_local_var( struct semantic* phase, struct var* var ) {
-   s_test_var( phase, var, true );
+   s_test_var( phase, var );
    s_calc_var_size( var );
    if ( var->initial ) {
       s_calc_var_value_index( var );
    }
 }
 
-void s_test_func( struct semantic* phase, struct func* func, bool undef_err ) {
+void s_test_func( struct semantic* phase, struct func* func ) {
    if ( func->type == FUNC_USER ) {
-      test_user_func( phase, func, undef_err );
+      test_user_func( phase, func );
    }
    else {
-      test_builtin_func( phase, func, undef_err );
+      test_builtin_func( phase, func );
    }
 }
 
-void test_user_func( struct semantic* phase, struct func* func, bool undef_err ) {
+void test_user_func( struct semantic* phase, struct func* func ) {
    struct param* start = func->params;
    while ( start && start->object.resolved ) {
       start = start->next;
@@ -668,7 +660,7 @@ void test_user_func( struct semantic* phase, struct func* func, bool undef_err )
    while ( param ) {
       if ( param->default_value ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
          s_test_expr( phase, &expr, param->default_value );
          if ( expr.undef_erred ) {
             break;
@@ -707,8 +699,7 @@ void test_user_func( struct semantic* phase, struct func* func, bool undef_err )
    func->object.resolved = true;
 }
 
-void test_builtin_func( struct semantic* phase, struct func* func,
-   bool undef_err ) {
+void test_builtin_func( struct semantic* phase, struct func* func ) {
    // Default arguments:
    struct param* param = func->params;
    while ( param && param->object.resolved ) {
@@ -717,7 +708,7 @@ void test_builtin_func( struct semantic* phase, struct func* func,
    while ( param ) {
       if ( param->default_value ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, undef_err, false );
+         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
          s_test_expr( phase, &expr, param->default_value );
          if ( expr.undef_erred ) {
             return;
