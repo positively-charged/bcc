@@ -14,7 +14,8 @@ static void init_str_table( struct str_table* table );
 static struct type* get_type( struct task*, int type );
 static struct name* new_name( void );
 static void open_logfile( struct task* task );
-static void diag_acc( struct task* task, int, va_list* );
+void show_diag( struct task* task, int flags, va_list* args );
+void log_diag( struct task* task, int flags, va_list* args );
 static void decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 
@@ -260,37 +261,41 @@ void t_diag( struct task* task, int flags, ... ) {
 
 void t_diag_args( struct task* task, int flags, va_list* args ) {
    if ( task->options->acc_err ) {
-      diag_acc( task, flags, args );
+      log_diag( task, flags, args );
    }
    else {
-      if ( flags & DIAG_FILE ) {
-         const char* file = NULL;
-         int line = 0, column = 0;
-         decode_pos( task, va_arg( args, struct pos* ), &file, &line,
-            &column );
-         printf( "%s", file );
-         if ( flags & DIAG_LINE ) {
-            printf( ":%d", line );
-            if ( flags & DIAG_COLUMN ) {
-               printf( ":%d", column );
-            }
-         }
-         printf( ": " );
-      }
-      if ( flags & DIAG_ERR ) {
-         printf( "error: " );
-      }
-      else if ( flags & DIAG_WARN ) {
-         printf( "warning: " );
-      }
-      const char* format = va_arg( *args, const char* );
-      vprintf( format, *args );
-      printf( "\n" );
+      show_diag( task, flags, args );
    }
 }
 
+void show_diag( struct task* task, int flags, va_list* args ) {
+   if ( flags & DIAG_FILE ) {
+      const char* file = NULL;
+      int line = 0, column = 0;
+      decode_pos( task, va_arg( args, struct pos* ), &file, &line,
+         &column );
+      printf( "%s", file );
+      if ( flags & DIAG_LINE ) {
+         printf( ":%d", line );
+         if ( flags & DIAG_COLUMN ) {
+            printf( ":%d", column );
+         }
+      }
+      printf( ": " );
+   }
+   if ( flags & DIAG_ERR ) {
+      printf( "error: " );
+   }
+   else if ( flags & DIAG_WARN ) {
+      printf( "warning: " );
+   }
+   const char* format = va_arg( *args, const char* );
+   vprintf( format, *args );
+   printf( "\n" );
+}
+
 // Line format: <file>:<line>: <message>
-void diag_acc( struct task* task, int flags, va_list* args ) {
+void log_diag( struct task* task, int flags, va_list* args ) {
    if ( ! task->err_file ) {
       open_logfile( task );
    }
@@ -315,6 +320,23 @@ void diag_acc( struct task* task, int flags, va_list* args ) {
    const char* message = va_arg( *args, const char* );
    vfprintf( task->err_file, message, *args );
    fprintf( task->err_file, "\n" );
+}
+
+// TODO: Log message to file.
+void t_intern_diag( struct task* task, const char* file, int line,
+   const char* format, ... ) {
+   va_list args;
+   va_start( args, format );
+   printf( "%s:%d: internal compiler error: ", file, line );
+   vprintf( format, args );
+   printf( "\n" );
+   va_end( args );
+}
+
+void t_unhandlednode_diag( struct task* task, const char* file, int line,
+   struct node* node ) {
+   t_intern_diag( task, file, line,
+      "unhandled node type: %d", node->type );
 }
 
 void open_logfile( struct task* task ) {

@@ -31,8 +31,10 @@ static void check_dup_scripts( struct semantic* phase );
 static void calc_map_var_size( struct semantic* phase );
 static void calc_map_value_index( struct semantic* phase );
 static void count_string_usage( struct semantic* phase );
-static void count_string_usage_node( struct node* node );
-static void count_string_usage_initial( struct initial* initial );
+static void count_string_usage_node( struct semantic* phase,
+   struct node* node );
+static void count_string_usage_initial( struct semantic* phase,
+   struct initial* initial );
 static void add_loadable_libs( struct semantic* phase );
 
 void s_init( struct semantic* phase, struct task* task ) {
@@ -94,33 +96,38 @@ void bind_names( struct semantic* phase ) {
 }
 
 void bind_regionobject_name( struct semantic* phase, struct object* object ) {
-   if ( object->node.type == NODE_CONSTANT ) {
+   switch ( object->node.type ) {
+   case NODE_CONSTANT: {
       struct constant* constant = ( struct constant* ) object;
       bind_object_name( phase, constant->name, &constant->object );
-   }
-   else if ( object->node.type == NODE_CONSTANT_SET ) {
+      break; }
+   case NODE_CONSTANT_SET: {
       struct constant_set* set = ( struct constant_set* ) object;
       struct constant* constant = set->head;
       while ( constant ) {
          bind_object_name( phase, constant->name, &constant->object );
          constant = constant->next;
       }
-   }
-   else if ( object->node.type == NODE_VAR ) {
+      break; }
+   case NODE_VAR: {
       struct var* var = ( struct var* ) object;
       bind_object_name( phase, var->name, &var->object );
-   }
-   else if ( object->node.type == NODE_FUNC ) {
+      break; }
+   case NODE_FUNC: {
       struct func* func = ( struct func* ) object;
       bind_object_name( phase, func->name, &func->object );
-   }
-   else if ( object->node.type == NODE_TYPE ) {
+      break; }
+   case NODE_TYPE: {
       struct type* type = ( struct type* ) object;
       if ( type->name->object ) {
          diag_dup_struct( phase->task, type->name, &type->object.pos );
          s_bail( phase );
       }
       type->name->object = &type->object;
+      break; }
+   default:
+      t_unhandlednode_diag( phase->task, __FILE__, __LINE__, &object->node );
+      t_bail( phase->task );
    }
 }
 
@@ -224,9 +231,10 @@ void test_region_object( struct semantic* phase, struct object* object ) {
       break;
    case NODE_FUNC:
       s_test_func( phase, ( struct func* ) object );
-   default:
-      // TODO: Add internal compiler error.
       break;
+   default:
+      t_unhandlednode_diag( phase->task, __FILE__, __LINE__, &object->node );
+      t_bail( phase->task );
    }
 }
 
@@ -327,7 +335,7 @@ void count_string_usage( struct semantic* phase ) {
    list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
-      count_string_usage_node( script->body );
+      count_string_usage_node( phase, script->body );
       list_next( &i );
    }
    // Functions.
@@ -335,11 +343,11 @@ void count_string_usage( struct semantic* phase ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
-      count_string_usage_node( &impl->body->node );
+      count_string_usage_node( phase, &impl->body->node );
       struct param* param = func->params;
       while ( param ) {
          if ( param->default_value ) {
-            count_string_usage_node( &param->default_value->node );
+            count_string_usage_node( phase, &param->default_value->node );
          }
          param = param->next;
       }
@@ -348,120 +356,69 @@ void count_string_usage( struct semantic* phase ) {
    // Variables.
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
-      count_string_usage_node( list_data( &i ) );
+      count_string_usage_node( phase, list_data( &i ) );
       list_next( &i );
    }
 }
 
-void count_string_usage_node( struct node* node ) {
-   if ( node->type == NODE_BLOCK ) {
-      struct block* block = ( struct block* ) node;
-      list_iter_t i;
-      list_iter_init( &i, &block->stmts );
-      while ( ! list_end( &i ) ) {
-         count_string_usage_node( list_data( &i ) );
-         list_next( &i );
-      }
-   }
-   else if ( node->type == NODE_IF ) {
+void count_string_usage_node( struct semantic* phase, struct node* node ) {
+   switch ( node->type ) {
+   case NODE_UNARY: {
+      struct unary* unary = ( struct unary* ) node;
+      count_string_usage_node( phase, unary->operand );
+      break; }
+   case NODE_BINARY: {
+      struct binary* binary = ( struct binary* ) node;
+      count_string_usage_node( phase, binary->lside );
+      count_string_usage_node( phase, binary->rside );
+      break; }
+   case NODE_EXPR: {
+      struct expr* expr = ( struct expr* ) node;
+      count_string_usage_node( phase, expr->root );
+      break; }
+   case NODE_INDEXED_STRING_USAGE: {
+      struct indexed_string_usage* usage =
+         ( struct indexed_string_usage* ) node;
+      usage->string->used = true;
+      break; }
+   case NODE_IF: {
       struct if_stmt* stmt = ( struct if_stmt* ) node;
-      count_string_usage_node( &stmt->cond->node );
-      count_string_usage_node( stmt->body );
+      count_string_usage_node( phase, &stmt->cond->node );
+      count_string_usage_node( phase, stmt->body );
       if ( stmt->else_body ) {
-         count_string_usage_node( stmt->else_body );
+         count_string_usage_node( phase, stmt->else_body );
       }
-   }
-   else if ( node->type == NODE_SWITCH ) {
-      struct switch_stmt* stmt = ( struct switch_stmt* ) node;
-      count_string_usage_node( &stmt->cond->node );
-      count_string_usage_node( stmt->body );
-   }
-   else if ( node->type == NODE_CASE ) {
-      struct case_label* label = ( struct case_label* ) node;
-      count_string_usage_node( &label->number->node );
-   }
-   else if ( node->type == NODE_WHILE ) {
+      break; }
+   case NODE_WHILE: {
       struct while_stmt* stmt = ( struct while_stmt* ) node;
-      count_string_usage_node( &stmt->cond->node );
-      count_string_usage_node( stmt->body );
-   }
-   else if ( node->type == NODE_FOR ) {
+      count_string_usage_node( phase, &stmt->cond->node );
+      count_string_usage_node( phase, stmt->body );
+      break; }
+   case NODE_FOR: {
       struct for_stmt* stmt = ( struct for_stmt* ) node;
       // Initialization.
       list_iter_t i;
       list_iter_init( &i, &stmt->init );
       while ( ! list_end( &i ) ) {
-         count_string_usage_node( list_data( &i ) );
+         count_string_usage_node( phase, list_data( &i ) );
          list_next( &i );
       }
       // Condition.
       if ( stmt->cond ) {
-         count_string_usage_node( &stmt->cond->node );
+         count_string_usage_node( phase, &stmt->cond->node );
       }
       // Post expression.
       list_iter_init( &i, &stmt->post );
       while ( ! list_end( &i ) ) {
-         count_string_usage_node( list_data( &i ) );
+         count_string_usage_node( phase, list_data( &i ) );
          list_next( &i );
       }
       // Body.
-      count_string_usage_node( stmt->body );
-   }
-   else if ( node->type == NODE_RETURN ) {
-      struct return_stmt* stmt = ( struct return_stmt* ) node;
-      if ( stmt->return_value ) {
-         count_string_usage_node( &stmt->return_value->node );
-      }
-   }
-   else if ( node->type == NODE_FORMAT_ITEM ) {
-      struct format_item* item = ( struct format_item* ) node;
-      while ( item ) {
-         count_string_usage_node( &item->value->node );
-         item = item->next;
-      }
-   }
-   else if ( node->type == NODE_VAR ) {
-      struct var* var = ( struct var* ) node;
-      struct value* value = var->value;
-      while ( value ) {
-         if ( ! value->string_initz ) {
-            count_string_usage_node( &value->expr->node );
-         }
-         value = value->next;
-      }
-   }
-   else if ( node->type == NODE_EXPR ) {
-      struct expr* expr = ( struct expr* ) node;
-      count_string_usage_node( expr->root );
-   }
-   else if ( node->type == NODE_PACKED_EXPR ) {
-      struct packed_expr* packed_expr = ( struct packed_expr* ) node;
-      count_string_usage_node( packed_expr->expr->root );
-   }
-   else if ( node->type == NODE_NAME_USAGE ) {
-      struct name_usage* usage = ( struct name_usage* ) node;
-      count_string_usage_node( usage->object );
-   }
-   else if ( node->type == NODE_CONSTANT ) {
-      struct constant* constant = ( struct constant* ) node;
-      // Enumerators might have an automatically generated value, so make sure
-      // not to process those.
-      if ( constant->value_node ) {
-         count_string_usage_node( &constant->value_node->node );
-      }
-   }
-   else if ( node->type == NODE_INDEXED_STRING_USAGE ) {
-      struct indexed_string_usage* usage =
-         ( struct indexed_string_usage* ) node;
-      usage->string->used = true;
-   }
-   else if ( node->type == NODE_UNARY ) {
-      struct unary* unary = ( struct unary* ) node;
-      count_string_usage_node( unary->operand );
-   }
-   else if ( node->type == NODE_CALL ) {
+      count_string_usage_node( phase, stmt->body );
+      break; }
+   case NODE_CALL: {
       struct call* call = ( struct call* ) node;
-      count_string_usage_node( call->operand );
+      count_string_usage_node( phase, call->operand );
       list_iter_t i;
       list_iter_init( &i, &call->args );
       // Format arguments:
@@ -469,12 +426,12 @@ void count_string_usage_node( struct node* node ) {
          while ( ! list_end( &i ) ) {
             struct node* node = list_data( &i );
             if ( node->type == NODE_FORMAT_ITEM ) {
-               count_string_usage_node( node );
+               count_string_usage_node( phase, node );
             }
             else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
                struct format_block_usage* usage =
                   ( struct format_block_usage* ) node;
-               count_string_usage_node( &usage->block->node );
+               count_string_usage_node( phase, &usage->block->node );
             }
             else {
                break;
@@ -490,7 +447,7 @@ void count_string_usage_node( struct node* node ) {
       struct param* param = call->func->params;
       while ( ! list_end( &i ) ) {
          struct expr* expr = list_data( &i );
-         count_string_usage_node( &expr->node );
+         count_string_usage_node( phase, &expr->node );
          if ( param ) {
             param = param->next;
          }
@@ -498,40 +455,121 @@ void count_string_usage_node( struct node* node ) {
       }
       // Default arguments:
       while ( param ) {
-         count_string_usage_node( &param->default_value->node );
+         count_string_usage_node( phase, &param->default_value->node );
          param = param->next;
       }
-   }
-   else if ( node->type == NODE_BINARY ) {
-      struct binary* binary = ( struct binary* ) node;
-      count_string_usage_node( binary->lside );
-      count_string_usage_node( binary->rside );
-   }
-   else if ( node->type == NODE_ASSIGN ) {
-      struct assign* assign = ( struct assign* ) node;
-      count_string_usage_node( assign->lside );
-      count_string_usage_node( assign->rside );
-   }
-   else if ( node->type == NODE_ACCESS ) {
+      break; }
+   case NODE_FORMAT_ITEM: {
+      struct format_item* item = ( struct format_item* ) node;
+      while ( item ) {
+         count_string_usage_node( phase, &item->value->node );
+         item = item->next;
+      }
+      break; }
+   case NODE_ACCESS: {
       struct access* access = ( struct access* ) node;
-      count_string_usage_node( access->lside );
-      count_string_usage_node( access->rside );
-   }
-   else if ( node->type == NODE_PAREN ) {
+      count_string_usage_node( phase, access->lside );
+      count_string_usage_node( phase, access->rside );
+      break; }
+   case NODE_PAREN: {
       struct paren* paren = ( struct paren* ) node;
-      count_string_usage_node( paren->inside );
+      count_string_usage_node( phase, paren->inside );
+      break; }
+   case NODE_CASE: {
+      struct case_label* label = ( struct case_label* ) node;
+      count_string_usage_node( phase, &label->number->node );
+      break; }
+   case NODE_SWITCH: {
+      struct switch_stmt* stmt = ( struct switch_stmt* ) node;
+      count_string_usage_node( phase, &stmt->cond->node );
+      count_string_usage_node( phase, stmt->body );
+      break; }
+   case NODE_BLOCK: {
+      struct block* block = ( struct block* ) node;
+      list_iter_t i;
+      list_iter_init( &i, &block->stmts );
+      while ( ! list_end( &i ) ) {
+         count_string_usage_node( phase, list_data( &i ) );
+         list_next( &i );
+      }
+      break; }
+   case NODE_VAR: {
+      struct var* var = ( struct var* ) node;
+      struct value* value = var->value;
+      while ( value ) {
+         if ( ! value->string_initz ) {
+            count_string_usage_node( phase, &value->expr->node );
+         }
+         value = value->next;
+      }
+      break; }
+   case NODE_ASSIGN: {
+      struct assign* assign = ( struct assign* ) node;
+      count_string_usage_node( phase, assign->lside );
+      count_string_usage_node( phase, assign->rside );
+      break; }
+   case NODE_CONSTANT: {
+      struct constant* constant = ( struct constant* ) node;
+      // Enumerators might have an automatically generated value, so make sure
+      // not to process those.
+      if ( constant->value_node ) {
+         count_string_usage_node( phase, &constant->value_node->node );
+      }
+      break; }
+   case NODE_RETURN: {
+      struct return_stmt* stmt = ( struct return_stmt* ) node;
+      if ( stmt->return_value ) {
+         count_string_usage_node( phase, &stmt->return_value->node );
+      }
+      break; }
+   case NODE_NAME_USAGE: {
+      struct name_usage* usage = ( struct name_usage* ) node;
+      count_string_usage_node( phase, usage->object );
+      break; }
+   case NODE_PACKED_EXPR: {
+      struct packed_expr* packed_expr = ( struct packed_expr* ) node;
+      count_string_usage_node( phase, packed_expr->expr->root );
+      break; }
+   case NODE_NONE:
+   case NODE_LITERAL:
+   case NODE_JUMP:
+   case NODE_SCRIPT_JUMP:
+   case NODE_FORMAT_BLOCK_USAGE:
+   case NODE_FUNC:
+   case NODE_SUBSCRIPT:
+   case NODE_CASE_DEFAULT:
+   case NODE_GOTO:
+   case NODE_GOTO_LABEL:
+   case NODE_TYPE:
+   case NODE_TYPE_MEMBER:
+   case NODE_CONSTANT_SET:
+   case NODE_PARAM:
+   case NODE_PALTRANS:
+   case NODE_ALIAS:
+   case NODE_BOOLEAN:
+   case NODE_IMPORT:
+   case NODE_REGION:
+   case NODE_REGION_HOST:
+   case NODE_REGION_UPMOST:
+   case NODE_SCRIPT:
+      // Nothing to do with these nodes.
+      break;
+   default:
+      t_unhandlednode_diag( phase->task, __FILE__, __LINE__, node );
+      t_bail( phase->task );
    }
 }
 
-void count_string_usage_initial( struct initial* initial ) {
+void count_string_usage_initial( struct semantic* phase,
+   struct initial* initial ) {
    while ( initial ) {
       if ( initial->multi ) {
          struct multi_value* multi_value = ( struct multi_value* ) initial;
-         count_string_usage_initial( multi_value->body );
+         count_string_usage_initial( phase, multi_value->body );
       }
       else {
          struct value* value = ( struct value* ) initial;
-         count_string_usage_node( &value->expr->node );
+         count_string_usage_node( phase, &value->expr->node );
       }
       initial = initial->next;
    }
