@@ -479,6 +479,8 @@ void read_return( struct parse* phase, struct stmt_reading* reading ) {
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
    stmt->return_value = NULL;
+   stmt->next = NULL;
+   stmt->obj_pos = 0;
    stmt->pos = phase->tk_pos;
    p_read_tk( phase );
    if ( phase->tk == TK_SEMICOLON ) {

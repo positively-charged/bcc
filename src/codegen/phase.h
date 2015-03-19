@@ -31,6 +31,7 @@ struct codegen {
    bool push_immediate;
    struct block_visit* block_visit;
    struct block_visit* block_visit_free;
+   struct block_visit* func_visit;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -51,5 +52,6 @@ void c_seek_end( struct codegen* );
 int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
+void t_alloc_indexes( struct codegen* phase );
 
 #endif

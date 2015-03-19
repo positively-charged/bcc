@@ -40,6 +40,8 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->case_default = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
+   test->nested_funcs = NULL;
+   test->returns = NULL;
    test->in_loop = false;
    test->in_switch = false;
    test->in_script = false;
@@ -81,6 +83,9 @@ void test_block_item( struct semantic* phase, struct stmt_test* test,
       break;
    case NODE_TYPE:
       s_test_type( phase, ( struct type* ) node );
+      break;
+   case NODE_FUNC:
+      s_test_func( phase, ( struct func* ) node );
       break;
    case NODE_CASE:
       test_case( phase, test, ( struct case_label* ) node );
@@ -435,6 +440,8 @@ void test_return( struct semantic* phase, struct stmt_test* test,
       }
       target = target->parent;
    }
+   stmt->next = phase->func_test->returns;
+   phase->func_test->returns = stmt;
 }
 
 void test_goto( struct semantic* phase, struct stmt_test* test,

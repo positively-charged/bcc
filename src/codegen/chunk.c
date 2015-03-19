@@ -27,6 +27,7 @@ static void do_astr( struct codegen* phase );
 
 void c_write_chunk_obj( struct codegen* phase ) {
    alloc_index( phase );
+   t_alloc_indexes( phase );
    if ( phase->task->library_main->format == FORMAT_LITTLE_E ) {
       phase->compress = true;
    }
@@ -378,7 +379,7 @@ void do_func( struct codegen* phase ) {
       if ( func->min_param != func->max_param ) {
          ++entry.params;
       }
-      entry.size = ( char ) impl->size;
+      entry.size = ( char ) ( impl->size - func->max_param );
       entry.value = ( char ) ( func->return_type != NULL );
       entry.offset = impl->obj_pos;
       c_add_sized( phase, &entry, sizeof( entry ) );

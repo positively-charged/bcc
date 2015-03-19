@@ -10,6 +10,7 @@ void c_init( struct codegen* phase, struct task* task ) {
    phase->compress = false;
    phase->block_visit = NULL;
    phase->block_visit_free = NULL;
+   phase->func_visit = NULL;
    c_init_obj( phase );
 }
 

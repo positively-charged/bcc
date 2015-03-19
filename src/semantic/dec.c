@@ -46,6 +46,7 @@ static bool test_value( struct semantic* phase, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value );
 static void calc_dim_size( struct dim*, struct type* );
 static void test_user_func( struct semantic* phase, struct func* func );
+static bool test_func_params( struct semantic* semantic, struct func* func );
 static void test_builtin_func( struct semantic* phase, struct func* func );
 static void test_func_body( struct semantic* phase, struct func* );
 static void calc_type_size( struct type* );
@@ -650,53 +651,66 @@ void s_test_func( struct semantic* phase, struct func* func ) {
    }
 }
 
-void test_user_func( struct semantic* phase, struct func* func ) {
-   struct param* start = func->params;
-   while ( start && start->object.resolved ) {
-      start = start->next;
+void test_user_func( struct semantic* semantic, struct func* func ) {
+   struct func_user* impl = func->impl;
+   // Test name of nested function.
+   if ( impl->nested ) {
+      if ( func->name->object && func->name->object->depth == semantic->depth ) {
+         struct str str;
+         str_init( &str );
+         t_copy_name( func->name, false, &str );
+         diag_dup( semantic->task, str.value, &func->object.pos, func->name );
+         s_bail( semantic );
+      }
+      s_bind_local_name( semantic, func->name, &func->object );
    }
-   // Default arguments:
-   struct param* param = start;
+   s_add_scope( semantic );
+   if ( test_func_params( semantic, func ) ) {
+      func->object.resolved = true;
+      // Test body of nested function.
+      if ( impl->nested ) {
+         impl->next_nested = semantic->topfunc_test->nested_funcs;
+         semantic->topfunc_test->nested_funcs = func;
+         s_test_func_body( semantic, func );
+      }
+   }
+   s_pop_scope( semantic );
+}
+
+bool test_func_params( struct semantic* semantic, struct func* func ) {
+   // Skip tested parameters.
+   struct param* param = func->params;
+   while ( param && param->object.resolved ) {
+      param = param->next;
+   }
    while ( param ) {
       if ( param->default_value ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
-         s_test_expr( phase, &expr, param->default_value );
+         s_init_expr_test( &expr, NULL, NULL, true, semantic->undef_err,
+            false );
+         s_test_expr( semantic, &expr, param->default_value );
          if ( expr.undef_erred ) {
-            break;
+            return false;
          }
       }
       // Any previous parameter is visible inside the expression of a
       // default parameter.
       if ( param->name ) {
          if ( param->name->object &&
-            param->name->object->node.type == NODE_PARAM ) {               
+            param->name->object->depth == semantic->depth ) {
             struct str str;
             str_init( &str );
             t_copy_name( param->name, false, &str );
-            diag_dup( phase->task, str.value, &param->object.pos, param->name );
-            s_bail( phase );
+            diag_dup( semantic->task, str.value, &param->object.pos,
+               param->name );
+            s_bail( semantic );
          }
-         param->object.next_scope = param->name->object;
-         param->name->object = &param->object;
+         s_bind_local_name( semantic, param->name, &param->object );
       }
       param->object.resolved = true;
       param = param->next;
    }
-   // Remove parameters from the top scope.
-   struct param* stop = param;
-   param = start;
-   while ( param != stop ) {
-      if ( param->name ) {
-         param->name->object = param->object.next_scope;
-      }
-      param = param->next;
-   }
-   // When stopped at a parameter, that parameter has not been resolved.
-   if ( stop ) {
-      return;
-   }
-   func->object.resolved = true;
+   return true;
 }
 
 void test_builtin_func( struct semantic* phase, struct func* func ) {
@@ -723,24 +737,37 @@ void test_builtin_func( struct semantic* phase, struct func* func ) {
 }
 
 void s_test_func_body( struct semantic* phase, struct func* func ) {
-   s_add_scope( phase );
-   struct param* param = func->params;
-   while ( param ) {
-      if ( param->name ) {
-         s_bind_local_name( phase, param->name, ( struct object* ) param );
-      }
-      param = param->next;
-   }
    struct func_user* impl = func->impl;
+   if ( ! impl->nested ) {
+      s_add_scope( phase );
+      struct param* param = func->params;
+      while ( param ) {
+         if ( param->name ) {
+            s_bind_local_name( phase, param->name, ( struct object* ) param );
+         }
+         param = param->next;
+      }
+   }
    struct stmt_test test;
    s_init_stmt_test( &test, NULL );
    test.func = func;
    test.manual_scope = true;
    test.labels = &impl->labels;
+   if ( ! impl->nested ) {
+      phase->topfunc_test = &test;
+   }
+   struct stmt_test* prev = phase->func_test;
    phase->func_test = &test;
    s_test_block( phase, &test, impl->body );
-   phase->func_test = NULL;
-   s_pop_scope( phase );
+   phase->func_test = prev;
+   impl->returns = test.returns;
+   if ( ! impl->nested ) {
+      impl->nested_funcs = test.nested_funcs;
+      phase->topfunc_test = NULL;
+   }
+   if ( ! impl->nested ) {
+      s_pop_scope( phase );
+   }
 }
 
 void s_test_script( struct semantic* phase, struct script* script ) {
@@ -802,8 +829,11 @@ void test_script_body( struct semantic* phase, struct script* script ) {
    test.in_script = true;
    test.manual_scope = true;
    test.labels = &script->labels;
-   phase->func_test = &test;
+   phase->topfunc_test = &test;
+   phase->func_test = phase->topfunc_test;
    s_test_stmt( phase, &test, script->body );
+   script->nested_funcs = test.nested_funcs;
+   phase->topfunc_test = NULL;
    phase->func_test = NULL;
    s_pop_scope( phase );
 }

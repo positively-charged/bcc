@@ -715,6 +715,7 @@ void read_call( struct parse* phase, struct expr_reading* reading ) {
    call->pos = pos;
    call->operand = reading->node;
    call->func = NULL;
+   call->nested_call = NULL;
    call->args = args;
    reading->node = &call->node;
 }
@@ -840,6 +841,7 @@ void read_format_item_array_value( struct parse* phase,
          struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
          extra->offset = offset;
          extra->length = length;
+         extra->offset_var = 0;
          item->extra = extra;
       }
       p_test_tk( phase, TK_PAREN_R );

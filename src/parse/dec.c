@@ -750,7 +750,6 @@ void read_func( struct parse* phase, struct dec* dec ) {
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;
-   p_add_unresolved( phase->region, &func->object );
    // Parameter list:
    p_test_tk( phase, TK_PAREN_L );
    struct pos params_pos = phase->tk_pos;
@@ -771,10 +770,17 @@ void read_func( struct parse* phase, struct dec* dec ) {
       struct func_user* impl = mem_alloc( sizeof( *impl ) );
       list_init( &impl->labels );
       impl->body = NULL;
+      impl->next_nested = NULL;
+      impl->nested_funcs = NULL;
+      impl->nested_calls = NULL;
+      impl->returns = NULL;
       impl->index = 0;
       impl->size = 0;
       impl->usage = 0;
       impl->obj_pos = 0;
+      impl->return_pos = 0;
+      impl->index_offset = 0;
+      impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;
       func->impl = impl;
       // Only read the function body when it is needed.
@@ -787,17 +793,11 @@ void read_func( struct parse* phase, struct dec* dec ) {
       else {
          p_skip_block( phase );
       }
-      list_append( &phase->task->library->funcs, func );
-      list_append( &phase->region->items, func );
    }
    else {
       read_bfunc( phase, func );
       p_test_tk( phase, TK_SEMICOLON );
       p_read_tk( phase );
-   }
-   if ( dec->area != DEC_TOP ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->pos, "nested function" );
-      p_bail( phase );
    }
    if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
       p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
@@ -824,6 +824,16 @@ void read_func( struct parse* phase, struct dec* dec ) {
             "format parameter outside format function" );
          p_bail( phase );
       }
+   }
+   if ( dec->area == DEC_TOP ) {
+      p_add_unresolved( phase->region, &func->object );
+      if ( func->type == FUNC_USER ) {
+         list_append( &phase->task->library->funcs, func );
+         list_append( &phase->region->items, func );
+      }
+   }
+   else {
+      list_append( dec->vars, func );
    }
 }
 
@@ -1018,6 +1028,8 @@ void p_read_script( struct parse* phase ) {
    script->flags = 0;
    script->params = NULL;
    script->body = NULL;
+   script->nested_funcs = NULL;
+   script->nested_calls = NULL;
    list_init( &script->labels );
    script->num_param = 0;
    script->offset = 0;

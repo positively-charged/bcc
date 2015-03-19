@@ -233,7 +233,15 @@ struct call {
    struct pos pos;
    struct node* operand;
    struct func* func;
+   struct nested_call* nested_call;
    struct list args;
+};
+
+struct nested_call {
+   struct call* next;
+   int enter_pos;
+   int leave_pos;
+   int id;
 };
 
 struct expr {
@@ -276,7 +284,9 @@ struct script_jump {
 struct return_stmt {
    struct node node;
    struct packed_expr* return_value;
+   struct return_stmt* next;
    struct pos pos;
+   int obj_pos;
 };
 
 struct block {
@@ -462,6 +472,7 @@ struct format_item {
 struct format_item_array {
    struct expr* offset;
    struct expr* length;
+   int offset_var;
 };
 
 struct format_block_usage {
@@ -482,10 +493,17 @@ struct func_format {
 struct func_user {
    struct list labels;
    struct block* body;
+   struct func* next_nested;
+   struct func* nested_funcs;
+   struct call* nested_calls;
+   struct return_stmt* returns;
    int index;
    int size;
    int usage;
    int obj_pos;
+   int return_pos;
+   int index_offset;
+   bool nested;
    bool publish;
 };
 
@@ -572,6 +590,8 @@ struct script {
    } flags;
    struct param* params;
    struct node* body;
+   struct func* nested_funcs;
+   struct call* nested_calls;
    struct list labels;
    int num_param;
    int offset;

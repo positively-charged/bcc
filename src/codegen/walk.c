@@ -30,15 +30,21 @@ struct operand {
 struct block_visit {
    struct block_visit* prev;
    struct format_block_usage* format_block_usage;
-   int size;
-   int size_high;
+   bool nested_func;
 };
 
+struct nestedfunc_writing {
+   struct func* nested_funcs;
+   struct call* nested_calls;
+   int temps_start;
+   int temps_size;
+};
+
+static void write_script( struct codegen* phase, struct script* script );
+static void write_userfunc( struct codegen* phase, struct func* func );
 static void visit_block( struct codegen* phase, struct block* stmt );
 static void add_block_visit( struct codegen* phase );
 static void pop_block_visit( struct codegen* phase );
-static int alloc_script_var( struct codegen* phase );
-static void dealloc_last_script_var( struct codegen* phase );
 static void visit_var( struct codegen* phase, struct var* var );
 static void write_world_initz( struct codegen* phase, struct var* var );
 static void init_world_array( struct codegen* phase, struct var* );
@@ -75,6 +81,10 @@ static void visit_array_format_item( struct codegen* phase,
    struct format_item* );
 static void visit_user_call( struct codegen* phase, struct operand*,
    struct call* );
+static void write_call_args( struct codegen* phase, struct operand* operand,
+   struct call* call );
+static void visit_nested_userfunc_call( struct codegen* phase,
+   struct operand* operand, struct call* call );
 static void visit_internal_call( struct codegen* phase, struct operand*,
    struct call* );
 static void visit_binary( struct codegen* phase, struct operand*,
@@ -108,7 +118,16 @@ static void visit_jump( struct codegen* phase, struct jump* );
 static void add_jumps( struct codegen* phase, struct jump*, int );
 static void visit_return( struct codegen* phase, struct return_stmt* );
 static void visit_paltrans( struct codegen* phase, struct paltrans* );
-static void add_default_params( struct codegen* phase, struct func* );
+static void add_default_params( struct codegen* phase, struct func*,
+   int count_param, bool reset_count_param );
+void init_nestedfunc_writing( struct nestedfunc_writing* writing,
+   struct func* nested_funcs, struct call* nested_calls, int temps_start );
+static void write_nested_funcs( struct codegen* phase,
+   struct nestedfunc_writing* writing );
+static void write_one_nestedfunc( struct codegen* phase,
+   struct nestedfunc_writing* writing, struct func* func );
+static void patch_nestedfunc_addresses( struct codegen* phase,
+   struct func* func );
 
 static const int g_aspec_code[] = {
    PCD_LSPEC1,
@@ -123,42 +142,13 @@ void c_write_user_code( struct codegen* phase ) {
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
-      struct script* script = list_data( &i );
-      script->offset = c_tell( phase );
-      add_block_visit( phase );
-      struct param* param = script->params;
-      while ( param ) {
-         param->index = alloc_script_var( phase );
-         param = param->next;
-      }
-      visit_node( phase, script->body );
-      c_add_opc( phase, PCD_TERMINATE );
-      script->size = phase->block_visit->size_high;
-      pop_block_visit( phase );
+      write_script( phase, list_data( &i ) );
       list_next( &i );
    }
    // Functions.
    list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );   
-      struct func_user* impl = func->impl;
-      impl->obj_pos = c_tell( phase );
-      add_block_visit( phase );
-      struct param* param = func->params;
-      while ( param ) {
-         param->index = alloc_script_var( phase );
-         param = param->next;
-      }
-      add_default_params( phase, func );
-      list_iter_t k;
-      list_iter_init( &k, &impl->body->stmts );
-      while ( ! list_end( &k ) ) {
-         visit_node( phase, list_data( &k ) );
-         list_next( &k );
-      }
-      c_add_opc( phase, PCD_RETURNVOID );
-      impl->size = phase->block_visit->size_high - func->max_param;
-      pop_block_visit( phase );
+      write_userfunc( phase, list_data( &i ) );
       list_next( &i );
    }
    // When utilizing the Little-E format, where instructions can be of
@@ -171,6 +161,43 @@ void c_write_user_code( struct codegen* phase ) {
          --i;
       }
    }
+}
+
+void write_script( struct codegen* phase, struct script* script ) {
+   script->offset = c_tell( phase );
+   add_block_visit( phase );
+   visit_node( phase, script->body );
+   c_add_opc( phase, PCD_TERMINATE );
+   if ( script->nested_funcs ) {
+      struct nestedfunc_writing writing;
+      init_nestedfunc_writing( &writing, script->nested_funcs,
+         script->nested_calls, script->size );
+      write_nested_funcs( phase, &writing );
+      script->size += writing.temps_size;
+   }
+   pop_block_visit( phase );
+}
+
+void write_userfunc( struct codegen* phase, struct func* func ) {
+   struct func_user* impl = func->impl;
+   impl->obj_pos = c_tell( phase );
+   add_block_visit( phase );
+   add_default_params( phase, func, func->max_param, true );
+   list_iter_t k;
+   list_iter_init( &k, &impl->body->stmts );
+   while ( ! list_end( &k ) ) {
+      visit_node( phase, list_data( &k ) );
+      list_next( &k );
+   }
+   c_add_opc( phase, PCD_RETURNVOID );
+   if ( impl->nested_funcs ) {
+      struct nestedfunc_writing writing;
+      init_nestedfunc_writing( &writing, impl->nested_funcs,
+         impl->nested_calls, impl->size );
+      write_nested_funcs( phase, &writing );
+      impl->size += writing.temps_size;
+   }
+   pop_block_visit( phase );
 }
 
 void visit_block( struct codegen* phase, struct block* block ) {
@@ -196,46 +223,27 @@ void add_block_visit( struct codegen* phase ) {
    visit->prev = phase->block_visit;
    phase->block_visit = visit;
    visit->format_block_usage = NULL;
-   visit->size = 0;
-   visit->size_high = 0;
-   if ( visit->prev ) {
-      visit->size = visit->prev->size;
-      visit->size_high = visit->size;
+   visit->nested_func = false;
+   if ( ! visit->prev ) {
+      phase->func_visit = visit;
    }
 }
 
 void pop_block_visit( struct codegen* phase ) {
    struct block_visit* prev = phase->block_visit->prev;
-   if ( prev && phase->block_visit->size_high > prev->size_high ) {
-      prev->size_high = phase->block_visit->size_high;
+   if ( ! prev ) {
+      phase->func_visit = NULL;
    }
    phase->block_visit->prev = phase->block_visit_free;
    phase->block_visit_free = phase->block_visit;
    phase->block_visit = prev;
 }
 
-int alloc_script_var( struct codegen* phase ) {
-   int index = phase->block_visit->size;
-   ++phase->block_visit->size;
-   if ( phase->block_visit->size > phase->block_visit->size_high ) {
-      phase->block_visit->size_high = phase->block_visit->size;
-   }
-   return index;
-}
-
-void dealloc_last_script_var( struct codegen* phase ) {
-   --phase->block_visit->size;
-}
-
 void visit_var( struct codegen* phase, struct var* var ) {
    if ( var->storage == STORAGE_LOCAL ) {
       if ( var->value ) {
          push_expr( phase, var->value->expr, false );
-         var->index = alloc_script_var( phase );
          update_indexed( phase, var->storage, var->index, AOP_NONE );
-      }
-      else {
-         var->index = alloc_script_var( phase );
       }
    }
    else if ( var->storage == STORAGE_WORLD ||
@@ -760,6 +768,26 @@ void visit_ded_call( struct codegen* phase, struct operand* operand,
 
 void visit_user_call( struct codegen* phase, struct operand* operand,
    struct call* call ) {
+   struct func_user* impl = call->func->impl;
+   if ( impl->nested ) {
+      visit_nested_userfunc_call( phase, operand, call );
+   }
+   else {
+      write_call_args( phase, operand, call );
+      if ( call->func->return_type ) {
+         c_add_opc( phase, PCD_CALL );
+         c_add_arg( phase, impl->index );
+         operand->pushed = true;
+      }
+      else {
+         c_add_opc( phase, PCD_CALLDISCARD );
+         c_add_arg( phase, impl->index );
+      }
+   }
+}
+
+void write_call_args( struct codegen* phase, struct operand* operand,
+   struct call* call ) {
    list_iter_t i;
    list_iter_init( &i, &call->args );
    struct param* param = call->func->params;
@@ -780,15 +808,20 @@ void visit_user_call( struct codegen* phase, struct operand* operand,
       c_add_opc( phase, PCD_PUSHNUMBER );
       c_add_arg( phase, list_size( &call->args ) );
    }
-   struct func_user* impl = call->func->impl;
+}
+
+void visit_nested_userfunc_call( struct codegen* phase,
+   struct operand* operand, struct call* call ) {
+   // Push ID of entry to identify return address. 
+   c_add_opc( phase, PCD_PUSHNUMBER );
+   c_add_arg( phase, call->nested_call->id );
+   write_call_args( phase, operand, call );
+   call->nested_call->enter_pos = c_tell( phase );
+   c_add_opc( phase, PCD_GOTO );
+   c_add_arg( phase, 0 );
+   call->nested_call->leave_pos = c_tell( phase );
    if ( call->func->return_type ) {
-      c_add_opc( phase, PCD_CALL );
-      c_add_arg( phase, impl->index );
       operand->pushed = true;
-   }
-   else {
-      c_add_opc( phase, PCD_CALLDISCARD );
-      c_add_arg( phase, impl->index );
    }
 }
 
@@ -915,7 +948,6 @@ void visit_format_item( struct codegen* phase, struct format_item* item ) {
 void visit_array_format_item( struct codegen* phase, struct format_item* item ) {
    int label_zerolength = 0;
    int label_done = 0;
-   int local_start = 0;
    struct format_item_array* extra = item->extra;
    struct operand object;
    init_operand( &object );
@@ -926,16 +958,15 @@ void visit_array_format_item( struct codegen* phase, struct format_item* item ) 
       c_add_opc( phase, PCD_ADD );
    }
    if ( extra && extra->length ) {
-      local_start = alloc_script_var( phase );
       c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, local_start );
+      c_add_arg( phase, extra->offset_var );
       push_expr( phase, extra->length, false );
       label_zerolength = c_tell( phase );
       c_add_opc( phase, PCD_CASEGOTO );
       c_add_arg( phase, 0 );
       c_add_arg( phase, 0 );
       c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, local_start );
+      c_add_arg( phase, extra->offset_var );
       c_add_opc( phase, PCD_ADD );
       c_add_opc( phase, PCD_PUSHNUMBER );
       c_add_arg( phase, 1 );
@@ -948,8 +979,7 @@ void visit_array_format_item( struct codegen* phase, struct format_item* item ) 
       c_add_arg( phase, 0 );
       update_element( phase, object.storage, object.index, AOP_NONE );
       c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, local_start );
-      dealloc_last_script_var( phase );
+      c_add_arg( phase, extra->offset_var );
    }
    c_add_opc( phase, PCD_PUSHNUMBER );
    c_add_arg( phase, object.index );
@@ -1759,12 +1789,22 @@ void add_jumps( struct codegen* phase, struct jump* jump, int pos ) {
 }
 
 void visit_return( struct codegen* phase, struct return_stmt* stmt ) {
-   if ( stmt->return_value ) {
-      push_expr( phase, stmt->return_value->expr, false );
-      c_add_opc( phase, PCD_RETURNVAL );
+   if ( phase->func_visit->nested_func ) {
+      if ( stmt->return_value ) {
+         push_expr( phase, stmt->return_value->expr, false );
+      }
+      stmt->obj_pos = c_tell( phase );
+      c_add_opc( phase, PCD_GOTO );
+      c_add_arg( phase, 0 );
    }
    else {
-      c_add_opc( phase, PCD_RETURNVOID );
+      if ( stmt->return_value ) {
+         push_expr( phase, stmt->return_value->expr, false );
+         c_add_opc( phase, PCD_RETURNVAL );
+      }
+      else {
+         c_add_opc( phase, PCD_RETURNVOID );
+      }
    }
 }
 
@@ -1794,7 +1834,8 @@ void visit_paltrans( struct codegen* phase, struct paltrans* trans ) {
    c_add_opc( phase, PCD_ENDTRANSLATION );
 }
 
-void add_default_params( struct codegen* phase, struct func* func ) {
+void add_default_params( struct codegen* phase, struct func* func,
+   int count_param, bool reset_count_param ) {
    // Find first default parameter.
    struct param* param = func->params;
    while ( param && ! param->default_value ) {
@@ -1814,7 +1855,7 @@ void add_default_params( struct codegen* phase, struct func* func ) {
       // A hidden parameter is used to store the number of arguments passed to
       // the function. This parameter is found after the last visible parameter.
       c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, func->max_param );
+      c_add_arg( phase, count_param );
       int jump = c_tell( phase );
       c_add_opc( phase, PCD_CASEGOTOSORTED );
       c_add_arg( phase, 0 );
@@ -1859,9 +1900,194 @@ void add_default_params( struct codegen* phase, struct func* func ) {
    }
    if ( start ) {
       // Reset the parameter-count parameter.
+      if ( reset_count_param ) {
+         c_add_opc( phase, PCD_PUSHNUMBER );
+         c_add_arg( phase, 0 );
+         c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
+         c_add_arg( phase, count_param );
+      }
+   }
+}
+
+void init_nestedfunc_writing( struct nestedfunc_writing* writing,
+   struct func* nested_funcs, struct call* nested_calls, int temps_start ) {
+   writing->nested_funcs = nested_funcs;
+   writing->nested_calls = nested_calls;
+   writing->temps_start = temps_start;
+   writing->temps_size = 0;
+}
+
+void write_nested_funcs( struct codegen* phase,
+   struct nestedfunc_writing* writing ) {
+   phase->func_visit->nested_func = true;
+   struct func* func = writing->nested_funcs;
+   while ( func ) {
+      write_one_nestedfunc( phase, writing, func );
+      struct func_user* impl = func->impl;
+      func = impl->next_nested;
+   }
+   // Insert address of function into each call.
+   func = writing->nested_funcs;
+   while ( func ) {
+      struct func_user* impl = func->impl;
+      patch_nestedfunc_addresses( phase, func );
+      func = impl->next_nested;
+   }
+   c_seek_end( phase );
+   phase->func_visit->nested_func = false;
+}
+
+void write_one_nestedfunc( struct codegen* phase,
+   struct nestedfunc_writing* writing, struct func* func ) {
+   struct func_user* impl = func->impl;
+
+   // Count number of times function is called.
+   int num_entries = 0;
+   struct call* call = impl->nested_calls;
+   while ( call ) {
+      ++num_entries;
+      struct nested_call* nested = call->nested_call;
+      call = nested->next;
+   }
+   // Don't write the function when it isn't used.
+   if ( ! num_entries ) {
+      return;
+   }
+
+   // Prologue:
+   // -----------------------------------------------------------------------
+   impl->obj_pos = c_tell( phase );
+
+   // Assign arguments to temporary space.
+   int temps_index = writing->temps_start;
+   if ( func->min_param != func->max_param ) {
+      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( phase, temps_index );
+      ++temps_index;
+   }
+   struct param* param = func->params;
+   while ( param ) {
+      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( phase, temps_index );
+      ++temps_index;
+      param = param->next;
+   }
+
+   // The function uses variables of the script or function as its workspace.
+   // Save the values of these variables onto the stack. They will be restored
+   // at epilogue.
+   int i = 0;
+   while ( i < impl->size ) {
+      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
+      c_add_arg( phase, impl->index_offset + i );
+      ++i;
+   }
+
+   // Activate parameters.
+   int temps_size = temps_index - writing->temps_start;
+   param = func->params;
+   while ( param ) {
+      --temps_index;
+      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
+      c_add_arg( phase, temps_index );
+      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( phase, param->index );
+      param = param->next;
+   }
+   if ( func->min_param != func->max_param ) {
+      --temps_index;
+      add_default_params( phase, func, temps_index, false );
+   }
+
+   // Body:
+   // -----------------------------------------------------------------------
+   int body_pos = c_tell( phase );
+   visit_block( phase, impl->body );
+   if ( func->return_type ) {
       c_add_opc( phase, PCD_PUSHNUMBER );
       c_add_arg( phase, 0 );
+   }
+
+   // Epilogue:
+   // -----------------------------------------------------------------------
+   int epilogue_pos = c_tell( phase );
+
+   // Temporarily save the return-value.
+   int temps_return = 0;
+   if ( impl->size > 2 && func->return_type ) {
+      // Use the last temporary variable.
+      temps_return = writing->temps_start;
+      temps_size += ( ! temps_size ? 1 : 0 );
       c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, func->max_param );
+      c_add_arg( phase, temps_return );
+   }
+
+   // Restore previous values of script variables.
+   i = 0;
+   while ( i < impl->size ) {
+      if ( impl->size <= 2 && func->return_type ) {
+         c_add_opc( phase, PCD_SWAP );
+      }
+      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( phase, impl->index_offset + impl->size - i - 1 );
+      ++i;
+   }
+
+   // Return-value.
+   if ( func->return_type ) {
+      if ( impl->size > 2 ) {
+         c_add_opc( phase, PCD_PUSHSCRIPTVAR );
+         c_add_arg( phase, temps_return );
+      }
+      c_add_opc( phase, PCD_SWAP );
+   }
+
+   // Output return table.
+   impl->return_pos = c_tell( phase );
+   c_add_opc( phase, PCD_CASEGOTOSORTED );
+   c_add_arg( phase, num_entries );
+   call = impl->nested_calls;
+   while ( call ) {
+      c_add_arg( phase, 0 );
+      c_add_arg( phase, 0 );
+      call = call->nested_call->next;
+   }
+
+   // Patch address of return-statements.
+   struct return_stmt* stmt = impl->returns;
+   while ( stmt ) {
+      c_seek( phase, stmt->obj_pos );
+      c_add_opc( phase, PCD_GOTO );
+      c_add_arg( phase, epilogue_pos );
+      stmt = stmt->next;
+   }
+   c_seek_end( phase );
+
+   if ( temps_size > writing->temps_size ) {
+      writing->temps_size = temps_size;
+   }
+}
+
+void patch_nestedfunc_addresses( struct codegen* phase, struct func* func ) {
+   struct func_user* impl = func->impl; 
+   // Correct calls to this function.
+   int num_entries = 0;
+   struct call* call = impl->nested_calls;
+   while ( call ) {
+      c_seek( phase, call->nested_call->enter_pos );
+      c_add_opc( phase, PCD_GOTO );
+      c_add_arg( phase, impl->obj_pos );
+      call = call->nested_call->next;
+      ++num_entries;
+   }
+   // Correct return-addresses in return-table.
+   c_seek( phase, impl->return_pos );
+   c_add_opc( phase, PCD_CASEGOTOSORTED );
+   c_add_arg( phase, num_entries );
+   call = impl->nested_calls;
+   while ( call ) {
+      c_add_arg( phase, call->nested_call->id );
+      c_add_arg( phase, call->nested_call->leave_pos );
+      call = call->nested_call->next;
    }
 }

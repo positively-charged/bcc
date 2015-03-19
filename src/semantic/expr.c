@@ -527,6 +527,18 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
    if ( test.func->return_type ) {
       operand->usable = true;
    }
+   if ( call->func->type == FUNC_USER ) {
+      struct func_user* impl = call->func->impl;
+      if ( impl->nested ) {
+         struct nested_call* nested = mem_alloc( sizeof( *nested ) );
+         nested->next = impl->nested_calls;
+         nested->id = 0;
+         nested->enter_pos = 0;
+         nested->leave_pos = 0;
+         impl->nested_calls = call;
+         call->nested_call = nested;
+      }
+   }
 }
 
 void test_call_args( struct semantic* phase, struct expr_test* expr_test,

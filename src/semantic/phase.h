@@ -12,6 +12,8 @@ struct stmt_test {
    struct case_label* case_default;
    struct jump* jump_break;
    struct jump* jump_continue;
+   struct func* nested_funcs;
+   struct return_stmt* returns;
    bool in_loop;
    bool in_switch;
    bool in_script;
@@ -38,6 +40,7 @@ struct semantic {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
+   struct stmt_test* topfunc_test;
    struct stmt_test* func_test;
    int depth;
    bool undef_err;
