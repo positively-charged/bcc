@@ -752,4 +752,9 @@ struct region* t_alloc_region( struct task* task, struct name* name,
    bool upmost );
 struct type* t_create_type( struct task* task, struct name* name );
 
+#define T_ASSERT( task, cond ) \
+   if ( ! ( cond ) ) { \
+   }
+   
+
 #endif

@@ -21,18 +21,26 @@ static void assign_nestedcalls_id( struct codegen* phase,
    struct func* nested_funcs );
 static void visit_func( struct codegen* phase, struct func* func );
 static void visit_block( struct alloc* alloc, struct block* block );
+static void visit_block_item( struct alloc* alloc, struct node* node );
 static void init_func_alloc( struct func_alloc* alloc, int start_index );
 static void init_alloc( struct alloc* alloc, struct codegen* phase,
    struct func_alloc* func_alloc );
-static void visit_node( struct alloc* alloc, struct node* node );
+static void visit_stmt( struct alloc* alloc, struct node* node );
 static void visit_for( struct alloc* alloc, struct for_stmt* stmt );
-static void visit_call( struct alloc* alloc, struct call* call );
 static void visit_nested_func( struct alloc* alloc, struct func* func );
 static void visit_var( struct alloc* alloc, struct var* var );
 static void visit_format_item( struct alloc* alloc, struct format_item* item );
 static int alloc_scriptvar( struct alloc* alloc );
 static void dealloc_lastscriptvar( struct alloc* alloc );
+static void visit_expr( struct alloc* alloc, struct node* node );
+static void visit_call( struct alloc* alloc, struct call* call );
 
+// - Allocates index for local variables.
+// - Determines which strings need to be present at runtime.
+//   ------------------------------------------------------------------------
+//   Counting the usage of strings is done so only strings that are used are
+//   outputted into the object file. There is no need to output the default
+//   arguments of the MorphActor() function if it's never called, say.
 void t_alloc_indexes( struct codegen* phase ) {
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->scripts );
@@ -44,9 +52,15 @@ void t_alloc_indexes( struct codegen* phase ) {
    // Functions.
    list_iter_init( &i, &phase->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      visit_func( phase, func );
-      struct func_user* impl = func->impl;
+      visit_func( phase, list_data( &i ) );
+      list_next( &i );
+   }
+   // Variables.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct alloc alloc;
+      init_alloc( &alloc, phase, NULL );
+      visit_var( &alloc, list_data( &i ) );
       list_next( &i );
    }
 }
@@ -79,7 +93,7 @@ void visit_script( struct codegen* phase, struct script* script ) {
       ++func_alloc.size;
       param = param->next;
    }
-   visit_node( &alloc, script->body );
+   visit_stmt( &alloc, script->body );
    script->size = func_alloc.size;
    if ( script->nested_funcs ) {
       assign_nestedcalls_id( phase, script->nested_funcs );
@@ -133,114 +147,78 @@ void visit_block( struct alloc* alloc, struct block* block ) {
    list_iter_t i;
    list_iter_init( &i, &block->stmts );
    while ( ! list_end( &i ) ) {
-      visit_node( alloc, list_data( &i ) );
+      visit_block_item( alloc, list_data( &i ) );
       list_next( &i );
    }
    alloc->func->local = parent;
 }
 
-void visit_node( struct alloc* alloc, struct node* node ) {
+void visit_block_item( struct alloc* alloc, struct node* node ) {
    switch ( node->type ) {
-   case NODE_UNARY: {
-      struct unary* unary = ( struct unary* ) node;
-      visit_node( alloc, unary->operand );
+   case NODE_FUNC:
+      visit_nested_func( alloc, ( struct func* ) node );
+      break;
+   case NODE_CASE: {
+      struct case_label* label = ( struct case_label* ) node;
+      visit_expr( alloc, &label->number->node );
       break; }
-   case NODE_BINARY: {
-      struct binary* binary = ( struct binary* ) node;
-      visit_node( alloc, binary->lside );
-      visit_node( alloc, binary->rside );
-      break; }
-   case NODE_EXPR: {
-      struct expr* expr = ( struct expr* ) node;
-      visit_node( alloc, expr->root );
-      break; }
+   case NODE_VAR:
+      visit_var( alloc, ( struct var* ) node );
+      break;
+   case NODE_CASE_DEFAULT:
+   case NODE_GOTO_LABEL:
+      // Ignored.
+      break;
+   default:
+      visit_stmt( alloc, node );
+      break;
+   }
+}
+
+void visit_stmt( struct alloc* alloc, struct node* node ) {
+   switch ( node->type ) {
    case NODE_IF: {
       struct if_stmt* stmt = ( struct if_stmt* ) node;
-      visit_node( alloc, stmt->body );
+      visit_stmt( alloc, stmt->body );
+      visit_expr( alloc, &stmt->cond->node );
       if ( stmt->else_body ) {
-         visit_node( alloc, stmt->else_body );
+         visit_stmt( alloc, stmt->else_body );
       }
       break; }
    case NODE_WHILE: {
       struct while_stmt* stmt = ( struct while_stmt* ) node;
-      visit_node( alloc, stmt->body );
+      visit_expr( alloc, &stmt->cond->node );
+      visit_stmt( alloc, stmt->body );
       break; }
    case NODE_FOR:
       visit_for( alloc, ( struct for_stmt* ) node );
       break;
-   case NODE_CALL:
-      visit_call( alloc, ( struct call* ) node );
-      break;
    case NODE_FORMAT_ITEM:
       visit_format_item( alloc, ( struct format_item* ) node );
       break;
-   case NODE_FUNC:
-      visit_nested_func( alloc, ( struct func* ) node );
-      break;
-   case NODE_ACCESS: {
-      struct access* access = ( struct access* ) node;
-      visit_node( alloc, access->lside );
-      visit_node( alloc, access->rside );
-      break; }
-   case NODE_PAREN: {
-      struct paren* paren = ( struct paren* ) node;
-      visit_node( alloc, paren->inside );
-      break; }
-   case NODE_SUBSCRIPT: {
-      struct subscript* sub = ( struct subscript* ) node;
-      visit_node( alloc, sub->lside );
-      visit_node( alloc, &sub->index->node );
-      break; }
    case NODE_SWITCH: {
       struct switch_stmt* stmt = ( struct switch_stmt* ) node;
-      visit_node( alloc, stmt->body );
+      visit_expr( alloc, &stmt->cond->node );
+      visit_stmt( alloc, stmt->body );
       break; }
    case NODE_BLOCK:
       visit_block( alloc, ( struct block* ) node );
       break;
-   case NODE_VAR:
-      visit_var( alloc, ( struct var* ) node );
-      break;
-   case NODE_CONSTANT: {
-      struct constant* constant = ( struct constant* ) node;
-      if ( constant->value_node ) {
-         visit_node( alloc, &constant->value_node->node );
-      }
-      break; }
    case NODE_RETURN: {
       struct return_stmt* stmt = ( struct return_stmt* ) node;
       if ( stmt->return_value ) {
-         visit_node( alloc, &stmt->return_value->node );
+         visit_expr( alloc, &stmt->return_value->node );
       }
       break; }
    case NODE_PACKED_EXPR: {
       struct packed_expr* stmt = ( struct packed_expr* ) node;
-      visit_node( alloc, &stmt->expr->node );
+      visit_expr( alloc, &stmt->expr->node );
       if ( stmt->block ) {
          visit_block( alloc, stmt->block );
       }
       break; }
-   case NODE_LITERAL:
-   case NODE_INDEXED_STRING_USAGE:
-   case NODE_JUMP:
-   case NODE_SCRIPT_JUMP:
-   case NODE_FORMAT_BLOCK_USAGE:
-   case NODE_NAME_USAGE:
-   case NODE_ASSIGN:
-   case NODE_CASE:
-   case NODE_CASE_DEFAULT:
-   case NODE_GOTO:
-   case NODE_GOTO_LABEL:
-   case NODE_TYPE_MEMBER:
-   case NODE_BOOLEAN:
-   case NODE_REGION:
-   case NODE_REGION_HOST:
-   case NODE_REGION_UPMOST:
-      // Ignored.
-      break;
    default:
-      t_unhandlednode_diag( alloc->phase->task, __FILE__, __LINE__, node );
-      t_bail( alloc->phase->task );
+      break;
    }
 }
 
@@ -249,21 +227,23 @@ void visit_for( struct alloc* alloc, struct for_stmt* stmt ) {
    list_iter_init( &i, &stmt->init );
    while ( ! list_end( &i ) ) {
       struct node* node = list_data( &i );
-      if ( node->type == NODE_VAR ) {
-         visit_node( alloc, node );
+      if ( node->type == NODE_EXPR ) {
+         visit_expr( alloc, list_data( &i ) );
+      }
+      else if ( node->type == NODE_VAR ) {
+         visit_var( alloc, ( struct var* ) node );
       }
       list_next( &i );
    }
-   visit_node( alloc, stmt->body );
-}
-
-void visit_call( struct alloc* alloc, struct call* call ) {
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   if ( stmt->cond ) {
+      visit_expr( alloc, &stmt->cond->node );
+   }
+   list_iter_init( &i, &stmt->post );
    while ( ! list_end( &i ) ) {
-      visit_node( alloc, list_data( &i ) );
+      visit_expr( alloc, list_data( &i ) );
       list_next( &i );
    }
+   visit_stmt( alloc, stmt->body );
 }
 
 void visit_nested_func( struct alloc* alloc, struct func* func ) {
@@ -291,18 +271,29 @@ void visit_nested_func( struct alloc* alloc, struct func* func ) {
 }
 
 void visit_var( struct alloc* alloc, struct var* var ) {
+   struct value* value = var->value;
+   while ( value ) {
+      if ( ! value->string_initz ) {
+         visit_expr( alloc, &value->expr->node );
+      }
+      value = value->next;
+   }
    if ( var->storage == STORAGE_LOCAL ) {
       var->index = alloc_scriptvar( alloc );
    }
 }
 
 void visit_format_item( struct alloc* alloc, struct format_item* item ) {
-   if ( item->cast == FCAST_ARRAY && item->extra ) {
-      struct format_item_array* extra = item->extra;
-      if ( extra->length ) {
-         extra->offset_var = alloc_scriptvar( alloc );
-         dealloc_lastscriptvar( alloc );
+   while ( item ) {
+      visit_expr( alloc, &item->value->node );
+      if ( item->cast == FCAST_ARRAY && item->extra ) {
+         struct format_item_array* extra = item->extra;
+         if ( extra->length ) {
+            extra->offset_var = alloc_scriptvar( alloc );
+            dealloc_lastscriptvar( alloc );
+         }
       }
+      item = item->next;
    }
 }
 
@@ -323,4 +314,94 @@ int alloc_scriptvar( struct alloc* alloc ) {
 void dealloc_lastscriptvar( struct alloc* alloc ) {
    --alloc->func->local->index;
    --alloc->func->local->func_size;
+}
+
+void visit_expr( struct alloc* alloc, struct node* node ) {
+   switch ( node->type ) {
+   case NODE_EXPR: {
+      struct expr* expr = ( struct expr* ) node;
+      visit_expr( alloc, expr->root );
+      break; }
+   case NODE_UNARY: {
+      struct unary* unary = ( struct unary* ) node;
+      visit_expr( alloc, unary->operand );
+      break; }
+   case NODE_BINARY: {
+      struct binary* binary = ( struct binary* ) node;
+      visit_expr( alloc, binary->lside );
+      visit_expr( alloc, binary->rside );
+      break; }
+   case NODE_INDEXED_STRING_USAGE: {
+      struct indexed_string_usage* usage =
+         ( struct indexed_string_usage* ) node;
+      usage->string->used = true;
+      break; }
+   case NODE_CALL:
+      visit_call( alloc, ( struct call* ) node );
+      break;
+   case NODE_FORMAT_ITEM:
+      visit_format_item( alloc, ( struct format_item* ) node );
+      break;
+   case NODE_ACCESS: {
+      struct access* access = ( struct access* ) node;
+      visit_expr( alloc, access->lside );
+      visit_expr( alloc, access->rside );
+      break; }
+   case NODE_PAREN: {
+      struct paren* paren = ( struct paren* ) node;
+      visit_expr( alloc, paren->inside );
+      break; }
+   case NODE_SUBSCRIPT: {
+      struct subscript* sub = ( struct subscript* ) node;
+      visit_expr( alloc, sub->lside );
+      visit_expr( alloc, &sub->index->node );
+      break; }
+   case NODE_ASSIGN: {
+      struct assign* assign = ( struct assign* ) node;
+      visit_expr( alloc, assign->lside );
+      visit_expr( alloc, assign->rside );
+      break; }
+   case NODE_CONSTANT: {
+      struct constant* constant = ( struct constant* ) node;
+      if ( constant->value_node ) {
+         visit_expr( alloc, &constant->value_node->node );
+      }
+      break; }
+   case NODE_NAME_USAGE: {
+      struct name_usage* usage = ( struct name_usage* ) node;
+      visit_expr( alloc, usage->object );
+      break; }
+   case NODE_PARAM: {
+      struct param* param = ( struct param* ) node;
+      if ( param->default_value ) {
+         visit_expr( alloc, &param->default_value->node );
+      }
+      break; }
+   default:
+      break;
+   }
+}
+
+void visit_call( struct alloc* alloc, struct call* call ) {
+   visit_expr( alloc, call->operand );
+   if ( call->func->type == FUNC_USER ) {
+      struct func_user* impl = call->func->impl;
+      impl->usage = 1;
+   }
+   // Arguments.
+   list_iter_t i;
+   list_iter_init( &i, &call->args );
+   struct param* param = call->func->params;
+   while ( ! list_end( &i ) ) {
+      visit_expr( alloc, list_data( &i ) );
+      if ( param ) {
+         param = param->next;
+      }
+      list_next( &i );
+   }
+   // Default arguments.
+   while ( param ) {
+      visit_expr( alloc, &param->default_value->node );
+      param = param->next;
+   }
 }
