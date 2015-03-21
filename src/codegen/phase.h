@@ -52,6 +52,6 @@ void c_seek_end( struct codegen* );
 int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
-void t_alloc_indexes( struct codegen* phase );
+void c_alloc_indexes( struct codegen* phase );
 
 #endif

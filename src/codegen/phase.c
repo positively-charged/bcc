@@ -15,6 +15,7 @@ void c_init( struct codegen* phase, struct task* task ) {
 }
 
 void c_publish( struct codegen* phase ) {
+   c_alloc_indexes( phase );
    c_write_chunk_obj( phase );
    c_flush( phase );
 }

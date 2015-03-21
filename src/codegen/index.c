@@ -1,5 +1,7 @@
 #include "phase.h"
 
+#define MAX_MAP_LOCATIONS 128
+
 struct local_alloc {
    int index;
    int func_size;
@@ -16,6 +18,8 @@ struct alloc {
    struct func_alloc* func;
 };
 
+static void alloc_mapvars_index( struct codegen* phase );
+static void visit_tree( struct codegen* phase );
 static void visit_script( struct codegen* phase, struct script* script );
 static void assign_nestedcalls_id( struct codegen* phase,
    struct func* nested_funcs );
@@ -35,13 +39,171 @@ static void dealloc_lastscriptvar( struct alloc* alloc );
 static void visit_expr( struct alloc* alloc, struct node* node );
 static void visit_call( struct alloc* alloc, struct call* call );
 
+void c_alloc_indexes( struct codegen* phase ) {
+   alloc_mapvars_index( phase );
+   visit_tree( phase );
+}
+
+void alloc_mapvars_index( struct codegen* phase ) {
+   // Variables:
+   // 
+   // Order of allocation:
+   // - arrays
+   // - scalars, with-no-value
+   // - scalars, with-value
+   // - scalars, with-value, hidden
+   // - scalars, with-no-value, hidden
+   // - arrays, hidden
+   // - imported
+   //
+   // -----------------------------------------------------------------------
+   // Arrays.
+   int index = 0;
+   list_iter_t i;
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP &&
+         ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Scalars, with-no-value.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->dim &&
+         var->type->primitive && ! var->hidden &&
+         ( ! var->value || ! var->value->expr->value ) ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Scalars, with-value.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->dim &&
+         var->type->primitive && ! var->hidden && var->value &&
+         var->value->expr->value ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Scalars, with-value, hidden.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->dim &&
+         var->type->primitive && var->hidden && var->value &&
+         var->value->expr->value ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Scalars, with-no-value, hidden.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->dim &&
+         var->type->primitive && var->hidden &&
+         ( ! var->value || ! var->value->expr->value ) ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Arrays, hidden.
+   list_iter_init( &i, &phase->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP &&
+         ( var->dim || ! var->type->primitive ) && var->hidden ) {
+         var->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Imported.
+   list_iter_init( &i, &phase->task->library_main->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         struct var* var = list_data( &k );
+         if ( var->storage == STORAGE_MAP && var->used ) {
+            var->index = index;
+            ++index;
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   // Don't go over the variable limit.
+   if ( index > MAX_MAP_LOCATIONS ) {
+      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
+         &phase->task->library_main->file_pos,
+         "library uses over maximum %d variables", MAX_MAP_LOCATIONS );
+      t_bail( phase->task );
+   }
+   // Functions:
+   // -----------------------------------------------------------------------
+   index = 0;
+   // Imported functions:
+   list_iter_init( &i, &phase->task->library_main->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->funcs );
+      while ( ! list_end( &k ) ) {
+         struct func* func = list_data( &k );
+         struct func_user* impl = func->impl;
+         if ( impl->usage ) {
+            impl->index = index;
+            ++index;
+         }
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   // Functions:
+   list_iter_init( &i, &phase->task->library_main->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      if ( ! func->hidden ) {
+         struct func_user* impl = func->impl;
+         impl->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // In Little-E, the field of the function-call instruction that stores the
+   // index of the function is a byte in size, allowing up to 256 different
+   // functions to be called.
+   // NOTE: Maybe automatically switch to the Big-E format? 
+   if ( phase->task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
+      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
+         &phase->task->library_main->file_pos,
+         "library uses over maximum 256 functions" );
+      t_diag( phase->task, DIAG_FILE, &phase->task->library_main->file_pos,
+         "to use more functions, try using the #nocompact directive" );
+      t_bail( phase->task );
+   }
+}
+
 // - Allocates index for local variables.
 // - Determines which strings need to be present at runtime.
 //   ------------------------------------------------------------------------
 //   Counting the usage of strings is done so only strings that are used are
 //   outputted into the object file. There is no need to output the default
 //   arguments of the MorphActor() function if it's never called, say.
-void t_alloc_indexes( struct codegen* phase ) {
+void visit_tree( struct codegen* phase ) {
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
