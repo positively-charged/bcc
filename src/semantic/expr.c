@@ -62,6 +62,8 @@ static void test_region_access( struct semantic* phase, struct expr_test* test,
    struct operand* operand, struct access* access );
 static void test_struct_access( struct semantic* phase, struct expr_test* test,
    struct operand* operand, struct access* access );
+static void test_conditional( struct semantic* semantic,
+   struct expr_test* test, struct operand* operand, struct conditional* cond );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required, bool undef_err,
@@ -153,6 +155,9 @@ void test_node( struct semantic* phase, struct expr_test* test,
       break;
    case NODE_ASSIGN:
       test_assign( phase, test, operand, ( struct assign* ) node );
+      break;
+   case NODE_CONDITIONAL:
+      test_conditional( phase, test, operand, ( struct conditional* ) node );
       break;
    case NODE_ACCESS:
       test_access( phase, test, operand, ( struct access* ) node );
@@ -937,4 +942,42 @@ void test_struct_access( struct semantic* phase, struct expr_test* test,
    }
    use_object( phase, test, operand, name->object );
    access->rside = ( struct node* ) name->object;
+}
+
+void test_conditional( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct conditional* cond ) {
+   struct operand left;
+   init_operand( &left );
+   test_node( semantic, test, &left, cond->left );
+   if ( ! left.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+         "left operand not a value" );
+      s_bail( semantic );
+   }
+   // A string has an index. This index could be 0. The problem is that the
+   // value 0 indicates a failed condition, but the string surely is a valid
+   // value. So for now, disallow the usage of a string as the left operand.
+   if ( left.type == semantic->task->type_str ) {
+      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+         "left operand of `str` type" );
+      s_bail( semantic );
+   }
+   if ( cond->middle ) {
+      init_operand( &left );
+      test_node( semantic, test, &left, cond->middle );
+   }
+   struct operand right;
+   init_operand( &right );
+   test_node( semantic, test, &right, cond->right );
+   if ( left.type != right.type ) {
+      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+         "%s and right operands of different type",
+         cond->middle ? "middle" : "left" );
+      s_bail( semantic );
+   }
+   operand->type = left.type;
+   operand->complete = true;
+   if ( operand->type ) {
+      operand->usable = true;
+   }
 }

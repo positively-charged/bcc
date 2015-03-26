@@ -245,6 +245,28 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       goto top;
    }
 
+   // Conditional operator.
+   // -----------------------------------------------------------------------
+   if ( phase->tk == TK_QUESTION_MARK ) {
+      struct conditional* cond = mem_alloc( sizeof( *cond ) );
+      cond->node.type = NODE_CONDITIONAL;
+      cond->pos = phase->tk_pos;
+      cond->left = reading->node;
+      cond->middle = NULL;
+      cond->right = NULL;
+      p_read_tk( phase );
+      // Middle operand is optional.
+      if ( phase->tk != TK_COLON ) {
+         read_op( phase, reading );
+         cond->middle = reading->node;
+      }
+      p_test_tk( phase, TK_COLON );
+      p_read_tk( phase );
+      read_op( phase, reading );
+      cond->right = reading->node;
+      reading->node = &cond->node;
+   }
+
    // -----------------------------------------------------------------------
    if ( ! reading->skip_assign ) {
       switch ( phase->tk ) {

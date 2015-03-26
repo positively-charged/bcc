@@ -123,6 +123,7 @@ enum tk {
    TK_LIB,
    TK_LIB_END,
    TK_LIT_BINARY,
+   TK_QUESTION_MARK,
    TK_TOTAL
 };
 

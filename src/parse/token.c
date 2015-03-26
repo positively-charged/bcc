@@ -659,6 +659,7 @@ void read_source( struct parse* phase, struct token* token ) {
          ']', TK_BRACKET_R,
          '~', TK_BIT_NOT,
          '.', TK_DOT,
+         '?', TK_QUESTION_MARK,
          '#', TK_HASH,
          0 };
       int i = 0;
@@ -1265,8 +1266,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_END, "end-of-input" },
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
+      { TK_QUESTION_MARK, "`?`" },
       { TK_COLON_2, "`::`" } };
-   STATIC_ASSERT( TK_TOTAL == 107 );
+   STATIC_ASSERT( TK_TOTAL == 108 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

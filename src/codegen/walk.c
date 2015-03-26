@@ -91,6 +91,8 @@ static void visit_binary( struct codegen* phase, struct operand*,
    struct binary* );
 static void visit_assign( struct codegen* phase, struct operand*,
    struct assign* );
+static void visit_conditional( struct codegen* codegen,
+   struct operand* operand, struct conditional* cond );
 static void do_var_name( struct codegen* phase, struct operand*,
    struct var* );
 static void set_var( struct codegen* phase, struct operand*,
@@ -518,6 +520,9 @@ void visit_operand( struct codegen* phase, struct operand* operand,
    }
    else if ( node->type == NODE_ASSIGN ) {
       visit_assign( phase, operand, ( struct assign* ) node );
+   }
+   else if ( node->type == NODE_CONDITIONAL ) {
+      visit_conditional( phase, operand, ( struct conditional* ) node );
    }
    else if ( node->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) node;
@@ -1367,6 +1372,55 @@ void visit_assign( struct codegen* phase, struct operand* operand,
          operand->pushed = true;
       }
    }
+}
+
+void visit_conditional( struct codegen* codegen, struct operand* operand,
+   struct conditional* cond ) {
+   struct operand value;
+   init_operand( &value );
+   value.push = true;
+   visit_operand( codegen, &value, cond->left );
+   int left_done = 0;
+   int middle_done = 0;
+   if ( cond->middle ) {
+      left_done = c_tell( codegen );
+      c_add_opc( codegen, PCD_IFNOTGOTO );
+      c_add_arg( codegen, 0 );
+      init_operand( &value );
+      value.push = true;
+      visit_operand( codegen, &value, cond->middle );
+      middle_done = c_tell( codegen );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, 0 );
+   }
+   else {
+      c_add_opc( codegen, PCD_DUP );
+      left_done = c_tell( codegen );
+      c_add_opc( codegen, PCD_IFGOTO );
+      c_add_arg( codegen, 0 );
+      c_add_opc( codegen, PCD_DROP );
+   }
+   init_operand( &value );
+   value.push = true;
+   visit_operand( codegen, &value, cond->right );
+   int done = c_tell( codegen );
+   if ( cond->middle ) {
+      c_seek( codegen, middle_done );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, done );
+      int right = c_tell( codegen );
+      c_seek( codegen, left_done );
+      c_add_opc( codegen, PCD_IFNOTGOTO );
+      c_add_arg( codegen, right );
+      c_seek_end( codegen );
+   }
+   else {
+      c_seek( codegen, left_done );
+      c_add_opc( codegen, PCD_IFGOTO );
+      c_add_arg( codegen, done );
+      c_seek_end( codegen );
+   }
+   operand->pushed = value.pushed;
 }
 
 void push_indexed( struct codegen* phase, int storage, int index ) {

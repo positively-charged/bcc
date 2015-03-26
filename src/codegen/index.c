@@ -539,6 +539,14 @@ void visit_expr( struct alloc* alloc, struct node* node ) {
          visit_expr( alloc, &param->default_value->node );
       }
       break; }
+   case NODE_CONDITIONAL: {
+      struct conditional* cond = ( struct conditional* ) node;
+      visit_expr( alloc, cond->left );
+      if ( cond->middle ) {
+         visit_expr( alloc, cond->middle );
+      }
+      visit_expr( alloc, cond->right );
+      break; }
    default:
       break;
    }

@@ -71,7 +71,8 @@ struct node {
       NODE_REGION_UPMOST,
       // 40
       NODE_SCRIPT,
-      NODE_PACKED_EXPR
+      NODE_PACKED_EXPR,
+      NODE_CONDITIONAL
    } type;
 };
 
@@ -210,6 +211,14 @@ struct assign {
    struct node* lside;
    struct node* rside;
    struct pos pos;
+};
+
+struct conditional {
+   struct node node;
+   struct pos pos;
+   struct node* left;
+   struct node* middle;
+   struct node* right;
 };
 
 struct subscript {
