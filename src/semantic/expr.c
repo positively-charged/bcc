@@ -690,7 +690,7 @@ void test_format_item( struct semantic* phase, struct stmt_test* stmt_test,
    struct expr_test* test, struct block* format_block,
    struct format_item* item ) {
    struct expr_test value;
-   s_init_expr_test( &value, stmt_test, format_block, false,
+   s_init_expr_test( &value, stmt_test, format_block, true,
       test ? test->undef_err : true, false );
    s_test_expr( phase, &value, item->value );
    if ( value.undef_erred ) {
