@@ -89,6 +89,16 @@ static void visit_internal_call( struct codegen* phase, struct operand*,
    struct call* );
 static void visit_binary( struct codegen* phase, struct operand*,
    struct binary* );
+static void visit_logicalor( struct codegen* codegen, struct operand* operand,
+   struct binary* binary );
+static void write_logicalor( struct codegen* codegen, struct operand* operand,
+   struct binary* binary );
+static void visit_logicaland( struct codegen* codegen, struct operand* operand,
+   struct binary* binary );
+static void write_logicaland( struct codegen* codegen, struct operand* operand,
+   struct binary* binary );
+static void write_binary( struct codegen* codegen, struct operand* operand,
+   struct binary* binary );
 static void visit_assign( struct codegen* phase, struct operand*,
    struct assign* );
 static void visit_conditional( struct codegen* codegen,
@@ -1050,111 +1060,152 @@ void visit_internal_call( struct codegen* phase, struct operand* operand,
    }
 }
 
-void visit_binary( struct codegen* phase, struct operand* operand,
+void visit_binary( struct codegen* codegen, struct operand* operand,
    struct binary* binary ) {
-   // Logical-or and logical-and both perform shortcircuit evaluation.
-   if ( binary->op == BOP_LOG_OR ) {
-      struct operand lside;
-      init_operand( &lside );
-      lside.push = true;
-      lside.push_temp = true;
-      visit_operand( phase, &lside, binary->lside );
-      int test = c_tell( phase );
-      c_add_opc( phase, PCD_IFNOTGOTO );
-      c_add_arg( phase, 0 );
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 1 );
-      int jump = c_tell( phase );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, 0 );
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      rside.push_temp = true;
-      int next = c_tell( phase );
-      visit_operand( phase, &rside, binary->rside );
-      // Optimization: When doing a calculation temporarily, there's no need to
-      // convert the second operand to a 0 or 1. Just use the operand directly.
-      if ( ! operand->push_temp ) {
-         c_add_opc( phase, PCD_NEGATELOGICAL );
-         c_add_opc( phase, PCD_NEGATELOGICAL );
-      }
-      int done = c_tell( phase );
-      c_seek( phase, test );
-      c_add_opc( phase, PCD_IFNOTGOTO );
-      c_add_arg( phase, next );
-      c_seek( phase, jump );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, done );
-      c_seek_end( phase );
-      operand->pushed = true;
+   switch ( binary->op ) {
+   case BOP_LOG_OR:
+      visit_logicalor( codegen, operand, binary );
+      break;
+   case BOP_LOG_AND:
+      visit_logicaland( codegen, operand, binary );
+      break;
+   default:
+      write_binary( codegen, operand, binary );
+      break;
    }
-   else if ( binary->op == BOP_LOG_AND ) {
-      struct operand lside;
-      init_operand( &lside );
-      lside.push = true;
-      lside.push_temp = true;
-      visit_operand( phase, &lside, binary->lside );
-      int test = c_tell( phase );
-      c_add_opc( phase, PCD_IFGOTO );
-      c_add_arg( phase, 0 );
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
-      int jump = c_tell( phase );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, 0 );
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      rside.push_temp = true;
-      int next = c_tell( phase );
-      visit_operand( phase, &rside, binary->rside );
-      if ( ! operand->push_temp ) {
-         c_add_opc( phase, PCD_NEGATELOGICAL );
-         c_add_opc( phase, PCD_NEGATELOGICAL );
-      }
-      int done = c_tell( phase );
-      c_seek( phase, test );
-      c_add_opc( phase, PCD_IFGOTO );
-      c_add_arg( phase, next );
-      c_seek( phase, jump );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, done );
-      c_seek_end( phase );
+}
+
+void visit_logicalor( struct codegen* codegen, struct operand* operand,
+   struct binary* binary ) {
+   if ( binary->folded ) {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, binary->value );
       operand->pushed = true;
    }
    else {
-      struct operand lside;
-      init_operand( &lside );
-      lside.push = true;
-      visit_operand( phase, &lside, binary->lside );
-      struct operand rside;
-      init_operand( &rside );
-      rside.push = true;
-      visit_operand( phase, &rside, binary->rside );
-      int code = PCD_NONE;
-      switch ( binary->op ) {
-      case BOP_BIT_OR: code = PCD_ORBITWISE; break;
-      case BOP_BIT_XOR: code = PCD_EORBITWISE; break;
-      case BOP_BIT_AND: code = PCD_ANDBITWISE; break;
-      case BOP_EQ: code = PCD_EQ; break;
-      case BOP_NEQ: code = PCD_NE; break;
-      case BOP_LT: code = PCD_LT; break;
-      case BOP_LTE: code = PCD_LE; break;
-      case BOP_GT: code = PCD_GT; break;
-      case BOP_GTE: code = PCD_GE; break;
-      case BOP_SHIFT_L: code = PCD_LSHIFT; break;
-      case BOP_SHIFT_R: code = PCD_RSHIFT; break;
-      case BOP_ADD: code = PCD_ADD; break;
-      case BOP_SUB: code = PCD_SUBTRACT; break;
-      case BOP_MUL: code = PCD_MULIPLY; break;
-      case BOP_DIV: code = PCD_DIVIDE; break;
-      case BOP_MOD: code = PCD_MODULUS; break;
-      default: break;
-      }
-      c_add_opc( phase, code );
+      write_logicalor( codegen, operand, binary );
+   }
+}
+
+// Logical-or and logical-and both perform shortcircuit evaluation.
+void write_logicalor( struct codegen* codegen, struct operand* operand,
+   struct binary* binary ) {
+   struct operand lside;
+   init_operand( &lside );
+   lside.push = true;
+   lside.push_temp = true;
+   visit_operand( codegen, &lside, binary->lside );
+   int test = c_tell( codegen );
+   c_add_opc( codegen, PCD_IFNOTGOTO );
+   c_add_arg( codegen, 0 );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, 1 );
+   int jump = c_tell( codegen );
+   c_add_opc( codegen, PCD_GOTO );
+   c_add_arg( codegen, 0 );
+   struct operand rside;
+   init_operand( &rside );
+   rside.push = true;
+   rside.push_temp = true;
+   int next = c_tell( codegen );
+   visit_operand( codegen, &rside, binary->rside );
+   // Optimization: When doing a calculation temporarily, there's no need to
+   // convert the second operand to a 0 or 1. Just use the operand directly.
+   if ( ! operand->push_temp ) {
+      c_add_opc( codegen, PCD_NEGATELOGICAL );
+      c_add_opc( codegen, PCD_NEGATELOGICAL );
+   }
+   int done = c_tell( codegen );
+   c_seek( codegen, test );
+   c_add_opc( codegen, PCD_IFNOTGOTO );
+   c_add_arg( codegen, next );
+   c_seek( codegen, jump );
+   c_add_opc( codegen, PCD_GOTO );
+   c_add_arg( codegen, done );
+   c_seek_end( codegen );
+   operand->pushed = true;
+}
+
+void visit_logicaland( struct codegen* codegen, struct operand* operand,
+   struct binary* binary ) {
+   if ( binary->folded ) {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, binary->value );
       operand->pushed = true;
    }
+   else {
+      write_logicaland( codegen, operand, binary );
+   }
+}
+
+void write_logicaland( struct codegen* codegen, struct operand* operand,
+   struct binary* binary ) {
+   struct operand lside;
+   init_operand( &lside );
+   lside.push = true;
+   lside.push_temp = true;
+   visit_operand( codegen, &lside, binary->lside );
+   int test = c_tell( codegen );
+   c_add_opc( codegen, PCD_IFGOTO );
+   c_add_arg( codegen, 0 );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, 0 );
+   int jump = c_tell( codegen );
+   c_add_opc( codegen, PCD_GOTO );
+   c_add_arg( codegen, 0 );
+   struct operand rside;
+   init_operand( &rside );
+   rside.push = true;
+   rside.push_temp = true;
+   int next = c_tell( codegen );
+   visit_operand( codegen, &rside, binary->rside );
+   if ( ! operand->push_temp ) {
+      c_add_opc( codegen, PCD_NEGATELOGICAL );
+      c_add_opc( codegen, PCD_NEGATELOGICAL );
+   }
+   int done = c_tell( codegen );
+   c_seek( codegen, test );
+   c_add_opc( codegen, PCD_IFGOTO );
+   c_add_arg( codegen, next );
+   c_seek( codegen, jump );
+   c_add_opc( codegen, PCD_GOTO );
+   c_add_arg( codegen, done );
+   c_seek_end( codegen );
+   operand->pushed = true;
+}
+
+void write_binary( struct codegen* codegen, struct operand* operand,
+   struct binary* binary ) {
+   struct operand lside;
+   init_operand( &lside );
+   lside.push = true;
+   visit_operand( codegen, &lside, binary->lside );
+   struct operand rside;
+   init_operand( &rside );
+   rside.push = true;
+   visit_operand( codegen, &rside, binary->rside );
+   int code = PCD_NONE;
+   switch ( binary->op ) {
+   case BOP_BIT_OR: code = PCD_ORBITWISE; break;
+   case BOP_BIT_XOR: code = PCD_EORBITWISE; break;
+   case BOP_BIT_AND: code = PCD_ANDBITWISE; break;
+   case BOP_EQ: code = PCD_EQ; break;
+   case BOP_NEQ: code = PCD_NE; break;
+   case BOP_LT: code = PCD_LT; break;
+   case BOP_LTE: code = PCD_LE; break;
+   case BOP_GT: code = PCD_GT; break;
+   case BOP_GTE: code = PCD_GE; break;
+   case BOP_SHIFT_L: code = PCD_LSHIFT; break;
+   case BOP_SHIFT_R: code = PCD_RSHIFT; break;
+   case BOP_ADD: code = PCD_ADD; break;
+   case BOP_SUB: code = PCD_SUBTRACT; break;
+   case BOP_MUL: code = PCD_MULIPLY; break;
+   case BOP_DIV: code = PCD_DIVIDE; break;
+   case BOP_MOD: code = PCD_MODULUS; break;
+   default: break;
+   }
+   c_add_opc( codegen, code );
+   operand->pushed = true;
 }
 
 void set_var( struct codegen* phase, struct operand* operand, struct var* var ) {

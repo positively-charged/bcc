@@ -787,8 +787,10 @@ void test_binary( struct semantic* phase, struct expr_test* test,
       case BOP_LOG_OR: l = l || r; break;
       default: break;
       }
-      operand->value = l;
+      binary->folded = true;
+      binary->value = l;
       operand->folded = true;
+      operand->value = l;
    }
    operand->complete = true;
    operand->usable = true;

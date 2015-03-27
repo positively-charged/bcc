@@ -139,7 +139,6 @@ void c_add_opc( struct codegen* phase, int code ) {
    // -----------------------------------------------------------------------
    binary_fold: {
       switch ( code ) {
-      // TODO: Implement support for the logical operators.
       case PCD_ORLOGICAL:
       case PCD_ANDLOGICAL:
       case PCD_ORBITWISE:
@@ -180,8 +179,8 @@ void c_add_opc( struct codegen* phase, int code ) {
       last->next = NULL;
       phase->immediate_tail = last;
       switch ( code ) {
-      // case PCD_ORLOGICAL: last->value = ( l || r ); break;
-      // case PCD_ANDLOGICAL: last->value = ( l && r ); break;
+      case PCD_ORLOGICAL: last->value = ( l || r ); break;
+      case PCD_ANDLOGICAL: last->value = ( l && r ); break;
       case PCD_ORBITWISE: last->value = l | r; break;
       case PCD_EORBITWISE: last->value = l ^ r; break;
       case PCD_ANDBITWISE: last->value = l & r; break;

@@ -190,6 +190,8 @@ struct binary {
    struct node* lside;
    struct node* rside;
    struct pos pos;
+   int value;
+   bool folded;
 };
 
 struct assign {
