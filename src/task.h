@@ -221,7 +221,7 @@ struct conditional {
    struct node* left;
    struct node* middle;
    struct node* right;
-   int value;
+   int left_value;
    bool folded;
 };
 

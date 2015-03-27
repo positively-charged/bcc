@@ -985,9 +985,9 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
-      cond->value = left.value ? middle.value : right.value;
+      cond->left_value = left.value;
       cond->folded = true;
-      operand->value = cond->value;
+      operand->value = left.value ? middle.value : right.value;
       operand->folded = true;
    }
 }

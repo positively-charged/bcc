@@ -1448,8 +1448,11 @@ void visit_assign( struct codegen* phase, struct operand* operand,
 void visit_conditional( struct codegen* codegen, struct operand* operand,
    struct conditional* cond ) {
    if ( cond->folded ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, cond->value );
+      struct operand value;
+      init_operand( &value );
+      value.push = true;
+      visit_operand( codegen, &value, cond->left_value ?
+         ( cond->middle ? cond->middle : cond->left ) : cond->right );
       operand->pushed = true;
    }
    else {
