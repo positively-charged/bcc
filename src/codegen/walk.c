@@ -76,6 +76,10 @@ static void visit_ded_call( struct codegen* phase, struct operand*,
    struct call* );
 static void visit_format_call( struct codegen* phase, struct operand*,
    struct call* );
+static void visit_formatblock_arg( struct codegen* codegen,
+   struct format_block_usage* usage );
+static void write_formatblock_arg( struct codegen* codegen,
+   struct format_block_usage* usage );
 static void visit_format_item( struct codegen* phase, struct format_item* );
 static void visit_array_format_item( struct codegen* phase,
    struct format_item* );
@@ -842,90 +846,104 @@ void visit_nested_userfunc_call( struct codegen* phase,
    }
 }
 
-void visit_format_call( struct codegen* phase, struct operand* operand,
+void visit_format_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   c_add_opc( phase, PCD_BEGINPRINT );
+   c_add_opc( codegen, PCD_BEGINPRINT );
    list_iter_t i;
    list_iter_init( &i, &call->args );
    struct node* node = list_data( &i );
    // Format-block:
    if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
-      struct format_block_usage* usage =
-         ( struct format_block_usage* ) node;
-      // When a format block is used more than once in the same expression,
-      // instead of duplicating the code, use a goto instruction to enter the
-      // format block. At each usage except the last, before the format block
-      // is used, a unique number is pushed. This number is used to determine
-      // the return location. 
-      if ( usage->next ) {
-         usage->obj_pos = c_tell( phase );
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, 0 );
-         c_add_opc( phase, PCD_GOTO );
-         c_add_arg( phase, 0 );
-         if ( ! phase->block_visit->format_block_usage ) {
-            phase->block_visit->format_block_usage = usage;
-         }
-      }
-      else {
-         int block_pos = c_tell( phase );
-         visit_block( phase, usage->block );
-         usage = phase->block_visit->format_block_usage;
-         if ( usage ) {
-            // Update block jumps.
-            int count = 0;
-            while ( usage->next ) {
-               c_seek( phase, usage->obj_pos );
-               c_add_opc( phase, PCD_PUSHNUMBER );
-               c_add_arg( phase, count );
-               c_add_opc( phase, PCD_GOTO );
-               c_add_arg( phase, block_pos );
-               usage->obj_pos = c_tell( phase );
-               usage = usage->next;
-               ++count;
-            }
-            // Publish return jumps. A sorted-case-goto can be used here, but a
-            // case-goto will suffice for now.
-            c_seek_end( phase );
-            usage = phase->block_visit->format_block_usage;
-            count = 0;
-            while ( usage->next ) {
-               c_add_opc( phase, PCD_CASEGOTO );
-               c_add_arg( phase, count );
-               c_add_arg( phase, usage->obj_pos );
-               usage = usage->next;
-               ++count;
-            }
-            c_add_opc( phase, PCD_DROP );
-            phase->block_visit->format_block_usage = NULL;
-         }
-      }
-      list_next( &i );
+      visit_formatblock_arg( codegen, ( struct format_block_usage* ) node );
    }
    // Format-list:
    else {
-      visit_format_item( phase, list_data( &i ) );
-      list_next( &i );
+      visit_format_item( codegen, list_data( &i ) );
    }
+   list_next( &i );
    // Other arguments.
    if ( call->func->max_param > 1 ) {
-      c_add_opc( phase, PCD_MOREHUDMESSAGE );
+      c_add_opc( codegen, PCD_MOREHUDMESSAGE );
       int param = 1;
       while ( ! list_end( &i ) ) {
          if ( param == call->func->min_param ) {
-            c_add_opc( phase, PCD_OPTHUDMESSAGE );
+            c_add_opc( codegen, PCD_OPTHUDMESSAGE );
          }
-         push_expr( phase, list_data( &i ), false );
+         push_expr( codegen, list_data( &i ), false );
          ++param;
          list_next( &i );
       }
    }
    struct func_format* format = call->func->impl;
-   c_add_opc( phase, format->opcode );
+   c_add_opc( codegen, format->opcode );
    if ( call->func->return_type ) {
       operand->pushed = true;
    }
-} 
+}
+
+void visit_formatblock_arg( struct codegen* codegen,
+   struct format_block_usage* usage ) {
+   // When a format block is used more than once in the same expression,
+   // instead of duplicating the code, use a goto instruction to enter the
+   // format block. At each usage except the last, before the format block
+   // is used, a unique number is pushed. This number is used to determine
+   // the return location. 
+   if ( usage->next ) {
+      usage->obj_pos = c_tell( codegen );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, 0 );
+      if ( ! codegen->block_visit->format_block_usage ) {
+         codegen->block_visit->format_block_usage = usage;
+      }
+   }
+   else {
+      write_formatblock_arg( codegen, usage );
+   }
+}
+
+void write_formatblock_arg( struct codegen* codegen,
+   struct format_block_usage* usage ) {
+   // Return address of the last usage. Only needed when the format-block is
+   // used more than once.
+   if ( codegen->block_visit->format_block_usage ) {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+   }
+   int block_pos = c_tell( codegen );
+   visit_block( codegen, usage->block );
+   usage = codegen->block_visit->format_block_usage;
+   if ( ! usage ) {
+      return;
+   }
+   // Update block jumps.
+   int count = 1;
+   while ( usage->next ) {
+      c_seek( codegen, usage->obj_pos );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, count );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, block_pos );
+      usage->obj_pos = c_tell( codegen );
+      usage = usage->next;
+      ++count;
+   }
+   // Publish return jumps. A sorted-case-goto can be used here, but a
+   // case-goto will suffice for now.
+   c_seek_end( codegen );
+   usage = codegen->block_visit->format_block_usage;
+   count = 1;
+   while ( usage->next ) {
+      c_add_opc( codegen, PCD_CASEGOTO );
+      c_add_arg( codegen, count );
+      c_add_arg( codegen, usage->obj_pos );
+      usage = usage->next;
+      ++count;
+   }
+   c_add_opc( codegen, PCD_DROP );
+   codegen->block_visit->format_block_usage = NULL;
+}
 
 void visit_format_item( struct codegen* phase, struct format_item* item ) {
    while ( item ) {
