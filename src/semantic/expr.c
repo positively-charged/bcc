@@ -962,14 +962,15 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          "left operand of `str` type" );
       s_bail( semantic );
    }
+   struct operand middle = left;
    if ( cond->middle ) {
-      init_operand( &left );
-      test_node( semantic, test, &left, cond->middle );
+      init_operand( &middle );
+      test_node( semantic, test, &middle, cond->middle );
    }
    struct operand right;
    init_operand( &right );
    test_node( semantic, test, &right, cond->right );
-   if ( left.type != right.type ) {
+   if ( middle.type != right.type ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
          "%s and right operands of different type",
          cond->middle ? "middle" : "left" );
@@ -979,5 +980,12 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    operand->complete = true;
    if ( operand->type ) {
       operand->usable = true;
+   }
+   // Compile-time evaluation.
+   if ( left.folded && middle.folded && right.folded ) {
+      cond->value = left.value ? middle.value : right.value;
+      cond->folded = true;
+      operand->value = cond->value;
+      operand->folded = true;
    }
 }

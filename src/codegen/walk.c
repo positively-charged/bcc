@@ -93,6 +93,8 @@ static void visit_assign( struct codegen* phase, struct operand*,
    struct assign* );
 static void visit_conditional( struct codegen* codegen,
    struct operand* operand, struct conditional* cond );
+static void write_conditional( struct codegen* codegen,
+   struct operand* operand, struct conditional* cond );
 static void do_var_name( struct codegen* phase, struct operand*,
    struct var* );
 static void set_var( struct codegen* phase, struct operand*,
@@ -1375,6 +1377,18 @@ void visit_assign( struct codegen* phase, struct operand* operand,
 }
 
 void visit_conditional( struct codegen* codegen, struct operand* operand,
+   struct conditional* cond ) {
+   if ( cond->folded ) {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, cond->value );
+      operand->pushed = true;
+   }
+   else {
+      write_conditional( codegen, operand, cond );
+   }
+}
+
+void write_conditional( struct codegen* codegen, struct operand* operand,
    struct conditional* cond ) {
    struct operand value;
    init_operand( &value );

@@ -254,6 +254,8 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       cond->left = reading->node;
       cond->middle = NULL;
       cond->right = NULL;
+      cond->value = 0;
+      cond->folded = false;
       p_read_tk( phase );
       // Middle operand is optional.
       if ( phase->tk != TK_COLON ) {

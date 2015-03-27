@@ -219,6 +219,8 @@ struct conditional {
    struct node* left;
    struct node* middle;
    struct node* right;
+   int value;
+   bool folded;
 };
 
 struct subscript {
