@@ -360,6 +360,7 @@ void use_object( struct semantic* phase, struct expr_test* test,
    }
    else if ( object->node.type == NODE_PARAM ) {
       struct param* param = ( struct param* ) object;
+      param->used = true;
       operand->type = param->type;
       operand->complete = true;
       operand->usable = true;

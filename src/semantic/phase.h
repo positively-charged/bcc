@@ -52,7 +52,7 @@ void s_test_constant( struct semantic* phase, struct constant* );
 void s_test_constant_set( struct semantic* phase, struct constant_set* );
 void s_test_type( struct semantic* phase, struct type* );
 void s_test_var( struct semantic* phase, struct var* var );
-void s_test_func( struct semantic* phase, struct func* func );
+void s_test_func( struct semantic* semantic, struct func* func );
 void s_test_func_body( struct semantic* phase, struct func* func );
 void s_test_local_var( struct semantic* phase, struct var* );
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,

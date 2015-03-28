@@ -892,6 +892,7 @@ void read_params( struct parse* phase, struct params* params ) {
       param->default_value = NULL;
       param->index = 0;
       param->obj_pos = 0;
+      param->used = false;
       ++params->max;
       p_read_tk( phase );
       // Name not required for a parameter.

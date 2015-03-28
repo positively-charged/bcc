@@ -68,11 +68,13 @@ static void visit_post_inc( struct codegen* phase, struct operand*,
    struct unary* );
 static void visit_call( struct codegen* phase, struct operand*,
    struct call* );
-static void visit_aspec_call( struct codegen* phase, struct operand*,
+static void visit_aspec_call( struct codegen* codegen, struct operand*,
    struct call* );
-static void visit_ext_call( struct codegen* phase, struct operand*,
+static void visit_ext_call( struct codegen* codegen, struct operand*,
    struct call* );
-static void visit_ded_call( struct codegen* phase, struct operand*,
+static int push_aspecext_callargs( struct codegen* codegen,
+   struct call* call );
+static void visit_ded_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_format_call( struct codegen* phase, struct operand*,
    struct call* );
@@ -694,94 +696,106 @@ void visit_call( struct codegen* phase, struct operand* operand,
    }
 }
 
-void visit_aspec_call( struct codegen* phase, struct operand* operand,
+void visit_aspec_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   int num = 0;
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
-   while ( ! list_end( &i ) ) {
-      push_expr( phase, list_data( &i ), false );
-      list_next( &i );
-      ++num;
-   }
+   int count = push_aspecext_callargs( codegen, call );
    struct func_aspec* aspec = call->func->impl;
    if ( operand->push ) {
-      while ( num < 5 ) {
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, 0 );
-         ++num;
+      while ( count < 5 ) {
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, 0 );
+         ++count;
       }
-      c_add_opc( phase, PCD_LSPEC5RESULT );
-      c_add_arg( phase, aspec->id );
+      c_add_opc( codegen, PCD_LSPEC5RESULT );
+      c_add_arg( codegen, aspec->id );
+      operand->pushed = true;
    }
-   else if ( num ) {
-      c_add_opc( phase, g_aspec_code[ num - 1 ] );
-      c_add_arg( phase, aspec->id );
+   else if ( count ) {
+      c_add_opc( codegen, g_aspec_code[ count - 1 ] );
+      c_add_arg( codegen, aspec->id );
    }
    else {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
-      c_add_opc( phase, PCD_LSPEC1 );
-      c_add_arg( phase, aspec->id );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      c_add_opc( codegen, PCD_LSPEC1 );
+      c_add_arg( codegen, aspec->id );
    }
 }
 
-void visit_ext_call( struct codegen* phase, struct operand* operand,
+void visit_ext_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
-   struct param* param = call->func->params;
-   while ( ! list_end( &i ) ) {
-      struct expr* expr = list_data( &i );
-      struct operand arg;
-      init_operand( &arg );
-      arg.push = true;
-      visit_operand( phase, &arg, expr->root );
-      list_next( &i );
-      param = param->next;
-   }
-   int count = list_size( &call->args );
-   int skipped = 0;
-   while ( param ) {
-      if ( param->default_value->folded && ! param->default_value->value ) {
-         ++skipped;
-      }
-      else {
-         count += skipped;
-         while ( skipped ) {
-            c_add_opc( phase, PCD_PUSHNUMBER );
-            c_add_arg( phase, 0 );
-            --skipped;
-         }
-         push_expr( phase, param->default_value, false );
-         ++count;
-      }
-      param = param->next;
-   }
+   int count = push_aspecext_callargs( codegen, call );
    struct func_ext* impl = call->func->impl;
-   c_add_opc( phase, PCD_CALLFUNC );
-   c_add_arg( phase, count );
-   c_add_arg( phase, impl->id );
+   c_add_opc( codegen, PCD_CALLFUNC );
+   c_add_arg( codegen, count );
+   c_add_arg( codegen, impl->id );
    operand->pushed = true;
 }
 
-void visit_ded_call( struct codegen* phase, struct operand* operand,
+int push_aspecext_callargs( struct codegen* codegen, struct call* call ) {
+   // Count the number of arguments to write. There is no need to write
+   // trailing arguments of value 0, because the engine will implicitly
+   // pass those.
+   int count = 0;
+   int i = 0;
+   list_iter_t k;
+   list_iter_init( &k, &call->args );
+   struct param* param = call->func->params;
+   while ( param ) {
+      struct expr* arg = param->default_value;
+      if ( ! list_end( &k ) ) {
+         arg = list_data( &k );
+         list_next( &k );
+      }
+      ++i;
+      if ( ! ( arg->folded && ! arg->has_str && arg->value == 0 ) ) {
+         count = i;
+      }
+      param = param->next;
+   }
+   // Write arguments.
+   i = 0;
+   param = call->func->params;
+   list_iter_init( &k, &call->args );
+   while ( i < count ) {
+      struct expr* arg = param->default_value;
+      if ( ! list_end( &k ) ) {
+         arg = list_data( &k );
+         list_next( &k );
+      }
+      push_expr( codegen, arg, false );
+      if ( param->used ) {
+         c_add_opc( codegen, PCD_DUP );
+         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+         c_add_arg( codegen, param->index );
+      }
+      param = param->next;
+      ++i;
+   }
+   return count;
+}
+
+void visit_ded_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   struct func_ded* ded = call->func->impl;
    list_iter_t i;
    list_iter_init( &i, &call->args );
    struct param* param = call->func->params;
-   while ( ! list_end( &i ) ) {
-      push_expr( phase, list_data( &i ), false );
-      list_next( &i );
-      param = param->next;
-   }
-   // Default arguments.
    while ( param ) {
-      push_expr( phase, param->default_value, false );
+      struct expr* arg = param->default_value;
+      if ( ! list_end( &i ) ) {
+         arg = list_data( &i );
+         list_next( &i );
+      }
+      push_expr( codegen, arg, false );
+      if ( param->used ) {
+         c_add_opc( codegen, PCD_DUP );
+         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+         c_add_arg( codegen, param->index );
+      }
       param = param->next;
    }
-   c_add_opc( phase, ded->opcode );
+   struct func_ded* ded = call->func->impl;
+   c_add_opc( codegen, ded->opcode );
    if ( call->func->return_type ) {
       operand->pushed = true;
    }

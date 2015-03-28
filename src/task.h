@@ -423,6 +423,7 @@ struct param {
    struct expr* default_value;
    int index;
    int obj_pos;
+   bool used;
 };
 
 struct func {

@@ -32,6 +32,8 @@ static void init_alloc( struct alloc* alloc, struct codegen* phase,
 static void visit_stmt( struct alloc* alloc, struct node* node );
 static void visit_for( struct alloc* alloc, struct for_stmt* stmt );
 static void visit_nested_func( struct alloc* alloc, struct func* func );
+static void visit_nested_userfunc( struct alloc* alloc, struct func* func );
+static void visit_nested_builtinfunc( struct alloc* alloc, struct func* func );
 static void visit_var( struct alloc* alloc, struct var* var );
 static void visit_format_item( struct alloc* alloc, struct format_item* item );
 static int alloc_scriptvar( struct alloc* alloc );
@@ -413,6 +415,15 @@ void visit_for( struct alloc* alloc, struct for_stmt* stmt ) {
 }
 
 void visit_nested_func( struct alloc* alloc, struct func* func ) {
+   if ( func->type == FUNC_USER ) {
+      visit_nested_userfunc( alloc, func );
+   }
+   else {
+      visit_nested_builtinfunc( alloc, func );
+   }
+}
+
+void visit_nested_userfunc( struct alloc* alloc, struct func* func ) {
    struct func_user* impl = func->impl;
    struct func_alloc* parent = alloc->func;
    impl->index_offset = parent->local->index;
@@ -433,6 +444,20 @@ void visit_nested_func( struct alloc* alloc, struct func* func ) {
    int new_size = parent->local->func_size + func_alloc.size;
    if ( parent->size < new_size ) {
       parent->size = new_size;
+   }
+}
+
+void visit_nested_builtinfunc( struct alloc* alloc, struct func* func ) {
+   // Allocate a script variable only for a parameter that is used as part of
+   // the default value of a later parameter.
+   int used = 0;
+   struct param* param = func->params;
+   while ( param ) {
+      if ( param->used ) {
+         param->index = alloc_scriptvar( alloc );
+         ++used;
+      }
+      param = param->next;
    }
 }
 
