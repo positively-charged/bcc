@@ -36,6 +36,8 @@ static void visit_var( struct alloc* alloc, struct var* var );
 static void visit_format_item( struct alloc* alloc, struct format_item* item );
 static int alloc_scriptvar( struct alloc* alloc );
 static void dealloc_lastscriptvar( struct alloc* alloc );
+static void visit_packed_expr( struct alloc* alloc,
+   struct packed_expr* packed );
 static void visit_expr( struct alloc* alloc, struct node* node );
 static void visit_call( struct alloc* alloc, struct call* call );
 
@@ -369,15 +371,12 @@ void visit_stmt( struct alloc* alloc, struct node* node ) {
    case NODE_RETURN: {
       struct return_stmt* stmt = ( struct return_stmt* ) node;
       if ( stmt->return_value ) {
-         visit_expr( alloc, &stmt->return_value->node );
+         visit_packed_expr( alloc, ( struct packed_expr* )
+            stmt->return_value );
       }
       break; }
    case NODE_PACKED_EXPR: {
-      struct packed_expr* stmt = ( struct packed_expr* ) node;
-      visit_expr( alloc, &stmt->expr->node );
-      if ( stmt->block ) {
-         visit_block( alloc, stmt->block );
-      }
+      visit_packed_expr( alloc, ( struct packed_expr* ) node );
       break; }
    default:
       break;
@@ -476,6 +475,13 @@ int alloc_scriptvar( struct alloc* alloc ) {
 void dealloc_lastscriptvar( struct alloc* alloc ) {
    --alloc->func->local->index;
    --alloc->func->local->func_size;
+}
+
+void visit_packed_expr( struct alloc* alloc, struct packed_expr* packed ) {
+   visit_expr( alloc, &packed->expr->node );
+   if ( packed->block ) {
+      visit_block( alloc, packed->block );
+   }
 }
 
 void visit_expr( struct alloc* alloc, struct node* node ) {
