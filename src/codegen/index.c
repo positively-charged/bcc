@@ -40,6 +40,7 @@ static void visit_packed_expr( struct alloc* alloc,
    struct packed_expr* packed );
 static void visit_expr( struct alloc* alloc, struct node* node );
 static void visit_call( struct alloc* alloc, struct call* call );
+static void visit_paltrans( struct alloc* alloc, struct paltrans* trans );
 
 void c_alloc_indexes( struct codegen* phase ) {
    alloc_mapvars_index( phase );
@@ -331,6 +332,7 @@ void visit_block_item( struct alloc* alloc, struct node* node ) {
       break;
    case NODE_CASE_DEFAULT:
    case NODE_GOTO_LABEL:
+   case NODE_IMPORT:
       // Ignored.
       break;
    default:
@@ -378,6 +380,9 @@ void visit_stmt( struct alloc* alloc, struct node* node ) {
    case NODE_PACKED_EXPR: {
       visit_packed_expr( alloc, ( struct packed_expr* ) node );
       break; }
+   case NODE_PALTRANS:
+      visit_paltrans( alloc, ( struct paltrans* ) node );
+      break;
    default:
       break;
    }
@@ -579,5 +584,27 @@ void visit_call( struct alloc* alloc, struct call* call ) {
    while ( param ) {
       visit_expr( alloc, &param->default_value->node );
       param = param->next;
+   }
+}
+
+void visit_paltrans( struct alloc* alloc, struct paltrans* trans ) {
+   visit_expr( alloc, &trans->number->node );
+   struct palrange* range = trans->ranges;
+   while ( range ) {
+      visit_expr( alloc, &range->begin->node );
+      visit_expr( alloc, &range->end->node );
+      if ( range->rgb ) {
+         visit_expr( alloc, &range->value.rgb.red1->node );
+         visit_expr( alloc, &range->value.rgb.green1->node );
+         visit_expr( alloc, &range->value.rgb.blue1->node );
+         visit_expr( alloc, &range->value.rgb.red2->node );
+         visit_expr( alloc, &range->value.rgb.green2->node );
+         visit_expr( alloc, &range->value.rgb.blue2->node );
+      }
+      else {
+         visit_expr( alloc, &range->value.ent.begin->node );
+         visit_expr( alloc, &range->value.ent.end->node );
+      }
+      range = range->next;
    }
 }
