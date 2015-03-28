@@ -283,92 +283,7 @@ void read_source( struct parse* phase, struct token* token ) {
    column = phase->source->column;
    // Identifier:
    if ( isalpha( ch ) || ch == '_' ) {
-      char* id = save;
-      while ( isalnum( ch ) || ch == '_' ) {
-         *save = tolower( ch );
-         ++save;
-         ch = read_ch( phase );
-      }
-      *save = 0;
-      ++save;
-      // NOTE: Reserved identifiers must be listed in ascending order.
-      static const struct { const char* name; enum tk tk; }
-      reserved[] = {
-         { "bluereturn", TK_BLUE_RETURN },
-         { "bool", TK_BOOL },
-         { "break", TK_BREAK },
-         { "case", TK_CASE },
-         { "clientside", TK_CLIENTSIDE },
-         { "const", TK_CONST },
-         { "continue", TK_CONTINUE },
-         { "createtranslation", TK_PALTRANS },
-         { "death", TK_DEATH },
-         { "default", TK_DEFAULT },
-         { "disconnect", TK_DISCONNECT },
-         { "do", TK_DO },
-         { "else", TK_ELSE },
-         { "enter", TK_ENTER },
-         { "enum", TK_ENUM },
-         { "event", TK_EVENT },
-         { "false", TK_FALSE },
-         // Maybe we'll add this as a type later.
-         { "fixed", TK_RESERVED },
-         { "for", TK_FOR },
-         { "function", TK_FUNCTION },
-         { "global", TK_GLOBAL },
-         { "goto", TK_GOTO },
-         { "if", TK_IF },
-         { "import", TK_IMPORT },
-         { "int", TK_INT },
-         { "lightning", TK_LIGHTNING },
-         { "net", TK_NET },
-         { "open", TK_OPEN },
-         { "pickup", TK_PICKUP },
-         { "redreturn", TK_RED_RETURN },
-         { "region", TK_REGION },
-         { "respawn", TK_RESPAWN },
-         { "restart", TK_RESTART },
-         { "return", TK_RETURN },
-         { "script", TK_SCRIPT },
-         { "special", TK_RESERVED },
-         { "static", TK_STATIC },
-         { "str", TK_STR },
-         { "struct", TK_STRUCT },
-         { "suspend", TK_SUSPEND },
-         { "switch", TK_SWITCH },
-         { "terminate", TK_TERMINATE },
-         { "true", TK_TRUE },
-         { "unloading", TK_UNLOADING },
-         { "until", TK_UNTIL },
-         { "upmost", TK_UPMOST },
-         { "void", TK_VOID },
-         { "while", TK_WHILE },
-         { "whitereturn", TK_WHITE_RETURN },
-         { "world", TK_WORLD },
-         // Terminator.
-         { "\x7F", TK_END } };
-      #define RESERVED_MAX ARRAY_SIZE( reserved )
-      #define RESERVED_MID ( RESERVED_MAX / 2 )
-      int i = 0;
-      if ( *id >= *reserved[ RESERVED_MID ].name ) {
-         i = RESERVED_MID;
-      }
-      while ( true ) {
-         // Identifier.
-         if ( reserved[ i ].name[ 0 ] > *id ) {
-            tk = TK_ID;
-            break;
-         }
-         // Reserved identifier.
-         else if ( strcmp( reserved[ i ].name, id ) == 0 ) {
-            tk = reserved[ i ].tk;
-            break;
-         }
-         else {
-            ++i;
-         }
-      }
-      goto state_finish;
+      goto id;
    }
    else if ( ch == '0' ) {
       ch = read_ch( phase );
@@ -679,6 +594,97 @@ void read_source( struct parse* phase, struct token* token ) {
             i += 2;
          }
       }
+   }
+
+   id:
+   // -----------------------------------------------------------------------
+   {
+      char* id = save;
+      while ( isalnum( ch ) || ch == '_' ) {
+         *save = tolower( ch );
+         ++save;
+         ch = read_ch( phase );
+      }
+      *save = 0;
+      ++save;
+      // NOTE: Reserved identifiers must be listed in ascending order.
+      static const struct { const char* name; enum tk tk; }
+      reserved[] = {
+         { "bluereturn", TK_BLUE_RETURN },
+         { "bool", TK_BOOL },
+         { "break", TK_BREAK },
+         { "case", TK_CASE },
+         { "clientside", TK_CLIENTSIDE },
+         { "const", TK_CONST },
+         { "continue", TK_CONTINUE },
+         { "createtranslation", TK_PALTRANS },
+         { "death", TK_DEATH },
+         { "default", TK_DEFAULT },
+         { "disconnect", TK_DISCONNECT },
+         { "do", TK_DO },
+         { "else", TK_ELSE },
+         { "enter", TK_ENTER },
+         { "enum", TK_ENUM },
+         { "event", TK_EVENT },
+         { "false", TK_FALSE },
+         // Maybe we'll add this as a type later.
+         { "fixed", TK_RESERVED },
+         { "for", TK_FOR },
+         { "function", TK_FUNCTION },
+         { "global", TK_GLOBAL },
+         { "goto", TK_GOTO },
+         { "if", TK_IF },
+         { "import", TK_IMPORT },
+         { "int", TK_INT },
+         { "lightning", TK_LIGHTNING },
+         { "net", TK_NET },
+         { "open", TK_OPEN },
+         { "pickup", TK_PICKUP },
+         { "redreturn", TK_RED_RETURN },
+         { "region", TK_REGION },
+         { "respawn", TK_RESPAWN },
+         { "restart", TK_RESTART },
+         { "return", TK_RETURN },
+         { "script", TK_SCRIPT },
+         { "special", TK_RESERVED },
+         { "static", TK_STATIC },
+         { "str", TK_STR },
+         { "struct", TK_STRUCT },
+         { "suspend", TK_SUSPEND },
+         { "switch", TK_SWITCH },
+         { "terminate", TK_TERMINATE },
+         { "true", TK_TRUE },
+         { "unloading", TK_UNLOADING },
+         { "until", TK_UNTIL },
+         { "upmost", TK_UPMOST },
+         { "void", TK_VOID },
+         { "while", TK_WHILE },
+         { "whitereturn", TK_WHITE_RETURN },
+         { "world", TK_WORLD },
+         // Terminator.
+         { "\x7F", TK_END } };
+      #define RESERVED_MAX ARRAY_SIZE( reserved )
+      #define RESERVED_MID ( RESERVED_MAX / 2 )
+      int i = 0;
+      if ( strcmp( id, reserved[ RESERVED_MID ].name ) >= 0 ) {
+         i = RESERVED_MID;
+      }
+      while ( true ) {
+         // Identifier.
+         if ( reserved[ i ].name[ 0 ] > *id ) {
+            tk = TK_ID;
+            break;
+         }
+         // Reserved identifier.
+         else if ( strcmp( reserved[ i ].name, id ) == 0 ) {
+            tk = reserved[ i ].tk;
+            break;
+         }
+         else {
+            ++i;
+         }
+      }
+      goto state_finish;
    }
 
    binary_literal:
