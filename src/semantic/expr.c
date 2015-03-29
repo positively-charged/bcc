@@ -31,8 +31,8 @@ static void test_literal( struct semantic* phase, struct operand*, struct litera
 static void test_string_usage( struct semantic* phase, struct expr_test*,
    struct operand*, struct indexed_string_usage* );
 static void test_boolean( struct semantic* phase, struct operand*, struct boolean* );
-static void test_name_usage( struct semantic* phase, struct expr_test*, struct operand*,
-   struct name_usage* );
+static void test_name_usage( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct name_usage* usage );
 static struct object* find_usage_object( struct semantic* phase, struct name_usage* );
 static void test_unary( struct semantic* phase, struct expr_test*, struct operand*,
    struct unary* );
@@ -66,14 +66,13 @@ static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct operand* operand, struct conditional* cond );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
-   struct block* format_block, bool result_required, bool undef_err,
+   struct block* format_block, bool result_required,
    bool suggest_paren_assign ) {
    test->stmt_test = stmt_test;
    test->format_block = format_block;
    test->format_block_usage = NULL;
    test->result_required = result_required;
    test->has_string = false;
-   test->undef_err = undef_err;
    test->undef_erred = false;
    test->accept_array = false;
    test->suggest_paren_assign = suggest_paren_assign;
@@ -203,25 +202,25 @@ void test_boolean( struct semantic* phase, struct operand* operand,
    operand->type = phase->task->type_bool;
 }
 
-void test_name_usage( struct semantic* phase, struct expr_test* test,
+void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct name_usage* usage ) {
-   struct object* object = find_usage_object( phase, usage );
+   struct object* object = find_usage_object( semantic, usage );
    if ( object && object->resolved ) {
-      use_object( phase, test, operand, object );
+      use_object( semantic, test, operand, object );
       usage->object = &object->node;
    }
    // Object not found or isn't valid.
    else {
-      if ( test->undef_err ) {
+      if ( semantic->trigger_err ) {
          if ( object ) {
-            s_diag( phase, DIAG_POS_ERR, &usage->pos,
+            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
                "`%s` undefined", usage->text );
          }
          else {
-            s_diag( phase, DIAG_POS_ERR, &usage->pos,
+            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
                "`%s` not found", usage->text );
          }
-         s_bail( phase );
+         s_bail( semantic );
       }
       else {
          test->undef_erred = true;
@@ -442,7 +441,7 @@ void test_subscript( struct semantic* phase, struct expr_test* test,
    }
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
-      test->undef_err, false );
+      false );
    s_test_expr( phase, &index, subscript->index );
    if ( index.undef_erred ) {
       test->undef_erred = true;
@@ -559,7 +558,7 @@ void test_call_args( struct semantic* phase, struct expr_test* expr_test,
    while ( ! list_end( &i ) ) {
       struct expr_test arg;
       s_init_expr_test( &arg, expr_test->stmt_test, expr_test->format_block,
-         true, expr_test->undef_err, false );
+         true, false );
       s_test_expr( phase, &arg, list_data( &i ) );
       if ( arg.undef_erred ) {
          expr_test->undef_erred = true;
@@ -691,8 +690,7 @@ void test_format_item( struct semantic* phase, struct stmt_test* stmt_test,
    struct expr_test* test, struct block* format_block,
    struct format_item* item ) {
    struct expr_test value;
-   s_init_expr_test( &value, stmt_test, format_block, true,
-      test ? test->undef_err : true, false );
+   s_init_expr_test( &value, stmt_test, format_block, true, false );
    s_test_expr( phase, &value, item->value );
    if ( value.undef_erred ) {
       test->undef_erred = true;
@@ -704,8 +702,7 @@ void test_array_format_item( struct semantic* phase, struct stmt_test* stmt_test
    struct expr_test* test, struct block* format_block,
    struct format_item* item ) {
    struct expr_test value;
-   s_init_expr_test( &value, stmt_test, format_block, false,
-      test ? test->undef_err : true, false );
+   s_init_expr_test( &value, stmt_test, format_block, false, false );
    // When using the array format cast, accept an array as the result of the
    // expression.
    value.accept_array = true;
@@ -729,11 +726,10 @@ void test_array_format_item( struct semantic* phase, struct stmt_test* stmt_test
    // Test optional fields: offset and length.
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
-      s_init_expr_test( &value, stmt_test, format_block, true, true, false );
+      s_init_expr_test( &value, stmt_test, format_block, true, false );
       s_test_expr( phase, &value, extra->offset );
       if ( extra->length ) {
-         s_init_expr_test( &value, stmt_test, format_block, true, true,
-            false );
+         s_init_expr_test( &value, stmt_test, format_block, true, false );
          s_test_expr( phase, &value, extra->length );
       }
    }
@@ -884,13 +880,13 @@ void test_region_access( struct semantic* phase, struct expr_test* test,
       s_bail( phase );
    }
    if ( ! object->resolved ) {
-      if ( ! test->undef_err ) {
-         test->undef_erred = true;
-         longjmp( test->bail, 1 );
+      if ( phase->trigger_err ) {
+         s_diag( phase, DIAG_POS_ERR, &access->pos,
+            "right operand `%s` undefined", access->name );
+         s_bail( phase );
       }
-      s_diag( phase, DIAG_POS_ERR, &access->pos,
-         "right operand `%s` undefined", access->name );
-      s_bail( phase );
+      test->undef_erred = true;
+      longjmp( test->bail, 1 );
    }
    use_object( phase, test, operand, object );
    access->rside = ( struct node* ) object;
@@ -913,7 +909,7 @@ void test_struct_access( struct semantic* phase, struct expr_test* test,
       // Leave for now.
       // TODO: The name should already refer to a valid member by this stage.
       // Need to refactor the declaration code, then remove this.
-      if ( ! test->undef_err ) {
+      if ( ! phase->trigger_err ) {
          test->undef_erred = true;
          longjmp( test->bail, 1 );
       }
@@ -933,7 +929,7 @@ void test_struct_access( struct semantic* phase, struct expr_test* test,
       }
    }
    if ( ! name->object->resolved ) {
-      if ( test->undef_err ) {
+      if ( phase->trigger_err ) {
          s_diag( phase, DIAG_POS_ERR, &access->pos,
             "right operand `%s` undefined", access->name );
          s_bail( phase );

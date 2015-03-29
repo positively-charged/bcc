@@ -23,13 +23,10 @@ struct value_index_alloc {
    int index;
 };
 
-static void test_script_number( struct semantic* phase, struct script* script );
-static void test_script_params( struct semantic* phase, struct script* script );
-static void test_script_body( struct semantic* phase, struct script* script );
 static void test_type_member( struct semantic* phase, struct type_member* );
 static struct type* find_type( struct semantic* phase, struct path* );
 static bool test_spec( struct semantic* phase, struct var* var );
-static void test_name( struct semantic* phase, struct var* var );
+static void test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* phase, struct var* var );
 static bool test_initz( struct semantic* phase, struct var* var );
 static bool test_object_initz( struct semantic* phase, struct var* var );
@@ -53,41 +50,35 @@ static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
    struct type*, struct dim* );
 static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct type* );
-static void diag_dup_struct_member( struct task* task, struct name*, struct pos* );
+static void test_script_number( struct semantic* phase, struct script* script );
+static void test_script_body( struct semantic* phase, struct script* script );
 
-void s_test_constant( struct semantic* phase, struct constant* constant ) {
+void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
-   if ( phase->depth ) {
-      if ( ! constant->name->object ||
-         constant->name->object->depth != phase->depth ) {
-         s_bind_local_name( phase, constant->name, &constant->object );
-      }
-      else {
-         struct str str;
-         str_init( &str );
-         t_copy_name( constant->name, false, &str );
-         diag_dup( phase->task, str.value, &constant->object.pos, constant->name );
-         s_bail( phase );
+   if ( semantic->in_localscope ) {
+      if ( constant->name->object != &constant->object ) {
+         s_bind_name( semantic, constant->name, &constant->object );
       }
    }
    // Test expression.
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
-   s_test_expr( phase, &expr, constant->value_node );
+   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_test_expr( semantic, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
       if ( constant->value_node->folded ) {
          constant->value = constant->value_node->value;
          constant->object.resolved = true;
       }
       else {
-         s_diag( phase, DIAG_POS_ERR, &constant->value_node->pos,
+         s_diag( semantic, DIAG_POS_ERR, &constant->value_node->pos,
             "expression not constant" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
 }
 
-void s_test_constant_set( struct semantic* phase, struct constant_set* set ) {
+void s_test_constant_set( struct semantic* semantic,
+   struct constant_set* set ) {
    int value = 0;
    // Find the next unresolved enumerator.
    struct constant* enumerator = set->head;
@@ -96,31 +87,22 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set ) {
       enumerator = enumerator->next;
    }
    while ( enumerator ) {
-      if ( phase->depth ) {
-         if ( ! enumerator->name->object ||
-            enumerator->name->object->depth != phase->depth ) {
-            s_bind_local_name( phase, enumerator->name, &enumerator->object );
-         }
-         else {
-            struct str str;
-            str_init( &str );
-            t_copy_name( enumerator->name, false, &str );
-            diag_dup( phase->task, str.value, &enumerator->object.pos,
-               enumerator->name );
-            s_bail( phase );
+      if ( semantic->in_localscope ) {
+         if ( enumerator->name->object != &enumerator->object ) {
+            s_bind_name( semantic, enumerator->name, &enumerator->object );
          }
       }
       if ( enumerator->value_node ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
-         s_test_expr( phase, &expr, enumerator->value_node );
+         s_init_expr_test( &expr, NULL, NULL, true, false );
+         s_test_expr( semantic, &expr, enumerator->value_node );
          if ( expr.undef_erred ) {
             return;
          }
          if ( ! enumerator->value_node->folded ) {
-            s_diag( phase, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
                "enumerator expression not constant" );
-            s_bail( phase );
+            s_bail( semantic );
          }
          value = enumerator->value_node->value;
       }
@@ -135,12 +117,10 @@ void s_test_constant_set( struct semantic* phase, struct constant_set* set ) {
 
 void s_test_type( struct semantic* phase, struct type* type ) {
    // Name.
-   if ( phase->depth ) {
-      if ( type->name->object && type->name->object->depth == phase->depth ) {
-         diag_dup_struct( phase->task, type->name, &type->object.pos );
-         s_bail( phase );
+   if ( phase->in_localscope ) {
+      if ( type->name->object != &type->object ) {
+         s_bind_name( phase, type->name, &type->object );
       }
-      s_bind_local_name( phase, type->name, &type->object );
    }
    // Members.
    struct type_member* member = type->member;
@@ -163,7 +143,7 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
          member->type = find_type( phase, member->type_path );
       }
       if ( ! member->type->object.resolved ) {
-         if ( phase->undef_err ) {
+         if ( phase->trigger_err ) {
             struct path* path = member->type_path;
             while ( path->next ) {
                path = path->next;
@@ -176,26 +156,8 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
       }
    }
    // Name:
-   if ( phase->depth ) {
-      if ( ! member->name->object ||
-         member->name->object->depth != phase->depth ) {
-         s_bind_local_name( phase, member->name, &member->object );
-      }
-      else {
-         diag_dup_struct_member( phase->task, member->name, &member->object.pos );
-         s_bail( phase );
-      }
-   }
-   else {
-      if ( member->name->object != &member->object ) {
-         if ( ! member->name->object ) {
-            member->name->object = &member->object;
-         }
-         else {
-            diag_dup_struct_member( phase->task, member->name, &member->object.pos );
-            s_bail( phase );
-         }
-      }
+   if ( member->name->object != &member->object ) {
+     s_bind_name( phase, member->name, &member->object );
    }
    // Dimension.
    struct dim* dim = member->dim;
@@ -205,7 +167,7 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
    }
    while ( dim ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
+      s_init_expr_test( &expr, NULL, NULL, true, false );
       s_test_expr( phase, &expr, dim->size_node );
       if ( expr.undef_erred ) {
          return;
@@ -381,17 +343,12 @@ bool test_spec( struct semantic* phase, struct var* var ) {
    return true;
 }
 
-void test_name( struct semantic* phase, struct var* var ) {
+void test_name( struct semantic* semantic, struct var* var ) {
    // Bind name of local variable.
-   if ( phase->depth ) {
-      if ( var->name->object && var->name->object->depth == phase->depth ) {
-         struct str str;
-         str_init( &str );
-         t_copy_name( var->name, false, &str );
-         diag_dup( phase->task, str.value, &var->object.pos, var->name );
-         s_bail( phase );
+   if ( semantic->in_localscope ) {
+      if ( var->name->object != &var->object ) {
+         s_bind_name( semantic, var->name, &var->object );
       }
-      s_bind_local_name( phase, var->name, &var->object );
    }
 }
 
@@ -409,7 +366,7 @@ bool test_dim( struct semantic* phase, struct var* var ) {
    while ( dim ) {
       if ( dim->size_node ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
+         s_init_expr_test( &expr, NULL, NULL, true, false );
          s_test_expr( phase, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return false;
@@ -583,7 +540,7 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
 bool test_value( struct semantic* phase, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, phase->undef_err, false );
+   s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( phase, &expr, value->expr );
    if ( expr.undef_erred ) {
       return false;
@@ -642,22 +599,17 @@ void s_test_local_var( struct semantic* phase, struct var* var ) {
 
 void s_test_func( struct semantic* semantic, struct func* func ) {
    // Test name of nested function.
-   if ( semantic->depth ) {
-      if ( func->name->object &&
-         func->name->object->depth == semantic->depth ) {
-         struct str str;
-         str_init( &str );
-         t_copy_name( func->name, false, &str );
-         diag_dup( semantic->task, str.value, &func->object.pos, func->name );
-         s_bail( semantic );
+   bool in_localscope = semantic->in_localscope;
+   if ( in_localscope ) {
+      if ( func->name->object != &func->object ) {
+         s_bind_name( semantic, func->name, &func->object );
       }
-      s_bind_local_name( semantic, func->name, &func->object );
    }
    s_add_scope( semantic );
    if ( test_func_paramlist( semantic, func ) ) {
       func->object.resolved = true;
       // Test body of a nested user-function.
-      if ( semantic->depth > 1 && func->type == FUNC_USER ) {
+      if ( in_localscope && func->type == FUNC_USER ) {
          struct func_user* impl = func->impl;
          impl->next_nested = semantic->topfunc_test->nested_funcs;
          semantic->topfunc_test->nested_funcs = func;
@@ -692,8 +644,7 @@ bool test_func_paramlist( struct semantic* semantic, struct func* func ) {
 bool test_func_param( struct semantic* semantic, struct param* param ) {
    if ( param->default_value ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, semantic->undef_err,
-         false );
+      s_init_expr_test( &expr, NULL, NULL, true, false );
       s_test_expr( semantic, &expr, param->default_value );
       if ( expr.undef_erred ) {
          return false;
@@ -701,17 +652,8 @@ bool test_func_param( struct semantic* semantic, struct param* param ) {
    }
    // Any previous parameter is visible inside the expression of a default
    // parameter. At this time, this only works for user-functions.
-   if ( param->name ) {
-      if ( param->name->object &&
-         param->name->object->depth == semantic->depth ) {
-         struct str str;
-         str_init( &str );
-         t_copy_name( param->name, false, &str );
-         diag_dup( semantic->task, str.value, &param->object.pos,
-            param->name );
-         s_bail( semantic );
-      }
-      s_bind_local_name( semantic, param->name, &param->object );
+   if ( param->name && param->name->object != &param->object ) {
+      s_bind_name( semantic, param->name, &param->object );
    }
    return true;
 }
@@ -723,7 +665,7 @@ void s_test_func_body( struct semantic* phase, struct func* func ) {
       struct param* param = func->params;
       while ( param ) {
          if ( param->name ) {
-            s_bind_local_name( phase, param->name, ( struct object* ) param );
+            s_bind_name( phase, param->name, ( struct object* ) param );
          }
          param = param->next;
       }
@@ -752,14 +694,13 @@ void s_test_func_body( struct semantic* phase, struct func* func ) {
 
 void s_test_script( struct semantic* phase, struct script* script ) {
    test_script_number( phase, script );
-   test_script_params( phase, script );
    test_script_body( phase, script );
 }
 
 void test_script_number( struct semantic* phase, struct script* script ) {
    if ( script->number ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true, false );
+      s_init_expr_test( &expr, NULL, NULL, true, false );
       s_test_expr( phase, &expr, script->number );
       if ( ! script->number->folded ) {
          s_diag( phase, DIAG_POS_ERR, &expr.pos,
@@ -781,27 +722,12 @@ void test_script_number( struct semantic* phase, struct script* script ) {
    }
 }
 
-void test_script_params( struct semantic* phase, struct script* script ) {
-   struct param* param = script->params;
-   while ( param ) {
-      if ( param->name && param->name->object &&
-         param->name->object->node.type == NODE_PARAM ) {
-         struct str str;
-         str_init( &str );
-         t_copy_name( param->name, false, &str );
-         diag_dup( phase->task, str.value, &param->object.pos, param->name );
-         s_bail( phase );
-      }
-      param->object.resolved = true;
-      param = param->next;
-   }
-}
-
 void test_script_body( struct semantic* phase, struct script* script ) {
    s_add_scope( phase );
    struct param* param = script->params;
    while ( param ) {
-      s_bind_local_name( phase, param->name, &param->object );
+      s_bind_name( phase, param->name, &param->object );
+      param->object.resolved = true;
       param = param->next;
    }
    struct stmt_test test;
@@ -1009,34 +935,4 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
       member = member->next;
       initial = initial->next;
    }
-}
-
-void diag_dup( struct task* task, const char* text, struct pos* pos,
-   struct name* prev ) {
-   t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-      "duplicate name `%s`", text );
-   t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &prev->object->pos,
-      "name already used here" );
-}
-
-void diag_dup_struct( struct task* task, struct name* name,
-   struct pos* pos ) {
-   struct str str;
-   str_init( &str );
-   t_copy_name( name, false, &str );
-   t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-      "duplicate struct `%s`", str.value );
-   t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
-      "struct already found here" );
-}
-
-void diag_dup_struct_member( struct task* task, struct name* name,
-   struct pos* pos ) {
-   struct str str;
-   str_init( &str );
-   t_copy_name( name, false, &str );
-   t_diag( task, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, pos,
-      "duplicate struct member `%s`", str.value );
-   t_diag( task, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
-      "struct member already found here", str.value );
 }

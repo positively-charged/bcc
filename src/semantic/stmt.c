@@ -28,7 +28,7 @@ static void test_format_item( struct semantic* phase, struct stmt_test*,
 static void test_packed_expr( struct semantic* phase, struct stmt_test*,
    struct packed_expr*, struct pos* );
 static void test_goto_in_format_block( struct semantic* phase, struct list* );
-static void alias_imported( struct semantic* phase, char* name,
+static void alias_imported( struct semantic* semantic, char* name,
    struct pos* pos, struct object* object );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
@@ -116,7 +116,7 @@ void test_case( struct semantic* phase, struct stmt_test* test,
       s_bail( phase );
    }
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, true, false );
+   s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( phase, &expr, label->number );
    if ( ! label->number->folded ) {
       s_diag( phase, DIAG_POS_ERR, &expr.pos,
@@ -226,7 +226,7 @@ void s_test_stmt( struct semantic* phase, struct stmt_test* test,
 void test_if( struct semantic* phase, struct stmt_test* test,
    struct if_stmt* stmt ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, true, true );
+   s_init_expr_test( &expr, NULL, NULL, true, true );
    s_test_expr( phase, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
@@ -240,7 +240,7 @@ void test_if( struct semantic* phase, struct stmt_test* test,
 void test_switch( struct semantic* phase, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, true, true );
+   s_init_expr_test( &expr, NULL, NULL, true, true );
    s_test_expr( phase, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
@@ -255,7 +255,7 @@ void test_while( struct semantic* phase, struct stmt_test* test,
    struct while_stmt* stmt ) {
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true, true );
+      s_init_expr_test( &expr, NULL, NULL, true, true );
       s_test_expr( phase, &expr, stmt->cond );
    }
    struct stmt_test body;
@@ -266,7 +266,7 @@ void test_while( struct semantic* phase, struct stmt_test* test,
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true, true );
+      s_init_expr_test( &expr, NULL, NULL, true, true );
       s_test_expr( phase, &expr, stmt->cond );
    }
 }
@@ -281,7 +281,7 @@ void test_for( struct semantic* phase, struct stmt_test* test,
       struct node* node = list_data( &i );
       if ( node->type == NODE_EXPR ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, false, true, false );
+         s_init_expr_test( &expr, NULL, NULL, false, false );
          s_test_expr( phase, &expr, ( struct expr* ) node );
       }
       else {
@@ -292,14 +292,14 @@ void test_for( struct semantic* phase, struct stmt_test* test,
    // Condition.
    if ( stmt->cond ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true, true );
+      s_init_expr_test( &expr, NULL, NULL, true, true );
       s_test_expr( phase, &expr, stmt->cond );
    }
    // Post expressions.
    list_iter_init( &i, &stmt->post );
    while ( ! list_end( &i ) ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, false, true, false );
+      s_init_expr_test( &expr, NULL, NULL, false, false );
       s_test_expr( phase, &expr, list_data( &i ) );
       list_next( &i );
    }
@@ -481,7 +481,7 @@ void test_paltrans( struct semantic* phase, struct stmt_test* test,
 
 void test_paltrans_arg( struct semantic* phase, struct expr* expr ) {
    struct expr_test arg;
-   s_init_expr_test( &arg, NULL, NULL, true, true, false );
+   s_init_expr_test( &arg, NULL, NULL, true, false );
    s_test_expr( phase, &arg, expr );
 }
 
@@ -503,7 +503,7 @@ void test_packed_expr( struct semantic* phase, struct stmt_test* test,
    struct packed_expr* packed, struct pos* expr_pos ) {
    // Test expression.
    struct expr_test expr_test;
-   s_init_expr_test( &expr_test, test, packed->block, false, true, false );
+   s_init_expr_test( &expr_test, test, packed->block, false, false );
    s_test_expr( phase, &expr_test, packed->expr );
    if ( expr_pos ) {
       *expr_pos = expr_test.pos;
@@ -679,43 +679,27 @@ void s_import( struct semantic* phase, struct import* stmt ) {
    }
 }
 
-void alias_imported( struct semantic* phase, char* alias_name,
+void alias_imported( struct semantic* semantic, char* alias_name,
    struct pos* alias_pos, struct object* object ) {
-   struct name* name = phase->region->body;
-   if ( object->node.type == NODE_TYPE ) {
-      name = phase->region->body_struct;
-   }
-   name = t_make_name( phase->task, alias_name, name );
-   if ( name->object ) {
-      // Duplicate imports are allowed as long as both names refer to the
-      // same object.
-      bool valid = false;
-      if ( name->object->node.type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) name->object;
-         if ( object == alias->target ) {
-            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               alias_pos, "duplicate import name `%s`", alias_name );
-            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &alias->object.pos,
-               "import name already used here", alias_name );
-            valid = true;
-         }
-      }
-      if ( ! valid ) {
-         diag_dup( phase->task, alias_name, alias_pos, name );
-         s_bail( phase );
+   struct name* name = t_make_name( semantic->task, alias_name,
+      object->node.type == NODE_TYPE ? semantic->region->body_struct :
+         semantic->region->body );
+   // Duplicate imports are allowed as long as both names refer to the
+   // same object.
+   if ( name->object && name->object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) name->object;
+      if ( object == alias->target ) {
+         s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            alias_pos, "duplicate import name `%s`", alias_name );
+         s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &alias->object.pos, "import name already used here" );
+         return;
       }
    }
-   else {
-      struct alias* alias = mem_alloc( sizeof( *alias ) );
-      t_init_object( &alias->object, NODE_ALIAS );
-      alias->object.pos = *alias_pos;
-      alias->object.resolved = true;
-      alias->target = object;
-      if ( phase->depth ) {
-         s_bind_local_name( phase, name, &alias->object );
-      }
-      else {
-         name->object = &alias->object;
-      }
-   }
+   struct alias* alias = mem_alloc( sizeof( *alias ) );
+   t_init_object( &alias->object, NODE_ALIAS );
+   alias->object.pos = *alias_pos;
+   alias->object.resolved = true;
+   alias->target = object;
+   s_bind_name( semantic, name, &alias->object );
 }

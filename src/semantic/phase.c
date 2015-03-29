@@ -19,8 +19,6 @@ static void determine_publishable_objects( struct semantic* phase );
 static void bind_names( struct semantic* phase );
 static void bind_regionobject_name( struct semantic* phase,
    struct object* object );
-static void bind_object_name( struct semantic* phase, struct name*,
-   struct object* object );
 static void import_objects( struct semantic* phase );
 static void test_objects( struct semantic* phase );
 static void test_region( struct semantic* phase, bool* resolved, bool* retry );
@@ -31,6 +29,10 @@ static void check_dup_scripts( struct semantic* phase );
 static void calc_map_var_size( struct semantic* phase );
 static void calc_map_value_index( struct semantic* phase );
 static void add_loadable_libs( struct semantic* phase );
+static void dupname_err( struct semantic* semantic, struct name* name,
+   struct object* object );
+static void add_sweep_name( struct semantic* semantic, struct name* name,
+   struct object* object );
 
 void s_init( struct semantic* phase, struct task* task ) {
    phase->task = task;
@@ -41,7 +43,8 @@ void s_init( struct semantic* phase, struct task* task ) {
    phase->topfunc_test = NULL;
    phase->func_test = NULL;
    phase->depth = 0;
-   phase->undef_err = false;
+   phase->trigger_err = false;
+   phase->in_localscope = false;
 }
 
 void s_test( struct semantic* phase ) {
@@ -94,51 +97,32 @@ void bind_regionobject_name( struct semantic* phase, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT: {
       struct constant* constant = ( struct constant* ) object;
-      bind_object_name( phase, constant->name, &constant->object );
+      s_bind_name( phase, constant->name, &constant->object );
       break; }
    case NODE_CONSTANT_SET: {
       struct constant_set* set = ( struct constant_set* ) object;
       struct constant* constant = set->head;
       while ( constant ) {
-         bind_object_name( phase, constant->name, &constant->object );
+         s_bind_name( phase, constant->name, &constant->object );
          constant = constant->next;
       }
       break; }
    case NODE_VAR: {
       struct var* var = ( struct var* ) object;
-      bind_object_name( phase, var->name, &var->object );
+      s_bind_name( phase, var->name, &var->object );
       break; }
    case NODE_FUNC: {
       struct func* func = ( struct func* ) object;
-      bind_object_name( phase, func->name, &func->object );
+      s_bind_name( phase, func->name, &func->object );
       break; }
    case NODE_TYPE: {
       struct type* type = ( struct type* ) object;
-      if ( type->name->object ) {
-         diag_dup_struct( phase->task, type->name, &type->object.pos );
-         s_bail( phase );
-      }
-      type->name->object = &type->object;
+      s_bind_name( phase, type->name, &type->object );
       break; }
    default:
       t_unhandlednode_diag( phase->task, __FILE__, __LINE__, &object->node );
       t_bail( phase->task );
    }
-}
-
-void bind_object_name( struct semantic* phase, struct name* name,
-   struct object* object ) {
-   if ( name->object ) {
-      struct str str;
-      str_init( &str );
-      t_copy_name( name, false, &str );
-      s_diag( phase, DIAG_POS_ERR, &object->pos,
-         "duplicate name `%s`", str.value );
-      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &name->object->pos,
-         "name already used here", str.value );
-      s_bail( phase );
-   }
-   name->object = object;
 }
 
 // Executes import-statements found in regions.
@@ -174,7 +158,7 @@ void test_objects( struct semantic* phase ) {
          // Continue resolving as long as something got resolved. If nothing
          // gets resolved during the last run, then nothing can be resolved
          // anymore. So report errors.
-         phase->undef_err = ( ! resolved );
+         phase->trigger_err = ( ! resolved );
       }
       else {
          break;
@@ -235,7 +219,7 @@ void test_region_object( struct semantic* phase, struct object* object ) {
 
 // Analyzes the body of functions, and scripts.
 void test_objects_bodies( struct semantic* phase ) {
-   phase->undef_err = true;
+   phase->trigger_err = true;
    list_iter_t i;
    list_iter_init( &i, &phase->task->regions );
    while ( ! list_end( &i ) ) {
@@ -386,6 +370,7 @@ void s_add_scope( struct semantic* phase ) {
    scope->imports = NULL;
    phase->scope = scope;
    ++phase->depth;
+   phase->in_localscope = ( phase->depth > 0 );
 }
 
 void s_pop_scope( struct semantic* phase ) {
@@ -410,26 +395,69 @@ void s_pop_scope( struct semantic* phase ) {
    phase->free_scope = phase->scope;
    phase->scope = prev;
    --phase->depth;
+   phase->in_localscope = ( phase->depth > 0 ); 
 }
 
-void s_bind_local_name( struct semantic* phase, struct name* name,
+void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   struct sweep* sweep = phase->scope->sweep;
+   if ( ! name->object || name->object->depth < semantic->depth ) {
+      if ( semantic->depth ) {
+         add_sweep_name( semantic, name, object );
+      }
+      else {
+         name->object = object;
+      }
+   }
+   else {
+      dupname_err( semantic, name, object );
+   }
+}
+
+void dupname_err( struct semantic* semantic, struct name* name,
+   struct object* object ) {
+   struct str str;
+   str_init( &str );
+   t_copy_name( name, false, &str );
+   if ( object->node.type == NODE_TYPE ) {
+      s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &object->pos, "duplicate struct `%s`", str.value );
+      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &name->object->pos, "struct already found here" );
+   }
+   else if ( object->node.type == NODE_TYPE_MEMBER ) {
+      s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &object->pos, "duplicate struct-member `%s`", str.value );
+      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &name->object->pos, "struct-member already found here",
+         str.value );
+   }
+   else {
+      s_diag( semantic, DIAG_POS_ERR, &object->pos,
+         "duplicate name `%s`", str.value );
+      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &name->object->pos, "name already used here", str.value );
+   }
+   s_bail( semantic );
+}
+
+void add_sweep_name( struct semantic* semantic, struct name* name,
+   struct object* object ) {
+   struct sweep* sweep = semantic->scope->sweep;
    if ( ! sweep || sweep->size == SWEEP_MAX_SIZE ) {
-      if ( phase->free_sweep ) {
-         sweep = phase->free_sweep;
-         phase->free_sweep = sweep->prev;
+      if ( semantic->free_sweep ) {
+         sweep = semantic->free_sweep;
+         semantic->free_sweep = sweep->prev;
       }
       else {
          sweep = mem_alloc( sizeof( *sweep ) );
       }
       sweep->size = 0;
-      sweep->prev = phase->scope->sweep;
-      phase->scope->sweep = sweep; 
+      sweep->prev = semantic->scope->sweep;
+      semantic->scope->sweep = sweep; 
    }
    sweep->names[ sweep->size ] = name;
    ++sweep->size;
-   object->depth = phase->depth;
+   object->depth = semantic->depth;
    object->next_scope = name->object;
    name->object = object;
 }

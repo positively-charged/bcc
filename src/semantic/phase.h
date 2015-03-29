@@ -28,7 +28,6 @@ struct expr_test {
    struct pos pos;
    bool result_required;
    bool has_string;
-   bool undef_err;
    bool undef_erred;
    bool accept_array;
    bool suggest_paren_assign;
@@ -43,20 +42,21 @@ struct semantic {
    struct stmt_test* topfunc_test;
    struct stmt_test* func_test;
    int depth;
-   bool undef_err;
+   bool trigger_err;
+   bool in_localscope;
 };
 
 void s_init( struct semantic* phase, struct task* task );
 void s_test( struct semantic* phase );
-void s_test_constant( struct semantic* phase, struct constant* );
-void s_test_constant_set( struct semantic* phase, struct constant_set* );
+void s_test_constant( struct semantic* semantic, struct constant* );
+void s_test_constant_set( struct semantic* semantic, struct constant_set* );
 void s_test_type( struct semantic* phase, struct type* );
 void s_test_var( struct semantic* phase, struct var* var );
 void s_test_func( struct semantic* semantic, struct func* func );
 void s_test_func_body( struct semantic* phase, struct func* func );
 void s_test_local_var( struct semantic* phase, struct var* );
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
-   struct block* format_block, bool result_required, bool undef_err,
+   struct block* format_block, bool result_required,
    bool suggest_paren_assign );
 void s_test_expr( struct semantic* phase, struct expr_test*, struct expr* );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
@@ -66,14 +66,12 @@ void s_test_block( struct semantic* phase, struct stmt_test*, struct block* );
 void s_test_format_item( struct semantic* phase, struct format_item*, struct stmt_test*,
    struct expr_test*, struct block* );
 void s_import( struct semantic* phase, struct import* );
-void diag_dup( struct task*, const char* text, struct pos*, struct name* );
-void diag_dup_struct( struct task*, struct name*, struct pos* );
 void s_add_scope( struct semantic* phase );
 void s_pop_scope( struct semantic* phase );
 void s_test_script( struct semantic* phase, struct script* script );
 void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
-void s_bind_local_name( struct semantic* phase, struct name* name,
+void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
 void s_diag( struct semantic* phase, int flags, ... );
 void s_bail( struct semantic* phase );
