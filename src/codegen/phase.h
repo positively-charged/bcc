@@ -17,6 +17,12 @@ struct immediate {
    int value;
 };
 
+struct block_visit {
+   struct block_visit* prev;
+   struct format_block_usage* format_block_usage;
+   bool nested_func;
+};
+
 struct codegen {
    struct task* task;
    struct buffer* buffer_head;
@@ -53,5 +59,16 @@ int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
 void c_alloc_indexes( struct codegen* phase );
+void c_push_expr( struct codegen* codegen, struct expr* expr, bool temp );
+void c_update_indexed( struct codegen* codegen, int, int, int );
+void c_update_element( struct codegen* codegen, int, int, int );
+void c_add_block_visit( struct codegen* codegen );
+void c_pop_block_visit( struct codegen* codegen );
+void c_write_block( struct codegen* phase, struct block* stmt,
+   bool add_visit );
+void c_write_stmt( struct codegen* codegen, struct node* node );
+void c_visit_expr( struct codegen* phase, struct expr* );
+void c_visit_var( struct codegen* phase, struct var* var );
+void c_visit_format_item( struct codegen* phase, struct format_item* );
 
 #endif
