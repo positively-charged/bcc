@@ -22,6 +22,8 @@ static void do_aimp( struct codegen* phase );
 static void do_mexp( struct codegen* phase );
 static void do_mstr( struct codegen* phase );
 static void do_astr( struct codegen* phase );
+static void do_atag( struct codegen* codegen );
+static void write_atagchunk( struct codegen* codegen, struct var* var );
 
 void c_write_chunk_obj( struct codegen* phase ) {
    if ( phase->task->library_main->format == FORMAT_LITTLE_E ) {
@@ -48,6 +50,7 @@ void c_write_chunk_obj( struct codegen* phase ) {
       do_mexp( phase );
       do_mstr( phase );
       do_astr( phase );
+      do_atag( phase );
    }
    // NOTE: When a BEHAVIOR lump is below 32 bytes in size, the engine will not
    // process it. It will consider the lump as being of unknown format, even
@@ -840,5 +843,74 @@ void do_astr( struct codegen* phase ) {
          }
          list_next( &i );
       }
+   }
+}
+
+void do_atag( struct codegen* codegen ) {
+   int count = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
+         var->initial_has_str ) {
+         ++count;
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
+         var->initial_has_str ) {
+         write_atagchunk( codegen, var );
+      }
+      list_next( &i );
+   }
+}
+
+void write_atagchunk( struct codegen* codegen, struct var* var ) {
+   enum { CHUNK_VERSION = 0 };
+   enum {
+      TAG_INTEGER,
+      TAG_STRING,
+      TAG_FUNCTION
+   };
+   int count = 0;
+   struct value* value = var->value;
+   while ( value ) {
+      if ( value->expr->has_str && ! value->string_initz ) {
+         count = value->index + 1;
+      }
+      value = value->next;
+   }
+   if ( ! count ) {
+      return;
+   }
+   c_add_str( codegen, "ATAG" );
+   c_add_int( codegen,
+      // Version.
+      sizeof( char ) +
+      // Array number.
+      sizeof( int ) +
+      // Number of elements to tag.
+      sizeof( char ) * count );
+   c_add_byte( codegen, CHUNK_VERSION );
+   c_add_int( codegen, var->index );
+   value = var->value;
+   int written = 0;
+   while ( written < count ) {
+      if ( value->expr->has_str && ! value->string_initz ) {
+         while ( written < value->index ) {
+            c_add_byte( codegen, TAG_INTEGER );
+            ++written;
+         }
+         c_add_byte( codegen, TAG_STRING );
+         ++written;
+      }
+      value = value->next;
    }
 }

@@ -517,23 +517,10 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
       return resolved;
    }
    else {
-      bool resolved = test_value( phase, test,
+      return test_value( phase, test,
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->type : test->member->type ),
          ( struct value* ) initial );
-      if ( ! resolved ) {
-         return false;
-      }
-      // At this time, I know of no good way to initialize a string member.
-      // The user will have to initialize the member manually, by using an
-      // assignment operation.
-      if ( test->member && test->member->type == phase->task->type_str ) {
-         struct value* value = ( struct value* ) initial;
-         s_diag( phase, DIAG_POS_ERR, &value->expr->pos,
-            "initializing struct member of `str` type" );
-         s_bail( phase );
-      }
-      return true;
    }
 }
 
