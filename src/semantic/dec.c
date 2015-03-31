@@ -713,7 +713,9 @@ void test_script_body( struct semantic* phase, struct script* script ) {
    s_add_scope( phase );
    struct param* param = script->params;
    while ( param ) {
-      s_bind_name( phase, param->name, &param->object );
+      if ( param->name ) {
+         s_bind_name( phase, param->name, &param->object );
+      }
       param->object.resolved = true;
       param = param->next;
    }
