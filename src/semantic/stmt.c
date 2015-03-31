@@ -487,7 +487,7 @@ void test_paltrans_arg( struct semantic* phase, struct expr* expr ) {
 
 void test_format_item( struct semantic* phase, struct stmt_test* test,
    struct format_item* item ) {
-   s_test_format_item( phase, item, test, NULL, NULL );
+   s_test_formatitemlist_stmt( phase, test, item );
    struct stmt_test* target = test;
    while ( target && ! target->format_block ) {
       target = target->parent;

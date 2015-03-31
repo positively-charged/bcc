@@ -63,8 +63,8 @@ void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_top_block( struct semantic* phase, struct stmt_test*, struct block* );
 void s_test_stmt( struct semantic* phase, struct stmt_test*, struct node* );
 void s_test_block( struct semantic* phase, struct stmt_test*, struct block* );
-void s_test_format_item( struct semantic* phase, struct format_item*, struct stmt_test*,
-   struct expr_test*, struct block* );
+void s_test_formatitemlist_stmt( struct semantic* semantic,
+   struct stmt_test* stmt_test, struct format_item* item );
 void s_import( struct semantic* phase, struct import* );
 void s_add_scope( struct semantic* phase );
 void s_pop_scope( struct semantic* phase );

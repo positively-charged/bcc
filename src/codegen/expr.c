@@ -1,3 +1,5 @@
+#include <limits.h>
+
 #include "phase.h"
 #include "pcode.h"
 
@@ -96,6 +98,8 @@ static void inc_indexed( struct codegen* phase, int, int );
 static void dec_indexed( struct codegen* phase, int, int );
 static void inc_element( struct codegen* phase, int, int );
 static void dec_element( struct codegen* phase, int, int );
+static void write_strcpy( struct codegen* codegen, struct operand* operand,
+   struct strcpy_call* call );
 
 static const int g_aspec_code[] = {
    PCD_LSPEC1,
@@ -218,6 +222,9 @@ void visit_operand( struct codegen* phase, struct operand* operand,
          c_add_opc( phase, PCD_PUSHNUMBER );
          c_add_arg( phase, impl->id );
       }
+   }
+   else if ( node->type == NODE_STRCPY ) {
+      write_strcpy( phase, operand, ( struct strcpy_call* ) node );
    }
 }
 
@@ -1341,4 +1348,54 @@ void dec_element( struct codegen* phase, int storage, int index ) {
    }
    c_add_opc( phase, code );
    c_add_arg( phase, index );
+}
+
+void write_strcpy( struct codegen* codegen, struct operand* operand,
+   struct strcpy_call* call ) {
+   struct operand object;
+   init_operand( &object );
+   object.action = ACTION_PUSH_VAR;
+   visit_operand( codegen, &object, call->array->root );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, object.index );
+   // Offset within the array.
+   if ( call->array_offset ) {
+      c_push_expr( codegen, call->array_offset, false );
+   }
+   else {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+   }
+   // Number of characters to copy from the string.
+   if ( call->array_length ) {
+      c_push_expr( codegen, call->array_length, false );
+   }
+   else {
+      enum { MAX_LENGTH = INT_MAX };
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, MAX_LENGTH );
+   }
+   // String field.
+   c_push_expr( codegen, call->string, false );
+   // String-offset field.
+   if ( call->offset ) {
+      c_push_expr( codegen, call->offset, false );
+   }
+   else {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+   }
+   int code = PCD_STRCPYTOMAPCHRANGE;
+   switch ( object.storage ) {
+   case STORAGE_WORLD:
+      code = PCD_STRCPYTOWORLDCHRANGE;
+      break;
+   case STORAGE_GLOBAL:
+      code = PCD_STRCPYTOGLOBALCHRANGE;
+      break;
+   default:
+      break;
+   }
+   c_add_opc( codegen, code );
+   operand->pushed = true;
 }

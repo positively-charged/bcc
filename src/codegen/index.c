@@ -43,6 +43,7 @@ static void visit_packed_expr( struct alloc* alloc,
 static void visit_expr( struct alloc* alloc, struct node* node );
 static void visit_call( struct alloc* alloc, struct call* call );
 static void visit_paltrans( struct alloc* alloc, struct paltrans* trans );
+static void visit_strcpy( struct alloc* alloc, struct strcpy_call* call );
 
 void c_alloc_indexes( struct codegen* phase ) {
    alloc_mapvars_index( phase );
@@ -583,6 +584,9 @@ void visit_expr( struct alloc* alloc, struct node* node ) {
       }
       visit_expr( alloc, cond->right );
       break; }
+   case NODE_STRCPY:
+      visit_strcpy( alloc, ( struct strcpy_call* ) node );
+      break;
    default:
       break;
    }
@@ -631,5 +635,19 @@ void visit_paltrans( struct alloc* alloc, struct paltrans* trans ) {
          visit_expr( alloc, &range->value.ent.end->node );
       }
       range = range->next;
+   }
+}
+
+void visit_strcpy( struct alloc* alloc, struct strcpy_call* call ) {
+   visit_expr( alloc, &call->array->node );
+   if ( call->array_offset ) {
+      visit_expr( alloc, &call->array_offset->node );
+      if ( call->array_length ) {
+         visit_expr( alloc, &call->array_length->node );
+      }
+   }
+   visit_expr( alloc, &call->string->node );
+   if ( call->offset ) {
+      visit_expr( alloc, &call->offset->node );
    }
 }

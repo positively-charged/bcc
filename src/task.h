@@ -72,7 +72,8 @@ struct node {
       // 40
       NODE_SCRIPT,
       NODE_PACKED_EXPR,
-      NODE_CONDITIONAL
+      NODE_CONDITIONAL,
+      NODE_STRCPY
    } type;
 };
 
@@ -255,6 +256,16 @@ struct nested_call {
    int enter_pos;
    int leave_pos;
    int id;
+};
+
+// I would like to make this a function.
+struct strcpy_call {
+   struct node node;
+   struct expr* array;
+   struct expr* array_offset;
+   struct expr* array_length;
+   struct expr* string;
+   struct expr* offset;
 };
 
 struct expr {

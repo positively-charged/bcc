@@ -649,6 +649,7 @@ void read_source( struct parse* phase, struct token* token ) {
          { "special", TK_RESERVED },
          { "static", TK_STATIC },
          { "str", TK_STR },
+         { "strcpy", TK_STRCPY },
          { "struct", TK_STRUCT },
          { "suspend", TK_SUSPEND },
          { "switch", TK_SWITCH },
@@ -1273,8 +1274,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
       { TK_QUESTION_MARK, "`?`" },
+      { TK_STRCPY, "`strcpy`" },
       { TK_COLON_2, "`::`" } };
-   STATIC_ASSERT( TK_TOTAL == 108 );
+   STATIC_ASSERT( TK_TOTAL == 109 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

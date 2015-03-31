@@ -4,6 +4,19 @@
 
 #include "phase.h"
 
+struct format_cast {
+   int type;
+   struct pos pos;
+   bool unknown;
+   bool colon;
+};
+
+struct array_field {
+   struct expr* array;
+   struct expr* offset;
+   struct expr* length;
+};
+
 static void read_op( struct parse* phase, struct expr_reading* reading );
 static void read_operand( struct parse* phase, struct expr_reading* reading );
 static struct binary* alloc_binary( int op, struct pos* pos );
@@ -14,13 +27,16 @@ static struct access* alloc_access( char* name, struct pos pos );
 static void read_call( struct parse* phase, struct expr_reading* reading );
 static void read_call_args( struct parse* phase, struct expr_reading* reading,
    struct list* args );
-static struct format_item* read_format_item( struct parse* phase, bool colon );
-static void read_format_item_array_value( struct parse* phase,
-   struct format_item* item );
+static struct format_item* read_format_item( struct parse* parse, bool colon );
+static void init_format_cast( struct format_cast* cast, bool colon );
+static void read_format_cast( struct parse* parse, struct format_cast* cast );
+static void init_array_field( struct array_field* field );
+static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* phase, struct expr_reading* reading );
 static struct indexed_string* intern_indexed_string( struct parse* phase,
    char* value, int length, bool* first_time );
 static int convert_numerictoken_to_int( struct parse* phase, int base );
+static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
@@ -415,6 +431,9 @@ void read_primary( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &boolean.node;
       p_read_tk( phase );
    }
+   else if ( phase->tk == TK_STRCPY ) {
+      read_strcpy( phase, reading );
+   }
    else if ( phase->tk == TK_PAREN_L ) {
       struct paren* paren = mem_alloc( sizeof( *paren ) );
       paren->node.type = NODE_PAREN;
@@ -783,94 +802,165 @@ struct format_item* p_read_format_item( struct parse* phase, bool colon ) {
    }
 }
 
-struct format_item* read_format_item( struct parse* phase, bool colon ) {
-   p_test_tk( phase, TK_ID );
+struct format_item* read_format_item( struct parse* parse, bool colon ) {
+   p_test_tk( parse, TK_ID );
    struct format_item* item = mem_alloc( sizeof( *item ) );
    item->node.type = NODE_FORMAT_ITEM;
    item->cast = FCAST_DECIMAL;
-   item->pos = phase->tk_pos;
+   item->pos = parse->tk_pos;
    item->next = NULL;
    item->value = NULL;
    item->extra = NULL;
-   bool unknown = false;
-   switch ( phase->tk_text[ 0 ] ) {
-   case 'a': item->cast = FCAST_ARRAY; break;
-   case 'b': item->cast = FCAST_BINARY; break;
-   case 'c': item->cast = FCAST_CHAR; break;
-   case 'd':
-   case 'i': break;
-   case 'f': item->cast = FCAST_FIXED; break;
-   case 'k': item->cast = FCAST_KEY; break;
-   case 'l': item->cast = FCAST_LOCAL_STRING; break;
-   case 'n': item->cast = FCAST_NAME; break;
-   case 's': item->cast = FCAST_STRING; break;
-   case 'x': item->cast = FCAST_HEX; break;
-   default:
-      unknown = true;
-      break;
-   }
-   if ( unknown || phase->tk_length != 1 ) {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-         "unknown format cast `%s`", phase->tk_text );
-      p_bail( phase );
-   }
-   p_read_tk( phase );
-   // In a format block, the `:=` separator is used, because an identifier
-   // and a colon creates a goto-statement label.
-   if ( colon ) {
-      p_test_tk( phase, TK_COLON );
-      p_read_tk( phase );
-   }
-   else {
-      p_test_tk( phase, TK_ASSIGN_COLON );
-      p_read_tk( phase );
-   }
+   struct format_cast cast;
+   init_format_cast( &cast, colon );
+   read_format_cast( parse, &cast );
+   item->cast = cast.type;
    if ( item->cast == FCAST_ARRAY ) {
-      read_format_item_array_value( phase, item );
+      struct array_field field;
+      init_array_field( &field );
+      read_array_field( parse, &field );
+      item->value = field.array;
+      if ( field.offset ) {
+         struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
+         extra->offset = field.offset;
+         extra->length = field.length;
+         extra->offset_var = 0;
+         item->extra = extra;
+      }
    }
    else {
       struct expr_reading value;
       p_init_expr_reading( &value, false, false, false, true );
-      p_read_expr( phase, &value );
+      p_read_expr( parse, &value );
       item->value = value.output_node;
    }
    return item;
 }
 
-void read_format_item_array_value( struct parse* phase,
-   struct format_item* item ) {
+void init_format_cast( struct format_cast* cast, bool colon ) {
+   cast->unknown = false;
+   cast->type = FCAST_DECIMAL;
+   cast->colon = colon;
+}
+
+void read_format_cast( struct parse* parse, struct format_cast* cast ) {
+   cast->pos = parse->tk_pos;
+   switch ( parse->tk_text[ 0 ] ) {
+   case 'a': cast->type = FCAST_ARRAY; break;
+   case 'b': cast->type = FCAST_BINARY; break;
+   case 'c': cast->type = FCAST_CHAR; break;
+   case 'd':
+   case 'i': break;
+   case 'f': cast->type = FCAST_FIXED; break;
+   case 'k': cast->type = FCAST_KEY; break;
+   case 'l': cast->type = FCAST_LOCAL_STRING; break;
+   case 'n': cast->type = FCAST_NAME; break;
+   case 's': cast->type = FCAST_STRING; break;
+   case 'x': cast->type = FCAST_HEX; break;
+   default:
+      cast->unknown = true;
+      break;
+   }
+   if ( cast->unknown || parse->tk_length != 1 ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unknown format-cast `%s`", parse->tk_text );
+      p_bail( parse );
+   }
+   p_read_tk( parse );
+   // In a format block, the `:=` separator is used, because an identifier
+   // and a colon creates a goto-statement label.
+   if ( cast->colon ) {
+      p_test_tk( parse, TK_COLON );
+      p_read_tk( parse );
+   }
+   else {
+      p_test_tk( parse, TK_ASSIGN_COLON );
+      p_read_tk( parse );
+   }
+}
+
+void init_array_field( struct array_field* field ) {
+   field->array = NULL;
+   field->offset = NULL;
+   field->length = NULL;
+}
+
+void read_array_field( struct parse* parse, struct array_field* field ) {
    bool paren = false;
-   if ( phase->tk == TK_PAREN_L ) {
+   if ( parse->tk == TK_PAREN_L ) {
       paren = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Array field.
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( phase, &expr );
-   item->value = expr.output_node;
-   if ( paren ) {
-      // Offset field.
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
-         p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
-         struct expr* offset = expr.output_node;
-         // Length field.
-         struct expr* length = NULL;
-         if ( phase->tk == TK_COMMA ) {
-            p_read_tk( phase );
-            p_init_expr_reading( &expr, false, false, false, true );
-            p_read_expr( phase, &expr );
-            length = expr.output_node;
-         }
-         struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
-         extra->offset = offset;
-         extra->length = length;
-         extra->offset_var = 0;
-         item->extra = extra;
-      }
-      p_test_tk( phase, TK_PAREN_R );
-      p_read_tk( phase );
+   p_read_expr( parse, &expr );
+   field->array = expr.output_node;
+   if ( ! paren ) {
+      return;
    }
+   // Offset field.
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      field->offset = expr.output_node;
+      // Length field.
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         p_init_expr_reading( &expr, false, false, false, true );
+         p_read_expr( parse, &expr );
+         field->length = expr.output_node;
+      }
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+}
+
+void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_STRCPY );
+   p_read_tk( parse );
+   struct strcpy_call* call = mem_alloc( sizeof( *call ) );
+   call->node.type = NODE_STRCPY;
+   call->array = NULL;
+   call->array_offset = NULL;
+   call->array_length = NULL;
+   call->string = NULL;
+   call->offset = NULL;
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   // Array field.
+   struct format_cast cast;
+   init_format_cast( &cast, true );
+   read_format_cast( parse, &cast );
+   if ( cast.type != FCAST_ARRAY ) {
+      p_diag( parse, DIAG_POS_ERR, &cast.pos,
+         "not an array format-cast" );
+      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &cast.pos,
+         "expecting `a:` here" );
+      p_bail( parse );
+   }
+   struct array_field field;
+   init_array_field( &field );
+   read_array_field( parse, &field );
+   call->array = field.array;
+   call->array_offset = field.offset;
+   call->array_length = field.length;
+   p_test_tk( parse, TK_COMMA );
+   p_read_tk( parse );
+   // String field.
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   call->string = expr.output_node;
+   // String-offset field. Optional.
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      call->offset = expr.output_node;
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   reading->node = &call->node;
 }

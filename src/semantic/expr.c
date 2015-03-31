@@ -20,8 +20,11 @@ struct call_test {
    int num_args;
 };
 
-static void test_expr( struct semantic* phase, struct expr_test*, struct expr*,
-   struct operand* );
+static void test_root( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct expr* expr );
+static void test_nested_root( struct semantic* semantic,
+   struct expr_test* parent, struct expr_test* test, struct operand* operand,
+   struct expr* expr );
 static void init_operand( struct operand* );
 static void use_object( struct semantic* phase, struct expr_test*, struct operand*,
    struct object* );
@@ -46,12 +49,12 @@ static void test_call_first_arg( struct semantic* phase, struct expr_test*,
    struct call_test* );
 static void test_call_format_arg( struct semantic* phase, struct expr_test*,
    struct call_test* );
-static void test_format_item( struct semantic* phase, struct stmt_test* stmt_test,
-   struct expr_test* test, struct block* format_block,
-   struct format_item* item );
-static void test_array_format_item( struct semantic* phase,
-   struct stmt_test* stmt_test, struct expr_test* test,
-   struct block* format_block, struct format_item* item );
+static void test_format_item_list( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item );
+static void test_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item );
+static void test_array_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item );
 static void test_binary( struct semantic* phase, struct expr_test*, struct operand*,
    struct binary* );
 static void test_assign( struct semantic* phase, struct expr_test*, struct operand*,
@@ -64,6 +67,8 @@ static void test_struct_access( struct semantic* phase, struct expr_test* test,
    struct operand* operand, struct access* access );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct operand* operand, struct conditional* cond );
+static void test_strcpy( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct strcpy_call* call );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
@@ -78,6 +83,47 @@ void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    test->suggest_paren_assign = suggest_paren_assign;
 }
 
+void s_test_expr( struct semantic* phase, struct expr_test* test,
+   struct expr* expr ) {
+   if ( setjmp( test->bail ) == 0 ) {
+      struct operand operand;
+      init_operand( &operand );
+      test_root( phase, test, &operand, expr );
+   }
+   else {
+      test->undef_erred = true;
+   }
+}
+
+void test_root( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct expr* expr ) {
+   test_node( semantic, test, operand, expr->root );
+   if ( ! operand->complete ) {
+      s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+         "expression incomplete" );
+      s_bail( semantic );
+   }
+   if ( test->result_required && ! operand->usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+         "expression does not produce a value" );
+      s_bail( semantic );
+   }
+   expr->folded = operand->folded;
+   expr->value = operand->value;
+   test->pos = expr->pos;
+}
+
+void test_nested_root( struct semantic* semantic, struct expr_test* parent,
+   struct expr_test* test, struct operand* operand, struct expr* expr ) {
+   if ( setjmp( test->bail ) == 0 ) {
+      test_root( semantic, test, operand, expr );
+      parent->has_string = test->has_string;
+   }
+   else {
+      longjmp( parent->bail, 1 );
+   }
+}
+
 void init_operand( struct operand* operand ) {
    operand->func = NULL;
    operand->dim = NULL;
@@ -89,33 +135,6 @@ void init_operand( struct operand* operand ) {
    operand->assignable = false;
    operand->folded = false;
    operand->in_paren = false;
-}
-
-void s_test_expr( struct semantic* phase, struct expr_test* test,
-   struct expr* expr ) {
-   struct operand operand;
-   init_operand( &operand );
-   test_expr( phase, test, expr, &operand );
-}
-
-void test_expr( struct semantic* phase, struct expr_test* test, struct expr* expr,
-   struct operand* operand ) {
-   if ( setjmp( test->bail ) == 0 ) {
-      test_node( phase, test, operand, expr->root );
-      if ( ! operand->complete ) {
-         s_diag( phase, DIAG_POS_ERR, &expr->pos,
-            "expression incomplete" );
-         s_bail( phase );
-      }
-      if ( test->result_required && ! operand->usable ) {
-         s_diag( phase, DIAG_POS_ERR, &expr->pos,
-            "expression does not produce a value" );
-         s_bail( phase );
-      }
-      expr->folded = operand->folded;
-      expr->value = operand->value;
-      test->pos = expr->pos;
-   }
 }
 
 void test_node( struct semantic* phase, struct expr_test* test,
@@ -160,6 +179,9 @@ void test_node( struct semantic* phase, struct expr_test* test,
       break;
    case NODE_ACCESS:
       test_access( phase, test, operand, ( struct access* ) node );
+      break;
+   case NODE_STRCPY:
+      test_strcpy( phase, test, operand, ( struct strcpy_call* ) node );
       break;
    case NODE_PAREN:
       {
@@ -441,12 +463,10 @@ void test_subscript( struct semantic* phase, struct expr_test* test,
    }
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
-      false );
-   s_test_expr( phase, &index, subscript->index );
-   if ( index.undef_erred ) {
-      test->undef_erred = true;
-      longjmp( test->bail, 1 );
-   }
+      test->suggest_paren_assign );
+   struct operand root;
+   init_operand( &root );
+   test_nested_root( phase, test, &index, &root, subscript->index );
    // Out-of-bounds warning for a constant index.
    if ( lside.dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
@@ -556,14 +576,13 @@ void test_call_args( struct semantic* phase, struct expr_test* expr_test,
    test_call_first_arg( phase, expr_test, test );
    // Test remaining arguments.
    while ( ! list_end( &i ) ) {
-      struct expr_test arg;
-      s_init_expr_test( &arg, expr_test->stmt_test, expr_test->format_block,
-         true, false );
-      s_test_expr( phase, &arg, list_data( &i ) );
-      if ( arg.undef_erred ) {
-         expr_test->undef_erred = true;
-         longjmp( expr_test->bail, 1 );
-      }
+      struct expr_test nested;
+      s_init_expr_test( &nested,
+         expr_test->stmt_test,
+         expr_test->format_block, true, false );
+      struct operand root;
+      init_operand( &root );
+      test_nested_root( phase, expr_test, &nested, &root, list_data( &i ) );
       ++test->num_args;
       list_next( &i );
    }
@@ -656,15 +675,8 @@ void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
    }
    // Format-list:
    else {
-      while ( ! list_end( i ) ) {
-         struct node* node = list_data( i );
-         if ( node->type != NODE_FORMAT_ITEM ) {
-            break;
-         }
-         s_test_format_item( phase, ( struct format_item* ) node,
-            expr_test->stmt_test, expr_test, expr_test->format_block );
-         list_next( i );
-      }
+      test_format_item_list( phase, expr_test, ( struct format_item* ) node );
+      list_next( i );
    }
    // Both a format-block or a format-list count as a single argument.
    ++test->num_args;
@@ -672,66 +684,76 @@ void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
 
 // This function handles a format-item found inside a function call,
 // and a free format-item, the one found in a format-block.
-void s_test_format_item( struct semantic* phase, struct format_item* item,
-   struct stmt_test* stmt_test, struct expr_test* test,
-   struct block* format_block ) {
+void test_format_item_list( struct semantic* semantic, struct expr_test* test,
+   struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
-         test_array_format_item( phase, stmt_test, test, format_block, item );
+         test_array_format_item( semantic, test, item );
       }
       else {
-         test_format_item( phase, stmt_test, test, format_block, item );
+         test_format_item( semantic, test, item );
       }
       item = item->next;
    }
 }
 
-void test_format_item( struct semantic* phase, struct stmt_test* stmt_test,
-   struct expr_test* test, struct block* format_block,
+void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
-   struct expr_test value;
-   s_init_expr_test( &value, stmt_test, format_block, true, false );
-   s_test_expr( phase, &value, item->value );
-   if ( value.undef_erred ) {
-      test->undef_erred = true;
-      longjmp( test->bail, 1 );
-   }
+   struct expr_test nested;
+   s_init_expr_test( &nested,
+      test->stmt_test, test->format_block,
+      true, false );
+   struct operand root;
+   init_operand( &root );
+   test_nested_root( semantic, test, &nested, &root, item->value );
 }
 
-void test_array_format_item( struct semantic* phase, struct stmt_test* stmt_test,
-   struct expr_test* test, struct block* format_block,
+void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
-   struct expr_test value;
-   s_init_expr_test( &value, stmt_test, format_block, false, false );
-   // When using the array format cast, accept an array as the result of the
+   struct expr_test nested;
+   s_init_expr_test( &nested,
+      test->stmt_test, test->format_block,
+      false, false );
+   // When using the array format-cast, accept an array as the result of the
    // expression.
-   value.accept_array = true;
-   struct operand array;
-   init_operand( &array );
-   test_expr( phase, &value, item->value, &array );
-   if ( value.undef_erred ) {
-      test->undef_erred = true;
-      longjmp( test->bail, 1 );
-   }
-   if ( ! array.dim ) {
-      s_diag( phase, DIAG_POS_ERR, &item->value->pos,
+   nested.accept_array = true;
+   struct operand root;
+   init_operand( &root );
+   test_nested_root( semantic, test, &nested, &root, item->value );
+   if ( ! root.dim ) {
+      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
          "argument not an array" );
-      s_bail( phase );
+      s_bail( semantic );
    }
-   if ( array.dim->next ) {
-      s_diag( phase, DIAG_POS_ERR, &item->value->pos,
+   if ( root.dim->next ) {
+      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
          "array argument not of single dimension" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    // Test optional fields: offset and length.
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
-      s_init_expr_test( &value, stmt_test, format_block, true, false );
-      s_test_expr( phase, &value, extra->offset );
+      s_init_expr_test( &nested,
+         test->stmt_test, test->format_block,
+         true, false );
+      init_operand( &root );
+      test_nested_root( semantic, test, &nested, &root, extra->offset );
       if ( extra->length ) {
-         s_init_expr_test( &value, stmt_test, format_block, true, false );
-         s_test_expr( phase, &value, extra->length );
+         s_init_expr_test( &nested,
+            test->stmt_test, test->format_block,
+            true, false );
+         init_operand( &root );
+         test_nested_root( semantic, test, &nested, &root, extra->length );
       }
+   }
+}
+
+void s_test_formatitemlist_stmt( struct semantic* semantic,
+   struct stmt_test* stmt_test, struct format_item* item ) {
+   struct expr_test test;
+   s_init_expr_test( &test, stmt_test, NULL, true, false );
+   if ( setjmp( test.bail ) == 0 ) {
+      test_format_item_list( semantic, &test, item );
    }
 }
 
@@ -987,4 +1009,56 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
       operand->value = left.value ? middle.value : right.value;
       operand->folded = true;
    }
+}
+
+void test_strcpy( struct semantic* semantic, struct expr_test* test,
+   struct operand* operand, struct strcpy_call* call ) {
+   // Array.
+   struct expr_test nested;
+   s_init_expr_test( &nested,
+      test->stmt_test, test->format_block,
+      false, false );
+   nested.accept_array = true;
+   struct operand root;
+   init_operand( &root );
+   test_nested_root( semantic, test, &nested, &root, call->array );
+   if ( ! root.dim ) {
+      s_diag( semantic, DIAG_POS_ERR, &nested.pos,
+         "argument not an array" );
+      s_bail( semantic );
+   }
+   // Array-offset.
+   if ( call->array_offset ) {
+      s_init_expr_test( &nested,
+         test->stmt_test, test->format_block,
+         false, false );
+      init_operand( &root );
+      test_nested_root( semantic, test, &nested, &root, call->array_offset );
+      // Array-length.
+      if ( call->array_length ) {
+         s_init_expr_test( &nested,
+            test->stmt_test, test->format_block,
+            false, false );
+         init_operand( &root );
+         test_nested_root( semantic, test, &nested, &root,
+            call->array_length );
+      }
+   }
+   // String.
+   s_init_expr_test( &nested,
+      test->stmt_test, test->format_block,
+      false, false );
+   init_operand( &root );
+   test_nested_root( semantic, test, &nested, &root, call->string );
+   // String-offset.
+   if ( call->offset ) {
+      s_init_expr_test( &nested,
+         test->stmt_test, test->format_block,
+         false, false );
+      init_operand( &root );
+      test_nested_root( semantic, test, &nested, &root, call->offset );
+   }
+   operand->complete = true;
+   operand->usable = true;
+   operand->type = semantic->task->type_bool;
 }
