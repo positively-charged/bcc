@@ -497,7 +497,6 @@ struct format_item {
 struct format_item_array {
    struct expr* offset;
    struct expr* length;
-   int offset_var;
 };
 
 struct format_block_usage {

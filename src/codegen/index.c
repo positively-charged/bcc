@@ -478,13 +478,6 @@ void visit_var( struct alloc* alloc, struct var* var ) {
 void visit_format_item( struct alloc* alloc, struct format_item* item ) {
    while ( item ) {
       visit_expr( alloc, &item->value->node );
-      if ( item->cast == FCAST_ARRAY && item->extra ) {
-         struct format_item_array* extra = item->extra;
-         if ( extra->length ) {
-            extra->offset_var = alloc_scriptvar( alloc );
-            dealloc_lastscriptvar( alloc );
-         }
-      }
       item = item->next;
    }
 }

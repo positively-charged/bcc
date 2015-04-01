@@ -824,7 +824,6 @@ struct format_item* read_format_item( struct parse* parse, bool colon ) {
          struct format_item_array* extra = mem_alloc( sizeof( *extra ) );
          extra->offset = field.offset;
          extra->length = field.length;
-         extra->offset_var = 0;
          item->extra = extra;
       }
    }

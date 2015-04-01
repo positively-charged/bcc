@@ -54,7 +54,7 @@ static void visit_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage );
 static void write_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage );
-static void visit_array_format_item( struct codegen* phase,
+static void visit_array_format_item( struct codegen* codegen,
    struct format_item* );
 static void visit_user_call( struct codegen* phase, struct operand*,
    struct call* );
@@ -631,10 +631,11 @@ void write_formatblock_arg( struct codegen* codegen,
    codegen->block_visit->format_block_usage = NULL;
 }
 
-void c_visit_format_item( struct codegen* phase, struct format_item* item ) {
+void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
-         visit_array_format_item( phase, item );
+         visit_array_format_item( codegen, item );
+         
       }
       else {
          static const int casts[] = {
@@ -648,8 +649,8 @@ void c_visit_format_item( struct codegen* phase, struct format_item* item ) {
             PCD_PRINTSTRING,
             PCD_PRINTHEX };
          STATIC_ASSERT( FCAST_TOTAL == 10 );
-         c_push_expr( phase, item->value, false );
-         c_add_opc( phase, casts[ item->cast - 1 ] );
+         c_push_expr( codegen, item->value, false );
+         c_add_opc( codegen, casts[ item->cast - 1 ] );
       }
       item = item->next;
    }
@@ -666,7 +667,61 @@ void c_visit_format_item( struct codegen* phase, struct format_item* item ) {
 //    array[ length - 1 ] = 0;
 //    Print( a: offset_array, c: last_ch );
 //    array[ length - 1 ] = last_ch;
-void visit_array_format_item( struct codegen* phase, struct format_item* item ) {
+void visit_array_format_item( struct codegen* codegen,
+   struct format_item* item ) {
+   struct operand object;
+   init_operand( &object );
+   object.action = ACTION_PUSH_VAR;
+   visit_operand( codegen, &object, item->value->root );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, object.index );
+   if ( item->extra ) {
+      struct format_item_array* extra = item->extra;
+      c_push_expr( codegen, extra->offset, false );
+      if ( extra->length ) {
+         c_push_expr( codegen, extra->length, false );
+      }
+      else {
+         enum { MAX_LENGTH = INT_MAX };
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, MAX_LENGTH );
+      }
+   }
+   int code = PCD_NONE;
+   if ( item->extra ) {
+      switch ( object.storage ) {
+      case STORAGE_MAP:
+         code = PCD_PRINTMAPCHRANGE;
+         break;
+      case STORAGE_WORLD:
+         code = PCD_PRINTWORLDCHRANGE;
+         break;
+      case STORAGE_GLOBAL:
+         code = PCD_PRINTGLOBALCHRANGE;
+         break;
+      default:
+         break;
+      }
+   }
+   else {
+      switch ( object.storage ) {
+      case STORAGE_MAP:
+         code = PCD_PRINTMAPCHARARRAY;
+         break;
+      case STORAGE_WORLD:
+         code = PCD_PRINTWORLDCHARARRAY;
+         break;
+      case STORAGE_GLOBAL:
+         code = PCD_PRINTGLOBALCHARARRAY;
+         break;
+      default:
+         break;
+      }
+   }
+   c_add_opc( codegen, code );
+
+return;
+/*
    int label_zerolength = 0;
    int label_done = 0;
    struct format_item_array* extra = item->extra;
@@ -726,7 +781,7 @@ void visit_array_format_item( struct codegen* phase, struct format_item* item ) 
       c_add_arg( phase, 0 );
       c_add_arg( phase, label_done );
       c_seek_end( phase );
-   }
+   }*/
 }
 
 void visit_internal_call( struct codegen* phase, struct operand* operand,

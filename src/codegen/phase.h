@@ -69,6 +69,6 @@ void c_write_block( struct codegen* phase, struct block* stmt,
 void c_write_stmt( struct codegen* codegen, struct node* node );
 void c_visit_expr( struct codegen* phase, struct expr* );
 void c_visit_var( struct codegen* phase, struct var* var );
-void c_visit_format_item( struct codegen* phase, struct format_item* );
+void c_visit_format_item( struct codegen* codegen, struct format_item* item );
 
 #endif
