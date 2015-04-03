@@ -39,13 +39,14 @@ static void read_struct( struct parse* phase, struct dec* );
 static void read_storage_index( struct parse* phase, struct dec* );
 static void read_func( struct parse* phase, struct dec* );
 static void read_bfunc( struct parse* phase, struct func* );
-static void read_script_number( struct parse* phase, struct script* );
-static void read_script_params( struct parse* phase, struct script*,
+static void read_script_number( struct parse* parse, struct script* );
+static void read_script_params( struct parse* parse, struct script*,
    struct script_reading* );
-static void read_script_type( struct parse* phase, struct script*,
+static void read_script_type( struct parse* parse, struct script*,
    struct script_reading* );
-static void read_script_flag( struct parse* phase, struct script* );
-static void read_script_body( struct parse* phase, struct script* );
+static const char* get_script_article( int type );
+static void read_script_flag( struct parse* parse, struct script* );
+static void read_script_body( struct parse* parse, struct script* );
 static void read_name( struct parse* phase, struct dec* );
 static void read_dim( struct parse* phase, struct dec* );
 static void read_init( struct parse* phase, struct dec* );
@@ -1017,13 +1018,11 @@ void read_bfunc( struct parse* phase, struct func* func ) {
    }
 }
 
-void p_read_script( struct parse* phase ) {
-   p_test_tk( phase, TK_SCRIPT );
-   struct pos pos = phase->tk_pos;
-   p_read_tk( phase );
+void p_read_script( struct parse* parse ) {
+   p_test_tk( parse, TK_SCRIPT );
    struct script* script = mem_alloc( sizeof( *script ) );
    script->node.type = NODE_SCRIPT;
-   script->pos = pos;
+   script->pos = parse->tk_pos;
    script->number = NULL;
    script->type = SCRIPT_TYPE_CLOSED;
    script->flags = 0;
@@ -1036,29 +1035,33 @@ void p_read_script( struct parse* phase ) {
    script->offset = 0;
    script->size = 0;
    script->publish = false;
+   p_read_tk( parse );
    struct script_reading reading;
-   read_script_number( phase, script );
-   read_script_params( phase, script, &reading );
-   read_script_type( phase, script, &reading );
-   read_script_flag( phase, script );
-   read_script_body( phase, script );
-   list_append( &phase->task->library->scripts, script );
-   list_append( &phase->region->items, script );
+   read_script_number( parse, script );
+   read_script_params( parse, script, &reading );
+   read_script_type( parse, script, &reading );
+   read_script_flag( parse, script );
+   read_script_body( parse, script );
+   list_append( &parse->task->library->scripts, script );
+   list_append( &parse->region->items, script );
 }
 
-void read_script_number( struct parse* phase, struct script* script ) {
-   if ( phase->tk == TK_SHIFT_L ) {
-      p_read_tk( phase );
-      // The token between the << and >> tokens must be the digit zero.
-      if ( phase->tk == TK_LIT_DECIMAL && phase->tk_text[ 0 ] == '0' &&
-         phase->tk_length == 1 ) {
-         p_read_tk( phase );
-         p_test_tk( phase, TK_SHIFT_R );
-         p_read_tk( phase );
+void read_script_number( struct parse* parse, struct script* script ) {
+   if ( parse->tk == TK_SHIFT_L ) {
+      p_read_tk( parse );
+      // The token between the `<<` and `>>` tokens must be the digit `0`.
+      if ( parse->tk == TK_LIT_DECIMAL && parse->tk_text[ 0 ] == '0' &&
+         parse->tk_length == 1 ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_SHIFT_R );
+         p_read_tk( parse );
       }
       else {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing `0`" );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "unexpected %s", p_get_token_name( parse->tk ) );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
+            "expecting the digit `0` here" );
+         p_bail( parse );
       }
    }
    else {
@@ -1066,43 +1069,43 @@ void read_script_number( struct parse* phase, struct script* script ) {
       // list can be mistaken for a function call. Don't read function calls.
       struct expr_reading number;
       p_init_expr_reading( &number, false, false, true, true );
-      p_read_expr( phase, &number );
+      p_read_expr( parse, &number );
       script->number = number.output_node;
    }
 }
 
-void read_script_params( struct parse* phase, struct script* script,
+void read_script_params( struct parse* parse, struct script* script,
    struct script_reading* reading ) {
-   reading->param_pos = phase->tk_pos;
-   if ( phase->tk == TK_PAREN_L ) {
-      p_read_tk( phase );
-      if ( phase->tk == TK_PAREN_R ) {
-         p_read_tk( phase );
+   reading->param_pos = parse->tk_pos;
+   if ( parse->tk == TK_PAREN_L ) {
+      p_read_tk( parse );
+      if ( parse->tk == TK_PAREN_R ) {
+         p_read_tk( parse );
       }
       else {
          struct params params;
          init_params( &params );
          params.script = true;
-         read_params( phase, &params );
+         read_params( parse, &params );
          script->params = params.node;
          script->num_param = params.max;
-         p_test_tk( phase, TK_PAREN_R );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_PAREN_R );
+         p_read_tk( parse );
       }
    }
 }
 
-void read_script_type( struct parse* phase, struct script* script,
+void read_script_type( struct parse* parse, struct script* script,
    struct script_reading* reading ) {
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_OPEN: script->type = SCRIPT_TYPE_OPEN; break;
    case TK_RESPAWN: script->type = SCRIPT_TYPE_RESPAWN; break;
    case TK_DEATH: script->type = SCRIPT_TYPE_DEATH; break;
    case TK_ENTER: script->type = SCRIPT_TYPE_ENTER; break;
    case TK_PICKUP: script->type = SCRIPT_TYPE_PICKUP; break;
-   case TK_BLUE_RETURN: script->type = SCRIPT_TYPE_BLUE_RETURN; break;
-   case TK_RED_RETURN: script->type = SCRIPT_TYPE_RED_RETURN; break;
-   case TK_WHITE_RETURN: script->type = SCRIPT_TYPE_WHITE_RETURN; break;
+   case TK_BLUE_RETURN: script->type = SCRIPT_TYPE_BLUERETURN; break;
+   case TK_RED_RETURN: script->type = SCRIPT_TYPE_REDRETURN; break;
+   case TK_WHITE_RETURN: script->type = SCRIPT_TYPE_WHITERETURN; break;
    case TK_LIGHTNING: script->type = SCRIPT_TYPE_LIGHTNING; break;
    case TK_DISCONNECT: script->type = SCRIPT_TYPE_DISCONNECT; break;
    case TK_UNLOADING: script->type = SCRIPT_TYPE_UNLOADING; break;
@@ -1113,52 +1116,74 @@ void read_script_type( struct parse* phase, struct script* script,
    // Correct number of parameters need to be specified for a script type.
    if ( script->type == SCRIPT_TYPE_CLOSED ) {
       if ( script->num_param > SCRIPT_MAX_PARAMS ) {
-         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
-            "script has over %d parameters", SCRIPT_MAX_PARAMS );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "too many parameters in script" );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &reading->param_pos,
+            "a closed-script can have up to a maximum of %d parameters",
+            SCRIPT_MAX_PARAMS );
+         p_bail( parse );
       }
    }
    else if ( script->type == SCRIPT_TYPE_DISCONNECT ) {
       // A disconnect script must have a single parameter. It is the number of
       // the player who exited the game.
       if ( script->num_param < 1 ) {
-         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
-            "disconnect script missing player-number parameter" );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "missing player-number parameter in disconnect-script" );
+         p_bail( parse );
       }
       if ( script->num_param > 1 ) {
-         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
-            "too many parameters in disconnect script" );
-         p_bail( phase );
-
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "too many parameters in disconnect-script" );
+         p_bail( parse );
+ 
       }
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    else if ( script->type == SCRIPT_TYPE_EVENT ) {
       if ( script->num_param != 3 ) {
-         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
-            "incorrect number of parameters in event script" );
-         p_diag( phase, DIAG_FILE, &reading->param_pos,
-            "an event script takes exactly 3 parameters" );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "incorrect number of parameters in event-script" );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &reading->param_pos,
+            "an event-script must have exactly 3 parameters" );
+         p_bail( parse );
       }
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    else {
       if ( script->num_param ) {
-         p_diag( phase, DIAG_POS_ERR, &reading->param_pos,
-            "parameter list of %s script not empty", phase->tk_text );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "non-empty parameter-list in %s-script", parse->tk_text );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &reading->param_pos,
+            "%s %s-script must have zero parameters",
+            get_script_article( script->type ), parse->tk_text );
+         p_bail( parse );
       }
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
 }
 
-void read_script_flag( struct parse* phase, struct script* script ) {
+const char* get_script_article( int type ) {
+   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_EVENT + 1 );
+   switch ( type ) {
+   case SCRIPT_TYPE_OPEN:
+   case SCRIPT_TYPE_ENTER:
+   case SCRIPT_TYPE_UNLOADING:
+   case SCRIPT_TYPE_EVENT:
+      return "an";
+   default:
+      return "a";
+   }
+}
+
+void read_script_flag( struct parse* parse, struct script* script ) {
    while ( true ) {
       int flag = SCRIPT_FLAG_NET;
-      if ( phase->tk != TK_NET ) {
-         if ( phase->tk == TK_CLIENTSIDE ) {
+      if ( parse->tk != TK_NET ) {
+         if ( parse->tk == TK_CLIENTSIDE ) {
             flag = SCRIPT_FLAG_CLIENTSIDE;
          }
          else {
@@ -1167,19 +1192,19 @@ void read_script_flag( struct parse* phase, struct script* script ) {
       }
       if ( ! ( script->flags & flag ) ) {
          script->flags |= flag;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
       else {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "duplicate %s flag",
-            phase->tk_text );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "duplicate %s script-flag", parse->tk_text );
+         p_bail( parse );
       }
    }
 }
 
-void read_script_body( struct parse* phase, struct script* script ) {
+void read_script_body( struct parse* parse, struct script* script ) {
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
-   p_read_top_stmt( phase, &body, false );
+   p_read_top_stmt( parse, &body, false );
    script->body = body.node;
 }

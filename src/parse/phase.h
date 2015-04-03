@@ -247,7 +247,7 @@ void p_read_import( struct parse* phase, struct list* output );
 int p_extract_literal_value( struct parse* phase );
 struct source* p_load_included_source( struct parse* phase );
 void p_read_lib( struct parse* phase );
-void p_read_script( struct parse* phase );
+void p_read_script( struct parse* parse );
 void p_add_unresolved( struct region* region, struct object* object );
 struct path* p_read_path( struct parse* phase );
 
