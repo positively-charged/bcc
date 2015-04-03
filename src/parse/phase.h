@@ -176,12 +176,13 @@ struct dec {
    struct list* vars;
    int storage;
    int storage_index;
-   bool type_needed;
    bool type_void;
    bool type_struct;
    bool initz_str;
    bool is_static;
    bool leave;
+   bool read_func;
+   bool read_objects;
 };
 
 struct stmt_reading {

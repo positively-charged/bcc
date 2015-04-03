@@ -36,6 +36,8 @@ static void read_enum_def( struct parse* phase, struct dec* dec );
 static void read_manifest_constant( struct parse* phase, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* phase, struct dec* );
+static void read_objects( struct parse* parse, struct dec* dec );
+static void read_vars( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* phase, struct dec* );
 static void read_func( struct parse* phase, struct dec* );
 static void read_bfunc( struct parse* phase, struct func* );
@@ -88,20 +90,20 @@ void p_init_dec( struct dec* dec ) {
    dec->vars = NULL;
    dec->storage = STORAGE_LOCAL;
    dec->storage_index = 0;
-   dec->type_needed = false;
    dec->type_void = false;
    dec->type_struct = false;
    dec->initz_str = false;
    dec->is_static = false;
    dec->leave = false;
+   dec->read_func = false;
+   dec->read_objects = false;
 }
 
 void p_read_dec( struct parse* phase, struct dec* dec ) {
    dec->pos = phase->tk_pos;
-   bool func = false;
    if ( phase->tk == TK_FUNCTION ) {
-      func = true;
-      dec->type_needed = true;
+      dec->read_func = true;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
    read_qual( phase, dec );
@@ -111,56 +113,9 @@ void p_read_dec( struct parse* phase, struct dec* dec ) {
    if ( dec->leave ) {
       goto done;
    }
-   bool var = false;
-   read_obj:
-   read_storage_index( phase, dec );
-   read_name( phase, dec );
-   if ( ! var ) {
-      // Function:
-      if ( func || phase->tk == TK_PAREN_L ) {
-         read_func( phase, dec );
-         goto done;
-      }
-      else {
-         var = true;
-         // Variable must have a type.
-         if ( dec->type_void ) {
-            const char* object = "variable";
-            if ( dec->area == DEC_MEMBER ) {
-               object = "struct member";
-            }
-            p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
-               "void type specified for %s", object );
-            p_bail( phase );
-         }
-      }
+   if ( dec->read_objects ) {
+      read_objects( phase, dec );
    }
-   read_dim( phase, dec );
-   // Cannot place multi-value variable in scalar portion of storage, where a
-   // slot can hold only a single value.
-   // TODO: Come up with syntax to navigate the array portion of storage, the
-   // struct being the map. This way, you can access the storage data using a
-   // struct member instead of an array index.
-   if ( dec->type_struct && ! dec->dim && ( dec->storage == STORAGE_WORLD ||
-      dec->storage == STORAGE_GLOBAL ) ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->name_pos,
-         "variable of struct type in scalar portion of storage" );
-      p_bail( phase );
-   }
-   read_init( phase, dec );
-   if ( dec->area == DEC_MEMBER ) {
-      add_struct_member( phase, dec );
-   }
-   else {
-      add_var( phase, dec );
-   }
-   if ( phase->tk == TK_COMMA ) {
-      p_read_tk( phase );
-      goto read_obj;
-   }
-   // Finish:
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
    done: ;
 }
 
@@ -183,7 +138,7 @@ void read_qual( struct parse* phase, struct dec* dec ) {
          p_bail( phase );
       }
       dec->is_static = true;
-      dec->type_needed = true;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
 }
@@ -194,7 +149,7 @@ void read_storage( struct parse* phase, struct dec* dec ) {
       dec->storage = STORAGE_GLOBAL;
       dec->storage_pos = phase->tk_pos;
       dec->storage_name = "global";
-      dec->type_needed = true;
+      dec->read_objects = true;
       p_read_tk( phase );
       given = true;
    }
@@ -202,7 +157,7 @@ void read_storage( struct parse* phase, struct dec* dec ) {
       dec->storage = STORAGE_WORLD;
       dec->storage_pos = phase->tk_pos;
       dec->storage_name = "world";
-      dec->type_needed = true;
+      dec->read_objects = true;
       p_read_tk( phase );
       given = true;
    }
@@ -227,18 +182,22 @@ void read_type( struct parse* phase, struct dec* dec ) {
    dec->type_pos = phase->tk_pos;
    if ( phase->tk == TK_INT ) {
       dec->type = phase->task->type_int;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
    else if ( phase->tk == TK_STR ) {
       dec->type = phase->task->type_str;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
    else if ( phase->tk == TK_BOOL ) {
       dec->type = phase->task->type_bool;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
    else if ( phase->tk == TK_VOID ) {
       dec->type_void = true;
+      dec->read_objects = true;
       p_read_tk( phase );
    }
    else if ( phase->tk == TK_ENUM ) {
@@ -258,7 +217,7 @@ void read_enum( struct parse* phase, struct dec* dec ) {
    struct pos pos = phase->tk_pos;
    p_test_tk( phase, TK_ENUM );
    p_read_tk( phase );
-   if ( phase->tk == TK_BRACE_L || dec->type_needed ) {
+   if ( phase->tk == TK_BRACE_L || dec->read_objects ) {
       read_enum_def( phase, dec );
    }
    else {
@@ -325,7 +284,7 @@ void read_enum_def( struct parse* phase, struct dec* dec ) {
       p_add_unresolved( phase->region, &set->object );
    }
    dec->type = phase->task->type_int;
-   if ( ! dec->type_needed ) {
+   if ( ! dec->read_objects ) {
       // Only enum declared.
       if ( phase->tk == TK_SEMICOLON ) {
          p_read_tk( phase );
@@ -416,7 +375,7 @@ void read_struct( struct parse* phase, struct dec* dec ) {
          member.area = DEC_MEMBER;
          member.type_make = type;
          member.name_offset = type->body;
-         member.type_needed = true;
+         member.read_objects = true;
          member.vars = dec->vars;
          p_read_dec( phase, &member );
          if ( phase->tk == TK_BRACE_R ) {
@@ -440,7 +399,7 @@ void read_struct( struct parse* phase, struct dec* dec ) {
       }
       // Only struct declared. Anonymous struct must be part of a variable
       // declaration, so it cannot be declared alone.
-      if ( ! dec->type_needed && ! type->anon ) {
+      if ( ! dec->read_objects && ! type->anon ) {
          if ( phase->tk == TK_SEMICOLON ) {
             p_read_tk( phase );
             dec->leave = true;
@@ -451,6 +410,65 @@ void read_struct( struct parse* phase, struct dec* dec ) {
    else {
       dec->type_path = p_read_path( phase );
    }
+}
+
+void read_objects( struct parse* parse, struct dec* dec ) {
+   read_storage_index( parse, dec );
+   read_name( parse, dec );
+   if ( dec->read_func || parse->tk == TK_PAREN_L ) {
+      read_func( parse, dec );
+   }
+   else {
+      read_vars( parse, dec );
+   }
+}
+
+void read_vars( struct parse* parse, struct dec* dec ) {
+   // Variable must have a type.
+   if ( dec->type_void ) {
+      const char* object = "variable";
+      if ( dec->area == DEC_MEMBER ) {
+         object = "struct member";
+      }
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "void type specified for %s", object );
+      p_bail( parse );
+   }
+   bool read_beginning = false;
+   while ( true ) {
+      if ( read_beginning ) {
+         read_storage_index( parse, dec );
+         read_name( parse, dec );
+      }
+      read_dim( parse, dec );
+      // Cannot place multi-value variable in scalar portion of storage, where
+      // a slot can hold only a single value.
+      // TODO: Come up with syntax to navigate the array portion of storage,
+      // the struct being the map. This way, you can access the storage data
+      // using a struct member instead of an array index.
+      if ( dec->type_struct && ! dec->dim && ( dec->storage == STORAGE_WORLD ||
+         dec->storage == STORAGE_GLOBAL ) ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+            "variable of struct type in scalar portion of storage" );
+         p_bail( parse );
+      }
+      read_init( parse, dec );
+      if ( dec->area == DEC_MEMBER ) {
+         add_struct_member( parse, dec );
+      }
+      else {
+         add_var( parse, dec );
+      }
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         read_beginning = true;
+      }
+      else {
+         break;
+      }
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
 }
 
 void read_storage_index( struct parse* phase, struct dec* dec ) {
