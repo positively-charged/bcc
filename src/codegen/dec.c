@@ -12,8 +12,13 @@ struct nestedfunc_writing {
 
 static void write_script( struct codegen* phase, struct script* script );
 static void write_userfunc( struct codegen* phase, struct func* func );
-static void write_world_initz( struct codegen* phase, struct var* var );
-static void init_world_array( struct codegen* phase, struct var* );
+static void write_world_initz( struct codegen* codegen, struct var* var );
+static void write_stringinitz( struct codegen* codegen, struct var* var,
+   struct value* value, bool include_nul );
+static void write_world_multi_initz( struct codegen* codegen,
+   struct var* var );
+static void nullify_array( struct codegen* codegen, int storage, int index,
+   int start, int size );
 static void add_default_params( struct codegen* phase, struct func*,
    int count_param, bool reset_count_param );
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
@@ -83,87 +88,198 @@ void write_userfunc( struct codegen* phase, struct func* func ) {
    c_pop_block_visit( phase );
 }
 
-void c_visit_var( struct codegen* phase, struct var* var ) {
+void c_visit_var( struct codegen* codegen, struct var* var ) {
    if ( var->storage == STORAGE_LOCAL ) {
       if ( var->value ) {
-         c_push_expr( phase, var->value->expr, false );
-         c_update_indexed( phase, var->storage, var->index, AOP_NONE );
+         c_push_expr( codegen, var->value->expr, false );
+         c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
       }
    }
    else if ( var->storage == STORAGE_WORLD ||
       var->storage == STORAGE_GLOBAL ) {
-      if ( var->initial && ! var->is_constant_init ) {
+      if ( var->initial ) {
          if ( var->initial->multi ) {
-            init_world_array( phase, var );
+            write_world_multi_initz( codegen, var );
          }
          else {
-            write_world_initz( phase, var );
+            write_world_initz( codegen, var );
          }
       }
    }
 }
 
-void write_world_initz( struct codegen* phase, struct var* var ) {
+void write_world_initz( struct codegen* codegen, struct var* var ) {
    if ( var->value->string_initz ) {
-      struct indexed_string_usage* usage =
-         ( struct indexed_string_usage* ) var->value->expr->root;
-      for ( int i = 0; i < usage->string->length; ++i ) {
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, i );
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, usage->string->value[ i ] );
-         c_update_element( phase, var->storage, var->index, AOP_NONE );
+      write_stringinitz( codegen, var, var->value, true );
+   }
+   else {
+      c_push_expr( codegen, var->value->expr, false );
+      c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
+   }
+}
+
+void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
+   // Determine segment of the array to nullify.
+   // -----------------------------------------------------------------------
+   // The segment begins at the first element with a value of zero, or at the
+   // first unitialized element. The segment ends at the element after the
+   // last element with a value of zero, or at the element after the last
+   // unintialized element. The end-point element is not nullified.
+   int start = 0;
+   int end = 0;
+   struct value* value = var->value;
+   while ( value ) {
+      int index = 0;
+      if ( value->string_initz ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         index = value->index + usage->string->length + 1;
+      }
+      else {
+         index = value->index;
+         bool zero = ( value->expr->folded && value->expr->value == 0 );
+         bool lib_string = ( value->expr->has_str &&
+            codegen->task->library_main->importable );
+         if ( ! zero || lib_string ) {
+            ++index;
+         }
+      }
+      int next_index = ( value->next ? value->next->index : var->size );
+      if ( index != next_index ) {
+         if ( ! end ) {
+            start = index;
+         }
+         end = next_index;
+      }
+      value = value->next;
+   }
+   if ( start != end ) {
+      nullify_array( codegen, var->storage, var->index, start, end - start );
+   }
+   // Assign values to elements.
+   // -----------------------------------------------------------------------
+   value = var->value;
+   while ( value ) {
+      if ( value->string_initz ) {
+         // Don't include the NUL character if the element to contain the
+         // character has been nullified.
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         int nul_index = value->index + usage->string->length;
+         bool include_nul = ( ! ( nul_index >= start && nul_index < end ) );
+         write_stringinitz( codegen, var, value, include_nul );
+      }
+      else {
+         bool zero = ( value->expr->folded && value->expr->value == 0 );
+         bool lib_string = ( value->expr->has_str &&
+            codegen->task->library_main->importable );
+         if ( ! zero || lib_string ) {
+            c_add_opc( codegen, PCD_PUSHNUMBER );
+            c_add_arg( codegen, value->index );
+            c_push_expr( codegen, value->expr, false );
+            c_update_element( codegen, var->storage, var->index, AOP_NONE );
+         }
+      }
+      value = value->next;
+   }
+}
+
+void write_stringinitz( struct codegen* codegen, struct var* var,
+   struct value* value, bool include_nul ) {
+   struct indexed_string_usage* usage =
+      ( struct indexed_string_usage* ) value->expr->root;
+   // Optimization: If the string is small enough, initialize each element
+   // with a separate set of instructions.
+   enum { UNROLL_LIMIT = 3 };
+   if ( usage->string->length <= UNROLL_LIMIT ) {
+      int length = usage->string->length;
+      if ( include_nul ) {
+         ++length;
+      }
+      int i = 0;
+      while ( i < length ) {
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, value->index + i );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, usage->string->value[ i ] );
+         ++i;
+      }
+      while ( i ) {
+         c_update_element( codegen, var->storage, var->index, AOP_NONE );
+         --i;
       }
    }
    else {
-      c_push_expr( phase, var->value->expr, false );
-      c_update_indexed( phase, var->storage, var->index, AOP_NONE );
+      // Element index.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, value->index );
+      // Variable index.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, var->index );
+      // Element offset. Not used.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      // Number of characters to copy.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, usage->string->length );
+      // String index.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, usage->string->index );
+      // String offset. Not used.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      c_add_opc( codegen, var->storage == STORAGE_WORLD ?
+         PCD_STRCPYTOWORLDCHRANGE : PCD_STRCPYTOGLOBALCHRANGE );
+      c_add_opc( codegen, PCD_DROP );
+      if ( include_nul ) {
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, value->index + usage->string->length );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, 0 );
+         c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      }
+      usage->string->used = true;
    }
 }
 
-void init_world_array( struct codegen* phase, struct var* var ) {
-   // Nullify array.
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, var->size - 1 );
-   int loop = c_tell( phase );
-   c_add_opc( phase, PCD_CASEGOTO );
-   c_add_arg( phase, 0 );
-   c_add_arg( phase, 0 );
-   c_add_opc( phase, PCD_DUP );
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, 0 );
-   c_update_element( phase, var->storage, var->index, AOP_NONE );
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, 1 );
-   c_add_opc( phase, PCD_SUBTRACT );
-   c_add_opc( phase, PCD_GOTO );
-   c_add_arg( phase, loop );
-   int done = c_tell( phase );
-   c_seek( phase, loop );
-   c_add_opc( phase, PCD_CASEGOTO );
-   c_add_arg( phase, -1 );
-   c_add_arg( phase, done );
-   c_seek_end( phase );
-   // Assign elements.
-   struct value* value = var->value;
-   while ( value ) {
-      // Initialize an element only if the value is not 0, because the array
-      // is already nullified. String values from libraries are an exception,
-      // because they need to be tagged regardless of the value.
-      if ( ( ! value->expr->folded || value->expr->value ) ||
-         ( value->expr->has_str && phase->task->library_main->importable ) ) {
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, value->index );
-         if ( value->expr->folded && ! value->expr->has_str ) { 
-            c_add_opc( phase, PCD_PUSHNUMBER );
-            c_add_arg( phase, value->expr->value );
-         }
-         else {
-            c_push_expr( phase, value->expr, false );
-         }
-         c_update_element( phase, var->storage, var->index, AOP_NONE );
+void nullify_array( struct codegen* codegen, int storage, int index,
+   int start, int size ) {
+   // Optimization: If the size of the sub-array is small enough, initialize
+   // each element with a separate set of instructions.
+   enum { UNROLL_LIMIT = 4 };
+   if ( size <= UNROLL_LIMIT ) {
+      int i = 0;
+      while ( i < size ) {
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, start + i );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, 0 );
+         c_update_element( codegen, storage, index, AOP_NONE );
+         ++i;
       }
-      value = value->next;
+   }
+   else {
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, start + size );
+      int loop = c_tell( codegen );
+      c_add_opc( codegen, PCD_CASEGOTO );
+      c_add_arg( codegen, 0 );
+      c_add_arg( codegen, 0 );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 1 );
+      c_add_opc( codegen, PCD_SUBTRACT );
+      c_add_opc( codegen, PCD_DUP );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      c_update_element( codegen, storage, index, AOP_NONE );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, loop );
+      int done = c_tell( codegen );
+      c_seek( codegen, loop );
+      c_add_opc( codegen, PCD_CASEGOTO );
+      c_add_arg( codegen, start );
+      c_add_arg( codegen, done );
+      c_seek_end( codegen );
    }
 }
 

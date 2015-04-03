@@ -656,17 +656,6 @@ void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
    }
 }
 
-// Example: Print( a:( array, offset ) );
-// Implementation:
-//    int *offset_array = array + offset
-//    Print( a: offset_array )
-// Example: Print( a:( array, offset, length ) );
-// Implementation:
-//    int *offset_array = array + offset;
-//    int last_ch = offset_array[ length - 1 ];
-//    array[ length - 1 ] = 0;
-//    Print( a: offset_array, c: last_ch );
-//    array[ length - 1 ] = last_ch;
 void visit_array_format_item( struct codegen* codegen,
    struct format_item* item ) {
    struct operand object;
@@ -719,69 +708,6 @@ void visit_array_format_item( struct codegen* codegen,
       }
    }
    c_add_opc( codegen, code );
-
-return;
-/*
-   int label_zerolength = 0;
-   int label_done = 0;
-   struct format_item_array* extra = item->extra;
-   struct operand object;
-   init_operand( &object );
-   object.action = ACTION_PUSH_VAR;
-   visit_operand( phase, &object, item->value->root );
-   if ( extra && extra->offset ) {
-      c_push_expr( phase, extra->offset, true );
-      c_add_opc( phase, PCD_ADD );
-   }
-   if ( extra && extra->length ) {
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, extra->offset_var );
-      c_push_expr( phase, extra->length, false );
-      label_zerolength = c_tell( phase );
-      c_add_opc( phase, PCD_CASEGOTO );
-      c_add_arg( phase, 0 );
-      c_add_arg( phase, 0 );
-      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, extra->offset_var );
-      c_add_opc( phase, PCD_ADD );
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 1 );
-      c_add_opc( phase, PCD_SUBTRACT );
-      c_add_opc( phase, PCD_DUP );
-      c_add_opc( phase, PCD_DUP );
-      push_element( phase, object.storage, object.index );
-      c_add_opc( phase, PCD_SWAP );
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
-      c_update_element( phase, object.storage, object.index, AOP_NONE );
-      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, extra->offset_var );
-   }
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, object.index );
-   int code = PCD_PRINTMAPCHARARRAY;
-   switch ( object.storage ) {
-   case STORAGE_WORLD:
-      code = PCD_PRINTWORLDCHARARRAY;
-      break;
-   case STORAGE_GLOBAL:
-      code = PCD_PRINTGLOBALCHARARRAY;
-      break;
-   default:
-      break;
-   }
-   c_add_opc( phase, code );
-   if ( extra && extra->length ) {
-      c_add_opc( phase, PCD_DUP );
-      c_add_opc( phase, PCD_PRINTCHARACTER );
-      c_update_element( phase, object.storage, object.index, AOP_NONE );
-      label_done = c_tell( phase );
-      c_seek( phase, label_zerolength );
-      c_add_opc( phase, PCD_CASEGOTO );
-      c_add_arg( phase, 0 );
-      c_add_arg( phase, label_done );
-      c_seek_end( phase );
-   }*/
 }
 
 void visit_internal_call( struct codegen* phase, struct operand* operand,
