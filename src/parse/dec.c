@@ -31,8 +31,8 @@ static void read_params( struct parse* phase, struct params* );
 static void read_qual( struct parse* phase, struct dec* );
 static void read_storage( struct parse* phase, struct dec* );
 static void read_type( struct parse* phase, struct dec* );
-static void read_enum( struct parse* phase, struct dec* );
-static void read_enum_def( struct parse* phase, struct dec* dec );
+static void read_enum( struct parse* parse, struct dec* );
+static void read_enum_def( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* phase, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* phase, struct dec* );
@@ -213,45 +213,64 @@ void read_type( struct parse* phase, struct dec* dec ) {
    }
 }
 
-void read_enum( struct parse* phase, struct dec* dec ) {
-   struct pos pos = phase->tk_pos;
-   p_test_tk( phase, TK_ENUM );
-   p_read_tk( phase );
-   if ( phase->tk == TK_BRACE_L || dec->read_objects ) {
-      read_enum_def( phase, dec );
+void read_enum( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_ENUM );
+   p_read_tk( parse );
+   if ( ( parse->tk == TK_ID && p_peek( parse ) == TK_BRACE_L ) ||
+      parse->tk == TK_BRACE_L ) {
+      read_enum_def( parse, dec );
+   }
+   else if ( parse->tk == TK_ID ) {
+      read_manifest_constant( parse, dec );
    }
    else {
-      read_manifest_constant( phase, dec );
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unexpected %s", p_get_token_name( parse->tk ) );
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "expecting `{` here, or" );
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "expecting an identifier here" );
+      p_bail( parse );
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "enum in for-loop initialization" );
-      p_bail( phase );
+      p_bail( parse );
    }
 }
 
-void read_enum_def( struct parse* phase, struct dec* dec ) {
-   p_test_tk( phase, TK_BRACE_L );
-   p_read_tk( phase );
-   if ( phase->tk == TK_BRACE_R ) {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty enum" );
-      p_bail( phase );
+void read_enum_def( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_ID ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unexpected %s", p_get_token_name( parse->tk ) );
+      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
+         "named-enums not currently supported" );
+      p_bail( parse );
+   }
+   p_test_tk( parse, TK_BRACE_L );
+   p_read_tk( parse );
+   if ( parse->tk == TK_BRACE_R ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "empty enum" );
+      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &dec->type_pos,
+         "an enum must have at least one enumerator" );
+      p_bail( parse );
    }
    struct constant* head = NULL;
    struct constant* tail;
    while ( true ) {
-      p_test_tk( phase, TK_ID );
+      p_test_tk( parse, TK_ID );
       struct constant* constant = alloc_constant();
-      constant->object.pos = phase->tk_pos;
-      constant->name = t_make_name( phase->task, phase->tk_text,
-         phase->region->body );
-      p_read_tk( phase );
-      if ( phase->tk == TK_ASSIGN ) {
-         p_read_tk( phase );
+      constant->object.pos = parse->tk_pos;
+      constant->name = t_make_name( parse->task, parse->tk_text,
+         parse->region->body );
+      p_read_tk( parse );
+      if ( parse->tk == TK_ASSIGN ) {
+         p_read_tk( parse );
          struct expr_reading value;
          p_init_expr_reading( &value, true, false, false, true );
-         p_read_expr( phase, &value );
+         p_read_expr( parse, &value );
          constant->value_node = value.output_node;
       }
       if ( head ) {
@@ -261,16 +280,16 @@ void read_enum_def( struct parse* phase, struct dec* dec ) {
          head = constant;
       }
       tail = constant;
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
-         if ( phase->tk == TK_BRACE_R ) {
-            p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         if ( parse->tk == TK_BRACE_R ) {
+            p_read_tk( parse );
             break;
          }
       }
       else {
-         p_test_tk( phase, TK_BRACE_R );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_BRACE_R );
+         p_read_tk( parse );
          break;
       }
    }
@@ -281,19 +300,19 @@ void read_enum_def( struct parse* phase, struct dec* dec ) {
       list_append( dec->vars, set );
    }
    else {
-      p_add_unresolved( phase->region, &set->object );
+      p_add_unresolved( parse->region, &set->object );
    }
-   dec->type = phase->task->type_int;
+   dec->type = parse->task->type_int;
    if ( ! dec->read_objects ) {
       // Only enum declared.
-      if ( phase->tk == TK_SEMICOLON ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
          dec->leave = true;
       }
    }
    if ( dec->area == DEC_MEMBER ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
-      p_bail( phase );
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
+      p_bail( parse );
    }
 }
 

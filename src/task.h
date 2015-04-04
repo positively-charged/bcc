@@ -752,7 +752,8 @@ struct task {
 #define DIAG_COLUMN 0x4
 #define DIAG_WARN 0x8
 #define DIAG_ERR 0x10
-#define DIAG_POS_ERR DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN
+#define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
+#define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
 void t_init( struct task*, struct options*, jmp_buf* );
 struct name* t_make_name( struct task*, const char*, struct name* );
