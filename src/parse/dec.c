@@ -30,7 +30,8 @@ static void init_params( struct params* );
 static void read_params( struct parse* phase, struct params* );
 static void read_qual( struct parse* phase, struct dec* );
 static void read_storage( struct parse* phase, struct dec* );
-static void read_type( struct parse* phase, struct dec* );
+static void read_type( struct parse* parse, struct dec* dec );
+static void missing_type( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* phase, struct dec* dec );
@@ -178,39 +179,56 @@ void read_storage( struct parse* phase, struct dec* dec ) {
    }
 }
 
-void read_type( struct parse* phase, struct dec* dec ) {
-   dec->type_pos = phase->tk_pos;
-   if ( phase->tk == TK_INT ) {
-      dec->type = phase->task->type_int;
+void read_type( struct parse* parse, struct dec* dec ) {
+   dec->type_pos = parse->tk_pos;
+   if ( parse->tk == TK_INT ) {
+      dec->type = parse->task->type_int;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_STR ) {
-      dec->type = phase->task->type_str;
+   else if ( parse->tk == TK_STR ) {
+      dec->type = parse->task->type_str;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_BOOL ) {
-      dec->type = phase->task->type_bool;
+   else if ( parse->tk == TK_BOOL ) {
+      dec->type = parse->task->type_bool;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_VOID ) {
+   else if ( parse->tk == TK_VOID ) {
       dec->type_void = true;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_ENUM ) {
-      read_enum( phase, dec );
+   else if ( parse->tk == TK_ENUM ) {
+      read_enum( parse, dec );
    }
-   else if ( phase->tk == TK_STRUCT ) {
-      read_struct( phase, dec );
+   else if ( parse->tk == TK_STRUCT ) {
+      read_struct( parse, dec );
       dec->type_struct = true;
    }
    else {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing type" );
-      p_bail( phase );
+      missing_type( parse, dec );
    }
+}
+
+void missing_type( struct parse* parse, struct dec* dec ) {
+   p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+      "unexpected %s", p_get_token_name( parse->tk ) );
+   if ( dec->read_func ) {
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "expecting return-type of function here" );
+   }
+   else if ( dec->area == DEC_MEMBER ) {
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "expecting type of struct-member here" );
+   }
+   else {
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "expecting object type here" );
+   }
+   p_bail( parse );
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
