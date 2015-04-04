@@ -283,6 +283,9 @@ void show_diag( struct task* task, int flags, va_list* args ) {
       }
       printf( ": " );
    }
+   if ( flags & DIAG_SYNTAX ) {
+      printf( "syntax " );
+   }
    if ( flags & DIAG_ERR ) {
       printf( "error: " );
    }
@@ -311,6 +314,9 @@ void log_diag( struct task* task, int flags, va_list* args ) {
       }
    }
    fprintf( task->err_file, " " );
+   if ( flags & DIAG_SYNTAX ) {
+      fprintf( task->err_file, "syntax " );
+   }
    if ( flags & DIAG_ERR ) {
       fprintf( task->err_file, "error: " );
    }

@@ -214,7 +214,7 @@ void read_type( struct parse* parse, struct dec* dec ) {
 }
 
 void missing_type( struct parse* parse, struct dec* dec ) {
-   p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos,
       "unexpected %s", p_get_token_name( parse->tk ) );
    if ( dec->read_func ) {
       p_diag( parse, DIAG_POS, &parse->tk_pos,

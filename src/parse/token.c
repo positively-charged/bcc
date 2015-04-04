@@ -1158,7 +1158,7 @@ void p_test_tk( struct parse* phase, enum tk expected ) {
             phase->tk_text );
       }
       else {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, 
+         p_diag( phase, DIAG_POS_ERR | DIAG_SYNTAX, &phase->tk_pos, 
             "unexpected %s", p_get_token_name( phase->tk ) );
          p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
             "expecting %s here", p_get_token_name( expected ),
