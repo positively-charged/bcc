@@ -37,6 +37,7 @@ static void read_enum_def( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* phase, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* phase, struct dec* );
+static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_objects( struct parse* parse, struct dec* dec );
 static void read_vars( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* phase, struct dec* );
@@ -369,83 +370,91 @@ struct constant* alloc_constant( void ) {
    return constant;
 }
 
-void read_struct( struct parse* phase, struct dec* dec ) {
-   p_test_tk( phase, TK_STRUCT );
-   p_read_tk( phase );
+void read_struct( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_STRUCT );
+   p_read_tk( parse );
    // Definition.
-   if ( phase->tk == TK_BRACE_L || p_peek( phase ) == TK_BRACE_L ) {
-      struct name* name = NULL;
-      if ( phase->tk == TK_ID ) {
-         // Don't allow nesting of named structs for now. Maybe later, nested
-         // struct support like in C++ will be added. Here is potential syntax
-         // for specifying a nested struct, when creating a variable:
-         // struct region.struct.my_struct var1;
-         // struct upmost.struct.my_struct var2;
-         if ( dec->area == DEC_MEMBER ) {
-            p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-               "name given to nested struct" );
-            p_bail( phase );
-         }
-         name = t_make_name( phase->task, phase->tk_text, phase->region->body_struct );
-         p_read_tk( phase );
-      }
-      // When no name is specified, make random name.
-      else {
-         name = t_make_name( phase->task, "a", phase->task->anon_name );
-         phase->task->anon_name = name;
-      }
-      struct type* type = t_create_type( phase->task, name );
-      type->object.pos = dec->type_pos;
-      if ( name == phase->task->anon_name ) {
-         type->anon = true;
-      }
-      // Members:
-      p_test_tk( phase, TK_BRACE_L );
-      p_read_tk( phase );
-      if ( phase->tk == TK_BRACE_R ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty struct" );
-         p_bail( phase );
-      }
-      while ( true ) {
-         struct dec member;
-         p_init_dec( &member );
-         member.area = DEC_MEMBER;
-         member.type_make = type;
-         member.name_offset = type->body;
-         member.read_objects = true;
-         member.vars = dec->vars;
-         p_read_dec( phase, &member );
-         if ( phase->tk == TK_BRACE_R ) {
-            p_read_tk( phase );
-            break;
-         }
-      }
-      // Nested struct is in the same scope as the parent struct.
-      if ( dec->vars ) {
-         list_append( dec->vars, type );
-      }
-      else {
-         p_add_unresolved( phase->region, &type->object );
-      }
-      dec->type = type;
-      STATIC_ASSERT( DEC_TOTAL == 4 );
-      if ( dec->area == DEC_FOR ) {
-         p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
-            "struct in for-loop initialization" );
-         p_bail( phase );
-      }
-      // Only struct declared. Anonymous struct must be part of a variable
-      // declaration, so it cannot be declared alone.
-      if ( ! dec->read_objects && ! type->anon ) {
-         if ( phase->tk == TK_SEMICOLON ) {
-            p_read_tk( phase );
-            dec->leave = true;
-         }
-      }
+   if ( parse->tk == TK_BRACE_L || p_peek( parse ) == TK_BRACE_L ) {
+      read_struct_def( parse, dec );
    }
    // Variable of struct type.
    else {
-      dec->type_path = p_read_path( phase );
+      dec->type_path = p_read_path( parse );
+   }
+}
+
+void read_struct_def( struct parse* parse, struct dec* dec ) {
+   struct name* name = NULL;
+   if ( parse->tk == TK_ID ) {
+      // Don't allow nesting of named structs for now. Maybe later, nested
+      // struct support like in C++ will be added. Here is potential syntax
+      // for specifying a nested struct, when creating a variable:
+      // struct region.struct.my_struct var1;
+      // struct upmost.struct.my_struct var2;
+      if ( dec->area == DEC_MEMBER ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "name given to nested struct" );
+         p_bail( parse );
+      }
+      name = t_make_name( parse->task, parse->tk_text,
+         parse->region->body_struct );
+      p_read_tk( parse );
+   }
+   // When no name is specified, make random name.
+   else {
+      name = t_make_name( parse->task, "a", parse->task->anon_name );
+      parse->task->anon_name = name;
+   }
+   struct type* type = t_create_type( parse->task, name );
+   type->object.pos = dec->type_pos;
+   if ( name == parse->task->anon_name ) {
+      type->anon = true;
+   }
+   // Members:
+   p_test_tk( parse, TK_BRACE_L );
+   p_read_tk( parse );
+   if ( parse->tk == TK_BRACE_R ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "empty struct" );
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "a struct must have at least one member" );
+      p_bail( parse );
+   }
+   while ( true ) {
+      struct dec member;
+      p_init_dec( &member );
+      member.area = DEC_MEMBER;
+      member.type_make = type;
+      member.name_offset = type->body;
+      member.read_objects = true;
+      member.vars = dec->vars;
+      p_read_dec( parse, &member );
+      if ( parse->tk == TK_BRACE_R ) {
+         p_read_tk( parse );
+         break;
+      }
+   }
+   // Nested struct is in the same scope as the parent struct.
+   if ( dec->vars ) {
+      list_append( dec->vars, type );
+   }
+   else {
+      p_add_unresolved( parse->region, &type->object );
+   }
+   dec->type = type;
+   STATIC_ASSERT( DEC_TOTAL == 4 );
+   if ( dec->area == DEC_FOR ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "struct in for-loop initialization" );
+      p_bail( parse );
+   }
+   // Only struct declared. Anonymous struct must be part of a variable
+   // declaration, so it cannot be declared alone.
+   if ( ! dec->read_objects && ! type->anon ) {
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
+         dec->leave = true;
+      }
    }
 }
 
