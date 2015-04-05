@@ -165,6 +165,7 @@ struct dec {
    struct pos type_pos;
    struct pos storage_pos;
    struct pos name_pos;
+   struct pos static_qual_pos;
    const char* storage_name;
    struct type* type;
    struct type* type_make;
@@ -179,7 +180,7 @@ struct dec {
    bool type_void;
    bool type_struct;
    bool initz_str;
-   bool is_static;
+   bool static_qual;
    bool leave;
    bool read_func;
    bool read_objects;

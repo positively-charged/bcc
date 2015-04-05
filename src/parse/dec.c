@@ -95,7 +95,7 @@ void p_init_dec( struct dec* dec ) {
    dec->type_void = false;
    dec->type_struct = false;
    dec->initz_str = false;
-   dec->is_static = false;
+   dec->static_qual = false;
    dec->leave = false;
    dec->read_func = false;
    dec->read_objects = false;
@@ -139,7 +139,8 @@ void read_qual( struct parse* phase, struct dec* dec ) {
             "static struct member" );
          p_bail( phase );
       }
-      dec->is_static = true;
+      dec->static_qual = true;
+      dec->static_qual_pos = phase->tk_pos;
       dec->read_objects = true;
       p_read_tk( phase );
    }
@@ -167,7 +168,7 @@ void read_storage( struct parse* phase, struct dec* dec ) {
       // Variable found at region scope, or a static local variable, has map
       // storage.
       if ( dec->area == DEC_TOP ||
-         ( dec->area == DEC_LOCAL && dec->is_static ) ) {
+         ( dec->area == DEC_LOCAL && dec->static_qual ) ) {
          dec->storage = STORAGE_MAP;
          dec->storage_name = "map";
       }
@@ -627,7 +628,7 @@ void read_init( struct parse* phase, struct dec* dec ) {
       // world or global storage at runtime.
       if ( ( dec->storage == STORAGE_WORLD ||
          dec->storage == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
-         dec->is_static ) ) {
+         dec->static_qual ) ) {
          p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
             "initializing %s variable at start of map",
             dec->storage_name );
@@ -786,8 +787,8 @@ void add_var( struct parse* phase, struct dec* dec ) {
    var->initial_has_str = false;
    var->imported = phase->task->library->imported;
    var->is_constant_init =
-      ( dec->is_static || dec->area == DEC_TOP ) ? true : false;
-   if ( dec->is_static ) {
+      ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
+   if ( dec->static_qual ) {
       var->hidden = true;
    }
    if ( dec->area == DEC_TOP ) {
@@ -863,6 +864,11 @@ void read_func( struct parse* phase, struct dec* dec ) {
       read_bfunc( phase, func );
       p_test_tk( phase, TK_SEMICOLON );
       p_read_tk( phase );
+   }
+   if ( dec->static_qual ) {
+      p_diag( phase, DIAG_POS_ERR, &dec->static_qual_pos,
+         "`static` specified for function" );
+      p_bail( phase );
    }
    if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
       p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
