@@ -27,22 +27,22 @@ struct script_reading {
 };
 
 static void init_params( struct params* );
-static void read_params( struct parse* phase, struct params* );
-static void read_qual( struct parse* phase, struct dec* );
-static void read_storage( struct parse* phase, struct dec* );
+static void read_params( struct parse* parse, struct params* );
+static void read_qual( struct parse* parse, struct dec* );
+static void read_storage( struct parse* parse, struct dec* );
 static void read_type( struct parse* parse, struct dec* dec );
 static void missing_type( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
-static void read_manifest_constant( struct parse* phase, struct dec* dec );
+static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
-static void read_struct( struct parse* phase, struct dec* );
+static void read_struct( struct parse* parse, struct dec* );
 static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_objects( struct parse* parse, struct dec* dec );
 static void read_vars( struct parse* parse, struct dec* dec );
-static void read_storage_index( struct parse* phase, struct dec* );
-static void read_func( struct parse* phase, struct dec* );
-static void read_bfunc( struct parse* phase, struct func* );
+static void read_storage_index( struct parse* parse, struct dec* );
+static void read_func( struct parse* parse, struct dec* );
+static void read_bfunc( struct parse* parse, struct func* );
 static void read_script_number( struct parse* parse, struct script* );
 static void read_script_params( struct parse* parse, struct script*,
    struct script_reading* );
@@ -51,18 +51,18 @@ static void read_script_type( struct parse* parse, struct script*,
 static const char* get_script_article( int type );
 static void read_script_flag( struct parse* parse, struct script* );
 static void read_script_body( struct parse* parse, struct script* );
-static void read_name( struct parse* phase, struct dec* );
-static void read_dim( struct parse* phase, struct dec* );
-static void read_init( struct parse* phase, struct dec* );
+static void read_name( struct parse* parse, struct dec* );
+static void read_dim( struct parse* parse, struct dec* );
+static void read_init( struct parse* parse, struct dec* );
 static void init_initial( struct initial*, bool );
 static struct value* alloc_value( void );
-static void read_multi_init( struct parse* phase, struct dec*,
+static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
-static void add_struct_member( struct parse* phase, struct dec* );
-static void add_var( struct parse* phase, struct dec* );
+static void add_struct_member( struct parse* parse, struct dec* );
+static void add_var( struct parse* parse, struct dec* );
 
-bool p_is_dec( struct parse* phase ) {
-   switch ( phase->tk ) {
+bool p_is_dec( struct parse* parse ) {
+   switch ( parse->tk ) {
    case TK_INT:
    case TK_STR:
    case TK_BOOL:
@@ -101,67 +101,67 @@ void p_init_dec( struct dec* dec ) {
    dec->read_objects = false;
 }
 
-void p_read_dec( struct parse* phase, struct dec* dec ) {
-   dec->pos = phase->tk_pos;
-   if ( phase->tk == TK_FUNCTION ) {
+void p_read_dec( struct parse* parse, struct dec* dec ) {
+   dec->pos = parse->tk_pos;
+   if ( parse->tk == TK_FUNCTION ) {
       dec->read_func = true;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   read_qual( phase, dec );
-   read_storage( phase, dec );
-   read_type( phase, dec );
+   read_qual( parse, dec );
+   read_storage( parse, dec );
+   read_type( parse, dec );
    // No need to continue when only declaring a struct or an enum.
    if ( dec->leave ) {
       goto done;
    }
    if ( dec->read_objects ) {
-      read_objects( phase, dec );
+      read_objects( parse, dec );
    }
    done: ;
 }
 
-void read_qual( struct parse* phase, struct dec* dec ) {
-   if ( phase->tk == TK_STATIC ) {
+void read_qual( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_STATIC ) {
       STATIC_ASSERT( DEC_TOTAL == 4 )
       if ( dec->area == DEC_TOP ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "`static` in region scope" );
-         p_bail( phase );
+         p_bail( parse );
       }
       if ( dec->area == DEC_FOR ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "`static` in for-loop initialization" );
-         p_bail( phase );
+         p_bail( parse );
       }
       if ( dec->area == DEC_MEMBER ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "static struct member" );
-         p_bail( phase );
+         p_bail( parse );
       }
       dec->static_qual = true;
-      dec->static_qual_pos = phase->tk_pos;
+      dec->static_qual_pos = parse->tk_pos;
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
 }
 
-void read_storage( struct parse* phase, struct dec* dec ) {
+void read_storage( struct parse* parse, struct dec* dec ) {
    bool given = false;
-   if ( phase->tk == TK_GLOBAL ) {
+   if ( parse->tk == TK_GLOBAL ) {
       dec->storage = STORAGE_GLOBAL;
-      dec->storage_pos = phase->tk_pos;
+      dec->storage_pos = parse->tk_pos;
       dec->storage_name = "global";
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
       given = true;
    }
-   else if ( phase->tk == TK_WORLD ) {
+   else if ( parse->tk == TK_WORLD ) {
       dec->storage = STORAGE_WORLD;
-      dec->storage_pos = phase->tk_pos;
+      dec->storage_pos = parse->tk_pos;
       dec->storage_name = "world";
       dec->read_objects = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
       given = true;
    }
    else {
@@ -175,9 +175,9 @@ void read_storage( struct parse* phase, struct dec* dec ) {
    }
    // Storage cannot be specified for a structure member.
    if ( given && dec->area == DEC_MEMBER ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
+      p_diag( parse, DIAG_POS_ERR, &dec->storage_pos,
          "storage specified for struct member" );
-      p_bail( phase );
+      p_bail( parse );
    }
 }
 
@@ -336,26 +336,27 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_manifest_constant( struct parse* phase, struct dec* dec ) {
-   p_test_tk( phase, TK_ID );
+void read_manifest_constant( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_ID );
    struct constant* constant = alloc_constant();
-   constant->object.pos = phase->tk_pos;
-   constant->name = t_make_name( phase->task, phase->tk_text, phase->region->body );
-   p_read_tk( phase );
-   p_test_tk( phase, TK_ASSIGN );
-   p_read_tk( phase );
+   constant->object.pos = parse->tk_pos;
+   constant->name = t_make_name( parse->task, parse->tk_text,
+      parse->region->body );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ASSIGN );
+   p_read_tk( parse );
    struct expr_reading value;
    p_init_expr_reading( &value, true, false, false, true );
-   p_read_expr( phase, &value );
+   p_read_expr( parse, &value );
    constant->value_node = value.output_node;
    if ( dec->vars ) {
       list_append( dec->vars, constant );
    }
    else {
-      p_add_unresolved( phase->region, &constant->object );
+      p_add_unresolved( parse->region, &constant->object );
    }
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    dec->leave = true;
 }
 
@@ -518,93 +519,93 @@ void read_vars( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
 }
 
-void read_storage_index( struct parse* phase, struct dec* dec ) {
-   if ( phase->tk == TK_LIT_DECIMAL ) {
-      struct pos pos = phase->tk_pos;
+void read_storage_index( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_LIT_DECIMAL ) {
+      struct pos pos = parse->tk_pos;
       if ( dec->area == DEC_MEMBER ) {
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "storage index specified for struct member" );
-         p_bail( phase );
+         p_bail( parse );
       }
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      dec->storage_index = p_extract_literal_value( phase );
-      p_read_tk( phase );
-      p_test_tk( phase, TK_COLON );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      dec->storage_index = p_extract_literal_value( parse );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_COLON );
+      p_read_tk( parse );
       int max = MAX_WORLD_LOCATIONS;
       if ( dec->storage != STORAGE_WORLD ) {
          if ( dec->storage == STORAGE_GLOBAL ) {
             max = MAX_GLOBAL_LOCATIONS;
          }
          else  {
-            p_diag( phase, DIAG_POS_ERR, &pos,
+            p_diag( parse, DIAG_POS_ERR, &pos,
                "index specified for %s storage", dec->storage_name );
-            p_bail( phase );
+            p_bail( parse );
          }
       }
       if ( dec->storage_index >= max ) {
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "index for %s storage not between 0 and %d", dec->storage_name,
             max - 1 );
-         p_bail( phase );
+         p_bail( parse );
       }
    }
    else {
       // Index must be explicitly specified for world and global storages.
       if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "missing index for %s storage", dec->storage_name );
-         p_bail( phase );
+         p_bail( parse );
       }
    }
 }
 
-void read_name( struct parse* phase, struct dec* dec ) {
-   if ( phase->tk == TK_ID ) {
-      dec->name = t_make_name( phase->task, phase->tk_text, dec->name_offset );
-      dec->name_pos = phase->tk_pos;
-      p_read_tk( phase );
+void read_name( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_ID ) {
+      dec->name = t_make_name( parse->task, parse->tk_text, dec->name_offset );
+      dec->name_pos = parse->tk_pos;
+      p_read_tk( parse );
    }
    else {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "missing name" );
-      p_bail( phase );
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos, "missing name" );
+      p_bail( parse );
    }
 }
 
-void read_dim( struct parse* phase, struct dec* dec ) {
+void read_dim( struct parse* parse, struct dec* dec ) {
    dec->dim = NULL;
    struct dim* tail = NULL;
-   while ( phase->tk == TK_BRACKET_L ) {
+   while ( parse->tk == TK_BRACKET_L ) {
       struct dim* dim = mem_alloc( sizeof( *dim ) );
       dim->next = NULL;
       dim->size_node = NULL;
       dim->size = 0;
       dim->element_size = 0;
-      dim->pos = phase->tk_pos;
-      p_read_tk( phase );
+      dim->pos = parse->tk_pos;
+      p_read_tk( parse );
       // Implicit size.
-      if ( phase->tk == TK_BRACKET_R ) {
+      if ( parse->tk == TK_BRACKET_R ) {
          // Only the first dimension can have an implicit size.
          if ( tail ) {
-            p_diag( phase, DIAG_POS_ERR, &dim->pos,
+            p_diag( parse, DIAG_POS_ERR, &dim->pos,
                "implicit size in subsequent dimension" );
-            p_bail( phase );
+            p_bail( parse );
          }
          // Dimension with implicit size not allowed in struct.
          if ( dec->area == DEC_MEMBER ) {
-            p_diag( phase, DIAG_POS_ERR, &dim->pos,
+            p_diag( parse, DIAG_POS_ERR, &dim->pos,
                "dimension with implicit size in struct member" );
-            p_bail( phase );
+            p_bail( parse );
          }
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
       else {
          struct expr_reading size;
          p_init_expr_reading( &size, false, false, false, true );
-         p_read_expr( phase, &size );
+         p_read_expr( parse, &size );
          dim->size_node = size.output_node;
-         p_test_tk( phase, TK_BRACKET_R );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_BRACKET_R );
+         p_read_tk( parse );
       }
       if ( tail ) {
          tail->next = dim;
@@ -616,39 +617,39 @@ void read_dim( struct parse* phase, struct dec* dec ) {
    }
 }
 
-void read_init( struct parse* phase, struct dec* dec ) {
+void read_init( struct parse* parse, struct dec* dec ) {
    dec->initial = NULL;
-   if ( phase->tk == TK_ASSIGN ) {
+   if ( parse->tk == TK_ASSIGN ) {
       if ( dec->area == DEC_MEMBER ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "initializing a struct member" );
-         p_bail( phase );
+         p_bail( parse );
       }
       // At this time, there is no good way to initialize a variable having
       // world or global storage at runtime.
       if ( ( dec->storage == STORAGE_WORLD ||
          dec->storage == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
          dec->static_qual ) ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "initializing %s variable at start of map",
             dec->storage_name );
-         p_bail( phase );
+         p_bail( parse );
       }
-      p_read_tk( phase );
-      if ( phase->tk == TK_BRACE_L ) {
-         read_multi_init( phase, dec, NULL );
+      p_read_tk( parse );
+      if ( parse->tk == TK_BRACE_L ) {
+         read_multi_init( parse, dec, NULL );
          if ( ! dec->dim && ( dec->type && dec->type->primitive ) ) {
             struct multi_value* multi_value =
                ( struct multi_value* ) dec->initial;
-            p_diag( phase, DIAG_POS_ERR, &multi_value->pos,
+            p_diag( parse, DIAG_POS_ERR, &multi_value->pos,
                "using brace initializer on scalar variable" );
-            p_bail( phase );
+            p_bail( parse );
          }
       }
       else {
          struct expr_reading expr;
          p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
+         p_read_expr( parse, &expr );
          struct value* value = alloc_value();
          value->expr = expr.output_node;
          dec->initial = &value->initial;
@@ -662,9 +663,9 @@ void read_init( struct parse* phase, struct dec* dec ) {
       if ( dec->dim && ! dec->dim->size_node && ( (
          dec->storage != STORAGE_WORLD &&
          dec->storage != STORAGE_GLOBAL ) || dec->dim->next ) ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "missing initialization of implicit dimension" );
-         p_bail( phase );
+         p_bail( parse );
       }
    }
 }
@@ -685,30 +686,30 @@ struct value* alloc_value( void ) {
    return value;
 }
 
-void read_multi_init( struct parse* phase, struct dec* dec,
+void read_multi_init( struct parse* parse, struct dec* dec,
    struct multi_value_read* parent ) {
-   p_test_tk( phase, TK_BRACE_L );
+   p_test_tk( parse, TK_BRACE_L );
    struct multi_value* multi_value = mem_alloc( sizeof( *multi_value ) );
    init_initial( &multi_value->initial, true );
    multi_value->body = NULL;
-   multi_value->pos = phase->tk_pos;
+   multi_value->pos = parse->tk_pos;
    multi_value->padding = 0;
    struct multi_value_read read;
    read.multi_value = multi_value;
    read.tail = NULL;
-   p_read_tk( phase );
-   if ( phase->tk == TK_BRACE_R ) {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos, "empty initializer" );
-      p_bail( phase );
+   p_read_tk( parse );
+   if ( parse->tk == TK_BRACE_R ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos, "empty initializer" );
+      p_bail( parse );
    }
    while ( true ) {
-      if ( phase->tk == TK_BRACE_L ) { 
-         read_multi_init( phase, dec, &read );
+      if ( parse->tk == TK_BRACE_L ) { 
+         read_multi_init( parse, dec, &read );
       }
       else {
          struct expr_reading expr;
          p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
+         p_read_expr( parse, &expr );
          struct value* value = alloc_value();
          value->expr = expr.output_node;
          if ( read.tail ) {
@@ -719,16 +720,16 @@ void read_multi_init( struct parse* phase, struct dec* dec,
          }
          read.tail = &value->initial;
       }
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
-         if ( phase->tk == TK_BRACE_R ) {
-            p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         if ( parse->tk == TK_BRACE_R ) {
+            p_read_tk( parse );
             break;
          }
       }
       else {
-         p_test_tk( phase, TK_BRACE_R );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_BRACE_R );
+         p_read_tk( parse );
          break;
       }
    }
@@ -747,7 +748,7 @@ void read_multi_init( struct parse* phase, struct dec* dec,
    }
 }
 
-void add_struct_member( struct parse* phase, struct dec* dec ) {
+void add_struct_member( struct parse* parse, struct dec* dec ) {
    struct type_member* member = mem_alloc( sizeof( *member ) );
    t_init_object( &member->object, NODE_TYPE_MEMBER );
    member->object.pos = dec->name_pos;
@@ -767,7 +768,7 @@ void add_struct_member( struct parse* phase, struct dec* dec ) {
    dec->type_make->member_tail = member;
 }
 
-void add_var( struct parse* phase, struct dec* dec ) {
+void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = mem_alloc( sizeof( *var ) );
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
@@ -785,18 +786,18 @@ void add_var( struct parse* phase, struct dec* dec ) {
    var->hidden = false;
    var->used = false;
    var->initial_has_str = false;
-   var->imported = phase->task->library->imported;
+   var->imported = parse->task->library->imported;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    if ( dec->static_qual ) {
       var->hidden = true;
    }
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( phase->region, &var->object );
-      list_append( &phase->task->library->vars, var );
+      p_add_unresolved( parse->region, &var->object );
+      list_append( &parse->task->library->vars, var );
    }
    else if ( dec->storage == STORAGE_MAP ) {
-      list_append( &phase->task->library->vars, var );
+      list_append( &parse->task->library->vars, var );
       list_append( dec->vars, var );
    }
    else {
@@ -804,7 +805,7 @@ void add_var( struct parse* phase, struct dec* dec ) {
    }
 }
 
-void read_func( struct parse* phase, struct dec* dec ) {
+void read_func( struct parse* parse, struct dec* dec ) {
    struct func* func = mem_slot_alloc( sizeof( *func ) );
    t_init_object( &func->object, NODE_FUNC );
    func->object.pos = dec->name_pos;
@@ -817,21 +818,21 @@ void read_func( struct parse* phase, struct dec* dec ) {
    func->max_param = 0;
    func->hidden = false;
    // Parameter list:
-   p_test_tk( phase, TK_PAREN_L );
-   struct pos params_pos = phase->tk_pos;
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   struct pos params_pos = parse->tk_pos;
+   p_read_tk( parse );
    struct params params;
    init_params( &params );
-   if ( phase->tk != TK_PAREN_R ) {
-      read_params( phase, &params );
+   if ( parse->tk != TK_PAREN_R ) {
+      read_params( parse, &params );
       func->params = params.node;
       func->min_param = params.min;
       func->max_param = params.max;
    }
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
    // Body:
-   if ( phase->tk == TK_BRACE_L ) {
+   if ( parse->tk == TK_BRACE_L ) {
       func->type = FUNC_USER;
       struct func_user* impl = mem_alloc( sizeof( *impl ) );
       list_init( &impl->labels );
@@ -850,57 +851,57 @@ void read_func( struct parse* phase, struct dec* dec ) {
       impl->publish = false;
       func->impl = impl;
       // Only read the function body when it is needed.
-      if ( ! phase->task->library->imported ) {
+      if ( ! parse->task->library->imported ) {
          struct stmt_reading body;
          p_init_stmt_reading( &body, &impl->labels );
-         p_read_top_stmt( phase, &body, true );
+         p_read_top_stmt( parse, &body, true );
          impl->body = body.block_node;
       }
       else {
-         p_skip_block( phase );
+         p_skip_block( parse );
       }
    }
    else {
-      read_bfunc( phase, func );
-      p_test_tk( phase, TK_SEMICOLON );
-      p_read_tk( phase );
+      read_bfunc( parse, func );
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
    }
    if ( dec->static_qual ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->static_qual_pos,
+      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
          "`static` specified for function" );
-      p_bail( phase );
+      p_bail( parse );
    }
    if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->storage_pos,
+      p_diag( parse, DIAG_POS_ERR, &dec->storage_pos,
          "storage specified for function" );
-      p_bail( phase );
+      p_bail( parse );
    }
    // At this time, returning a struct is not possible. Maybe later, this can
    // be added as part of variable assignment.
    if ( dec->type_struct ) {
-      p_diag( phase, DIAG_POS_ERR, &dec->type_pos,
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "function returning struct" );
-      p_bail( phase );
+      p_bail( parse );
    }
    if ( func->type == FUNC_FORMAT ) {
       if ( ! params.format ) {
-         p_diag( phase, DIAG_POS_ERR, &params_pos,
+         p_diag( parse, DIAG_POS_ERR, &params_pos,
             "parameter list missing format parameter" );
-         p_bail( phase );
+         p_bail( parse );
       }
    }
    else {
       if ( params.format ) {
-         p_diag( phase, DIAG_POS_ERR, &params.format_pos,
+         p_diag( parse, DIAG_POS_ERR, &params.format_pos,
             "format parameter outside format function" );
-         p_bail( phase );
+         p_bail( parse );
       }
    }
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( phase->region, &func->object );
+      p_add_unresolved( parse->region, &func->object );
       if ( func->type == FUNC_USER ) {
-         list_append( &phase->task->library->funcs, func );
-         list_append( &phase->region->items, func );
+         list_append( &parse->task->library->funcs, func );
+         list_append( &parse->region->items, func );
       }
    }
    else {
@@ -916,22 +917,22 @@ void init_params( struct params* params ) {
    params->format = false;
 } 
 
-void read_params( struct parse* phase, struct params* params ) {
-   if ( phase->tk == TK_VOID ) {
-      p_read_tk( phase );
+void read_params( struct parse* parse, struct params* params ) {
+   if ( parse->tk == TK_VOID ) {
+      p_read_tk( parse );
       return;
    }
    // First parameter of a function can be a format parameter.
-   if ( phase->tk == TK_BRACE_L ) {
-      params->format_pos = phase->tk_pos;
+   if ( parse->tk == TK_BRACE_L ) {
+      params->format_pos = parse->tk_pos;
       params->format = true;
       ++params->min;
       ++params->max;
-      p_read_tk( phase );
-      p_test_tk( phase, TK_BRACE_R );
-      p_read_tk( phase );
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_BRACE_R );
+      p_read_tk( parse );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
       }
       else {
          return;
@@ -939,22 +940,22 @@ void read_params( struct parse* phase, struct params* params ) {
    }
    struct param* tail = NULL;
    while ( true ) {
-      struct type* type = phase->task->type_int;
-      if ( phase->tk == TK_STR ) {
-         type = phase->task->type_str;
+      struct type* type = parse->task->type_int;
+      if ( parse->tk == TK_STR ) {
+         type = parse->task->type_str;
       }
-      else if ( phase->tk == TK_BOOL ) {
-         type = phase->task->type_bool;
+      else if ( parse->tk == TK_BOOL ) {
+         type = parse->task->type_bool;
       }
       else {
-         p_test_tk( phase, TK_INT );
+         p_test_tk( parse, TK_INT );
       }
-      if ( params->script && type != phase->task->type_int ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+      if ( params->script && type != parse->task->type_int ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "script parameter not of `int` type" );
-         p_bail( phase );
+         p_bail( parse );
       }
-      struct pos pos = phase->tk_pos;
+      struct pos pos = parse->tk_pos;
       struct param* param = mem_slot_alloc( sizeof( *param ) );
       t_init_object( &param->object, NODE_PARAM );
       param->type = type;
@@ -965,29 +966,31 @@ void read_params( struct parse* phase, struct params* params ) {
       param->obj_pos = 0;
       param->used = false;
       ++params->max;
-      p_read_tk( phase );
+      p_read_tk( parse );
       // Name not required for a parameter.
-      if ( phase->tk == TK_ID ) {
-         param->name = t_make_name( phase->task, phase->tk_text, phase->region->body );
-         param->object.pos = phase->tk_pos;
-         p_read_tk( phase );
+      if ( parse->tk == TK_ID ) {
+         param->name = t_make_name( parse->task, parse->tk_text,
+            parse->region->body );
+         param->object.pos = parse->tk_pos;
+         p_read_tk( parse );
       }
-      if ( phase->tk == TK_ASSIGN ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_ASSIGN ) {
+         p_read_tk( parse );
          struct expr_reading value;
          p_init_expr_reading( &value, false, true, false, true );
-         p_read_expr( phase, &value );
+         p_read_expr( parse, &value );
          param->default_value = value.output_node;
          if ( params->script ) {
-            p_diag( phase, DIAG_POS_ERR, &pos, "default parameter in script" );
-            p_bail( phase );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "default parameter in script" );
+            p_bail( parse );
          }
       }
       else {
          if ( tail && tail->default_value ) {
-            p_diag( phase, DIAG_POS_ERR, &pos,
+            p_diag( parse, DIAG_POS_ERR, &pos,
                "parameter missing default value" );
-            p_bail( phase );
+            p_bail( parse );
          }
          ++params->min;
       }
@@ -998,8 +1001,8 @@ void read_params( struct parse* phase, struct params* params ) {
          params->node = param;
       }
       tail = param;
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
       }
       else {
          break;
@@ -1007,82 +1010,82 @@ void read_params( struct parse* phase, struct params* params ) {
    }
    // Format parameter not allowed in a script parameter list.
    if ( params->script && params->format ) {
-      p_diag( phase, DIAG_POS_ERR, &params->format_pos,
+      p_diag( parse, DIAG_POS_ERR, &params->format_pos,
          "format parameter specified for script" );
-      p_bail( phase );
+      p_bail( parse );
    }
 }
 
-void read_bfunc( struct parse* phase, struct func* func ) {
+void read_bfunc( struct parse* parse, struct func* func ) {
    // Action special.
-   if ( phase->tk == TK_ASSIGN ) {
-      p_read_tk( phase );
+   if ( parse->tk == TK_ASSIGN ) {
+      p_read_tk( parse );
       struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      impl->id = p_extract_literal_value( phase );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      impl->id = p_extract_literal_value( parse );
       impl->script_callable = false;
-      p_read_tk( phase );
-      p_test_tk( phase, TK_COMMA );
-      p_read_tk( phase );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      if ( p_extract_literal_value( phase ) ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_COMMA );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      if ( p_extract_literal_value( parse ) ) {
          impl->script_callable = true;
       }
       func->impl = impl;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Extension function.
-   else if ( phase->tk == TK_ASSIGN_SUB ) {
-      p_read_tk( phase );
+   else if ( parse->tk == TK_ASSIGN_SUB ) {
+      p_read_tk( parse );
       func->type = FUNC_EXT;
       struct func_ext* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      impl->id = p_extract_literal_value( phase );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      impl->id = p_extract_literal_value( parse );
       func->impl = impl;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Dedicated function.
-   else if ( phase->tk == TK_ASSIGN_ADD ) {
-      p_read_tk( phase );
+   else if ( parse->tk == TK_ASSIGN_ADD ) {
+      p_read_tk( parse );
       func->type = FUNC_DED;
       struct func_ded* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      impl->opcode = p_extract_literal_value( phase );
-      p_read_tk( phase );
-      p_test_tk( phase, TK_COMMA );
-      p_read_tk( phase );
-      p_test_tk( phase, TK_LIT_DECIMAL );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      impl->opcode = p_extract_literal_value( parse );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_COMMA );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_LIT_DECIMAL );
       impl->latent = false;
-      if ( phase->tk_text[ 0 ] != '0' ) {
+      if ( parse->tk_text[ 0 ] != '0' ) {
          impl->latent = true;
       }
-      p_read_tk( phase );
+      p_read_tk( parse );
       func->impl = impl;
    }
    // Format function.
-   else if ( phase->tk == TK_ASSIGN_MUL ) {
-      p_read_tk( phase );
+   else if ( parse->tk == TK_ASSIGN_MUL ) {
+      p_read_tk( parse );
       func->type = FUNC_FORMAT;
       struct func_format* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      impl->opcode = p_extract_literal_value( phase );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      impl->opcode = p_extract_literal_value( parse );
       func->impl = impl;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Internal function.
    else {
-      p_test_tk( phase, TK_ASSIGN_DIV );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_ASSIGN_DIV );
+      p_read_tk( parse );
       func->type = FUNC_INTERNAL;
       struct func_intern* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( phase, TK_LIT_DECIMAL );
-      struct pos pos = phase->tk_pos;
-      impl->id = p_extract_literal_value( phase );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      struct pos pos = parse->tk_pos;
+      impl->id = p_extract_literal_value( parse );
+      p_read_tk( parse );
       if ( impl->id >= INTERN_FUNC_STANDALONE_TOTAL ) {
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "no internal function with ID of %d", impl->id );
-         p_bail( phase );
+         p_bail( parse );
       }
       func->impl = impl;
    }
