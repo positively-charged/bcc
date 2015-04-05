@@ -703,7 +703,7 @@ void test_script_number( struct semantic* phase, struct script* script ) {
       }
       if ( script->number->value == 0 ) {
          s_diag( phase, DIAG_POS_ERR, &expr.pos,
-            "script number 0 not between << and >>" );
+            "script number 0 not between `<<` and `>>`" );
          s_bail( phase );
       }
    }

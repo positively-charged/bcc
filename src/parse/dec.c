@@ -1129,7 +1129,7 @@ void read_script_number( struct parse* parse, struct script* script ) {
       else {
          p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "unexpected %s", p_get_token_name( parse->tk ) );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
+         p_diag( parse, DIAG_POS, &parse->tk_pos,
             "expecting the digit `0` here" );
          p_bail( parse );
       }
@@ -1188,8 +1188,7 @@ void read_script_type( struct parse* parse, struct script* script,
       if ( script->num_param > SCRIPT_MAX_PARAMS ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in script" );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &reading->param_pos,
+         p_diag( parse, DIAG_POS, &reading->param_pos,
             "a closed-script can have up to a maximum of %d parameters",
             SCRIPT_MAX_PARAMS );
          p_bail( parse );
@@ -1215,8 +1214,7 @@ void read_script_type( struct parse* parse, struct script* script,
       if ( script->num_param != 3 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "incorrect number of parameters in event-script" );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &reading->param_pos,
+         p_diag( parse, DIAG_POS, &reading->param_pos,
             "an event-script must have exactly 3 parameters" );
          p_bail( parse );
       }
@@ -1226,8 +1224,7 @@ void read_script_type( struct parse* parse, struct script* script,
       if ( script->num_param ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "non-empty parameter-list in %s-script", parse->tk_text );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &reading->param_pos,
+         p_diag( parse, DIAG_POS, &reading->param_pos,
             "%s %s-script must have zero parameters",
             get_script_article( script->type ), parse->tk_text );
          p_bail( parse );
