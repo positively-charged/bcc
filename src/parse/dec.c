@@ -123,22 +123,6 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
 
 void read_qual( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_STATIC ) {
-      STATIC_ASSERT( DEC_TOTAL == 4 )
-      if ( dec->area == DEC_TOP ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "`static` in region scope" );
-         p_bail( parse );
-      }
-      if ( dec->area == DEC_FOR ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "`static` in for-loop initialization" );
-         p_bail( parse );
-      }
-      if ( dec->area == DEC_MEMBER ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "static struct member" );
-         p_bail( parse );
-      }
       dec->static_qual = true;
       dec->static_qual_pos = parse->tk_pos;
       dec->read_objects = true;
@@ -749,6 +733,11 @@ void read_multi_init( struct parse* parse, struct dec* dec,
 }
 
 void add_struct_member( struct parse* parse, struct dec* dec ) {
+   if ( dec->static_qual ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
+         "static struct-member" );
+      p_bail( parse );
+   }
    struct type_member* member = mem_alloc( sizeof( *member ) );
    t_init_object( &member->object, NODE_TYPE_MEMBER );
    member->object.pos = dec->name_pos;
@@ -769,6 +758,14 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
 }
 
 void add_var( struct parse* parse, struct dec* dec ) {
+   if ( dec->static_qual &&
+      ( dec->area == DEC_TOP || dec->area == DEC_FOR ) ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
+         "static variable" );
+      p_diag( parse, DIAG_POS, &dec->static_qual_pos,
+         "static variables are not allowed here" );
+      p_bail( parse );
+   }
    struct var* var = mem_alloc( sizeof( *var ) );
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
@@ -868,7 +865,9 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    if ( dec->static_qual ) {
       p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "`static` specified for function" );
+         "static function" );
+      p_diag( parse, DIAG_POS, &dec->static_qual_pos,
+         "functions are not allowed to be static" );
       p_bail( parse );
    }
    if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
