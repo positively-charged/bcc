@@ -163,23 +163,33 @@ struct dec {
    } area;
    struct pos pos;
    struct pos type_pos;
-   struct pos storage_pos;
    struct pos name_pos;
    struct pos static_qual_pos;
-   const char* storage_name;
    struct type* type;
    struct type* type_make;
    struct path* type_path;
    struct name* name;
    struct name* name_offset;
    struct dim* dim;
-   struct initial* initial;
    struct list* vars;
-   int storage;
-   int storage_index;
+   struct {
+      struct pos pos;
+      int type;
+      bool given;
+   } storage;
+   struct {
+      struct pos pos;
+      int value;
+      bool given;
+   } storage_index;
+   struct {
+      struct initial* root;
+      struct pos pos;
+      bool given;
+      bool has_str;
+   } initz;
    bool type_void;
    bool type_struct;
-   bool initz_str;
    bool static_qual;
    bool leave;
    bool read_func;

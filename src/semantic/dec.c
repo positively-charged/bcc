@@ -172,6 +172,12 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
       if ( expr.undef_erred ) {
          return;
       }
+      // Dimension with implicit size not allowed in struct.
+      if ( ! dim->size_node ) {
+         s_diag( phase, DIAG_POS_ERR, &dim->pos,
+            "dimension with implicit size in struct member" );
+         s_bail( phase );
+      }
       if ( ! dim->size_node->folded ) {
          s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
          "array size not a constant expression" );
@@ -418,6 +424,13 @@ bool test_object_initz( struct semantic* phase, struct var* var ) {
    init_multi_value_test( &test, var->dim, var->type, var->is_constant_init,
       false );
    if ( var->initial->multi ) {
+      if ( ! ( var->dim || ! var->type->primitive ) ) {
+         struct multi_value* multi_value =
+            ( struct multi_value* ) var->initial;
+         s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
+            "using brace initializer on scalar variable" );
+         s_bail( phase );
+      }
       bool resolved = test_multi_value( phase, &test,
          ( struct multi_value* ) var->initial );
       if ( ! resolved ) {

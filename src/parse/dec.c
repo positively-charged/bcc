@@ -60,6 +60,8 @@ static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
 static void add_struct_member( struct parse* parse, struct dec* );
 static void add_var( struct parse* parse, struct dec* );
+static void test_storage( struct parse* parse, struct dec* dec );
+static const char* get_storage_name( int type );
 
 bool p_is_dec( struct parse* parse ) {
    switch ( parse->tk ) {
@@ -81,20 +83,22 @@ bool p_is_dec( struct parse* parse ) {
 
 void p_init_dec( struct dec* dec ) {
    dec->area = DEC_TOP;
-   dec->storage_name = "local";
    dec->type = NULL;
    dec->type_make = NULL;
    dec->type_path = NULL;
    dec->name = NULL;
    dec->name_offset = NULL;
    dec->dim = NULL;
-   dec->initial = NULL;
    dec->vars = NULL;
-   dec->storage = STORAGE_LOCAL;
-   dec->storage_index = 0;
+   dec->storage.type = STORAGE_LOCAL;
+   dec->storage.given = false;
+   dec->storage_index.value = 0;
+   dec->storage_index.given = false;
+   dec->initz.root = NULL;
+   dec->initz.given = false;
+   dec->initz.has_str = false;
    dec->type_void = false;
    dec->type_struct = false;
-   dec->initz_str = false;
    dec->static_qual = false;
    dec->leave = false;
    dec->read_func = false;
@@ -131,37 +135,13 @@ void read_qual( struct parse* parse, struct dec* dec ) {
 }
 
 void read_storage( struct parse* parse, struct dec* dec ) {
-   bool given = false;
-   if ( parse->tk == TK_GLOBAL ) {
-      dec->storage = STORAGE_GLOBAL;
-      dec->storage_pos = parse->tk_pos;
-      dec->storage_name = "global";
+   if ( parse->tk == TK_WORLD || parse->tk == TK_GLOBAL ) {
+      dec->storage.pos = parse->tk_pos;
+      dec->storage.given = true;
+      dec->storage.type = ( parse->tk == TK_WORLD ) ?
+         STORAGE_WORLD : STORAGE_GLOBAL;
       dec->read_objects = true;
       p_read_tk( parse );
-      given = true;
-   }
-   else if ( parse->tk == TK_WORLD ) {
-      dec->storage = STORAGE_WORLD;
-      dec->storage_pos = parse->tk_pos;
-      dec->storage_name = "world";
-      dec->read_objects = true;
-      p_read_tk( parse );
-      given = true;
-   }
-   else {
-      // Variable found at region scope, or a static local variable, has map
-      // storage.
-      if ( dec->area == DEC_TOP ||
-         ( dec->area == DEC_LOCAL && dec->static_qual ) ) {
-         dec->storage = STORAGE_MAP;
-         dec->storage_name = "map";
-      }
-   }
-   // Storage cannot be specified for a structure member.
-   if ( given && dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->storage_pos,
-         "storage specified for struct member" );
-      p_bail( parse );
    }
 }
 
@@ -456,16 +436,6 @@ void read_objects( struct parse* parse, struct dec* dec ) {
 }
 
 void read_vars( struct parse* parse, struct dec* dec ) {
-   // Variable must have a type.
-   if ( dec->type_void ) {
-      const char* object = "variable";
-      if ( dec->area == DEC_MEMBER ) {
-         object = "struct member";
-      }
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "void type specified for %s", object );
-      p_bail( parse );
-   }
    bool read_beginning = false;
    while ( true ) {
       if ( read_beginning ) {
@@ -473,17 +443,6 @@ void read_vars( struct parse* parse, struct dec* dec ) {
          read_name( parse, dec );
       }
       read_dim( parse, dec );
-      // Cannot place multi-value variable in scalar portion of storage, where
-      // a slot can hold only a single value.
-      // TODO: Come up with syntax to navigate the array portion of storage,
-      // the struct being the map. This way, you can access the storage data
-      // using a struct member instead of an array index.
-      if ( dec->type_struct && ! dec->dim && ( dec->storage == STORAGE_WORLD ||
-         dec->storage == STORAGE_GLOBAL ) ) {
-         p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
-            "variable of struct type in scalar portion of storage" );
-         p_bail( parse );
-      }
       read_init( parse, dec );
       if ( dec->area == DEC_MEMBER ) {
          add_struct_member( parse, dec );
@@ -505,42 +464,13 @@ void read_vars( struct parse* parse, struct dec* dec ) {
 
 void read_storage_index( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_LIT_DECIMAL ) {
-      struct pos pos = parse->tk_pos;
-      if ( dec->area == DEC_MEMBER ) {
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "storage index specified for struct member" );
-         p_bail( parse );
-      }
       p_test_tk( parse, TK_LIT_DECIMAL );
-      dec->storage_index = p_extract_literal_value( parse );
+      dec->storage_index.pos = parse->tk_pos;
+      dec->storage_index.value = p_extract_literal_value( parse );
+      dec->storage_index.given = true;
       p_read_tk( parse );
       p_test_tk( parse, TK_COLON );
       p_read_tk( parse );
-      int max = MAX_WORLD_LOCATIONS;
-      if ( dec->storage != STORAGE_WORLD ) {
-         if ( dec->storage == STORAGE_GLOBAL ) {
-            max = MAX_GLOBAL_LOCATIONS;
-         }
-         else  {
-            p_diag( parse, DIAG_POS_ERR, &pos,
-               "index specified for %s storage", dec->storage_name );
-            p_bail( parse );
-         }
-      }
-      if ( dec->storage_index >= max ) {
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "index for %s storage not between 0 and %d", dec->storage_name,
-            max - 1 );
-         p_bail( parse );
-      }
-   }
-   else {
-      // Index must be explicitly specified for world and global storages.
-      if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "missing index for %s storage", dec->storage_name );
-         p_bail( parse );
-      }
    }
 }
 
@@ -567,20 +497,7 @@ void read_dim( struct parse* parse, struct dec* dec ) {
       dim->element_size = 0;
       dim->pos = parse->tk_pos;
       p_read_tk( parse );
-      // Implicit size.
       if ( parse->tk == TK_BRACKET_R ) {
-         // Only the first dimension can have an implicit size.
-         if ( tail ) {
-            p_diag( parse, DIAG_POS_ERR, &dim->pos,
-               "implicit size in subsequent dimension" );
-            p_bail( parse );
-         }
-         // Dimension with implicit size not allowed in struct.
-         if ( dec->area == DEC_MEMBER ) {
-            p_diag( parse, DIAG_POS_ERR, &dim->pos,
-               "dimension with implicit size in struct member" );
-            p_bail( parse );
-         }
          p_read_tk( parse );
       }
       else {
@@ -602,33 +519,13 @@ void read_dim( struct parse* parse, struct dec* dec ) {
 }
 
 void read_init( struct parse* parse, struct dec* dec ) {
-   dec->initial = NULL;
+   dec->initz.pos = parse->tk_pos;
+   dec->initz.root = NULL;
    if ( parse->tk == TK_ASSIGN ) {
-      if ( dec->area == DEC_MEMBER ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "initializing a struct member" );
-         p_bail( parse );
-      }
-      // At this time, there is no good way to initialize a variable having
-      // world or global storage at runtime.
-      if ( ( dec->storage == STORAGE_WORLD ||
-         dec->storage == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
-         dec->static_qual ) ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "initializing %s variable at start of map",
-            dec->storage_name );
-         p_bail( parse );
-      }
+      dec->initz.given = true;
       p_read_tk( parse );
       if ( parse->tk == TK_BRACE_L ) {
          read_multi_init( parse, dec, NULL );
-         if ( ! dec->dim && ( dec->type && dec->type->primitive ) ) {
-            struct multi_value* multi_value =
-               ( struct multi_value* ) dec->initial;
-            p_diag( parse, DIAG_POS_ERR, &multi_value->pos,
-               "using brace initializer on scalar variable" );
-            p_bail( parse );
-         }
       }
       else {
          struct expr_reading expr;
@@ -636,38 +533,10 @@ void read_init( struct parse* parse, struct dec* dec ) {
          p_read_expr( parse, &expr );
          struct value* value = alloc_value();
          value->expr = expr.output_node;
-         dec->initial = &value->initial;
-         dec->initz_str = expr.has_str;
+         dec->initz.root = &value->initial;
+         dec->initz.has_str = expr.has_str;
       }
    }
-   else {
-      // Initializer needs to be present when the size of the initial dimension
-      // is implicit. Global and world arrays are an exception, unless they are
-      // multi-dimensional.
-      if ( dec->dim && ! dec->dim->size_node && ( (
-         dec->storage != STORAGE_WORLD &&
-         dec->storage != STORAGE_GLOBAL ) || dec->dim->next ) ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "missing initialization of implicit dimension" );
-         p_bail( parse );
-      }
-   }
-}
-
-void init_initial( struct initial* initial, bool multi ) {
-   initial->next = NULL;
-   initial->multi = multi;
-   initial->tested = false;
-}
-
-struct value* alloc_value( void ) {
-   struct value* value = mem_alloc( sizeof( *value ) );
-   init_initial( &value->initial, false );
-   value->expr = NULL;
-   value->next = NULL;
-   value->index = 0;
-   value->string_initz = false;
-   return value;
 }
 
 void read_multi_init( struct parse* parse, struct dec* dec,
@@ -728,14 +597,41 @@ void read_multi_init( struct parse* parse, struct dec* dec,
       parent->tail = &multi_value->initial;
    }
    else {
-      dec->initial = &multi_value->initial;
+      dec->initz.root = &multi_value->initial;
    }
+}
+
+void init_initial( struct initial* initial, bool multi ) {
+   initial->next = NULL;
+   initial->multi = multi;
+   initial->tested = false;
+}
+
+struct value* alloc_value( void ) {
+   struct value* value = mem_alloc( sizeof( *value ) );
+   init_initial( &value->initial, false );
+   value->expr = NULL;
+   value->next = NULL;
+   value->index = 0;
+   value->string_initz = false;
+   return value;
 }
 
 void add_struct_member( struct parse* parse, struct dec* dec ) {
    if ( dec->static_qual ) {
       p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
          "static struct-member" );
+      p_bail( parse );
+   }
+   test_storage( parse, dec );
+   if ( dec->type_void ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "struct-member of void type" );
+      p_bail( parse );
+   }
+   if ( dec->initz.given ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
+         "initializing a struct-member" );
       p_bail( parse );
    }
    struct type_member* member = mem_alloc( sizeof( *member ) );
@@ -766,6 +662,50 @@ void add_var( struct parse* parse, struct dec* dec ) {
          "static variables are not allowed here" );
       p_bail( parse );
    }
+   test_storage( parse, dec );
+   // At this time, there is no good way to initialize a variable having
+   // world or global storage at runtime.
+   if ( dec->initz.given && ( dec->storage.type == STORAGE_WORLD ||
+      dec->storage.type == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
+      dec->static_qual ) ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
+         "initialization of %s-storage variable",
+         get_storage_name( dec->storage.type ) );
+      p_diag( parse, DIAG_POS, &dec->initz.pos,
+         "%s-storage variables must not be initialized in this scope",
+         get_storage_name( dec->storage.type ) );
+      p_bail( parse );
+   }
+   // Variable must have a type.
+   if ( dec->type_void ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+         "variable of void type" );
+      p_bail( parse );
+   }
+   // Cannot place multi-value variable in scalar portion of storage, where
+   // a slot can hold only a single value.
+   // TODO: Come up with syntax to navigate the array portion of storage,
+   // the struct being the map. This way, you can access the storage data
+   // using a struct member instead of an array index.
+   if ( dec->type_struct && ! dec->dim && (
+      dec->storage.type == STORAGE_WORLD ||
+      dec->storage.type == STORAGE_GLOBAL ) ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+         "variable of struct type in scalar portion of storage" );
+      p_bail( parse );
+   }
+   // Initializer needs to be present when the size of the initial dimension
+   // is implicit. Global and world arrays are an exception, unless they are
+   // multi-dimensional.
+   if ( ! dec->initz.given ) {
+      if ( dec->dim && ! dec->dim->size_node && ( (
+         dec->storage.type != STORAGE_WORLD &&
+         dec->storage.type != STORAGE_GLOBAL ) || dec->dim->next ) ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
+            "missing initialization of implicit dimension" );
+         p_bail( parse );
+      }
+   }
    struct var* var = mem_alloc( sizeof( *var ) );
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
@@ -773,11 +713,11 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->type = dec->type;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
-   var->initial = dec->initial;
+   var->initial = dec->initz.root;
    var->value = NULL;
    var->next = NULL;
-   var->storage = dec->storage;
-   var->index = dec->storage_index;
+   var->storage = dec->storage.type;
+   var->index = dec->storage_index.value;
    var->size = 0;
    var->initz_zero = false;
    var->hidden = false;
@@ -793,12 +733,81 @@ void add_var( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->region, &var->object );
       list_append( &parse->task->library->vars, var );
    }
-   else if ( dec->storage == STORAGE_MAP ) {
+   else if ( dec->storage.type == STORAGE_MAP ) {
       list_append( &parse->task->library->vars, var );
       list_append( dec->vars, var );
    }
    else {
       list_append( dec->vars, var );
+   }
+}
+
+void test_storage( struct parse* parse, struct dec* dec ) {
+   if ( dec->area == DEC_MEMBER ) {
+      if ( dec->storage.given ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
+            "%s-storage specified for struct-member",
+            get_storage_name( dec->storage.type ) );
+         p_diag( parse, DIAG_POS, &dec->storage.pos,
+            "storage of struct-members must not be explicitly specified",
+            get_storage_name( dec->storage.type ) );
+         p_bail( parse );
+      }
+      if ( dec->storage_index.given ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
+            "storage-number specified for struct-member" );
+         p_bail( parse );
+      }
+   }
+   if ( ! dec->storage.given ) {
+      // Variable found at region scope, or a static local variable, has map
+      // storage.
+      if ( dec->area == DEC_TOP ||
+         ( dec->area == DEC_LOCAL && dec->static_qual ) ) {
+         dec->storage.type = STORAGE_MAP;
+      }
+      else {
+         dec->storage.type = STORAGE_LOCAL;
+      }
+   }
+   if ( dec->storage_index.given ) {
+      int max = MAX_WORLD_LOCATIONS;
+      if ( dec->storage.type != STORAGE_WORLD ) {
+         if ( dec->storage.type == STORAGE_GLOBAL ) {
+            max = MAX_GLOBAL_LOCATIONS;
+         }
+         else  {
+            p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
+               "storage-number specified for %s-storage variable",
+               get_storage_name( dec->storage.type ) );
+            p_bail( parse );
+         }
+      }
+      if ( dec->storage_index.value >= max ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
+            "storage number not between 0 and %d, inclusive", max - 1 );
+         p_bail( parse );
+      }
+   }
+   else {
+      // Storage-number must be explicitly specified for world and global
+      // storage variables.
+      if ( dec->storage.type == STORAGE_WORLD ||
+         dec->storage.type == STORAGE_GLOBAL ) {
+         p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+            "%s-storage variable missing storage-number",
+            get_storage_name( dec->storage.type ) );
+         p_bail( parse );
+      }
+   }
+}
+
+const char* get_storage_name( int type ) {
+   switch ( type ) {
+   case STORAGE_MAP: return "map";
+   case STORAGE_WORLD: return "world";
+   case STORAGE_GLOBAL: return "global";
+   default: return "local";
    }
 }
 
@@ -870,8 +879,8 @@ void read_func( struct parse* parse, struct dec* dec ) {
          "functions are not allowed to be static" );
       p_bail( parse );
    }
-   if ( dec->storage == STORAGE_WORLD || dec->storage == STORAGE_GLOBAL ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->storage_pos,
+   if ( dec->storage.given ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
          "storage specified for function" );
       p_bail( parse );
    }
