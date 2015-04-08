@@ -175,17 +175,17 @@ struct dec {
    struct {
       struct pos pos;
       int type;
-      bool given;
+      bool specified;
    } storage;
    struct {
       struct pos pos;
       int value;
-      bool given;
+      bool specified;
    } storage_index;
    struct {
-      struct initial* root;
+      struct initial* initial;
       struct pos pos;
-      bool given;
+      bool specified;
       bool has_str;
    } initz;
    bool type_void;
@@ -193,7 +193,6 @@ struct dec {
    bool static_qual;
    bool leave;
    bool read_func;
-   bool read_objects;
 };
 
 struct stmt_reading {
@@ -262,5 +261,13 @@ void p_read_lib( struct parse* phase );
 void p_read_script( struct parse* parse );
 void p_add_unresolved( struct region* region, struct object* object );
 struct path* p_read_path( struct parse* phase );
+void p_increment_pos( struct pos* pos, enum tk tk );
+void p_unexpect_diag( struct parse* parse );
+void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk );
+void p_unexpect_name( struct parse* parse, struct pos* pos,
+   const char* subject );
+void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk );
+void p_unexpect_last_name( struct parse* parse, struct pos* pos,
+   const char* subject );
 
 #endif

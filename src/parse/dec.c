@@ -34,15 +34,16 @@ static void read_type( struct parse* parse, struct dec* dec );
 static void missing_type( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
+static void read_rbrace( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* parse, struct dec* );
 static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_objects( struct parse* parse, struct dec* dec );
-static void read_vars( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
 static void read_bfunc( struct parse* parse, struct func* );
+static void check_useless( struct parse* parse, struct dec* dec );
 static void read_script_number( struct parse* parse, struct script* );
 static void read_script_params( struct parse* parse, struct script*,
    struct script_reading* );
@@ -52,14 +53,17 @@ static const char* get_script_article( int type );
 static void read_script_flag( struct parse* parse, struct script* );
 static void read_script_body( struct parse* parse, struct script* );
 static void read_name( struct parse* parse, struct dec* );
+static void missing_name( struct parse* parse, struct dec* dec );
 static void read_dim( struct parse* parse, struct dec* );
 static void read_init( struct parse* parse, struct dec* );
 static void init_initial( struct initial*, bool );
 static struct value* alloc_value( void );
 static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
+static void test_struct_member( struct parse* parse, struct dec* dec );
 static void add_struct_member( struct parse* parse, struct dec* );
 static void add_var( struct parse* parse, struct dec* );
+static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static const char* get_storage_name( int type );
 
@@ -91,109 +95,97 @@ void p_init_dec( struct dec* dec ) {
    dec->dim = NULL;
    dec->vars = NULL;
    dec->storage.type = STORAGE_LOCAL;
-   dec->storage.given = false;
+   dec->storage.specified = false;
    dec->storage_index.value = 0;
-   dec->storage_index.given = false;
-   dec->initz.root = NULL;
-   dec->initz.given = false;
+   dec->storage_index.specified = false;
+   dec->initz.initial = NULL;
+   dec->initz.specified = false;
    dec->initz.has_str = false;
    dec->type_void = false;
    dec->type_struct = false;
    dec->static_qual = false;
    dec->leave = false;
    dec->read_func = false;
-   dec->read_objects = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
    if ( parse->tk == TK_FUNCTION ) {
       dec->read_func = true;
-      dec->read_objects = true;
       p_read_tk( parse );
    }
    read_qual( parse, dec );
    read_storage( parse, dec );
    read_type( parse, dec );
-   // No need to continue when only declaring a struct or an enum.
-   if ( dec->leave ) {
-      goto done;
-   }
-   if ( dec->read_objects ) {
+   if ( ! dec->leave ) {
       read_objects( parse, dec );
    }
-   done: ;
+   else {
+      check_useless( parse, dec );
+   }
 }
 
 void read_qual( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_STATIC ) {
       dec->static_qual = true;
       dec->static_qual_pos = parse->tk_pos;
-      dec->read_objects = true;
       p_read_tk( parse );
    }
 }
 
 void read_storage( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_WORLD || parse->tk == TK_GLOBAL ) {
+      dec->storage.type = ( parse->tk == TK_WORLD ?
+         STORAGE_WORLD : STORAGE_GLOBAL );
       dec->storage.pos = parse->tk_pos;
-      dec->storage.given = true;
-      dec->storage.type = ( parse->tk == TK_WORLD ) ?
-         STORAGE_WORLD : STORAGE_GLOBAL;
-      dec->read_objects = true;
+      dec->storage.specified = true;
       p_read_tk( parse );
    }
 }
 
 void read_type( struct parse* parse, struct dec* dec ) {
    dec->type_pos = parse->tk_pos;
-   if ( parse->tk == TK_INT ) {
+   switch ( parse->tk ) {
+   case TK_INT:
       dec->type = parse->task->type_int;
-      dec->read_objects = true;
       p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_STR ) {
+      break;
+   case TK_STR:
       dec->type = parse->task->type_str;
-      dec->read_objects = true;
       p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_BOOL ) {
+      break;
+   case TK_BOOL:
       dec->type = parse->task->type_bool;
-      dec->read_objects = true;
       p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_VOID ) {
+      break;
+   case TK_VOID:
       dec->type_void = true;
-      dec->read_objects = true;
       p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_ENUM ) {
+      break;
+   case TK_ENUM:
       read_enum( parse, dec );
-   }
-   else if ( parse->tk == TK_STRUCT ) {
+      break;
+   case TK_STRUCT:
       read_struct( parse, dec );
-      dec->type_struct = true;
-   }
-   else {
+      break;
+   default:
       missing_type( parse, dec );
    }
 }
 
 void missing_type( struct parse* parse, struct dec* dec ) {
-   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos,
-      "unexpected %s", p_get_token_name( parse->tk ) );
+   const char* subject;
    if ( dec->read_func ) {
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "expecting return-type of function here" );
+      subject = "function return-type";
    }
    else if ( dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "expecting type of struct-member here" );
+      subject = "struct-member type";
    }
    else {
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "expecting object type here" );
+      subject = "object type";
    }
+   p_unexpect_diag( parse );
+   p_unexpect_last_name( parse, NULL, subject );
    p_bail( parse );
 }
 
@@ -208,12 +200,9 @@ void read_enum( struct parse* parse, struct dec* dec ) {
       read_manifest_constant( parse, dec );
    }
    else {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "unexpected %s", p_get_token_name( parse->tk ) );
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "expecting `{` here, or" );
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "expecting an identifier here" );
+      p_unexpect_diag( parse );
+      p_unexpect_item( parse, NULL, TK_BRACE_L );
+      p_unexpect_last_name( parse, NULL, "name of constant" );
       p_bail( parse );
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
@@ -226,10 +215,9 @@ void read_enum( struct parse* parse, struct dec* dec ) {
 
 void read_enum_def( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_ID ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "unexpected %s", p_get_token_name( parse->tk ) );
-      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
-         "named-enums not currently supported" );
+      p_unexpect_diag( parse );
+      p_diag( parse, DIAG_POS, &parse->tk_pos,
+         "naming an enum is not currently supported" );
       p_bail( parse );
    }
    p_test_tk( parse, TK_BRACE_L );
@@ -237,14 +225,19 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_BRACE_R ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "empty enum" );
-      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &dec->type_pos,
+      p_diag( parse, DIAG_POS, &dec->type_pos,
          "an enum must have at least one enumerator" );
       p_bail( parse );
    }
    struct constant* head = NULL;
    struct constant* tail;
    while ( true ) {
-      p_test_tk( parse, TK_ID );
+      if ( parse->tk != TK_ID ) {
+         p_unexpect_diag( parse );
+         p_unexpect_name( parse, NULL, "an enumerator" );
+         p_unexpect_last( parse, NULL, TK_BRACE_R );
+         p_bail( parse );
+      }
       struct constant* constant = alloc_constant();
       constant->object.pos = parse->tk_pos;
       constant->name = t_make_name( parse->task, parse->tk_text,
@@ -264,19 +257,23 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
          head = constant;
       }
       tail = constant;
+      if ( parse->tk != TK_COMMA && parse->tk != TK_BRACE_R ) {
+         p_unexpect_diag( parse );
+         p_unexpect_item( parse, NULL, TK_COMMA );
+         p_unexpect_last( parse, NULL, TK_BRACE_R );
+         p_bail( parse );
+      }
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
          if ( parse->tk == TK_BRACE_R ) {
-            p_read_tk( parse );
             break;
          }
       }
       else {
-         p_test_tk( parse, TK_BRACE_R );
-         p_read_tk( parse );
          break;
       }
    }
+   read_rbrace( parse, dec );
    struct constant_set* set = mem_alloc( sizeof( *set ) );
    t_init_object( &set->object, NODE_CONSTANT_SET );
    set->head = head;
@@ -287,15 +284,30 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->region, &set->object );
    }
    dec->type = parse->task->type_int;
-   if ( ! dec->read_objects ) {
-      // Only enum declared.
-      if ( parse->tk == TK_SEMICOLON ) {
-         p_read_tk( parse );
-         dec->leave = true;
-      }
+   if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+      dec->leave = true;
    }
    if ( dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos, "enum inside struct" );
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "enum inside struct" );
+      p_bail( parse );
+   }
+}
+
+void read_rbrace( struct parse* parse, struct dec* dec ) {
+   struct pos rbrace_pos = parse->tk_pos;
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
+   if (
+      parse->tk != TK_SEMICOLON &&
+      parse->tk != TK_ID &&
+      parse->tk != TK_LIT_DECIMAL ) {
+      p_unexpect_diag( parse );
+      p_increment_pos( &rbrace_pos, TK_BRACE_R );
+      p_unexpect_item( parse, &rbrace_pos, TK_SEMICOLON );
+      p_unexpect_name( parse, NULL, "storage number" );
+      p_unexpect_last_name( parse, NULL, "name of object" );
       p_bail( parse );
    }
 }
@@ -339,11 +351,11 @@ struct constant* alloc_constant( void ) {
 void read_struct( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
-   // Definition.
-   if ( parse->tk == TK_BRACE_L || p_peek( parse ) == TK_BRACE_L ) {
+   dec->type_struct = true;
+   if ( parse->tk == TK_BRACE_L ||
+      ( parse->tk == TK_ID && p_peek( parse ) == TK_BRACE_L ) ) {
       read_struct_def( parse, dec );
    }
-   // Variable of struct type.
    else {
       dec->type_path = p_read_path( parse );
    }
@@ -351,19 +363,12 @@ void read_struct( struct parse* parse, struct dec* dec ) {
 
 void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct name* name = NULL;
+   struct pos name_pos = parse->tk_pos;
+   bool name_specified = false;
    if ( parse->tk == TK_ID ) {
-      // Don't allow nesting of named structs for now. Maybe later, nested
-      // struct support like in C++ will be added. Here is potential syntax
-      // for specifying a nested struct, when creating a variable:
-      // struct region.struct.my_struct var1;
-      // struct upmost.struct.my_struct var2;
-      if ( dec->area == DEC_MEMBER ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "name given to nested struct" );
-         p_bail( parse );
-      }
       name = t_make_name( parse->task, parse->tk_text,
          parse->region->body_struct );
+      name_specified = true;
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
@@ -392,13 +397,16 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       member.area = DEC_MEMBER;
       member.type_make = type;
       member.name_offset = type->body;
-      member.read_objects = true;
       member.vars = dec->vars;
       p_read_dec( parse, &member );
       if ( parse->tk == TK_BRACE_R ) {
-         p_read_tk( parse );
          break;
       }
+   }
+   read_rbrace( parse, dec );
+   if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+      dec->leave = true;
    }
    // Nested struct is in the same scope as the parent struct.
    if ( dec->vars ) {
@@ -408,51 +416,58 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->region, &type->object );
    }
    dec->type = type;
+   if ( dec->leave && type->anon ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "useless, unnamed struct" );
+      p_diag( parse, DIAG_POS, &dec->type_pos,
+         "an unnamed struct must be used as a part of an object" );
+      p_bail( parse );
+   }
+   // NOTE: This comment is outdated. [04/06/2015]
+   // Don't allow nesting of named structs for now. Maybe later, nested
+   // struct support like in C++ will be added. Here is potential syntax
+   // for specifying a nested struct, when creating a variable:
+   // struct region.struct.my_struct var1;
+   // struct upmost.struct.my_struct var2;
+   if ( name_specified && dec->area == DEC_MEMBER ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->pos,
+         "named, nested struct" );
+      p_diag( parse, DIAG_POS, &dec->pos,
+         "a nested struct must not have a name specified" );
+      p_bail( parse );
+   }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "struct in for-loop initialization" );
       p_bail( parse );
    }
-   // Only struct declared. Anonymous struct must be part of a variable
-   // declaration, so it cannot be declared alone.
-   if ( ! dec->read_objects && ! type->anon ) {
-      if ( parse->tk == TK_SEMICOLON ) {
-         p_read_tk( parse );
-         dec->leave = true;
-      }
-   }
 }
 
 void read_objects( struct parse* parse, struct dec* dec ) {
-   read_storage_index( parse, dec );
-   read_name( parse, dec );
-   if ( dec->read_func || parse->tk == TK_PAREN_L ) {
-      read_func( parse, dec );
-   }
-   else {
-      read_vars( parse, dec );
-   }
-}
-
-void read_vars( struct parse* parse, struct dec* dec ) {
-   bool read_beginning = false;
+   bool checked_func = false;
    while ( true ) {
-      if ( read_beginning ) {
-         read_storage_index( parse, dec );
-         read_name( parse, dec );
+      read_storage_index( parse, dec );
+      read_name( parse, dec );
+      if ( ! checked_func ) {
+         if ( dec->read_func || parse->tk == TK_PAREN_L ) {
+            read_func( parse, dec );
+            return;
+         }
+         checked_func = false;
       }
       read_dim( parse, dec );
       read_init( parse, dec );
       if ( dec->area == DEC_MEMBER ) {
+         test_struct_member( parse, dec );
          add_struct_member( parse, dec );
       }
       else {
+         test_var( parse, dec );
          add_var( parse, dec );
       }
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
-         read_beginning = true;
       }
       else {
          break;
@@ -467,7 +482,7 @@ void read_storage_index( struct parse* parse, struct dec* dec ) {
       p_test_tk( parse, TK_LIT_DECIMAL );
       dec->storage_index.pos = parse->tk_pos;
       dec->storage_index.value = p_extract_literal_value( parse );
-      dec->storage_index.given = true;
+      dec->storage_index.specified = true;
       p_read_tk( parse );
       p_test_tk( parse, TK_COLON );
       p_read_tk( parse );
@@ -481,9 +496,24 @@ void read_name( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
    }
    else {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos, "missing name" );
-      p_bail( parse );
+      missing_name( parse, dec );
    }
+}
+
+void missing_name( struct parse* parse, struct dec* dec ) {
+   const char* subject;
+   if ( dec->read_func ) {
+      subject = "function name";
+   }
+   else if ( dec->area == DEC_MEMBER ) {
+      subject = "struct-member name";
+   }
+   else {
+      subject = "object name";
+   }
+   p_unexpect_diag( parse );
+   p_unexpect_last_name( parse, NULL, subject );
+   p_bail( parse );
 }
 
 void read_dim( struct parse* parse, struct dec* dec ) {
@@ -520,9 +550,9 @@ void read_dim( struct parse* parse, struct dec* dec ) {
 
 void read_init( struct parse* parse, struct dec* dec ) {
    dec->initz.pos = parse->tk_pos;
-   dec->initz.root = NULL;
+   dec->initz.initial = NULL;
    if ( parse->tk == TK_ASSIGN ) {
-      dec->initz.given = true;
+      dec->initz.specified = true;
       p_read_tk( parse );
       if ( parse->tk == TK_BRACE_L ) {
          read_multi_init( parse, dec, NULL );
@@ -533,7 +563,7 @@ void read_init( struct parse* parse, struct dec* dec ) {
          p_read_expr( parse, &expr );
          struct value* value = alloc_value();
          value->expr = expr.output_node;
-         dec->initz.root = &value->initial;
+         dec->initz.initial = &value->initial;
          dec->initz.has_str = expr.has_str;
       }
    }
@@ -552,7 +582,10 @@ void read_multi_init( struct parse* parse, struct dec* dec,
    read.tail = NULL;
    p_read_tk( parse );
    if ( parse->tk == TK_BRACE_R ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos, "empty initializer" );
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "empty brace initializer" );
+      p_diag( parse, DIAG_POS, &dec->type_pos,
+         "a brace initializer must initialize at least one element" );
       p_bail( parse );
    }
    while ( true ) {
@@ -597,7 +630,7 @@ void read_multi_init( struct parse* parse, struct dec* dec,
       parent->tail = &multi_value->initial;
    }
    else {
-      dec->initz.root = &multi_value->initial;
+      dec->initz.initial = &multi_value->initial;
    }
 }
 
@@ -617,7 +650,7 @@ struct value* alloc_value( void ) {
    return value;
 }
 
-void add_struct_member( struct parse* parse, struct dec* dec ) {
+void test_struct_member( struct parse* parse, struct dec* dec ) {
    if ( dec->static_qual ) {
       p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
          "static struct-member" );
@@ -629,11 +662,14 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
          "struct-member of void type" );
       p_bail( parse );
    }
-   if ( dec->initz.given ) {
+   if ( dec->initz.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
          "initializing a struct-member" );
       p_bail( parse );
    }
+} 
+
+void add_struct_member( struct parse* parse, struct dec* dec ) {
    struct type_member* member = mem_alloc( sizeof( *member ) );
    t_init_object( &member->object, NODE_TYPE_MEMBER );
    member->object.pos = dec->name_pos;
@@ -653,7 +689,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    dec->type_make->member_tail = member;
 }
 
-void add_var( struct parse* parse, struct dec* dec ) {
+void test_var( struct parse* parse, struct dec* dec ) {
    if ( dec->static_qual &&
       ( dec->area == DEC_TOP || dec->area == DEC_FOR ) ) {
       p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
@@ -663,19 +699,6 @@ void add_var( struct parse* parse, struct dec* dec ) {
       p_bail( parse );
    }
    test_storage( parse, dec );
-   // At this time, there is no good way to initialize a variable having
-   // world or global storage at runtime.
-   if ( dec->initz.given && ( dec->storage.type == STORAGE_WORLD ||
-      dec->storage.type == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
-      dec->static_qual ) ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
-         "initialization of %s-storage variable",
-         get_storage_name( dec->storage.type ) );
-      p_diag( parse, DIAG_POS, &dec->initz.pos,
-         "%s-storage variables must not be initialized in this scope",
-         get_storage_name( dec->storage.type ) );
-      p_bail( parse );
-   }
    // Variable must have a type.
    if ( dec->type_void ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
@@ -694,10 +717,23 @@ void add_var( struct parse* parse, struct dec* dec ) {
          "variable of struct type in scalar portion of storage" );
       p_bail( parse );
    }
+   // At this time, there is no good way to initialize a variable having
+   // world or global storage at runtime.
+   if ( dec->initz.specified && ( dec->storage.type == STORAGE_WORLD ||
+      dec->storage.type == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
+      dec->static_qual ) ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
+         "initialization of %s-storage variable",
+         get_storage_name( dec->storage.type ) );
+      p_diag( parse, DIAG_POS, &dec->initz.pos,
+         "%s-storage variables must not be initialized in this scope",
+         get_storage_name( dec->storage.type ) );
+      p_bail( parse );
+   }
    // Initializer needs to be present when the size of the initial dimension
    // is implicit. Global and world arrays are an exception, unless they are
    // multi-dimensional.
-   if ( ! dec->initz.given ) {
+   if ( ! dec->initz.specified ) {
       if ( dec->dim && ! dec->dim->size_node && ( (
          dec->storage.type != STORAGE_WORLD &&
          dec->storage.type != STORAGE_GLOBAL ) || dec->dim->next ) ) {
@@ -706,6 +742,9 @@ void add_var( struct parse* parse, struct dec* dec ) {
          p_bail( parse );
       }
    }
+}
+
+void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = mem_alloc( sizeof( *var ) );
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
@@ -713,7 +752,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->type = dec->type;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
-   var->initial = dec->initz.root;
+   var->initial = dec->initz.initial;
    var->value = NULL;
    var->next = NULL;
    var->storage = dec->storage.type;
@@ -744,7 +783,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
 
 void test_storage( struct parse* parse, struct dec* dec ) {
    if ( dec->area == DEC_MEMBER ) {
-      if ( dec->storage.given ) {
+      if ( dec->storage.specified ) {
          p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
             "%s-storage specified for struct-member",
             get_storage_name( dec->storage.type ) );
@@ -753,13 +792,13 @@ void test_storage( struct parse* parse, struct dec* dec ) {
             get_storage_name( dec->storage.type ) );
          p_bail( parse );
       }
-      if ( dec->storage_index.given ) {
+      if ( dec->storage_index.specified ) {
          p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
             "storage-number specified for struct-member" );
          p_bail( parse );
       }
    }
-   if ( ! dec->storage.given ) {
+   if ( ! dec->storage.specified ) {
       // Variable found at region scope, or a static local variable, has map
       // storage.
       if ( dec->area == DEC_TOP ||
@@ -770,7 +809,7 @@ void test_storage( struct parse* parse, struct dec* dec ) {
          dec->storage.type = STORAGE_LOCAL;
       }
    }
-   if ( dec->storage_index.given ) {
+   if ( dec->storage_index.specified ) {
       int max = MAX_WORLD_LOCATIONS;
       if ( dec->storage.type != STORAGE_WORLD ) {
          if ( dec->storage.type == STORAGE_GLOBAL ) {
@@ -879,16 +918,22 @@ void read_func( struct parse* parse, struct dec* dec ) {
          "functions are not allowed to be static" );
       p_bail( parse );
    }
-   if ( dec->storage.given ) {
+   if ( dec->storage.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
-         "storage specified for function" );
+         "%s-storage specified for function",
+         get_storage_name( dec->storage.type ) );
+      p_bail( parse );
+   }
+   if ( dec->storage_index.specified ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
+         "storage-number specified for function" );
       p_bail( parse );
    }
    // At this time, returning a struct is not possible. Maybe later, this can
    // be added as part of variable assignment.
    if ( dec->type_struct ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "function returning struct" );
+         "function return-type of struct type" );
       p_bail( parse );
    }
    if ( func->type == FUNC_FORMAT ) {
@@ -1096,6 +1141,20 @@ void read_bfunc( struct parse* parse, struct func* func ) {
          p_bail( parse );
       }
       func->impl = impl;
+   }
+}
+
+void check_useless( struct parse* parse, struct dec* dec ) {
+   if ( dec->static_qual ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
+         "useless static-qualifier" );
+      p_bail( parse );
+   }
+   if ( dec->storage.specified ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
+         "useless %s-storage specifier",
+         get_storage_name( dec->storage.type ) );
+      p_bail( parse );
    }
 }
 

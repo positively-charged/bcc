@@ -415,6 +415,31 @@ void p_diag( struct parse* phase, int flags, ... ) {
    va_end( args );
 }
 
+void p_unexpect_diag( struct parse* parse ) {
+   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos,
+      "unexpected %s", p_get_token_name( parse->tk ) );
+}
+
+void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
+   p_unexpect_name( parse, pos, p_get_token_name( tk ) );
+}
+
+void p_unexpect_name( struct parse* parse, struct pos* pos,
+   const char* subject ) {
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
+      "expecting %s here, or", subject );
+}
+
+void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk ) {
+   p_unexpect_last_name( parse, pos, p_get_token_name( tk ) );
+}
+
+void p_unexpect_last_name( struct parse* parse, struct pos* pos,
+   const char* subject ) {
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
+      "expecting %s here", subject );
+}
+
 void p_bail( struct parse* phase ) {
    t_bail( phase->task );
 }

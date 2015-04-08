@@ -1294,6 +1294,16 @@ const char* p_get_token_name( enum tk tk ) {
    }
 }
 
+void p_increment_pos( struct pos* pos, enum tk tk ) {
+   switch ( tk ) {
+   case TK_BRACE_R:
+      ++pos->column;
+      break;
+   default:
+      break;
+   }
+}
+
 void p_skip_block( struct parse* phase ) {
    while ( phase->tk != TK_END && phase->tk != TK_BRACE_L ) {
       p_read_tk( phase );
