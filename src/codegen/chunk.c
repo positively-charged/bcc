@@ -13,16 +13,27 @@ static void do_func( struct codegen* phase );
 static void do_fnam( struct codegen* phase );
 static void do_strl( struct codegen* phase );
 static void do_mini( struct codegen* phase );
+static bool mini_var( struct var* var );
 static void do_aray( struct codegen* phase );
+static bool aray_var( struct var* var );
+static bool aray_hidden_var( struct var* var );
 static void do_aini( struct codegen* phase );
 static void do_aini_single( struct codegen* phase, struct var* var );
 static void do_load( struct codegen* phase );
 static void do_mimp( struct codegen* phase );
+static bool mimp_var( struct var* var );
 static void do_aimp( struct codegen* phase );
+static bool aimp_array( struct var* var );
 static void do_mexp( struct codegen* phase );
+static bool mexp_array( struct var* var );
+static bool mexp_zeroinit_scalar( struct var* var );
+static bool mexp_nonzeroinit_scalar( struct var* var );
 static void do_mstr( struct codegen* phase );
+static bool mstr_var( struct var* var );
 static void do_astr( struct codegen* phase );
+static bool astr_var( struct var* var );
 static void do_atag( struct codegen* codegen );
+static bool atag_var( struct var* var );
 static void write_atagchunk( struct codegen* codegen, struct var* var );
 
 void c_write_chunk_obj( struct codegen* phase ) {
@@ -419,8 +430,7 @@ void do_mini( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && var->value && var->value->expr->value ) {
+      if ( mini_var( var ) ) {
          if ( ! first_var ) {
             first_var = var;
          }
@@ -437,12 +447,16 @@ void do_mini( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && var->value && var->value->expr->value ) {
+      if ( mini_var( var ) ) {
          c_add_int( phase, var->value->expr->value );
       }
       list_next( &i );
    }
+}
+
+inline bool mini_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && ! var->dim &&
+      var->type->primitive && var->value && var->value->expr->value );
 }
 
 void do_aray( struct codegen* phase ) {
@@ -470,8 +484,7 @@ void do_aray( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && ! var->hidden ) { 
+      if ( aray_var( var ) ) { 
          entry.number = var->index;
          entry.size = var->size;
          c_add_sized( phase, &entry, sizeof( entry ) );
@@ -482,14 +495,23 @@ void do_aray( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && var->hidden ) {
+      if ( aray_hidden_var( var ) ) {
          entry.number = var->index;
          entry.size = var->size;
          c_add_sized( phase, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
+}
+
+inline bool aray_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP &&
+      ( var->dim || ! var->type->primitive ) && ! var->hidden );
+}
+
+inline bool aray_hidden_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP &&
+      ( var->dim || ! var->type->primitive ) && var->hidden );
 }
 
 void do_aini( struct codegen* phase ) {
@@ -591,8 +613,7 @@ void do_mimp( struct codegen* phase ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
-            var->type->primitive ) {
+         if ( mimp_var( var ) ) {
             size += sizeof( int ) + t_full_name_length( var->name ) + 1;
          }
          list_next( &k );
@@ -613,8 +634,7 @@ void do_mimp( struct codegen* phase ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
-            var->type->primitive ) {
+         if ( mimp_var( var ) ) {
             c_add_int( phase, var->index );
             t_copy_name( var->name, true, &str );
             c_add_sized( phase, str.value, str.length + 1 );
@@ -624,6 +644,11 @@ void do_mimp( struct codegen* phase ) {
       list_next( &i );
    }
    str_deinit( &str );
+}
+
+inline bool mimp_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
+      var->type->primitive );
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
@@ -639,8 +664,7 @@ void do_aimp( struct codegen* phase ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->used &&
-            ( var->dim || ! var->type->primitive ) ) {
+         if ( aimp_array( var ) ) {
             size +=
                // Array index.
                sizeof( int ) +
@@ -670,8 +694,7 @@ void do_aimp( struct codegen* phase ) {
       list_iter_init( &k, &lib->vars );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
-         if ( var->storage == STORAGE_MAP && var->used &&
-            ( ! var->type->primitive || var->dim ) ) {
+         if ( aimp_array( var ) ) {
             c_add_int( phase, var->index );
             c_add_int( phase, var->size );
             t_copy_name( var->name, true, &str );
@@ -682,6 +705,11 @@ void do_aimp( struct codegen* phase ) {
       list_next( &i );
    }
    str_deinit( &str );
+}
+
+inline bool aimp_array( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && var->used &&
+      ( ! var->type->primitive || var->dim ) );
 }
 
 void do_mexp( struct codegen* phase ) {
@@ -715,8 +743,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
+      if ( mexp_array( var ) ) {
          c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
@@ -726,9 +753,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden &&
-         ( ! var->value || ! var->value->expr->value ) ) {
+      if ( mexp_zeroinit_scalar( var ) ) {
          c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
@@ -738,9 +763,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden && var->value &&
-         var->value->expr->value ) {
+      if ( mexp_nonzeroinit_scalar( var ) ) {
          c_add_int( phase, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
@@ -754,8 +777,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
+      if ( mexp_array( var ) ) {
          t_copy_name( var->name, true, &str );
          c_add_sized( phase, str.value, str.length + 1 );
       }
@@ -765,9 +787,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden &&
-         ( ! var->value || ! var->value->expr->value ) ) {
+      if ( mexp_zeroinit_scalar( var ) ) {
          t_copy_name( var->name, true, &str );
          c_add_sized( phase, str.value, str.length + 1 );
       }
@@ -777,9 +797,7 @@ void do_mexp( struct codegen* phase ) {
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden && var->value &&
-         var->value->expr->value ) {
+      if ( mexp_nonzeroinit_scalar( var ) ) {
          t_copy_name( var->name, true, &str );
          c_add_sized( phase, str.value, str.length + 1 );
       }
@@ -792,14 +810,29 @@ void do_mexp( struct codegen* phase ) {
    }
 }
 
+inline bool mexp_array( struct var* var ) {
+   return ( var->storage == STORAGE_MAP &&
+      ( var->dim || ! var->type->primitive ) && ! var->hidden );
+}
+
+inline bool mexp_zeroinit_scalar( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && ! var->dim &&
+      var->type->primitive && ! var->hidden &&
+      ( ! var->value || ! var->value->expr->value ) );
+}
+
+inline bool mexp_nonzeroinit_scalar( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && ! var->dim &&
+      var->type->primitive && ! var->hidden && var->value &&
+      var->value->expr->value );
+}
+
 void do_mstr( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && var->initial_has_str ) {
+      if ( mstr_var( list_data( &i ) ) ) {
          ++count;
       }
       list_next( &i );
@@ -810,8 +843,7 @@ void do_mstr( struct codegen* phase ) {
       list_iter_init( &i, &phase->task->library_main->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && ! var->dim &&
-            var->type->primitive && var->initial_has_str ) {
+         if ( mstr_var( var ) ) {
             c_add_int( phase, var->index );
          }
          list_next( &i );
@@ -819,14 +851,18 @@ void do_mstr( struct codegen* phase ) {
    }
 }
 
+inline bool mstr_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && ! var->dim &&
+      var->type->primitive && var->initial_has_str );
+} 
+
 void do_astr( struct codegen* phase ) {
    int count = 0;
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->dim &&
-         var->type->primitive && var->initial_has_str ) {
+      if ( astr_var( var ) ) {
          ++count;
       }
       list_next( &i );
@@ -837,8 +873,7 @@ void do_astr( struct codegen* phase ) {
       list_iter_init( &i, &phase->task->library_main->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
-         if ( var->storage == STORAGE_MAP && var->dim &&
-            var->type->primitive && var->initial_has_str ) {
+         if ( astr_var( var ) ) {
             c_add_int( phase, var->index );
          }
          list_next( &i );
@@ -846,14 +881,17 @@ void do_astr( struct codegen* phase ) {
    }
 }
 
+inline bool astr_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && var->dim &&
+      var->type->primitive && var->initial_has_str );
+}
+
 void do_atag( struct codegen* codegen ) {
    int count = 0;
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
-         var->initial_has_str ) {
+      if ( atag_var( list_data( &i ) ) ) {
          ++count;
       }
       list_next( &i );
@@ -864,12 +902,16 @@ void do_atag( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->type->primitive &&
-         var->initial_has_str ) {
+      if ( atag_var( var ) ) {
          write_atagchunk( codegen, var );
       }
       list_next( &i );
    }
+}
+
+bool atag_var( struct var* var ) {
+   return ( var->storage == STORAGE_MAP && ! var->type->primitive &&
+      var->initial_has_str );
 }
 
 void write_atagchunk( struct codegen* codegen, struct var* var ) {
