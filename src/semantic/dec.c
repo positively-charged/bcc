@@ -24,7 +24,6 @@ struct value_index_alloc {
 };
 
 static void test_type_member( struct semantic* phase, struct type_member* );
-static struct type* find_type( struct semantic* phase, struct path* );
 static bool test_spec( struct semantic* phase, struct var* var );
 static void test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* phase, struct var* var );
@@ -140,7 +139,10 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
    // Type:
    if ( member->type_path ) {
       if ( ! member->type ) {
-         member->type = find_type( phase, member->type_path );
+         struct object_search search;
+         s_init_object_search( &search, member->type_path, true );
+         s_find_object( phase, &search );
+         member->type = search.struct_object;
       }
       if ( ! member->type->object.resolved ) {
          if ( phase->trigger_err ) {
@@ -194,131 +196,6 @@ void test_type_member( struct semantic* phase, struct type_member* member ) {
    member->object.resolved = true;
 }
 
-// NOTE: The code here and the code that implements the dot operator in the
-// expression subsystem, are very similar. Maybe find a way to merge them.
-struct type* find_type( struct semantic* phase, struct path* path ) {
-   // Find head of path.
-   struct object* object = NULL;
-   if ( path->is_upmost ) {
-      object = &phase->task->region_upmost->object;
-      path = path->next;
-   }
-   else if ( path->is_region ) {
-      object = &phase->region->object;
-      path = path->next;
-   }
-   // When no region is specified, search for the head in the current region.
-   if ( ! object ) {
-      struct name* name = phase->region->body;
-      if ( ! path->next ) {
-         name = phase->region->body_struct;
-      }
-      name = t_make_name( phase->task, path->text, name );
-      if ( name->object ) {
-         object = name->object;
-         path = path->next;
-      }
-   }
-   // When the head is not found in the current region, try linked regions.
-   struct region_link* link = NULL;
-   if ( ! object ) {
-      link = phase->region->link;
-      while ( link ) {
-         struct name* name = link->region->body;
-         if ( ! path->next ) {
-            name = link->region->body_struct;
-         }
-         name = t_make_name( phase->task, path->text, name );
-         link = link->next;
-         if ( name->object ) {
-            object = name->object;
-            path = path->next;
-            break;
-         }
-      }
-   }
-   // Error.
-   if ( ! object ) {
-      const char* msg = "`%s` not found";
-      if ( ! path->next ) {
-         msg = "struct `%s` not found";
-      }
-      s_diag( phase, DIAG_POS_ERR, &path->pos, msg, path->text );
-      s_bail( phase );
-   }
-   // When using a region link, make sure no other object with the same name
-   // can be found.
-   if ( link ) {
-      bool dup = false;
-      while ( link ) {
-         struct name* name = link->region->body;
-         if ( ! path->next ) {
-            name = link->region->body_struct;
-         }
-         name = t_make_name( phase->task, path->text, name );
-         if ( name->object ) {
-            const char* type = "object";
-            if ( ! path->next ) {
-               type = "struct";
-            }
-            if ( ! dup ) {
-               s_diag( phase, DIAG_POS_ERR, &path->pos,
-                  "%s `%s` found in multiple modules", type, path->text );
-               s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
-                  "%s found here", type );
-               dup = true;
-            }
-            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &name->object->pos, "%s found here", type );
-         }
-         link = link->next;
-      }
-      if ( dup ) {
-         s_bail( phase );
-      }
-   }
-   // Navigate rest of path.
-   while ( true ) {
-      // Follow a shortcut. It needs to refer to an object.
-      while ( object->node.type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) object;
-         object = alias->target;
-      }
-      if ( ! path ) {
-         break;
-      }
-      if ( object->node.type == NODE_REGION ) {
-         struct region* region = ( struct region* ) object;
-         struct name* name = region->body;
-         if ( ! path->next ) {
-            name = region->body_struct;
-         }
-         name = t_make_name( phase->task, path->text, name );
-         if ( name->object ) {
-            object = name->object;
-         }
-         else {
-            if ( path->next ) {
-               s_diag( phase, DIAG_POS_ERR, &path->pos, "region `%s` not found",
-                  path->text );
-            }
-            else {
-               s_diag( phase, DIAG_POS_ERR, &path->pos, "struct `%s` not found",
-                  path->text ); 
-            }
-            s_bail( phase );
-         }
-      }
-      else {
-         s_diag( phase, DIAG_POS_ERR, &path->pos,
-            "accessing something not a region" );
-         s_bail( phase );
-      }
-      path = path->next;
-   }
-   return ( struct type* ) object;
-}
-
 void s_test_var( struct semantic* phase, struct var* var ) {
    if ( test_spec( phase, var ) ) {
       test_name( phase, var );
@@ -332,7 +209,10 @@ bool test_spec( struct semantic* phase, struct var* var ) {
    bool resolved = false;
    if ( var->type_path ) {
       if ( ! var->type ) {
-         var->type = find_type( phase, var->type_path );
+         struct object_search search;
+         s_init_object_search( &search, var->type_path, true );
+         s_find_object( phase, &search );
+         var->type = search.struct_object;
       }
       if ( ! var->type->object.resolved ) {
          return false;
