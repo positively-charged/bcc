@@ -33,6 +33,12 @@ static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct name* name,
    struct object* object );
+static void find_next_object( struct semantic* semantic,
+   struct object_search* search );
+static void find_head_object( struct semantic* semantic,
+   struct object_search* search );
+static void find_tail_object( struct semantic* semantic,
+   struct object_search* search );
 
 void s_init( struct semantic* phase, struct task* task ) {
    phase->task = task;
@@ -353,8 +359,6 @@ void add_loadable_libs( struct semantic* phase ) {
    }
 }
 
-
-
 void s_add_scope( struct semantic* phase ) {
    struct scope* scope;
    if ( phase->free_scope ) {
@@ -460,6 +464,166 @@ void add_sweep_name( struct semantic* semantic, struct name* name,
    object->depth = semantic->depth;
    object->next_scope = name->object;
    name->object = object;
+}
+
+void s_init_object_search( struct object_search* search, struct path* path,
+   bool get_struct ) {
+   search->path = path;
+   search->object = NULL;
+   search->struct_object = NULL;
+   search->get_struct = get_struct;
+}
+
+void s_find_object( struct semantic* semantic, struct object_search* search ) {
+   bool get_struct = search->get_struct;
+   while ( search->path ) {
+      search->get_struct = ( get_struct && ! search->path->next );
+      find_next_object( semantic, search );
+      search->path = search->path->next;
+   }
+}
+
+void find_next_object( struct semantic* semantic,
+   struct object_search* search ) {
+   if ( ! search->object ) {
+      find_head_object( semantic, search );
+   }
+   else {
+      find_tail_object( semantic, search );
+   }
+   // Error.
+   if ( ! search->object ) {
+      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
+         "%s`%s` not found", ( search->get_struct ? "struct " : "" ),
+         search->path->text );
+      s_bail( semantic );
+   }
+   else if ( search->path->next &&
+      search->object->node.type != NODE_REGION ) {
+      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
+         "`%s` not a region", search->path->text );
+      s_bail( semantic );
+   }
+}
+
+void find_head_object( struct semantic* semantic,
+   struct object_search* search ) {
+   if ( search->path->is_upmost ) {
+      search->object = &semantic->task->region_upmost->object;
+      return;
+   }
+   else if ( search->path->is_region ) {
+      search->object = &semantic->region->object;
+      return;
+   }
+   // Search for the head in the current region.
+   struct regobjget result = s_get_regionobject( semantic,
+      semantic->region, search->path->text, search->get_struct );
+   search->object = result.object;
+   search->struct_object = result.struct_object;
+   if ( search->object ) {
+      return;
+   }
+   // Search for the head in the linked regions.
+   struct regionlink_search linked;
+   s_init_regionlink_search( &linked, semantic->region,
+      search->path->text, &search->path->pos, search->get_struct );
+   s_find_linkedobject( semantic, &linked );
+   search->object = linked.object;
+   search->struct_object = linked.struct_object;
+}
+
+// Assumes that the object currently found is a region.
+void find_tail_object( struct semantic* semantic,
+   struct object_search* search ) {
+   struct regobjget result = s_get_regionobject( semantic,
+      ( struct region* ) search->object, search->path->text,
+      search->get_struct );
+   search->object = result.object;
+   search->struct_object = result.struct_object;
+}
+
+void s_init_regionlink_search( struct regionlink_search* search,
+   struct region* region, const char* name, struct pos* name_pos,
+   bool get_struct ) {
+   search->region = region;
+   search->name = name;
+   search->name_pos = name_pos;
+   search->object = NULL;
+   search->struct_object = NULL;
+   search->get_struct = get_struct;
+}
+
+void s_find_linkedobject( struct semantic* semantic,
+   struct regionlink_search* search ) {
+   struct region_link* link = search->region->link;
+   while ( link ) {
+      struct regobjget result = s_get_regionobject( semantic,
+         link->region, search->name, search->get_struct );
+      link = link->next;
+      if ( result.object ) {
+         search->object = result.object;
+         search->struct_object = result.struct_object;
+         break;
+      }
+   }
+   // Make sure no other object with the same name can be found.
+   struct object* object = search->object;
+   bool dup = false;
+   while ( link ) {
+      struct regobjget result = s_get_regionobject( semantic,
+         link->region, search->name, search->get_struct );
+      if ( result.object ) {
+         if ( ! dup ) {
+            s_diag( semantic, DIAG_POS_ERR, search->name_pos,
+               "multiple instances of %s`%s`",
+               ( search->get_struct ? "struct " : "" ), search->name );
+            dup = true;
+         }
+         s_diag( semantic, DIAG_POS, &object->pos,
+            "instance found here, and" );
+         object = result.object;
+      }
+      link = link->next;
+   }
+   if ( dup ) {
+      s_diag( semantic, DIAG_POS, &object->pos,
+         "instance found here" );
+      s_bail( semantic );
+   }
+}
+
+struct regobjget s_get_regionobject( struct semantic* semantic,
+   struct region* region, const char* lookup, bool get_struct ) {
+   struct name* name = t_make_name( semantic->task, lookup,
+      ( get_struct ? region->body_struct : region->body ) );
+   struct object* object = name->object;
+   if ( object ) {
+      while ( object->next_scope ) {
+         object = object->next_scope;
+      }
+      if ( object->depth == 0 ) {
+         if ( object->node.type == NODE_ALIAS ) {
+            struct alias* alias = ( struct alias* ) object;
+            object = alias->target;
+         }
+      }
+   }
+   struct regobjget result;
+   result.object = NULL;
+   result.struct_object = NULL;
+   if ( object ) {
+      if ( get_struct ) {
+         if ( object->node.type == NODE_TYPE ) {
+            result.object = object;
+            result.struct_object = ( struct type* ) object;
+         }
+      }
+      else {
+         result.object = object;
+      }
+   }
+   return result;
 }
 
 void s_diag( struct semantic* phase, int flags, ... ) {

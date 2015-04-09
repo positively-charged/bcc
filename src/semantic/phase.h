@@ -3,6 +3,27 @@
 
 #include "task.h"
 
+struct regobjget {
+   struct object* object;
+   struct type* struct_object;
+};
+
+struct object_search {
+   struct path* path;
+   struct object* object;
+   struct type* struct_object;
+   bool get_struct;
+};
+
+struct regionlink_search {
+   struct region* region;
+   const char* name;
+   struct pos* name_pos;
+   struct object* object;
+   struct type* struct_object;
+   bool get_struct;
+};
+
 struct stmt_test {
    struct stmt_test* parent;
    struct func* func;
@@ -75,5 +96,15 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
 void s_diag( struct semantic* phase, int flags, ... );
 void s_bail( struct semantic* phase );
+struct regobjget s_get_regionobject( struct semantic* semantic,
+   struct region* region, const char* name, bool get_struct );
+void s_init_object_search( struct object_search* search, struct path* path,
+   bool get_struct );
+void s_find_object( struct semantic* semantic, struct object_search* search );
+void s_init_regionlink_search( struct regionlink_search* search,
+   struct region* region, const char* name, struct pos* name_pos,
+   bool get_struct );
+void s_find_linkedobject( struct semantic* semantic,
+   struct regionlink_search* search );
 
 #endif
