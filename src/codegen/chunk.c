@@ -3,11 +3,11 @@
 
 #include "phase.h"
 
-#define DEFAULT_SCRIPT_SIZE 20
 #define STR_ENCRYPTION_CONSTANT 157135
 
 static void do_sptr( struct codegen* phase );
 static void do_svct( struct codegen* phase );
+static bool svct_script( struct script* script );
 static void do_sflg( struct codegen* phase );
 static void do_func( struct codegen* phase );
 static void do_fnam( struct codegen* phase );
@@ -112,30 +112,33 @@ void do_svct( struct codegen* phase ) {
    list_iter_t i;
    list_iter_init( &i, &phase->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
+      count += ( int ) svct_script( list_data( &i ) );
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   struct {
+      short number;
+      short size;
+   } entry;
+   c_add_str( phase, "SVCT" );
+   c_add_int( phase, sizeof( entry ) * count );
+   list_iter_init( &i, &phase->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
-      if ( script->size > DEFAULT_SCRIPT_SIZE ) {
-         ++count;
+      if ( svct_script( script ) ) {
+         entry.number = ( short ) t_get_script_number( script );
+         entry.size = ( short ) script->size;
+         c_add_sized( phase, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
-   if ( count ) {
-      struct {
-         short number;
-         short size;
-      } entry;
-      c_add_str( phase, "SVCT" );
-      c_add_int( phase, sizeof( entry ) * count );
-      list_iter_init( &i, &phase->task->library_main->scripts );
-      while ( ! list_end( &i ) ) {
-         struct script* script = list_data( &i );
-         if ( script->size > DEFAULT_SCRIPT_SIZE ) {
-            entry.number = ( short ) t_get_script_number( script );
-            entry.size = ( short ) script->size;
-            c_add_sized( phase, &entry, sizeof( entry ) );
-         }
-         list_next( &i );
-      }
-   }
+}
+
+inline bool svct_script( struct script* script ) {
+   enum { DEFAULT_SCRIPT_SIZE = 20 };
+   return ( script->size > DEFAULT_SCRIPT_SIZE );
 }
 
 void do_sflg( struct codegen* phase ) {
