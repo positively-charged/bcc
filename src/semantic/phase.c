@@ -498,6 +498,12 @@ void find_next_object( struct semantic* semantic,
          search->path->text );
       s_bail( semantic );
    }
+   else if ( search->get_struct &&
+      search->object->node.type != NODE_TYPE ) {
+      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
+         "object not a struct" );
+      s_bail( semantic );
+   }
    else if ( search->path->next &&
       search->object->node.type != NODE_REGION ) {
       s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
