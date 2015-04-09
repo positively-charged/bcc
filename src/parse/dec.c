@@ -1197,10 +1197,8 @@ void read_script_number( struct parse* parse, struct script* script ) {
          p_read_tk( parse );
       }
       else {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "unexpected %s", p_get_token_name( parse->tk ) );
-         p_diag( parse, DIAG_POS, &parse->tk_pos,
-            "expecting the digit `0` here" );
+         p_unexpect_diag( parse );
+         p_unexpect_last_name( parse, NULL, "the digit `0`" );
          p_bail( parse );
       }
    }
