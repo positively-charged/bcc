@@ -23,7 +23,16 @@ struct value_index_alloc {
    int index;
 };
 
-static void test_type_member( struct semantic* phase, struct type_member* );
+static void test_struct_name( struct semantic* semantic, struct type* type );
+static bool test_struct_body( struct semantic* semantic, struct type* type );
+static void test_member( struct semantic* semantic,
+   struct type_member* member );
+static bool test_member_spec( struct semantic* semantic,
+   struct type_member* member );
+static void test_member_name( struct semantic* semantic,
+   struct type_member* member );
+static bool test_member_dim( struct semantic* semantic,
+   struct type_member* member );
 static bool test_spec( struct semantic* phase, struct var* var );
 static void test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* phase, struct var* var );
@@ -114,86 +123,108 @@ void s_test_constant_set( struct semantic* semantic,
    set->object.resolved = true;
 }
 
-void s_test_type( struct semantic* phase, struct type* type ) {
-   // Name.
-   if ( phase->in_localscope ) {
-      if ( type->name->object != &type->object ) {
-         s_bind_name( phase, type->name, &type->object );
-      }
+void s_test_struct( struct semantic* semantic, struct type* type ) {
+   test_struct_name( semantic, type );
+   bool resolved = test_struct_body( semantic, type );
+   type->object.resolved = resolved;
+}
+
+void test_struct_name( struct semantic* semantic, struct type* type ) {
+   if ( type->name->object != &type->object ) {
+      s_bind_name( semantic, type->name, &type->object );
    }
-   // Members.
+}
+
+bool test_struct_body( struct semantic* semantic, struct type* type ) {
    struct type_member* member = type->member;
    while ( member ) {
       if ( ! member->object.resolved ) {
-         test_type_member( phase, member );
+         test_member( semantic, member );
          if ( ! member->object.resolved ) {
-            return;
+            return false;
          }
       }
       member = member->next;
    }
-   type->object.resolved = true;
+   return true;
 }
 
-void test_type_member( struct semantic* phase, struct type_member* member ) {
-   // Type:
+void test_member( struct semantic* semantic, struct type_member* member ) {
+   if ( test_member_spec( semantic, member ) ) {
+      test_member_name( semantic, member );
+      bool resolved = test_member_dim( semantic, member );
+      member->object.resolved = resolved;
+   }
+}
+
+bool test_member_spec( struct semantic* semantic,
+   struct type_member* member ) {
    if ( member->type_path ) {
       if ( ! member->type ) {
          struct object_search search;
          s_init_object_search( &search, member->type_path, true );
-         s_find_object( phase, &search );
+         s_find_object( semantic, &search );
          member->type = search.struct_object;
       }
       if ( ! member->type->object.resolved ) {
-         if ( phase->trigger_err ) {
+         if ( semantic->trigger_err ) {
             struct path* path = member->type_path;
             while ( path->next ) {
                path = path->next;
             }
-            s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &path->pos,
+            s_diag( semantic, DIAG_POS_ERR, &path->pos,
                "struct `%s` undefined", path->text );
-            s_bail( phase );
+            s_bail( semantic );
          }
-         return;
+         return false;
       }
    }
-   // Name:
+   return true;
+}
+
+void test_member_name( struct semantic* semantic,
+   struct type_member* member ) {
    if ( member->name->object != &member->object ) {
-     s_bind_name( phase, member->name, &member->object );
+     s_bind_name( semantic, member->name, &member->object );
    }
-   // Dimension.
+}
+
+bool test_member_dim( struct semantic* semantic,
+   struct type_member* member ) {
+   if ( ! member->dim ) {
+      return true;
+   }
    struct dim* dim = member->dim;
-   // Skip to the next unresolved dimension.
    while ( dim && dim->size ) {
       dim = dim->next;
    }
    while ( dim ) {
-      struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, false );
-      s_test_expr( phase, &expr, dim->size_node );
-      if ( expr.undef_erred ) {
-         return;
-      }
       // Dimension with implicit size not allowed in struct.
       if ( ! dim->size_node ) {
-         s_diag( phase, DIAG_POS_ERR, &dim->pos,
-            "dimension with implicit size in struct member" );
-         s_bail( phase );
+         s_diag( semantic, DIAG_POS_ERR, &dim->pos,
+            "dimension of implicit size in struct member" );
+         s_bail( semantic );
+      }
+      struct expr_test expr;
+      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_test_expr( semantic, &expr, dim->size_node );
+      if ( expr.undef_erred ) {
+         return false;
       }
       if ( ! dim->size_node->folded ) {
-         s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
          "array size not a constant expression" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       if ( dim->size_node->value <= 0 ) {
-         s_diag( phase, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
             "array size must be greater than 0" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       dim->size = dim->size_node->value;
       dim = dim->next;
    }
-   member->object.resolved = true;
+   return true;
 }
 
 void s_test_var( struct semantic* phase, struct var* var ) {

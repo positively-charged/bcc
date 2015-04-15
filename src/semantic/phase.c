@@ -209,7 +209,7 @@ void test_region_object( struct semantic* phase, struct object* object ) {
       s_test_constant_set( phase, ( struct constant_set* ) object );
       break;
    case NODE_TYPE:
-      s_test_type( phase, ( struct type* ) object );
+      s_test_struct( phase, ( struct type* ) object );
       break;
    case NODE_VAR:
       s_test_var( phase, ( struct var* ) object );

@@ -82,7 +82,7 @@ void test_block_item( struct semantic* phase, struct stmt_test* test,
       s_test_local_var( phase, ( struct var* ) node );
       break;
    case NODE_TYPE:
-      s_test_type( phase, ( struct type* ) node );
+      s_test_struct( phase, ( struct type* ) node );
       break;
    case NODE_FUNC:
       s_test_func( phase, ( struct func* ) node );
