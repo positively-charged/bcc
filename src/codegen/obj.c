@@ -5,43 +5,43 @@
 #include "phase.h"
 #include "pcode.h"
 
-static void add_buffer( struct codegen* phase );
+static void add_buffer( struct codegen* codegen );
 static struct buffer* alloc_buffer( void );
-static void write_opc( struct codegen* phase, int );
-static void write_arg( struct codegen* phase, int );
-static void write_args( struct codegen* phase );
-static void add_immediate( struct codegen* phase, int );
-static void remove_immediate( struct codegen* phase );
-static void push_immediate( struct codegen* phase, int );
+static void write_opc( struct codegen* codegen, int );
+static void write_arg( struct codegen* codegen, int );
+static void write_args( struct codegen* codegen );
+static void add_immediate( struct codegen* codegen, int );
+static void remove_immediate( struct codegen* codegen );
+static void push_immediate( struct codegen* codegen, int );
 static bool is_byte_value( int );
 
-void c_init_obj( struct codegen* phase ) {
-   phase->buffer_head = NULL;
-   phase->buffer = NULL;
-   add_buffer( phase );
-   phase->opc = PCD_NONE;
-   phase->opc_args = 0;
-   phase->immediate = NULL;
-   phase->immediate_tail = NULL;
-   phase->free_immediate = NULL;
-   phase->immediate_count = 0;
-   phase->push_immediate = false;
+void c_init_obj( struct codegen* codegen ) {
+   codegen->buffer_head = NULL;
+   codegen->buffer = NULL;
+   add_buffer( codegen );
+   codegen->opc = PCD_NONE;
+   codegen->opc_args = 0;
+   codegen->immediate = NULL;
+   codegen->immediate_tail = NULL;
+   codegen->free_immediate = NULL;
+   codegen->immediate_count = 0;
+   codegen->push_immediate = false;
 }
 
-void add_buffer( struct codegen* phase ) {
-   if ( ! phase->buffer || ! phase->buffer->next ) {
+void add_buffer( struct codegen* codegen ) {
+   if ( ! codegen->buffer || ! codegen->buffer->next ) {
       struct buffer* buffer = alloc_buffer();
-      if ( phase->buffer ) {
-         phase->buffer->next = buffer;
-         phase->buffer = buffer;
+      if ( codegen->buffer ) {
+         codegen->buffer->next = buffer;
+         codegen->buffer = buffer;
       }
       else {
-         phase->buffer_head = buffer;
-         phase->buffer = buffer;
+         codegen->buffer_head = buffer;
+         codegen->buffer = buffer;
       }
    }
    else {
-      phase->buffer = phase->buffer->next;
+      codegen->buffer = codegen->buffer->next;
    }
 }
 
@@ -53,41 +53,41 @@ struct buffer* alloc_buffer( void ) {
    return buffer;
 }
 
-void c_add_sized( struct codegen* phase, const void* data, int length ) {
-   if ( BUFFER_SIZE - phase->buffer->pos < length ) {
-      add_buffer( phase );
+void c_add_sized( struct codegen* codegen, const void* data, int length ) {
+   if ( BUFFER_SIZE - codegen->buffer->pos < length ) {
+      add_buffer( codegen );
    }
-   memcpy( phase->buffer->data + phase->buffer->pos, data, length );
-   phase->buffer->pos += length;
-   if ( phase->buffer->pos > phase->buffer->used ) {
-      phase->buffer->used = phase->buffer->pos;
+   memcpy( codegen->buffer->data + codegen->buffer->pos, data, length );
+   codegen->buffer->pos += length;
+   if ( codegen->buffer->pos > codegen->buffer->used ) {
+      codegen->buffer->used = codegen->buffer->pos;
    }
 }
 
-void c_add_byte( struct codegen* phase, char value ) {
-   c_add_sized( phase, &value, sizeof( value ) );
+void c_add_byte( struct codegen* codegen, char value ) {
+   c_add_sized( codegen, &value, sizeof( value ) );
 }
 
-void c_add_short( struct codegen* phase, short value ) {
-   c_add_sized( phase, &value, sizeof( value ) );
+void c_add_short( struct codegen* codegen, short value ) {
+   c_add_sized( codegen, &value, sizeof( value ) );
 }
 
-void c_add_int( struct codegen* phase, int value ) {
-   c_add_sized( phase, &value, sizeof( value ) );
+void c_add_int( struct codegen* codegen, int value ) {
+   c_add_sized( codegen, &value, sizeof( value ) );
 }
 
-void c_add_int_zero( struct codegen* phase, int amount ) {
+void c_add_int_zero( struct codegen* codegen, int amount ) {
    while ( amount ) {
-      c_add_int( phase, 0 );
+      c_add_int( codegen, 0 );
       --amount;
    }
 }
 
-void c_add_str( struct codegen* phase, const char* value ) {
-   c_add_sized( phase, value, strlen( value ) );
+void c_add_str( struct codegen* codegen, const char* value ) {
+   c_add_sized( codegen, value, strlen( value ) );
 }
 
-void c_add_opc( struct codegen* phase, int code ) {
+void c_add_opc( struct codegen* codegen, int code ) {
    // Number-stacking instructions:
    // -----------------------------------------------------------------------
    {
@@ -99,10 +99,10 @@ void c_add_opc( struct codegen* phase, int code ) {
       case PCD_PUSH4BYTES:
       case PCD_PUSH5BYTES:
       case PCD_PUSHBYTES:
-         phase->push_immediate = true;
+         codegen->push_immediate = true;
          goto finish;
       default:
-         phase->push_immediate = false;
+         codegen->push_immediate = false;
          goto fold;
       }
    }
@@ -113,7 +113,7 @@ void c_add_opc( struct codegen* phase, int code ) {
       case PCD_UNARYMINUS:
       case PCD_NEGATELOGICAL:
       case PCD_NEGATEBINARY:
-         if ( phase->immediate_count ) {
+         if ( codegen->immediate_count ) {
             break;
          }
          // FALLTHROUGH
@@ -122,13 +122,13 @@ void c_add_opc( struct codegen* phase, int code ) {
       }
       switch ( code ) {
       case PCD_UNARYMINUS:
-         phase->immediate_tail->value = ( - phase->immediate_tail->value );
+         codegen->immediate_tail->value = ( - codegen->immediate_tail->value );
          break;
       case PCD_NEGATELOGICAL:
-         phase->immediate_tail->value = ( ! phase->immediate_tail->value );
+         codegen->immediate_tail->value = ( ! codegen->immediate_tail->value );
          break;
       case PCD_NEGATEBINARY:
-         phase->immediate_tail->value = ( ~ phase->immediate_tail->value );
+         codegen->immediate_tail->value = ( ~ codegen->immediate_tail->value );
          break;
       default:
          break;
@@ -157,14 +157,14 @@ void c_add_opc( struct codegen* phase, int code ) {
       case PCD_MULIPLY:
       case PCD_DIVIDE:
       case PCD_MODULUS:
-         if ( phase->immediate_count >= 2 ) {
+         if ( codegen->immediate_count >= 2 ) {
             break;
          }
          // FALLTHROUGH
       default:
          goto direct;
       }
-      struct immediate* second_last = phase->immediate;
+      struct immediate* second_last = codegen->immediate;
       struct immediate* last = second_last->next;
       while ( last->next ) {
          second_last = last;
@@ -172,12 +172,12 @@ void c_add_opc( struct codegen* phase, int code ) {
       }
       int l = second_last->value;
       int r = last->value;
-      last->next = phase->free_immediate;
-      phase->free_immediate = last;
-      --phase->immediate_count;
+      last->next = codegen->free_immediate;
+      codegen->free_immediate = last;
+      --codegen->immediate_count;
       last = second_last;
       last->next = NULL;
-      phase->immediate_tail = last;
+      codegen->immediate_tail = last;
       switch ( code ) {
       case PCD_ORLOGICAL: last->value = ( l || r ); break;
       case PCD_ANDLOGICAL: last->value = ( l && r ); break;
@@ -204,7 +204,7 @@ void c_add_opc( struct codegen* phase, int code ) {
    // Direct instructions:
    // -----------------------------------------------------------------------
    direct: {
-      if ( ! phase->immediate ) {
+      if ( ! codegen->immediate ) {
          goto other;
       }
       static const struct entry {
@@ -244,20 +244,20 @@ void c_add_opc( struct codegen* phase, int code ) {
          }
          ++entry;
       }
-      if ( entry->count > phase->immediate_count ) {
+      if ( entry->count > codegen->immediate_count ) {
          goto other;
       }
-      else if ( entry->count < phase->immediate_count ) {
-         push_immediate( phase, phase->immediate_count - entry->count );
+      else if ( entry->count < codegen->immediate_count ) {
+         push_immediate( codegen, codegen->immediate_count - entry->count );
       }
       int count = 0;
-      struct immediate* immediate = phase->immediate;
+      struct immediate* immediate = codegen->immediate;
       while ( immediate && is_byte_value( immediate->value ) ) {
          immediate = immediate->next;
          ++count;
       }
       int direct = entry->direct;
-      if ( phase->compress && count == entry->count ) {
+      if ( codegen->compress && count == entry->count ) {
          switch ( code ) {
          case PCD_LSPEC1: direct = PCD_LSPEC1DIRECTB; break;
          case PCD_LSPEC2: direct = PCD_LSPEC2DIRECTB; break;
@@ -269,7 +269,7 @@ void c_add_opc( struct codegen* phase, int code ) {
          default: break;
          }
       }
-      write_opc( phase, direct );
+      write_opc( codegen, direct );
       // Some instructions have other arguments that need to be written
       // before outputting the queued immediates.
       switch ( code ) {
@@ -280,28 +280,28 @@ void c_add_opc( struct codegen* phase, int code ) {
       case PCD_LSPEC5:
          break;
       default:
-         write_args( phase );
+         write_args( codegen );
       }
       goto finish;
    }
    // Other instructions:
    // -----------------------------------------------------------------------
    other: {
-      if ( phase->immediate_count ) {
-         push_immediate( phase, phase->immediate_count );
+      if ( codegen->immediate_count ) {
+         push_immediate( codegen, codegen->immediate_count );
       }
-      write_opc( phase, code );
+      write_opc( codegen, code );
    }
    finish: ;
 }
 
-void c_add_arg( struct codegen* phase, int arg ) {
-   if ( phase->push_immediate ) {
-      add_immediate( phase, arg );
+void c_add_arg( struct codegen* codegen, int arg ) {
+   if ( codegen->push_immediate ) {
+      add_immediate( codegen, arg );
    }
    else {
-      write_arg( phase, arg );
-      switch ( phase->opc ) {
+      write_arg( codegen, arg );
+      switch ( codegen->opc ) {
       case PCD_LSPEC1DIRECT:
       case PCD_LSPEC2DIRECT:
       case PCD_LSPEC3DIRECT:
@@ -312,8 +312,8 @@ void c_add_arg( struct codegen* phase, int arg ) {
       case PCD_LSPEC3DIRECTB:
       case PCD_LSPEC4DIRECTB:
       case PCD_LSPEC5DIRECTB:
-         if ( phase->opc_args == 1 ) {
-            write_args( phase );
+         if ( codegen->opc_args == 1 ) {
+            write_args( codegen );
          }
          break;
       default:
@@ -322,29 +322,29 @@ void c_add_arg( struct codegen* phase, int arg ) {
    }
 }
 
-void write_opc( struct codegen* phase, int code ) {
-   if ( phase->compress ) {
+void write_opc( struct codegen* codegen, int code ) {
+   if ( codegen->compress ) {
       // I don't know how the compression algorithm works exactly, but at this
       // time, the following works with all of the available opcodes as of this
       // writing. Also, now that the opcode is shrinked, the 4-byte arguments
       // that follow may no longer be 4-byte aligned.
       if ( code >= 240 ) {
-         c_add_byte( phase, ( char ) 240 );
-         c_add_byte( phase, ( char ) code - 240 );
+         c_add_byte( codegen, ( char ) 240 );
+         c_add_byte( codegen, ( char ) code - 240 );
       }
       else {
-         c_add_byte( phase, ( char ) code );
+         c_add_byte( codegen, ( char ) code );
       }
    }
    else {
-      c_add_int( phase, code );
+      c_add_int( codegen, code );
    }
-   phase->opc = code;
-   phase->opc_args = 0;
+   codegen->opc = code;
+   codegen->opc_args = 0;
 }
 
-void write_arg( struct codegen* phase, int arg ) {
-   switch ( phase->opc ) {
+void write_arg( struct codegen* codegen, int arg ) {
+   switch ( codegen->opc ) {
    case PCD_LSPEC1:
    case PCD_LSPEC2:
    case PCD_LSPEC3:
@@ -356,11 +356,11 @@ void write_arg( struct codegen* phase, int arg ) {
    case PCD_LSPEC3DIRECT:
    case PCD_LSPEC4DIRECT:
    case PCD_LSPEC5DIRECT:
-      if ( phase->opc_args == 0 && phase->compress ) {
-         c_add_byte( phase, arg );
+      if ( codegen->opc_args == 0 && codegen->compress ) {
+         c_add_byte( codegen, arg );
       }
       else {
-         c_add_int( phase, arg );
+         c_add_int( codegen, arg );
       }
       break;
    case PCD_PUSHBYTE:
@@ -376,7 +376,7 @@ void write_arg( struct codegen* phase, int arg ) {
    case PCD_LSPEC5DIRECTB:
    case PCD_DELAYDIRECTB:
    case PCD_RANDOMDIRECTB:
-      c_add_byte( phase, arg );
+      c_add_byte( codegen, arg );
       break;
    case PCD_PUSHSCRIPTVAR:
    case PCD_PUSHMAPVAR:
@@ -476,101 +476,101 @@ void write_arg( struct codegen* phase, int arg ) {
    case PCD_DECMAPARRAY:
    case PCD_DECWORLDARRAY:
    case PCD_DECGLOBALARRAY:
-      if ( phase->compress ) {
-         c_add_byte( phase, arg );
+      if ( codegen->compress ) {
+         c_add_byte( codegen, arg );
       }
       else {
-         c_add_int( phase, arg );
+         c_add_int( codegen, arg );
       }
       break;
    case PCD_CALL:
    case PCD_CALLDISCARD:
-      if ( phase->compress ) {
-         c_add_byte( phase, arg );
+      if ( codegen->compress ) {
+         c_add_byte( codegen, arg );
       }
       else {
-         c_add_int( phase, arg );
+         c_add_int( codegen, arg );
       }
       break;
    case PCD_CALLFUNC:
-      if ( phase->compress ) {
+      if ( codegen->compress ) {
          // Argument-count field.
-         if ( phase->opc_args == 0 ) {
-            c_add_byte( phase, arg );
+         if ( codegen->opc_args == 0 ) {
+            c_add_byte( codegen, arg );
          }
          // Function-index field.
          else {
-            c_add_short( phase, arg );
+            c_add_short( codegen, arg );
          }
       }
       else {
-         c_add_int( phase, arg );
+         c_add_int( codegen, arg );
       }
       break;
    case PCD_CASEGOTOSORTED:
       // The arguments need to be 4-byte aligned.
-      if ( phase->opc_args == 0 ) {
-         int i = c_tell( phase ) % 4;
+      if ( codegen->opc_args == 0 ) {
+         int i = c_tell( codegen ) % 4;
          if ( i ) {
             while ( i < 4 ) {
-               c_add_byte( phase, 0 );
+               c_add_byte( codegen, 0 );
                ++i;
             }
          }
       }
-      c_add_int( phase, arg );
+      c_add_int( codegen, arg );
       break;
    default:
-      c_add_int( phase, arg );
+      c_add_int( codegen, arg );
       break;
    }
-   ++phase->opc_args;
+   ++codegen->opc_args;
 }
 
-void write_args( struct codegen* phase ) {
-   while ( phase->immediate_count ) {
-      write_arg( phase, phase->immediate->value );
-      remove_immediate( phase );
+void write_args( struct codegen* codegen ) {
+   while ( codegen->immediate_count ) {
+      write_arg( codegen, codegen->immediate->value );
+      remove_immediate( codegen );
    }
 }
 
-void add_immediate( struct codegen* phase, int value ) {
+void add_immediate( struct codegen* codegen, int value ) {
    struct immediate* immediate = NULL;
-   if ( phase->free_immediate ) {
-      immediate = phase->free_immediate;
-      phase->free_immediate = immediate->next;
+   if ( codegen->free_immediate ) {
+      immediate = codegen->free_immediate;
+      codegen->free_immediate = immediate->next;
    }
    else {
       immediate = mem_alloc( sizeof( *immediate ) );
    }
    immediate->value = value;
    immediate->next = NULL;
-   if ( phase->immediate ) {
-      phase->immediate_tail->next = immediate;
+   if ( codegen->immediate ) {
+      codegen->immediate_tail->next = immediate;
    }
    else {
-      phase->immediate = immediate;
+      codegen->immediate = immediate;
    }
-   phase->immediate_tail = immediate;
-   ++phase->immediate_count;
+   codegen->immediate_tail = immediate;
+   ++codegen->immediate_count;
 }
 
-void remove_immediate( struct codegen* phase ) {
-   struct immediate* immediate = phase->immediate;
-   phase->immediate = immediate->next;
-   immediate->next = phase->free_immediate;
-   phase->free_immediate = immediate;
-   --phase->immediate_count;
-   if ( ! phase->immediate_count ) {
-      phase->immediate = NULL;
+void remove_immediate( struct codegen* codegen ) {
+   struct immediate* immediate = codegen->immediate;
+   codegen->immediate = immediate->next;
+   immediate->next = codegen->free_immediate;
+   codegen->free_immediate = immediate;
+   --codegen->immediate_count;
+   if ( ! codegen->immediate_count ) {
+      codegen->immediate = NULL;
    }
 }
 
 // NOTE: It is assumed that the count passed is always equal to, or is less
 // than, the number of immediates in the queue.
-void push_immediate( struct codegen* phase, int count ) {
+void push_immediate( struct codegen* codegen, int count ) {
    int left = count;
-   struct immediate* immediate = phase->immediate;
+   struct immediate* immediate = codegen->immediate;
    while ( left ) {
       int i = 0;
       struct immediate* temp = immediate;
@@ -580,7 +580,7 @@ void push_immediate( struct codegen* phase, int count ) {
       }
       if ( i ) {
          left -= i;
-         if ( phase->compress ) {
+         if ( codegen->compress ) {
             int code = PCD_PUSHBYTES;
             switch ( i ) {
             case 1: code = PCD_PUSHBYTE; break;
@@ -590,12 +590,12 @@ void push_immediate( struct codegen* phase, int count ) {
             case 5: code = PCD_PUSH5BYTES; break;
             default: break;
             }
-            write_opc( phase, code );
+            write_opc( codegen, code );
             if ( code == PCD_PUSHBYTES ) {
-               write_arg( phase, i );
+               write_arg( codegen, i );
             }
             while ( i ) {
-               write_arg( phase, immediate->value );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
                --i;
             }
@@ -604,35 +604,35 @@ void push_immediate( struct codegen* phase, int count ) {
             // Optimization: Pack four byte-values into a single 4-byte integer.
             // The instructions following this one will still be 4-byte aligned.
             while ( i >= 4 ) {
-               write_opc( phase, PCD_PUSH4BYTES );
-               write_arg( phase, immediate->value );
+               write_opc( codegen, PCD_PUSH4BYTES );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
-               write_arg( phase, immediate->value );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
-               write_arg( phase, immediate->value );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
-               write_arg( phase, immediate->value );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
                i -= 4;
             }
             while ( i ) {
-               write_opc( phase, PCD_PUSHNUMBER );
-               write_arg( phase, immediate->value );
+               write_opc( codegen, PCD_PUSHNUMBER );
+               write_arg( codegen, immediate->value );
                immediate = immediate->next;
                --i;
             }
          }
       }
       else {
-         write_opc( phase, PCD_PUSHNUMBER );
-         write_arg( phase, immediate->value );
+         write_opc( codegen, PCD_PUSHNUMBER );
+         write_arg( codegen, immediate->value );
          immediate = immediate->next;
          --left;
       }
    }
    left = count;
    while ( left ) {
-      remove_immediate( phase );
+      remove_immediate( codegen );
       --left;
    }
 }
@@ -641,15 +641,15 @@ bool is_byte_value( int value ) {
    return ( ( unsigned int ) value <= 255 );
 }
 
-int c_tell( struct codegen* phase ) {
+int c_tell( struct codegen* codegen ) {
    // Make sure to flush any queued immediates before acquiring the position.
-   if ( phase->immediate_count ) {
-      push_immediate( phase, phase->immediate_count );
+   if ( codegen->immediate_count ) {
+      push_immediate( codegen, codegen->immediate_count );
    }
    int pos = 0;
-   struct buffer* buffer = phase->buffer_head;
+   struct buffer* buffer = codegen->buffer_head;
    while ( true ) {
-      if ( buffer == phase->buffer ) {
+      if ( buffer == codegen->buffer ) {
          pos += buffer->pos;
          break;
       }
@@ -665,12 +665,12 @@ int c_tell( struct codegen* phase ) {
    return pos;
 }
 
-void c_seek( struct codegen* phase, int pos ) {
-   struct buffer* buffer = phase->buffer_head;
+void c_seek( struct codegen* codegen, int pos ) {
+   struct buffer* buffer = codegen->buffer_head;
    while ( buffer ) {
       if ( pos < BUFFER_SIZE ) {
-         phase->buffer = buffer;
-         phase->buffer->pos = pos;
+         codegen->buffer = buffer;
+         codegen->buffer->pos = pos;
          break;
       }
       pos -= BUFFER_SIZE;
@@ -678,11 +678,11 @@ void c_seek( struct codegen* phase, int pos ) {
    }
 }
 
-void c_seek_end( struct codegen* phase ) {
-   while ( phase->buffer->next ) {
-      phase->buffer = phase->buffer->next;
+void c_seek_end( struct codegen* codegen ) {
+   while ( codegen->buffer->next ) {
+      codegen->buffer = codegen->buffer->next;
    }
-   phase->buffer->pos = phase->buffer->used;
+   codegen->buffer->pos = codegen->buffer->used;
 }
 
 void c_flush( struct codegen* phase ) {

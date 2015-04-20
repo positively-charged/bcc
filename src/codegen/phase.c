@@ -1,21 +1,21 @@
 #include "task.h"
 #include "phase.h"
 
-void c_init( struct codegen* phase, struct task* task ) {
-   phase->task = task;
-   // phase->main_lib = task->main_lib;
-   // phase->libs = &task->libs;
-   // phase->str_table = &task->str_table;
-   // phase->compress = ( phase->main_lib->format == FORMAT_LITTLE_E );
-   phase->compress = false;
-   phase->block_visit = NULL;
-   phase->block_visit_free = NULL;
-   phase->func_visit = NULL;
-   c_init_obj( phase );
+void c_init( struct codegen* codegen, struct task* task ) {
+   codegen->task = task;
+   // codegen->main_lib = task->main_lib;
+   // codegen->libs = &task->libs;
+   // codegen->str_table = &task->str_table;
+   // codegen->compress = ( codegen->main_lib->format == FORMAT_LITTLE_E );
+   codegen->compress = false;
+   codegen->block_visit = NULL;
+   codegen->block_visit_free = NULL;
+   codegen->func_visit = NULL;
+   c_init_obj( codegen );
 }
 
-void c_publish( struct codegen* phase ) {
-   c_alloc_indexes( phase );
-   c_write_chunk_obj( phase );
-   c_flush( phase );
+void c_publish( struct codegen* codegen ) {
+   c_alloc_indexes( codegen );
+   c_write_chunk_obj( codegen );
+   c_flush( codegen );
 }

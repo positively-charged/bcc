@@ -10,8 +10,8 @@ struct nestedfunc_writing {
    int temps_size;
 };
 
-static void write_script( struct codegen* phase, struct script* script );
-static void write_userfunc( struct codegen* phase, struct func* func );
+static void write_script( struct codegen* codegen, struct script* script );
+static void write_userfunc( struct codegen* codegen, struct func* func );
 static void write_world_initz( struct codegen* codegen, struct var* var );
 static void write_stringinitz( struct codegen* codegen, struct var* var,
    struct value* value, bool include_nul );
@@ -19,73 +19,73 @@ static void write_world_multi_initz( struct codegen* codegen,
    struct var* var );
 static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size );
-static void add_default_params( struct codegen* phase, struct func*,
+static void add_default_params( struct codegen* codegen, struct func*,
    int count_param, bool reset_count_param );
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start );
-static void write_nested_funcs( struct codegen* phase,
+static void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing );
-static void write_one_nestedfunc( struct codegen* phase,
+static void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func );
-static void patch_nestedfunc_addresses( struct codegen* phase,
+static void patch_nestedfunc_addresses( struct codegen* codegen,
    struct func* func );
 
-void c_write_user_code( struct codegen* phase ) {
+void c_write_user_code( struct codegen* codegen ) {
    // Scripts.
    list_iter_t i;
-   list_iter_init( &i, &phase->task->library_main->scripts );
+   list_iter_init( &i, &codegen->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
-      write_script( phase, list_data( &i ) );
+      write_script( codegen, list_data( &i ) );
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &phase->task->library_main->funcs );
+   list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
-      write_userfunc( phase, list_data( &i ) );
+      write_userfunc( codegen, list_data( &i ) );
       list_next( &i );
    }
    // When utilizing the Little-E format, where instructions can be of
    // different size, add padding so any following data starts at an offset
    // that is multiple of 4.
-   if ( phase->task->library_main->format == FORMAT_LITTLE_E ) {
-      int i = alignpad( c_tell( phase ), 4 );
+   if ( codegen->task->library_main->format == FORMAT_LITTLE_E ) {
+      int i = alignpad( c_tell( codegen ), 4 );
       while ( i ) {
-         c_add_opc( phase, PCD_TERMINATE );
+         c_add_opc( codegen, PCD_TERMINATE );
          --i;
       }
    }
 }
 
-void write_script( struct codegen* phase, struct script* script ) {
-   script->offset = c_tell( phase );
-   c_add_block_visit( phase );
-   c_write_stmt( phase, script->body );
-   c_add_opc( phase, PCD_TERMINATE );
+void write_script( struct codegen* codegen, struct script* script ) {
+   script->offset = c_tell( codegen );
+   c_add_block_visit( codegen );
+   c_write_stmt( codegen, script->body );
+   c_add_opc( codegen, PCD_TERMINATE );
    if ( script->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, script->nested_funcs,
          script->nested_calls, script->size );
-      write_nested_funcs( phase, &writing );
+      write_nested_funcs( codegen, &writing );
       script->size += writing.temps_size;
    }
-   c_pop_block_visit( phase );
+   c_pop_block_visit( codegen );
 }
 
-void write_userfunc( struct codegen* phase, struct func* func ) {
+void write_userfunc( struct codegen* codegen, struct func* func ) {
    struct func_user* impl = func->impl;
-   impl->obj_pos = c_tell( phase );
-   c_add_block_visit( phase );
-   add_default_params( phase, func, func->max_param, true );
-   c_write_block( phase, impl->body, false );
-   c_add_opc( phase, PCD_RETURNVOID );
+   impl->obj_pos = c_tell( codegen );
+   c_add_block_visit( codegen );
+   add_default_params( codegen, func, func->max_param, true );
+   c_write_block( codegen, impl->body, false );
+   c_add_opc( codegen, PCD_RETURNVOID );
    if ( impl->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, impl->nested_funcs,
          impl->nested_calls, impl->size );
-      write_nested_funcs( phase, &writing );
+      write_nested_funcs( codegen, &writing );
       impl->size += writing.temps_size;
    }
-   c_pop_block_visit( phase );
+   c_pop_block_visit( codegen );
 }
 
 void c_visit_var( struct codegen* codegen, struct var* var ) {
@@ -283,7 +283,7 @@ void nullify_array( struct codegen* codegen, int storage, int index,
    }
 }
 
-void add_default_params( struct codegen* phase, struct func* func,
+void add_default_params( struct codegen* codegen, struct func* func,
    int count_param, bool reset_count_param ) {
    // Find first default parameter.
    struct param* param = func->params;
@@ -303,57 +303,57 @@ void add_default_params( struct codegen* phase, struct func* func,
    if ( num_cases ) {
       // A hidden parameter is used to store the number of arguments passed to
       // the function. This parameter is found after the last visible parameter.
-      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, count_param );
-      int jump = c_tell( phase );
-      c_add_opc( phase, PCD_CASEGOTOSORTED );
-      c_add_arg( phase, 0 );
+      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
+      c_add_arg( codegen, count_param );
+      int jump = c_tell( codegen );
+      c_add_opc( codegen, PCD_CASEGOTOSORTED );
+      c_add_arg( codegen, 0 );
       param = start;
       int i = 0;
       while ( param && i < num_cases ) {
-         c_add_arg( phase, 0 );
-         c_add_arg( phase, 0 );
+         c_add_arg( codegen, 0 );
+         c_add_arg( codegen, 0 );
          param = param->next;
          ++i;
       }
-      c_add_opc( phase, PCD_DROP );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, 0 );
+      c_add_opc( codegen, PCD_DROP );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, 0 );
       param = start;
       while ( param ) {
-         param->obj_pos = c_tell( phase );
+         param->obj_pos = c_tell( codegen );
          if ( ! param->default_value->folded || param->default_value->value ) {
-            c_push_expr( phase, param->default_value, false );
-            c_update_indexed( phase, STORAGE_LOCAL, param->index, AOP_NONE );
+            c_push_expr( codegen, param->default_value, false );
+            c_update_indexed( codegen, STORAGE_LOCAL, param->index, AOP_NONE );
          }
          param = param->next;
       }
-      int done = c_tell( phase );
+      int done = c_tell( codegen );
       // Add case positions.
-      c_seek( phase, jump );
-      c_add_opc( phase, PCD_CASEGOTOSORTED );
-      c_add_arg( phase, num_cases );
+      c_seek( codegen, jump );
+      c_add_opc( codegen, PCD_CASEGOTOSORTED );
+      c_add_arg( codegen, num_cases );
       num = func->min_param;
       param = start;
       while ( param && num_cases ) {
-         c_add_arg( phase, num );
-         c_add_arg( phase, param->obj_pos );
+         c_add_arg( codegen, num );
+         c_add_arg( codegen, param->obj_pos );
          param = param->next;
          --num_cases;
          ++num;
       }
-      c_add_opc( phase, PCD_DROP );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, done );
-      c_seek( phase, done );
+      c_add_opc( codegen, PCD_DROP );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, done );
+      c_seek( codegen, done );
    }
    if ( start ) {
       // Reset the parameter-count parameter.
       if ( reset_count_param ) {
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, 0 );
-         c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-         c_add_arg( phase, count_param );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, 0 );
+         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+         c_add_arg( codegen, count_param );
       }
    }
 }
@@ -366,12 +366,12 @@ void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    writing->temps_size = 0;
 }
 
-void write_nested_funcs( struct codegen* phase,
+void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing ) {
-   phase->func_visit->nested_func = true;
+   codegen->func_visit->nested_func = true;
    struct func* func = writing->nested_funcs;
    while ( func ) {
-      write_one_nestedfunc( phase, writing, func );
+      write_one_nestedfunc( codegen, writing, func );
       struct func_user* impl = func->impl;
       func = impl->next_nested;
    }
@@ -379,14 +379,14 @@ void write_nested_funcs( struct codegen* phase,
    func = writing->nested_funcs;
    while ( func ) {
       struct func_user* impl = func->impl;
-      patch_nestedfunc_addresses( phase, func );
+      patch_nestedfunc_addresses( codegen, func );
       func = impl->next_nested;
    }
-   c_seek_end( phase );
-   phase->func_visit->nested_func = false;
+   c_seek_end( codegen );
+   codegen->func_visit->nested_func = false;
 }
 
-void write_one_nestedfunc( struct codegen* phase,
+void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func ) {
    struct func_user* impl = func->impl;
 
@@ -405,19 +405,19 @@ void write_one_nestedfunc( struct codegen* phase,
 
    // Prologue:
    // -----------------------------------------------------------------------
-   impl->obj_pos = c_tell( phase );
+   impl->obj_pos = c_tell( codegen );
 
    // Assign arguments to temporary space.
    int temps_index = writing->temps_start;
    if ( func->min_param != func->max_param ) {
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, temps_index );
+      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( codegen, temps_index );
       ++temps_index;
    }
    struct param* param = func->params;
    while ( param ) {
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, temps_index );
+      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( codegen, temps_index );
       ++temps_index;
       param = param->next;
    }
@@ -427,8 +427,8 @@ void write_one_nestedfunc( struct codegen* phase,
    // at epilogue.
    int i = 0;
    while ( i < impl->size ) {
-      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, impl->index_offset + i );
+      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
+      c_add_arg( codegen, impl->index_offset + i );
       ++i;
    }
 
@@ -437,29 +437,29 @@ void write_one_nestedfunc( struct codegen* phase,
    param = func->params;
    while ( param ) {
       --temps_index;
-      c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-      c_add_arg( phase, temps_index );
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, param->index );
+      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
+      c_add_arg( codegen, temps_index );
+      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( codegen, param->index );
       param = param->next;
    }
    if ( func->min_param != func->max_param ) {
       --temps_index;
-      add_default_params( phase, func, temps_index, false );
+      add_default_params( codegen, func, temps_index, false );
    }
 
    // Body:
    // -----------------------------------------------------------------------
-   int body_pos = c_tell( phase );
-   c_write_block( phase, impl->body, true );
+   int body_pos = c_tell( codegen );
+   c_write_block( codegen, impl->body, true );
    if ( func->return_type ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
    }
 
    // Epilogue:
    // -----------------------------------------------------------------------
-   int epilogue_pos = c_tell( phase );
+   int epilogue_pos = c_tell( codegen );
 
    // Temporarily save the return-value.
    int temps_return = 0;
@@ -467,76 +467,76 @@ void write_one_nestedfunc( struct codegen* phase,
       // Use the last temporary variable.
       temps_return = writing->temps_start;
       temps_size += ( ! temps_size ? 1 : 0 );
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, temps_return );
+      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( codegen, temps_return );
    }
 
    // Restore previous values of script variables.
    i = 0;
    while ( i < impl->size ) {
       if ( impl->size <= 2 && func->return_type ) {
-         c_add_opc( phase, PCD_SWAP );
+         c_add_opc( codegen, PCD_SWAP );
       }
-      c_add_opc( phase, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( phase, impl->index_offset + impl->size - i - 1 );
+      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+      c_add_arg( codegen, impl->index_offset + impl->size - i - 1 );
       ++i;
    }
 
    // Return-value.
    if ( func->return_type ) {
       if ( impl->size > 2 ) {
-         c_add_opc( phase, PCD_PUSHSCRIPTVAR );
-         c_add_arg( phase, temps_return );
+         c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
+         c_add_arg( codegen, temps_return );
       }
-      c_add_opc( phase, PCD_SWAP );
+      c_add_opc( codegen, PCD_SWAP );
    }
 
    // Output return table.
-   impl->return_pos = c_tell( phase );
-   c_add_opc( phase, PCD_CASEGOTOSORTED );
-   c_add_arg( phase, num_entries );
+   impl->return_pos = c_tell( codegen );
+   c_add_opc( codegen, PCD_CASEGOTOSORTED );
+   c_add_arg( codegen, num_entries );
    call = impl->nested_calls;
    while ( call ) {
-      c_add_arg( phase, 0 );
-      c_add_arg( phase, 0 );
+      c_add_arg( codegen, 0 );
+      c_add_arg( codegen, 0 );
       call = call->nested_call->next;
    }
 
    // Patch address of return-statements.
    struct return_stmt* stmt = impl->returns;
    while ( stmt ) {
-      c_seek( phase, stmt->obj_pos );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, epilogue_pos );
+      c_seek( codegen, stmt->obj_pos );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, epilogue_pos );
       stmt = stmt->next;
    }
-   c_seek_end( phase );
+   c_seek_end( codegen );
 
    if ( temps_size > writing->temps_size ) {
       writing->temps_size = temps_size;
    }
 }
 
-void patch_nestedfunc_addresses( struct codegen* phase, struct func* func ) {
+void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
    struct func_user* impl = func->impl; 
    // Correct calls to this function.
    int num_entries = 0;
    struct call* call = impl->nested_calls;
    while ( call ) {
-      c_seek( phase, call->nested_call->enter_pos );
-      c_add_opc( phase, PCD_GOTO );
-      c_add_arg( phase, impl->obj_pos );
+      c_seek( codegen, call->nested_call->enter_pos );
+      c_add_opc( codegen, PCD_GOTO );
+      c_add_arg( codegen, impl->obj_pos );
       call = call->nested_call->next;
       ++num_entries;
    }
    // Correct return-addresses in return-table.
-   c_seek( phase, impl->return_pos );
-   c_add_opc( phase, PCD_CASEGOTOSORTED );
-   c_add_arg( phase, num_entries );
+   c_seek( codegen, impl->return_pos );
+   c_add_opc( codegen, PCD_CASEGOTOSORTED );
+   c_add_arg( codegen, num_entries );
    call = impl->nested_calls;
    while ( call ) {
-      c_add_arg( phase, call->nested_call->id );
-      c_add_arg( phase, call->nested_call->leave_pos );
+      c_add_arg( codegen, call->nested_call->id );
+      c_add_arg( codegen, call->nested_call->leave_pos );
       call = call->nested_call->next;
    }
 }

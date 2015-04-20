@@ -58,17 +58,17 @@ void c_seek_end( struct codegen* );
 int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
-void c_alloc_indexes( struct codegen* phase );
+void c_alloc_indexes( struct codegen* codegen );
 void c_push_expr( struct codegen* codegen, struct expr* expr, bool temp );
 void c_update_indexed( struct codegen* codegen, int, int, int );
 void c_update_element( struct codegen* codegen, int, int, int );
 void c_add_block_visit( struct codegen* codegen );
 void c_pop_block_visit( struct codegen* codegen );
-void c_write_block( struct codegen* phase, struct block* stmt,
+void c_write_block( struct codegen* codegen, struct block* stmt,
    bool add_visit );
 void c_write_stmt( struct codegen* codegen, struct node* node );
-void c_visit_expr( struct codegen* phase, struct expr* );
-void c_visit_var( struct codegen* phase, struct var* var );
+void c_visit_expr( struct codegen* codegen, struct expr* );
+void c_visit_var( struct codegen* codegen, struct var* var );
 void c_visit_format_item( struct codegen* codegen, struct format_item* item );
 
 #endif

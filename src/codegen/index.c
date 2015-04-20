@@ -14,20 +14,20 @@ struct func_alloc {
 };
 
 struct alloc {
-   struct codegen* phase;
+   struct codegen* codegen;
    struct func_alloc* func;
 };
 
-static void alloc_mapvars_index( struct codegen* phase );
-static void visit_tree( struct codegen* phase );
-static void visit_script( struct codegen* phase, struct script* script );
-static void assign_nestedcalls_id( struct codegen* phase,
+static void alloc_mapvars_index( struct codegen* codegen );
+static void visit_tree( struct codegen* codegen );
+static void visit_script( struct codegen* codegen, struct script* script );
+static void assign_nestedcalls_id( struct codegen* codegen,
    struct func* nested_funcs );
-static void visit_func( struct codegen* phase, struct func* func );
+static void visit_func( struct codegen* codegen, struct func* func );
 static void visit_block( struct alloc* alloc, struct block* block );
 static void visit_block_item( struct alloc* alloc, struct node* node );
 static void init_func_alloc( struct func_alloc* alloc, int start_index );
-static void init_alloc( struct alloc* alloc, struct codegen* phase,
+static void init_alloc( struct alloc* alloc, struct codegen* codegen,
    struct func_alloc* func_alloc );
 static void visit_stmt( struct alloc* alloc, struct node* node );
 static void visit_for( struct alloc* alloc, struct for_stmt* stmt );
@@ -45,12 +45,12 @@ static void visit_call( struct alloc* alloc, struct call* call );
 static void visit_paltrans( struct alloc* alloc, struct paltrans* trans );
 static void visit_strcpy( struct alloc* alloc, struct strcpy_call* call );
 
-void c_alloc_indexes( struct codegen* phase ) {
-   alloc_mapvars_index( phase );
-   visit_tree( phase );
+void c_alloc_indexes( struct codegen* codegen ) {
+   alloc_mapvars_index( codegen );
+   visit_tree( codegen );
 }
 
-void alloc_mapvars_index( struct codegen* phase ) {
+void alloc_mapvars_index( struct codegen* codegen ) {
    // Variables:
    // 
    // Order of allocation:
@@ -66,7 +66,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
    // Arrays.
    int index = 0;
    list_iter_t i;
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
@@ -77,7 +77,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Scalars, with-no-value.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -89,7 +89,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Scalars, with-value.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -101,7 +101,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Scalars, with-value, hidden.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -113,7 +113,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Scalars, with-no-value, hidden.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
@@ -125,7 +125,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Arrays, hidden.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
@@ -136,7 +136,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Imported.
-   list_iter_init( &i, &phase->task->library_main->dynamic );
+   list_iter_init( &i, &codegen->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -153,16 +153,16 @@ void alloc_mapvars_index( struct codegen* phase ) {
    }
    // Don't go over the variable limit.
    if ( index > MAX_MAP_LOCATIONS ) {
-      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
-         &phase->task->library_main->file_pos,
+      t_diag( codegen->task, DIAG_ERR | DIAG_FILE,
+         &codegen->task->library_main->file_pos,
          "library uses over maximum %d variables", MAX_MAP_LOCATIONS );
-      t_bail( phase->task );
+      t_bail( codegen->task );
    }
    // Functions:
    // -----------------------------------------------------------------------
    index = 0;
    // Imported functions:
-   list_iter_init( &i, &phase->task->library_main->dynamic );
+   list_iter_init( &i, &codegen->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -179,7 +179,7 @@ void alloc_mapvars_index( struct codegen* phase ) {
       list_next( &i );
    }
    // Functions:
-   list_iter_init( &i, &phase->task->library_main->funcs );
+   list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
@@ -193,13 +193,13 @@ void alloc_mapvars_index( struct codegen* phase ) {
    // index of the function is a byte in size, allowing up to 256 different
    // functions to be called.
    // NOTE: Maybe automatically switch to the Big-E format? 
-   if ( phase->task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
-      t_diag( phase->task, DIAG_ERR | DIAG_FILE,
-         &phase->task->library_main->file_pos,
+   if ( codegen->task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
+      t_diag( codegen->task, DIAG_ERR | DIAG_FILE,
+         &codegen->task->library_main->file_pos,
          "library uses over maximum 256 functions" );
-      t_diag( phase->task, DIAG_FILE, &phase->task->library_main->file_pos,
+      t_diag( codegen->task, DIAG_FILE, &codegen->task->library_main->file_pos,
          "to use more functions, try using the #nocompact directive" );
-      t_bail( phase->task );
+      t_bail( codegen->task );
    }
 }
 
@@ -209,31 +209,31 @@ void alloc_mapvars_index( struct codegen* phase ) {
 //   Counting the usage of strings is done so only strings that are used are
 //   outputted into the object file. There is no need to output the default
 //   arguments of the MorphActor() function if it's never called, say.
-void visit_tree( struct codegen* phase ) {
+void visit_tree( struct codegen* codegen ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->library_main->scripts );
+   list_iter_init( &i, &codegen->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
-      visit_script( phase, script );
+      visit_script( codegen, script );
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &phase->task->library_main->funcs );
+   list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
-      visit_func( phase, list_data( &i ) );
+      visit_func( codegen, list_data( &i ) );
       list_next( &i );
    }
    // Variables.
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct alloc alloc;
-      init_alloc( &alloc, phase, NULL );
+      init_alloc( &alloc, codegen, NULL );
       visit_var( &alloc, list_data( &i ) );
       list_next( &i );
    }
 }
 
-void assign_nestedcalls_id( struct codegen* phase,
+void assign_nestedcalls_id( struct codegen* codegen,
    struct func* nested_funcs ) {
    struct func* nested_func = nested_funcs;
    while ( nested_func ) {
@@ -249,11 +249,11 @@ void assign_nestedcalls_id( struct codegen* phase,
    }
 }
 
-void visit_script( struct codegen* phase, struct script* script ) {
+void visit_script( struct codegen* codegen, struct script* script ) {
    struct func_alloc func_alloc;
    init_func_alloc( &func_alloc, 0 );
    struct alloc alloc;
-   init_alloc( &alloc, phase, &func_alloc );
+   init_alloc( &alloc, codegen, &func_alloc );
    struct param* param = script->params;
    while ( param ) {
       param->index = func_alloc.start_index;
@@ -264,15 +264,15 @@ void visit_script( struct codegen* phase, struct script* script ) {
    visit_stmt( &alloc, script->body );
    script->size = func_alloc.size;
    if ( script->nested_funcs ) {
-      assign_nestedcalls_id( phase, script->nested_funcs );
+      assign_nestedcalls_id( codegen, script->nested_funcs );
    }
 }
 
-void visit_func( struct codegen* phase, struct func* func ) {
+void visit_func( struct codegen* codegen, struct func* func ) {
    struct func_alloc func_alloc;
    init_func_alloc( &func_alloc, 0 );
    struct alloc alloc;
-   init_alloc( &alloc, phase, &func_alloc );
+   init_alloc( &alloc, codegen, &func_alloc );
    struct param* param = func->params;
    while ( param ) {
       param->index = func_alloc.start_index;
@@ -284,7 +284,7 @@ void visit_func( struct codegen* phase, struct func* func ) {
    visit_block( &alloc, impl->body );
    impl->size = func_alloc.size;
    if ( impl->nested_funcs ) {
-      assign_nestedcalls_id( phase, impl->nested_funcs );
+      assign_nestedcalls_id( codegen, impl->nested_funcs );
    }
 }
 
@@ -294,9 +294,9 @@ void init_func_alloc( struct func_alloc* alloc, int start_index ) {
    alloc->size = 0;
 }
 
-void init_alloc( struct alloc* alloc, struct codegen* phase,
+void init_alloc( struct alloc* alloc, struct codegen* codegen,
    struct func_alloc* func_alloc ) {
-   alloc->phase = phase;
+   alloc->codegen = codegen;
    alloc->func = func_alloc;
 }
 

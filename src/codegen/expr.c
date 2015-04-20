@@ -27,18 +27,18 @@ struct operand {
    bool pushed_element;
 };
 
-static void init_operand( struct operand* phase );
-static void visit_operand( struct codegen* phase, struct operand*,
+static void init_operand( struct operand* codegen );
+static void visit_operand( struct codegen* codegen, struct operand*,
    struct node* );
-static void visit_constant( struct codegen* phase, struct operand*,
+static void visit_constant( struct codegen* codegen, struct operand*,
    struct constant* );
-static void visit_unary( struct codegen* phase, struct operand*,
+static void visit_unary( struct codegen* codegen, struct operand*,
    struct unary* );
-static void visit_pre_inc( struct codegen* phase, struct operand*,
+static void visit_pre_inc( struct codegen* codegen, struct operand*,
    struct unary* );
-static void visit_post_inc( struct codegen* phase, struct operand*,
+static void visit_post_inc( struct codegen* codegen, struct operand*,
    struct unary* );
-static void visit_call( struct codegen* phase, struct operand*,
+static void visit_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_aspec_call( struct codegen* codegen, struct operand*,
    struct call* );
@@ -48,7 +48,7 @@ static int push_aspecext_callargs( struct codegen* codegen,
    struct call* call );
 static void visit_ded_call( struct codegen* codegen, struct operand*,
    struct call* );
-static void visit_format_call( struct codegen* phase, struct operand*,
+static void visit_format_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage );
@@ -56,15 +56,15 @@ static void write_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage );
 static void visit_array_format_item( struct codegen* codegen,
    struct format_item* );
-static void visit_user_call( struct codegen* phase, struct operand*,
+static void visit_user_call( struct codegen* codegen, struct operand*,
    struct call* );
-static void write_call_args( struct codegen* phase, struct operand* operand,
+static void write_call_args( struct codegen* codegen, struct operand* operand,
    struct call* call );
-static void visit_nested_userfunc_call( struct codegen* phase,
+static void visit_nested_userfunc_call( struct codegen* codegen,
    struct operand* operand, struct call* call );
-static void visit_internal_call( struct codegen* phase, struct operand*,
+static void visit_internal_call( struct codegen* codegen, struct operand*,
    struct call* );
-static void visit_binary( struct codegen* phase, struct operand*,
+static void visit_binary( struct codegen* codegen, struct operand*,
    struct binary* );
 static void visit_logicalor( struct codegen* codegen, struct operand* operand,
    struct binary* binary );
@@ -76,28 +76,28 @@ static void write_logicaland( struct codegen* codegen, struct operand* operand,
    struct binary* binary );
 static void write_binary( struct codegen* codegen, struct operand* operand,
    struct binary* binary );
-static void visit_assign( struct codegen* phase, struct operand*,
+static void visit_assign( struct codegen* codegen, struct operand*,
    struct assign* );
 static void visit_conditional( struct codegen* codegen,
    struct operand* operand, struct conditional* cond );
 static void write_conditional( struct codegen* codegen,
    struct operand* operand, struct conditional* cond );
-static void do_var_name( struct codegen* phase, struct operand*,
+static void do_var_name( struct codegen* codegen, struct operand*,
    struct var* );
-static void set_var( struct codegen* phase, struct operand*,
+static void set_var( struct codegen* codegen, struct operand*,
    struct var* );
-static void visit_object( struct codegen* phase, struct operand*,
+static void visit_object( struct codegen* codegen, struct operand*,
    struct node* );
-static void visit_subscript( struct codegen* phase, struct operand*,
+static void visit_subscript( struct codegen* codegen, struct operand*,
    struct subscript* );
-static void visit_access( struct codegen* phase, struct operand*,
+static void visit_access( struct codegen* codegen, struct operand*,
    struct access* );
-static void push_indexed( struct codegen* phase, int, int );
-static void push_element( struct codegen* phase, int, int );
-static void inc_indexed( struct codegen* phase, int, int );
-static void dec_indexed( struct codegen* phase, int, int );
-static void inc_element( struct codegen* phase, int, int );
-static void dec_element( struct codegen* phase, int, int );
+static void push_indexed( struct codegen* codegen, int, int );
+static void push_element( struct codegen* codegen, int, int );
+static void inc_indexed( struct codegen* codegen, int, int );
+static void dec_indexed( struct codegen* codegen, int, int );
+static void inc_element( struct codegen* codegen, int, int );
+static void dec_element( struct codegen* codegen, int, int );
 static void write_strcpy( struct codegen* codegen, struct operand* operand,
    struct strcpy_call* call );
 
@@ -109,21 +109,21 @@ static const int g_aspec_code[] = {
    PCD_LSPEC5
 };
 
-void c_visit_expr( struct codegen* phase, struct expr* expr ) {
+void c_visit_expr( struct codegen* codegen, struct expr* expr ) {
    struct operand operand;
    init_operand( &operand );
-   visit_operand( phase, &operand, expr->root );
+   visit_operand( codegen, &operand, expr->root );
    if ( operand.pushed ) {
-      c_add_opc( phase, PCD_DROP );
+      c_add_opc( codegen, PCD_DROP );
    }
 }
 
-void c_push_expr( struct codegen* phase, struct expr* expr, bool temp ) {
+void c_push_expr( struct codegen* codegen, struct expr* expr, bool temp ) {
    struct operand operand;
    init_operand( &operand );
    operand.push = true;
    operand.push_temp = temp;
-   visit_operand( phase, &operand, expr->root );
+   visit_operand( codegen, &operand, expr->root );
 }
 
 void init_operand( struct operand* operand ) {
@@ -141,7 +141,7 @@ void init_operand( struct operand* operand ) {
    operand->pushed_element = false;
 }
 
-void visit_operand( struct codegen* phase, struct operand* operand,
+void visit_operand( struct codegen* codegen, struct operand* operand,
    struct node* node ) {
    // Select object referenced by the name.
    if ( node->type == NODE_NAME_USAGE ) {
@@ -155,37 +155,37 @@ void visit_operand( struct codegen* phase, struct operand* operand,
    // Visit object.
    if ( node->type == NODE_LITERAL ) {
       struct literal* literal = ( struct literal* ) node;
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, literal->value );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, literal->value );
       operand->pushed = true;
    }
    else if ( node->type == NODE_INDEXED_STRING_USAGE ) {
       struct indexed_string_usage* usage =
          ( struct indexed_string_usage* ) node;
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, usage->string->index );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, usage->string->index );
       // Strings in a library need to be tagged.
-      if ( phase->task->library_main->importable ) {
-         c_add_opc( phase, PCD_TAGSTRING );
+      if ( codegen->task->library_main->importable ) {
+         c_add_opc( codegen, PCD_TAGSTRING );
       }
       operand->pushed = true;
    }
    else if ( node->type == NODE_BOOLEAN ) {
       struct boolean* boolean = ( struct boolean* ) node;
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, boolean->value );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, boolean->value );
       operand->pushed = true;
    }
    else if ( node->type == NODE_CONSTANT ) {
-      visit_constant( phase, operand, ( struct constant* ) node );
+      visit_constant( codegen, operand, ( struct constant* ) node );
    }
    else if ( node->type == NODE_VAR ) {
-      do_var_name( phase, operand, ( struct var* ) node );
+      do_var_name( codegen, operand, ( struct var* ) node );
    }
    else if ( node->type == NODE_PARAM ) {
       struct param* param = ( struct param* ) node;
       if ( operand->action == ACTION_PUSH_VALUE ) {
-         push_indexed( phase, STORAGE_LOCAL, param->index );
+         push_indexed( codegen, STORAGE_LOCAL, param->index );
          operand->pushed = true;
       }
       else {
@@ -194,77 +194,77 @@ void visit_operand( struct codegen* phase, struct operand* operand,
       }
    }
    else if ( node->type == NODE_UNARY ) {
-      visit_unary( phase, operand, ( struct unary* ) node );
+      visit_unary( codegen, operand, ( struct unary* ) node );
    }
    else if ( node->type == NODE_SUBSCRIPT || node->type == NODE_ACCESS ) {
-      visit_object( phase, operand, node );
+      visit_object( codegen, operand, node );
    }
    else if ( node->type == NODE_CALL ) {
-      visit_call( phase, operand, ( struct call* ) node );
+      visit_call( codegen, operand, ( struct call* ) node );
    }
    else if ( node->type == NODE_BINARY ) {
-      visit_binary( phase, operand, ( struct binary* ) node );
+      visit_binary( codegen, operand, ( struct binary* ) node );
    }
    else if ( node->type == NODE_ASSIGN ) {
-      visit_assign( phase, operand, ( struct assign* ) node );
+      visit_assign( codegen, operand, ( struct assign* ) node );
    }
    else if ( node->type == NODE_CONDITIONAL ) {
-      visit_conditional( phase, operand, ( struct conditional* ) node );
+      visit_conditional( codegen, operand, ( struct conditional* ) node );
    }
    else if ( node->type == NODE_PAREN ) {
       struct paren* paren = ( struct paren* ) node;
-      visit_operand( phase, operand, paren->inside );
+      visit_operand( codegen, operand, paren->inside );
    }
    else if ( node->type == NODE_FUNC ) {
       struct func* func = ( struct func* ) node;
       if ( func->type == FUNC_ASPEC ) {
          struct func_aspec* impl = func->impl;
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, impl->id );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, impl->id );
       }
    }
    else if ( node->type == NODE_STRCPY ) {
-      write_strcpy( phase, operand, ( struct strcpy_call* ) node );
+      write_strcpy( codegen, operand, ( struct strcpy_call* ) node );
    }
 }
 
-void visit_constant( struct codegen* phase, struct operand* operand,
+void visit_constant( struct codegen* codegen, struct operand* operand,
    struct constant* constant ) {
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, constant->value );
-   if ( phase->task->library_main->importable && constant->value_node &&
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, constant->value );
+   if ( codegen->task->library_main->importable && constant->value_node &&
       constant->value_node->has_str ) {
-      c_add_opc( phase, PCD_TAGSTRING );
+      c_add_opc( codegen, PCD_TAGSTRING );
    }
    operand->pushed = true;
 }
 
-void visit_unary( struct codegen* phase, struct operand* operand,
+void visit_unary( struct codegen* codegen, struct operand* operand,
    struct unary* unary ) {
    switch ( unary->op ) {
       struct operand object;
    case UOP_PRE_INC:
    case UOP_PRE_DEC:
-      visit_pre_inc( phase, operand, unary );
+      visit_pre_inc( codegen, operand, unary );
       break;
    case UOP_POST_INC:
    case UOP_POST_DEC:
-      visit_post_inc( phase, operand, unary );
+      visit_post_inc( codegen, operand, unary );
       break;
    default:
       init_operand( &object );
       object.push = true;
-      visit_operand( phase, &object, unary->operand );
+      visit_operand( codegen, &object, unary->operand );
       int code = PCD_NONE;
       switch ( unary->op ) {
       case UOP_MINUS:
-         c_add_opc( phase, PCD_UNARYMINUS );
+         c_add_opc( codegen, PCD_UNARYMINUS );
          break;
       case UOP_LOG_NOT:
-         c_add_opc( phase, PCD_NEGATELOGICAL );
+         c_add_opc( codegen, PCD_NEGATELOGICAL );
          break;
       case UOP_BIT_NOT:
-         c_add_opc( phase, PCD_NEGATEBINARY );
+         c_add_opc( codegen, PCD_NEGATEBINARY );
          break;
       // Unary plus is ignored.
       case UOP_PLUS:
@@ -275,95 +275,95 @@ void visit_unary( struct codegen* phase, struct operand* operand,
    }
 }
 
-void visit_pre_inc( struct codegen* phase, struct operand* operand,
+void visit_pre_inc( struct codegen* codegen, struct operand* operand,
    struct unary* unary ) {
    struct operand object;
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
-   visit_operand( phase, &object, unary->operand );
+   visit_operand( codegen, &object, unary->operand );
    if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
-         c_add_opc( phase, PCD_DUP );
+         c_add_opc( codegen, PCD_DUP );
       }
       if ( unary->op == UOP_PRE_INC ) {
-         inc_element( phase, object.storage, object.index );
+         inc_element( codegen, object.storage, object.index );
       }
       else {
-         dec_element( phase, object.storage, object.index );
+         dec_element( codegen, object.storage, object.index );
       }
       if ( operand->push ) {
-         push_element( phase, object.storage, object.index );
+         push_element( codegen, object.storage, object.index );
          operand->pushed = true;
       }
    }
    else {
       if ( unary->op == UOP_PRE_INC ) {
-         inc_indexed( phase, object.storage, object.index );
+         inc_indexed( codegen, object.storage, object.index );
       }
       else {
-         dec_indexed( phase, object.storage, object.index );
+         dec_indexed( codegen, object.storage, object.index );
       }
       if ( operand->push ) {
-         push_indexed( phase, object.storage, object.index );
+         push_indexed( codegen, object.storage, object.index );
          operand->pushed = true;
       }
    }
 }
 
-void visit_post_inc( struct codegen* phase, struct operand* operand,
+void visit_post_inc( struct codegen* codegen, struct operand* operand,
    struct unary* unary ) {
    struct operand object;
    init_operand( &object );
    object.action = ACTION_PUSH_VAR;
-   visit_operand( phase, &object, unary->operand );
+   visit_operand( codegen, &object, unary->operand );
    if ( object.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
-         c_add_opc( phase, PCD_DUP );
-         push_element( phase, object.storage, object.index );
-         c_add_opc( phase, PCD_SWAP );
+         c_add_opc( codegen, PCD_DUP );
+         push_element( codegen, object.storage, object.index );
+         c_add_opc( codegen, PCD_SWAP );
          operand->pushed = true;
       }
       if ( unary->op == UOP_POST_INC ) {
-         inc_element( phase, object.storage, object.index );
+         inc_element( codegen, object.storage, object.index );
       }
       else {
-         dec_element( phase, object.storage, object.index );
+         dec_element( codegen, object.storage, object.index );
       }
    }
    else {
       if ( operand->push ) {
-         push_indexed( phase, object.storage, object.index );
+         push_indexed( codegen, object.storage, object.index );
          operand->pushed = true;
       }
       if ( unary->op == UOP_POST_INC ) {
-         inc_indexed( phase, object.storage, object.index );
+         inc_indexed( codegen, object.storage, object.index );
       }
       else {
-         dec_indexed( phase, object.storage, object.index );
+         dec_indexed( codegen, object.storage, object.index );
       }
    }
 }
 
-void visit_call( struct codegen* phase, struct operand* operand,
+void visit_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
    switch ( call->func->type ) {
    case FUNC_ASPEC:
-      visit_aspec_call( phase, operand, call );
+      visit_aspec_call( codegen, operand, call );
       break;
    case FUNC_EXT:
-      visit_ext_call( phase, operand, call );
+      visit_ext_call( codegen, operand, call );
       break;
    case FUNC_DED:
-      visit_ded_call( phase, operand, call );
+      visit_ded_call( codegen, operand, call );
       break;
    case FUNC_FORMAT:
-      visit_format_call( phase, operand, call );
+      visit_format_call( codegen, operand, call );
       break;
    case FUNC_USER:
-      visit_user_call( phase, operand, call );
+      visit_user_call( codegen, operand, call );
       break;
    case FUNC_INTERNAL:
-      visit_internal_call( phase, operand, call );
+      visit_internal_call( codegen, operand, call );
       break;
    }
 }
@@ -473,60 +473,60 @@ void visit_ded_call( struct codegen* codegen, struct operand* operand,
    }
 }
 
-void visit_user_call( struct codegen* phase, struct operand* operand,
+void visit_user_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
    struct func_user* impl = call->func->impl;
    if ( impl->nested ) {
-      visit_nested_userfunc_call( phase, operand, call );
+      visit_nested_userfunc_call( codegen, operand, call );
    }
    else {
-      write_call_args( phase, operand, call );
+      write_call_args( codegen, operand, call );
       if ( call->func->return_type ) {
-         c_add_opc( phase, PCD_CALL );
-         c_add_arg( phase, impl->index );
+         c_add_opc( codegen, PCD_CALL );
+         c_add_arg( codegen, impl->index );
          operand->pushed = true;
       }
       else {
-         c_add_opc( phase, PCD_CALLDISCARD );
-         c_add_arg( phase, impl->index );
+         c_add_opc( codegen, PCD_CALLDISCARD );
+         c_add_arg( codegen, impl->index );
       }
    }
 }
 
-void write_call_args( struct codegen* phase, struct operand* operand,
+void write_call_args( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
    list_iter_t i;
    list_iter_init( &i, &call->args );
    struct param* param = call->func->params;
    while ( ! list_end( &i ) ) {
-      c_push_expr( phase, list_data( &i ), false );
+      c_push_expr( codegen, list_data( &i ), false );
       list_next( &i );
       param = param->next;
    }
    // Default arguments.
    while ( param ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
       param = param->next;
    }
    // Number of real arguments passed, for a function with default
    // parameters.
    if ( call->func->min_param != call->func->max_param ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, list_size( &call->args ) );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, list_size( &call->args ) );
    }
 }
 
-void visit_nested_userfunc_call( struct codegen* phase,
+void visit_nested_userfunc_call( struct codegen* codegen,
    struct operand* operand, struct call* call ) {
    // Push ID of entry to identify return address. 
-   c_add_opc( phase, PCD_PUSHNUMBER );
-   c_add_arg( phase, call->nested_call->id );
-   write_call_args( phase, operand, call );
-   call->nested_call->enter_pos = c_tell( phase );
-   c_add_opc( phase, PCD_GOTO );
-   c_add_arg( phase, 0 );
-   call->nested_call->leave_pos = c_tell( phase );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, call->nested_call->id );
+   write_call_args( codegen, operand, call );
+   call->nested_call->enter_pos = c_tell( codegen );
+   c_add_opc( codegen, PCD_GOTO );
+   c_add_arg( codegen, 0 );
+   call->nested_call->leave_pos = c_tell( codegen );
    if ( call->func->return_type ) {
       operand->pushed = true;
    }
@@ -710,38 +710,38 @@ void visit_array_format_item( struct codegen* codegen,
    c_add_opc( codegen, code );
 }
 
-void visit_internal_call( struct codegen* phase, struct operand* operand,
+void visit_internal_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
    struct func_intern* impl = call->func->impl; 
    if ( impl->id == INTERN_FUNC_ACS_EXECWAIT ) {
       list_iter_t i;
       list_iter_init( &i, &call->args );
-      c_push_expr( phase, list_data( &i ), false );
-      c_add_opc( phase, PCD_DUP );
+      c_push_expr( codegen, list_data( &i ), false );
+      c_add_opc( codegen, PCD_DUP );
       list_next( &i );
       // Second argument unused.
       list_next( &i );
       // Second argument to Acs_Execute is 0--the current map.
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, 0 );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
       while ( ! list_end( &i ) ) {
-         c_push_expr( phase, list_data( &i ), true );
+         c_push_expr( codegen, list_data( &i ), true );
          list_next( &i );
       }
-      c_add_opc( phase, g_aspec_code[ list_size( &call->args ) - 1 ] );
-      c_add_arg( phase, 80 );
-      c_add_opc( phase, PCD_SCRIPTWAIT );
+      c_add_opc( codegen, g_aspec_code[ list_size( &call->args ) - 1 ] );
+      c_add_arg( codegen, 80 );
+      c_add_opc( codegen, PCD_SCRIPTWAIT );
    }
    else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
-      visit_operand( phase, operand, call->operand );
-      c_add_opc( phase, PCD_STRLEN );
+      visit_operand( codegen, operand, call->operand );
+      c_add_opc( codegen, PCD_STRLEN );
    }
    else if ( impl->id == INTERN_FUNC_STR_AT ) {
-      visit_operand( phase, operand, call->operand );
-      c_push_expr( phase, list_head( &call->args ), true );
-      c_add_opc( phase, PCD_CALLFUNC );
-      c_add_arg( phase, 2 );
-      c_add_arg( phase, 15 );
+      visit_operand( codegen, operand, call->operand );
+      c_push_expr( codegen, list_head( &call->args ), true );
+      c_add_opc( codegen, PCD_CALLFUNC );
+      c_add_arg( codegen, 2 );
+      c_add_arg( codegen, 15 );
    }
 }
 
@@ -893,7 +893,7 @@ void write_binary( struct codegen* codegen, struct operand* operand,
    operand->pushed = true;
 }
 
-void set_var( struct codegen* phase, struct operand* operand, struct var* var ) {
+void set_var( struct codegen* codegen, struct operand* operand, struct var* var ) {
    operand->type = var->type;
    operand->dim = var->dim;
    operand->storage = var->storage;
@@ -907,57 +907,57 @@ void set_var( struct codegen* phase, struct operand* operand, struct var* var ) 
    }
 }
 
-void do_var_name( struct codegen* phase, struct operand* operand,
+void do_var_name( struct codegen* codegen, struct operand* operand,
    struct var* var ) {
-   set_var( phase, operand, var );
+   set_var( codegen, operand, var );
    // For element-based variables, an index marking the start of the variable
    // data needs to be on the stack.
    if ( operand->method == METHOD_ELEMENT ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, operand->base );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, operand->base );
    }
    else {
       if ( operand->action == ACTION_PUSH_VALUE ) {
-         push_indexed( phase, operand->storage, operand->index );
+         push_indexed( codegen, operand->storage, operand->index );
          operand->pushed = true;
       }
    }
 }
 
-void visit_object( struct codegen* phase, struct operand* operand,
+void visit_object( struct codegen* codegen, struct operand* operand,
    struct node* node ) {
    if ( node->type == NODE_ACCESS ) {
-      visit_access( phase, operand, ( struct access* ) node );
+      visit_access( codegen, operand, ( struct access* ) node );
    }
    else if ( node->type == NODE_SUBSCRIPT ) {
-      visit_subscript( phase, operand, ( struct subscript* ) node );
+      visit_subscript( codegen, operand, ( struct subscript* ) node );
    }
    if ( operand->method == METHOD_ELEMENT ) {
       if ( operand->pushed_element ) {
          if ( operand->base ) {
-            c_add_opc( phase, PCD_PUSHNUMBER );
-            c_add_arg( phase, operand->base );
-            c_add_opc( phase, PCD_ADD );
+            c_add_opc( codegen, PCD_PUSHNUMBER );
+            c_add_arg( codegen, operand->base );
+            c_add_opc( codegen, PCD_ADD );
          }
       }
       else {
-         c_add_opc( phase, PCD_PUSHNUMBER );
-         c_add_arg( phase, operand->base );
+         c_add_opc( codegen, PCD_PUSHNUMBER );
+         c_add_arg( codegen, operand->base );
       }
    }
    if ( operand->action == ACTION_PUSH_VALUE &&
       operand->method != METHOD_NONE ) {
       if ( operand->method == METHOD_ELEMENT ) {
-         push_element( phase, operand->storage, operand->index );
+         push_element( codegen, operand->storage, operand->index );
       }
       else {
-         push_indexed( phase, operand->storage, operand->index );
+         push_indexed( codegen, operand->storage, operand->index );
       }
       operand->pushed = true;
    }
 }
 
-void visit_subscript( struct codegen* phase, struct operand* operand,
+void visit_subscript( struct codegen* codegen, struct operand* operand,
    struct subscript* subscript ) {
    struct node* lside = subscript->lside;
    while ( lside->type == NODE_PAREN ) {
@@ -974,32 +974,32 @@ void visit_subscript( struct codegen* phase, struct operand* operand,
    }
    // Left side:
    if ( lside->type == NODE_VAR ) {
-      set_var( phase, operand, ( struct var* ) lside );
+      set_var( codegen, operand, ( struct var* ) lside );
    }
    else if ( lside->type == NODE_ACCESS ) {
-      visit_access( phase, operand, ( struct access* ) lside );
+      visit_access( codegen, operand, ( struct access* ) lside );
    }
    else if ( lside->type == NODE_SUBSCRIPT ) {
-      visit_subscript( phase, operand, ( struct subscript* ) lside );
+      visit_subscript( codegen, operand, ( struct subscript* ) lside );
    }
    // Dimension:
    struct operand index;
    init_operand( &index );
    index.push = true;
    index.push_temp = true;
-   visit_operand( phase, &index, subscript->index->root );
+   visit_operand( codegen, &index, subscript->index->root );
    if ( operand->dim->next ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, operand->dim->element_size );
-      c_add_opc( phase, PCD_MULIPLY );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, operand->dim->element_size );
+      c_add_opc( codegen, PCD_MULIPLY );
    }
    else if ( ! operand->type->primitive ) {
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, operand->type->size );
-      c_add_opc( phase, PCD_MULIPLY );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, operand->type->size );
+      c_add_opc( codegen, PCD_MULIPLY );
    }
    if ( operand->pushed_element ) {
-      c_add_opc( phase, PCD_ADD );
+      c_add_opc( codegen, PCD_ADD );
    }
    else {
       operand->pushed_element = true;
@@ -1007,7 +1007,7 @@ void visit_subscript( struct codegen* phase, struct operand* operand,
    operand->dim = operand->dim->next;
 }
 
-void visit_access( struct codegen* phase, struct operand* operand,
+void visit_access( struct codegen* codegen, struct operand* operand,
    struct access* access ) {
    struct node* lside = access->lside;
    struct node* rside = access->rside;
@@ -1045,27 +1045,27 @@ void visit_access( struct codegen* phase, struct operand* operand,
    }
    // Left side:
    if ( lside->type == NODE_VAR ) {
-      set_var( phase, operand, ( struct var* ) lside );
+      set_var( codegen, operand, ( struct var* ) lside );
    }
    else if ( lside->type == NODE_CONSTANT ) {
-      visit_constant( phase, operand, ( struct constant* ) lside );
+      visit_constant( codegen, operand, ( struct constant* ) lside );
    }
    else if ( lside->type == NODE_ACCESS ) {
-      visit_access( phase, operand, ( struct access* ) lside );
+      visit_access( codegen, operand, ( struct access* ) lside );
    }
    else if ( lside->type == NODE_SUBSCRIPT ) {
-      visit_subscript( phase, operand, ( struct subscript* ) lside );
+      visit_subscript( codegen, operand, ( struct subscript* ) lside );
    }
    else {
-      visit_operand( phase, operand, lside );
+      visit_operand( codegen, operand, lside );
    }
    // Right side:
    if ( rside && rside->type == NODE_TYPE_MEMBER ) {
       struct type_member* member = ( struct type_member* ) rside;
-      c_add_opc( phase, PCD_PUSHNUMBER );
-      c_add_arg( phase, member->offset );
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, member->offset );
       if ( operand->pushed_element ) {
-         c_add_opc( phase, PCD_ADD );
+         c_add_opc( codegen, PCD_ADD );
       }
       else {
          operand->pushed_element = true;
@@ -1075,23 +1075,23 @@ void visit_access( struct codegen* phase, struct operand* operand,
    }
 }
 
-void visit_assign( struct codegen* phase, struct operand* operand,
+void visit_assign( struct codegen* codegen, struct operand* operand,
    struct assign* assign ) {
    struct operand lside;
    init_operand( &lside );
    lside.action = ACTION_PUSH_VAR;
-   visit_operand( phase, &lside, assign->lside );
+   visit_operand( codegen, &lside, assign->lside );
    if ( lside.method == METHOD_ELEMENT ) {
       if ( operand->push ) {
-         c_add_opc( phase, PCD_DUP );
+         c_add_opc( codegen, PCD_DUP );
       }
       struct operand rside;
       init_operand( &rside );
       rside.push = true;
-      visit_operand( phase, &rside, assign->rside );
-      c_update_element( phase, lside.storage, lside.index, assign->op );
+      visit_operand( codegen, &rside, assign->rside );
+      c_update_element( codegen, lside.storage, lside.index, assign->op );
       if ( operand->push ) {
-         push_element( phase, lside.storage, lside.index );
+         push_element( codegen, lside.storage, lside.index );
          operand->pushed = true;
       }
    }
@@ -1099,14 +1099,14 @@ void visit_assign( struct codegen* phase, struct operand* operand,
       struct operand rside;
       init_operand( &rside );
       rside.push = true;
-      visit_operand( phase, &rside, assign->rside );
+      visit_operand( codegen, &rside, assign->rside );
       if ( assign->op == AOP_NONE && operand->push ) {
-         c_add_opc( phase, PCD_DUP );
+         c_add_opc( codegen, PCD_DUP );
          operand->pushed = true;
       }
-      c_update_indexed( phase, lside.storage, lside.index, assign->op );
+      c_update_indexed( codegen, lside.storage, lside.index, assign->op );
       if ( assign->op != AOP_NONE && operand->push ) {
-         push_indexed( phase, lside.storage, lside.index );
+         push_indexed( codegen, lside.storage, lside.index );
          operand->pushed = true;
       }
    }
@@ -1176,7 +1176,7 @@ void write_conditional( struct codegen* codegen, struct operand* operand,
    operand->pushed = value.pushed;
 }
 
-void push_indexed( struct codegen* phase, int storage, int index ) {
+void push_indexed( struct codegen* codegen, int storage, int index ) {
    int code = PCD_PUSHSCRIPTVAR;
    switch ( storage ) {
    case STORAGE_MAP:
@@ -1191,11 +1191,11 @@ void push_indexed( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
-void push_element( struct codegen* phase, int storage, int index ) {
+void push_element( struct codegen* codegen, int storage, int index ) {
    int code = PCD_PUSHMAPARRAY;
    switch ( storage ) {
    case STORAGE_WORLD:
@@ -1207,11 +1207,11 @@ void push_element( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
-void c_update_indexed( struct codegen* phase, int storage, int index,
+void c_update_indexed( struct codegen* codegen, int storage, int index,
    int op ) {
    static const int code[] = {
       PCD_ASSIGNSCRIPTVAR, PCD_ASSIGNMAPVAR, PCD_ASSIGNWORLDVAR,
@@ -1233,11 +1233,11 @@ void c_update_indexed( struct codegen* phase, int storage, int index,
    case STORAGE_GLOBAL: pos = 3; break;
    default: break;
    }
-   c_add_opc( phase, code[ op * 4 + pos ] );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code[ op * 4 + pos ] );
+   c_add_arg( codegen, index );
 }
 
-void c_update_element( struct codegen* phase, int storage, int index,
+void c_update_element( struct codegen* codegen, int storage, int index,
    int op ) {
    static const int code[] = {
       PCD_ASSIGNMAPARRAY, PCD_ASSIGNWORLDARRAY, PCD_ASSIGNGLOBALARRAY,
@@ -1257,11 +1257,11 @@ void c_update_element( struct codegen* phase, int storage, int index,
    case STORAGE_GLOBAL: pos = 2; break;
    default: break;
    }
-   c_add_opc( phase, code[ op * 3 + pos ] );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code[ op * 3 + pos ] );
+   c_add_arg( codegen, index );
 }
 
-void inc_indexed( struct codegen* phase, int storage, int index ) {
+void inc_indexed( struct codegen* codegen, int storage, int index ) {
    int code = PCD_INCSCRIPTVAR;
    switch ( storage ) {
    case STORAGE_MAP:
@@ -1276,11 +1276,11 @@ void inc_indexed( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
-void dec_indexed( struct codegen* phase, int storage, int index ) {
+void dec_indexed( struct codegen* codegen, int storage, int index ) {
    int code = PCD_DECSCRIPTVAR;
    switch ( storage ) {
    case STORAGE_MAP:
@@ -1295,11 +1295,11 @@ void dec_indexed( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
-void inc_element( struct codegen* phase, int storage, int index ) {
+void inc_element( struct codegen* codegen, int storage, int index ) {
    int code = PCD_INCMAPARRAY;
    switch ( storage ) {
    case STORAGE_WORLD:
@@ -1311,11 +1311,11 @@ void inc_element( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
-void dec_element( struct codegen* phase, int storage, int index ) {
+void dec_element( struct codegen* codegen, int storage, int index ) {
    int code = PCD_DECMAPARRAY;
    switch ( storage ) {
    case STORAGE_WORLD:
@@ -1327,8 +1327,8 @@ void dec_element( struct codegen* phase, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( phase, code );
-   c_add_arg( phase, index );
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
 void write_strcpy( struct codegen* codegen, struct operand* operand,
