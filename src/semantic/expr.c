@@ -38,9 +38,6 @@ static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct name_usage* usage );
 static struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* );
-static struct object* find_local_object( struct semantic* semantic,
-   struct name_usage* usage );
-static bool object_islocal( struct object* object );
 static void test_unary( struct semantic* phase, struct expr_test*, struct operand*,
    struct unary* );
 static void test_subscript( struct semantic* phase, struct expr_test*, struct operand*,
@@ -65,8 +62,8 @@ static void test_assign( struct semantic* phase, struct expr_test*, struct opera
    struct assign* );
 static void test_access( struct semantic* phase, struct expr_test*, struct operand*,
    struct access* );
-static void test_region_access( struct semantic* phase, struct expr_test* test,
-   struct operand* operand, struct access* access );
+static void test_region_access( struct semantic* semantic,
+   struct expr_test* test, struct operand* operand, struct access* access );
 static void test_struct_access( struct semantic* phase, struct expr_test* test,
    struct operand* operand, struct access* access );
 static void test_conditional( struct semantic* semantic,
@@ -866,34 +863,34 @@ void test_access( struct semantic* phase, struct expr_test* test,
    }
 }
 
-void test_region_access( struct semantic* phase, struct expr_test* test,
+void test_region_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access ) {
    struct operand lside;
    init_operand( &lside );
-   test_node( phase, test, &lside, access->lside );
+   test_node( semantic, test, &lside, access->lside );
    if ( ! lside.region ) {
-      s_diag( phase, DIAG_POS_ERR, &access->pos,
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand not a region" );
-      s_bail( phase );
+      s_bail( semantic );
    }
-   struct name* name = t_make_name( phase->task, access->name,
-      lside.region->body );
-   struct object* object = t_get_region_object( phase->task, lside.region, name );
+   struct regobjget result = s_get_regionobject( semantic,
+      lside.region, access->name, false );
+   struct object* object = result.object;
    if ( ! object ) {
-      s_diag( phase, DIAG_POS_ERR, &access->pos,
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "`%s` not found in region", access->name );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( ! object->resolved ) {
-      if ( phase->trigger_err ) {
-         s_diag( phase, DIAG_POS_ERR, &access->pos,
+      if ( semantic->trigger_err ) {
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "right operand `%s` undefined", access->name );
-         s_bail( phase );
+         s_bail( semantic );
       }
       test->undef_erred = true;
       longjmp( test->bail, 1 );
    }
-   use_object( phase, test, operand, object );
+   use_object( semantic, test, operand, object );
    access->rside = ( struct node* ) object;
 }
 
