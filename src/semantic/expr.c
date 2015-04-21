@@ -36,7 +36,11 @@ static void test_string_usage( struct semantic* phase, struct expr_test*,
 static void test_boolean( struct semantic* phase, struct operand*, struct boolean* );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct name_usage* usage );
-static struct object* find_usage_object( struct semantic* phase, struct name_usage* );
+static struct object* find_referenced_object( struct semantic* semantic,
+   struct name_usage* );
+static struct object* find_local_object( struct semantic* semantic,
+   struct name_usage* usage );
+static bool object_islocal( struct object* object );
 static void test_unary( struct semantic* phase, struct expr_test*, struct operand*,
    struct unary* );
 static void test_subscript( struct semantic* phase, struct expr_test*, struct operand*,
@@ -226,7 +230,7 @@ void test_boolean( struct semantic* phase, struct operand* operand,
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct name_usage* usage ) {
-   struct object* object = find_usage_object( semantic, usage );
+   struct object* object = find_referenced_object( semantic, usage );
    if ( object && object->resolved ) {
       use_object( semantic, test, operand, object );
       usage->object = &object->node;
@@ -251,14 +255,12 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-struct object* find_usage_object( struct semantic* phase,
+struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* usage ) {
-   struct object* object = NULL;
-   struct name* name;
    // Try searching in the hidden compartment of the library.
    if ( usage->lib_id ) {
       list_iter_t i;
-      list_iter_init( &i, &phase->task->libraries );
+      list_iter_init( &i, &semantic->task->libraries );
       struct library* lib;
       while ( true ) {
          lib = list_data( &i );
@@ -267,54 +269,35 @@ struct object* find_usage_object( struct semantic* phase,
          }
          list_next( &i );
       }
-      name = t_make_name( phase->task, usage->text, lib->hidden_names );
+      struct name* name = t_make_name( semantic->task, usage->text,
+         lib->hidden_names );
       if ( name->object ) {
-         object = name->object;
-         goto done;
+         return name->object;
       }
    }
+
    // Try searching in the current scope.
-   name = t_make_name( phase->task, usage->text, phase->region->body );
+   struct name* name = t_make_name( semantic->task, usage->text,
+      semantic->region->body );
    if ( name->object ) {
-      object = name->object;
-      goto done;
-   }
-   // Try searching in any of the linked regions.
-   struct region_link* link = phase->region->link;
-   while ( link && ! object ) {
-      name = t_make_name( phase->task, usage->text, link->region->body );
-      object = t_get_region_object( phase->task, link->region, name );
-      link = link->next;
-   }
-   // Object could not be found.
-   if ( ! object ) {
-      goto done;
-   }
-   // If an object is found through a region link, make sure no other object
-   // with the same name can be found using any remaining region link. We can
-   // use the first object found, but I'd rather we disallow the usage when
-   // multiple objects are visible.
-   int dup = 0;
-   while ( link ) {
-      name = t_make_name( phase->task, usage->text, link->region->body );
-      if ( name->object ) {
-         if ( ! dup ) {
-            s_diag( phase, DIAG_POS_ERR, &usage->pos,
-               "multiple objects with name `%s`", usage->text );
-            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &object->pos,
-               "object found here" );
-         }
-         s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &name->object->pos, "object found here" );
-         ++dup;
+      struct object* object = name->object;
+      if ( object->node.type == NODE_ALIAS ) {
+         struct alias* alias = ( struct alias* ) object;
+         object = alias->target;
       }
-      link = link->next;
+      return object;
    }
-   if ( dup ) {
-      t_bail( phase->task );
+
+   // Try searching in any of the linked regions.
+   struct regionlink_search linked;
+   s_init_regionlink_search( &linked, semantic->region,
+      usage->text, &usage->pos, false );
+   s_find_linkedobject( semantic, &linked );
+   if ( linked.object ) {
+      return linked.object;
    }
-   done:
-   return object;
+
+   return NULL;
 }
 
 void use_object( struct semantic* phase, struct expr_test* test,
