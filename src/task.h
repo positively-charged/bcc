@@ -774,8 +774,6 @@ void t_unhandlednode_diag( struct task*, const char* file, int line,
 void t_bail( struct task* );
 bool t_same_pos( struct pos*, struct pos* );
 void t_init_object( struct object* object, int node_type );
-struct object* t_get_region_object( struct task* task, struct region*,
-   struct name* );
 void t_init_types( struct task* task );
 void t_init_type_members( struct task* );
 struct region* t_alloc_region( struct task* task, struct name* name,

@@ -37,24 +37,6 @@ void t_print_name( struct name* name ) {
    str_deinit( &str );
 }
 
-// Gets the top-most object associated with the name, and only retrieves the
-// object if it can be used by the current module.
-struct object* t_get_region_object( struct task* task, struct region* region,
-   struct name* name ) {
-   struct object* object = name->object;
-   if ( ! object ) {
-      return NULL;
-   }
-   // Find the top-most object.
-   while ( object && object->next_scope ) {
-      object = object->next_scope;
-   }
-   if ( object->depth != 0 ) {
-      return NULL;
-   }
-   return object;
-}
-
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels ) {
    reading->labels = labels;
    reading->node = NULL;
