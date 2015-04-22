@@ -4,6 +4,7 @@
 
 static void make_main_lib( struct parse* phase );
 static struct library* add_library( struct task* );
+static void read_region_name( struct parse* parse );
 static void read_region_body( struct parse* phase );
 static void read_dirc( struct parse* phase, struct pos* );
 static void read_include( struct parse* phase, struct pos*, bool );
@@ -121,21 +122,7 @@ void p_read_region( struct parse* phase ) {
    p_read_tk( phase );
    struct region* parent = phase->region;
    while ( true ) {
-      p_test_tk( phase, TK_ID );
-      struct name* name = t_make_name( phase->task, phase->tk_text,
-         phase->region->body );
-      if ( name->object ) {
-         // It is assumed the object will always be a region.
-         phase->region = ( struct region* ) name->object;
-      }
-      else {
-         struct region* region = t_alloc_region( phase->task, name, false );
-         region->object.pos = phase->tk_pos;
-         name->object = &region->object;
-         list_append( &phase->task->regions, region );
-         phase->region = region;
-      }
-      p_read_tk( phase );
+      read_region_name( phase );
       if ( phase->tk == TK_COLON_2 ) {
          p_read_tk( phase );
       }
@@ -149,6 +136,34 @@ void p_read_region( struct parse* phase ) {
    p_test_tk( phase, TK_BRACE_R );
    p_read_tk( phase );
    phase->region = parent;
+}
+
+void read_region_name( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   struct name* name = t_make_name( parse->task, parse->tk_text,
+      parse->region->body );
+   // Regions must be opened once. This works like modules in other languages.
+   if ( name->object ) {
+      if ( p_peek( parse ) == TK_COLON_2 ) {
+         // It is assumed the object will always be a region.
+         parse->region = ( struct region* ) name->object;
+      }
+      else {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "duplicate region" );
+         p_diag( parse, DIAG_POS, &name->object->pos,
+            "region already found here" );
+         p_bail( parse );
+      }
+   }
+   else {
+      struct region* region = t_alloc_region( parse->task, name, false );
+      region->object.pos = parse->tk_pos;
+      name->object = &region->object;
+      list_append( &parse->task->regions, region );
+      parse->region = region;
+   }
+   p_read_tk( parse );
 }
 
 void read_region_body( struct parse* phase ) {
