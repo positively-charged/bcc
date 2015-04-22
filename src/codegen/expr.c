@@ -147,10 +147,6 @@ void visit_operand( struct codegen* codegen, struct operand* operand,
    if ( node->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) node;
       node = usage->object;
-      if ( node->type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) node;
-         node = &alias->target->node;
-      }
    }
    // Visit object.
    if ( node->type == NODE_LITERAL ) {
@@ -967,10 +963,6 @@ void visit_subscript( struct codegen* codegen, struct operand* operand,
    if ( lside->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) lside;
       lside = usage->object;
-      if ( lside->type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) lside;
-         lside = &alias->target->node;
-      }
    }
    // Left side:
    if ( lside->type == NODE_VAR ) {
@@ -1018,29 +1010,17 @@ void visit_access( struct codegen* codegen, struct operand* operand,
    if ( lside->type == NODE_NAME_USAGE ) {
       struct name_usage* usage = ( struct name_usage* ) lside;
       lside = usage->object;
-      if ( lside->type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) lside;
-         lside = &alias->target->node;
-      }
    }
    // See if the left side is a namespace.
    struct node* object = lside;
    if ( object->type == NODE_ACCESS ) {
       struct access* nested = ( struct access* ) object;
       object = nested->rside;
-      if ( object->type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) object;
-         object = &alias->target->node;
-      }
    }
    // When the left side is a module, only process the right side.
    if ( object->type == NODE_REGION || object->type == NODE_REGION_HOST ||
       object->type == NODE_REGION_UPMOST ) {
       lside = access->rside;
-      if ( lside->type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) lside;
-         lside = &alias->target->node;
-      }
       rside = NULL;
    }
    // Left side:

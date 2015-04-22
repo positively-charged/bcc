@@ -367,10 +367,6 @@ void use_object( struct semantic* phase, struct expr_test* test,
       operand->usable = true;
       operand->assignable = true;
    }
-   else if ( object->node.type == NODE_ALIAS ) {
-      struct alias* alias = ( struct alias* ) object;
-      use_object( phase, test, operand, alias->target );
-   }
 }
 
 void test_unary( struct semantic* phase, struct expr_test* test,
