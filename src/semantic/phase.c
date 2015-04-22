@@ -19,7 +19,7 @@ static void determine_publishable_objects( struct semantic* phase );
 static void bind_names( struct semantic* phase );
 static void bind_regionobject_name( struct semantic* phase,
    struct object* object );
-static void import_objects( struct semantic* phase );
+static void import_objects( struct semantic* semantic );
 static void test_objects( struct semantic* phase );
 static void test_region( struct semantic* phase, bool* resolved, bool* retry );
 static void test_region_object( struct semantic* phase,
@@ -132,18 +132,35 @@ void bind_regionobject_name( struct semantic* phase, struct object* object ) {
 }
 
 // Executes import-statements found in regions.
-void import_objects( struct semantic* phase ) {
-   list_iter_t i;
-   list_iter_init( &i, &phase->task->regions );
-   while ( ! list_end( &i ) ) {
-      phase->region = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &phase->region->imports );
-      while ( ! list_end( &k ) ) {
-         s_import( phase, list_data( &k ) );
-         list_next( &k );
+void import_objects( struct semantic* semantic ) {
+   while ( true ) {
+      bool erred = false;
+      bool resolved = false;
+      list_iter_t i;
+      list_iter_init( &i, &semantic->task->regions );
+      while ( ! list_end( &i ) ) {
+         semantic->region = list_data( &i );
+         list_iter_t k;
+         list_iter_init( &k, &semantic->region->imports );
+         while ( ! list_end( &k ) ) {
+            struct import_status status;
+            s_import( semantic, list_data( &k ), &status );
+            if ( status.resolved ) {
+               resolved = true;
+            }
+            if ( status.erred ) {
+               erred = true;
+            }
+            list_next( &k );
+         }
+         list_next( &i );
       }
-      list_next( &i );
+      if ( erred ) {
+         semantic->trigger_err = ( ! resolved );
+      }
+      else {
+         break;
+      }
    }
 }
 
@@ -198,6 +215,7 @@ void test_region( struct semantic* phase, bool* resolved, bool* retry ) {
          *retry = true;
       }
    }
+   phase->region->object.resolved = ( phase->region->unresolved == NULL );
 }
 
 void test_region_object( struct semantic* phase, struct object* object ) {

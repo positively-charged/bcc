@@ -28,6 +28,15 @@ static void test_format_item( struct semantic* phase, struct stmt_test*,
 static void test_packed_expr( struct semantic* phase, struct stmt_test*,
    struct packed_expr*, struct pos* );
 static void test_goto_in_format_block( struct semantic* phase, struct list* );
+static void perform_import( struct semantic* semantic, struct import* import );
+static struct object* follow_import_path( struct semantic* semantic,
+   struct path* path );
+static void import_all( struct semantic* semantic, struct pos* import_pos,
+   struct region* region );
+static void import_selected( struct semantic* semantic,
+   struct import* import, struct region* region );
+static void import_item( struct semantic* semantic, struct import_item* item,
+   struct region* region );
 static void alias_imported( struct semantic* semantic, char* name,
    struct pos* pos, struct object* object );
 
@@ -96,9 +105,10 @@ void test_block_item( struct semantic* phase, struct stmt_test* test,
    case NODE_GOTO_LABEL:
       test_label( phase, test, ( struct label* ) node );
       break;
-   case NODE_IMPORT:
-      s_import( phase, ( struct import* ) node );
-      break;
+   case NODE_IMPORT: {
+      struct import_status status;
+      s_import( phase, ( struct import* ) node, &status );
+      break; }
    default:
       s_test_stmt( phase, test, node );
    }
@@ -564,118 +574,164 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
    }
 }
 
-void s_import( struct semantic* phase, struct import* stmt ) {
-   // Determine region to import from.
-   struct region* region = phase->task->region_upmost;
-   struct path* path = stmt->path;
-   if ( ! path->text ) {
-      if ( path->is_region ) {
-         region = phase->region;
-      }
-      path = path->next;
-   }
-   while ( path ) {
-      struct name* name = t_make_name( phase->task, path->text, region->body );
-      if ( ! name->object || name->object->node.type != NODE_REGION ) {
-         s_diag( phase, DIAG_POS_ERR, &path->pos,
-            "region `%s` not found", path->text );
-         s_bail( phase );
-      }
-      region = ( struct region* ) name->object;
-      path = path->next;
-   }
-   // Import objects.
-   struct import_item* item = stmt->item;
-   while ( item ) {
-      // Make link to region.
-      if ( item->is_link ) {
-         struct region* linked_region = region;
-         if ( item->name ) {
-            struct name* name = t_make_name( phase->task, item->name, region->body );
-            struct object* object = t_get_region_object( phase->task, region, name );
-            // The object needs to exist.
-            if ( ! object ) {
-               s_diag( phase, DIAG_POS_ERR, &item->name_pos,
-                  "`%s` not found", item->name );
-               s_bail( phase );
-            }
-            // The object needs to be a region.
-            if ( object->node.type != NODE_REGION ) {
-               s_diag( phase, DIAG_POS_ERR, &item->name_pos,
-                  "`%s` not a region", item->name );
-               s_bail( phase );
-            }
-            linked_region = ( struct region* ) object;
-         }
-         if ( linked_region == phase->region ) {
-            s_diag( phase, DIAG_POS_ERR, &item->pos,
-               "region importing self as default region" );
-            s_bail( phase );
-         }
-         struct region_link* link = phase->region->link;
-         while ( link && link->region != linked_region ) {
-            link = link->next;
-         }
-         // Duplicate links are allowed in the source code.
-         if ( link ) {
-            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &item->pos, "duplicate import of default region" );
-            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &link->pos,
-               "import already made here" );
+void s_import( struct semantic* semantic, struct import* import,
+   struct import_status* status ) {
+   status->resolved = false;
+   status->erred = false;
+   while ( import ) {
+      if ( ! import->resolved ) {
+         perform_import( semantic, import );
+         if ( import->resolved ) {
+            status->resolved = true;
          }
          else {
-            link = mem_alloc( sizeof( *link ) );
-            link->next = phase->region->link;
-            link->region = linked_region;
-            link->pos = item->pos;
-            phase->region->link = link;
+            status->erred = true;
+            break;
          }
       }
-      // Import selected region.
-      else if ( ! item->name && ! item->alias ) {
-         path = stmt->path;
+      import = import->next;
+   }
+}
+
+void perform_import( struct semantic* semantic, struct import* import ) {
+   struct object* object = follow_import_path( semantic, import->path );
+   if ( ! object ) {
+      return;
+   }
+   // Name.
+   if ( import->alias ) {
+      alias_imported( semantic, import->alias, &import->alias_pos, object );
+   }
+   else {
+      if ( import->get_one ) {
+         struct path* path = import->path;
          while ( path->next ) {
             path = path->next;
          }
-         if ( ! path->text ) {
-            s_diag( phase, DIAG_POS_ERR, &item->pos,
-               "region imported without name" );
-            s_bail( phase );
+         if ( path->text ) {
+            alias_imported( semantic, path->text, &path->pos, object );
          }
-         alias_imported( phase, path->text, &path->pos, &region->object );
+      }
+   }
+   // Import objects.
+   if ( import->get_all || import->get_selected ) {
+      if ( object->node.type != NODE_REGION ) {
+         s_diag( semantic, DIAG_POS_ERR, &import->pos,
+            "imported object not a region" );
+         s_bail( semantic );
+      }
+      struct region* region = ( struct region* ) object;
+      if ( import->get_all ) {
+         import_all( semantic, &import->pos, region );
       }
       else {
-         struct object* object = NULL;
-         if ( item->is_struct ) {
-            struct name* name = t_make_name( phase->task, item->name,
-               region->body_struct );
-            object = name->object;
-         }
-         // Alias to selected region.
-         else if ( ! item->name ) {
-            object = &region->object;
-         }
-         else {
-            struct name* name = t_make_name( phase->task, item->name, region->body );
-            object = t_get_region_object( phase->task, region, name );
-         }
-         if ( ! object ) {
-            const char* prefix = "";
-            if ( item->is_struct ) {
-               prefix = "struct ";
-            }
-            s_diag( phase, DIAG_POS_ERR, &item->name_pos,
-               "%s`%s` not found in region", prefix, item->name );
-            s_bail( phase );
-         }
-         if ( item->alias ) {
-            alias_imported( phase, item->alias, &item->alias_pos, object );
-         }
-         else {
-            alias_imported( phase, item->name, &item->name_pos, object );
-         }
+         import_selected( semantic, import, region );
       }
+   }
+   else {
+      if ( ( import->path->is_region || import->path->is_upmost ) &&
+         ! import->path->next && ! import->alias ) {
+         s_diag( semantic, DIAG_WARN | DIAG_POS, &import->pos,
+            "useless import" );
+      }
+   }
+   import->resolved = true;
+}
+
+struct object* follow_import_path( struct semantic* semantic,
+   struct path* path ) {
+   struct object* object = &semantic->task->region_upmost->object;
+   if ( path->is_upmost ) {
+      path = path->next;
+   }
+   else if ( path->is_region ) {
+      object = &semantic->region->object;
+      path = path->next;
+   }
+   while ( path ) {
+      if ( object->node.type != NODE_REGION ) {
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "`%s` not a region", path->text );
+         s_bail( semantic );
+      }
+      struct regobjget result = s_get_regionobject( semantic,
+         ( struct region* ) object, path->text, false );
+      object = result.object;
+      if ( ! object ) {
+         if ( semantic->trigger_err ) {
+            s_diag( semantic, DIAG_POS_ERR, &path->pos,
+               "`%s` not found", path->text );
+            s_bail( semantic );
+         }
+         return NULL;
+      }
+      path = path->next;
+   }
+   return object;
+}
+
+void import_all( struct semantic* semantic, struct pos* import_pos,
+   struct region* region ) {
+   if ( region == semantic->region ) {
+      s_diag( semantic, DIAG_POS_ERR, import_pos,
+         "region importing self" );
+      s_bail( semantic );
+   }
+   struct region_link* link = semantic->region->link;
+   while ( link && link->region != region ) {
+      link = link->next;
+   }
+   // Duplicate links are allowed in the source code.
+   if ( link ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS,
+         import_pos, "duplicate import" );
+      s_diag( semantic, DIAG_POS, &link->pos,
+         "import already made here" );
+   }
+   else {
+      link = mem_alloc( sizeof( *link ) );
+      link->next = semantic->region->link;
+      link->region = region;
+      link->pos = *import_pos;
+      semantic->region->link = link;
+   }
+}
+
+void import_selected( struct semantic* semantic, struct import* import,
+   struct region* region ) {
+   struct import_item* item = import->items;
+   while ( item ) {
+      import_item( semantic, item, region );
       item = item->next;
+   }
+}
+
+void import_item( struct semantic* semantic, struct import_item* item,
+   struct region* region ) {
+   struct regobjget result = s_get_regionobject( semantic, region,
+      item->name, item->get_struct );
+   struct object* object = result.object;
+   if ( ! object ) {
+      s_diag( semantic, DIAG_POS_ERR, &item->name_pos,
+         "%s`%s` not found in region", ( item->get_struct ? "struct " : "" ),
+         item->name );
+      s_bail( semantic );
+   }
+   // Name.
+   if ( item->alias ) {
+      alias_imported( semantic, item->alias, &item->alias_pos, object );
+   }
+   else {
+      alias_imported( semantic, item->name, &item->name_pos, object );
+   }
+   // Import object.
+   if ( item->get_all ) {
+      if ( object->node.type != NODE_REGION ) {
+         s_diag( semantic, DIAG_POS_ERR, &item->name_pos,
+            "selected object not a region" );
+         s_bail( semantic );
+      }
+      import_all( semantic, &item->name_pos, ( struct region* ) object );
    }
 }
 

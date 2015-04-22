@@ -24,6 +24,9 @@ static void read_palrange_rgb_field( struct parse* phase, struct expr**,
    struct expr**, struct expr** );
 static void read_packed_expr( struct parse* phase, struct stmt_reading* );
 static struct label* alloc_label( char*, struct pos );
+static struct import* read_single_import( struct parse* parse );
+static struct import_item* read_selected_import_items( struct parse* parse );
+static struct import_item* read_import_item( struct parse* parse );
 static struct path* alloc_path( struct pos );
 
 void t_print_name( struct name* name ) {
@@ -638,103 +641,136 @@ void read_packed_expr( struct parse* phase, struct stmt_reading* reading ) {
    reading->node = &packed->node;
 }
 
-void p_read_import( struct parse* phase, struct list* local ) {
-   p_test_tk( phase, TK_IMPORT );
-   struct import* stmt = mem_alloc( sizeof( *stmt ) );
-   stmt->node.type = NODE_IMPORT;
-   stmt->pos = phase->tk_pos;
-   stmt->path = NULL;
-   stmt->item = NULL;
-   stmt->next = NULL;
-   p_read_tk( phase );
-   stmt->path = p_read_path( phase );
-   p_test_tk( phase, TK_COLON );
-   p_read_tk( phase );
-   struct import_item* tail = NULL;
+void p_read_import( struct parse* parse, struct list* local ) {
+   p_test_tk( parse, TK_IMPORT );
+   p_read_tk( parse );
+   struct import* head = NULL;
+   struct import* tail;
    while ( true ) {
-      struct import_item* item = mem_alloc( sizeof( *item ) );
-      item->pos = phase->tk_pos;
-      item->next = NULL;
-      item->name = NULL;
-      item->alias = NULL;
-      item->is_struct = false;
-      item->is_link = false;
-      // Link with another region.
-      if ( phase->tk == TK_REGION ) {
-         p_read_tk( phase );
-         p_test_tk( phase, TK_ASSIGN );
-         p_read_tk( phase );
-         item->is_link = true;
-         // Link with child region of selected region.
-         if ( phase->tk == TK_ID ) {
-            item->name = phase->tk_text;
-            item->name_pos = phase->tk_pos;
-            p_read_tk( phase );
-         }
-         // Link with selected region.
-         else {
-            p_test_tk( phase, TK_REGION );
-            p_read_tk( phase );
-         }
+      struct import* stmt = read_single_import( parse );
+      if ( head ) {
+         tail->next = stmt;
       }
       else {
-         // Import structure.
-         if ( phase->tk == TK_STRUCT ) {
-            item->is_struct = true;
-            p_read_tk( phase );
-            p_test_tk( phase, TK_ID );
-            item->name = phase->tk_text;
-            item->name_pos = phase->tk_pos;
-            p_read_tk( phase );
-         }
-         // Import object.
-         else {
-            p_test_tk( phase, TK_ID );
-            item->name = phase->tk_text;
-            item->name_pos = phase->tk_pos;
-            p_read_tk( phase );
-         }
-         // Alias for imported object.
-         if ( phase->tk == TK_ASSIGN ) {
-            item->alias = item->name;
-            item->alias_pos = item->name_pos;
-            p_read_tk( phase );
-            // Alias to the selected region. Only do this if "struct" was not
-            // specified.
-            if ( phase->tk == TK_REGION && ! item->is_struct ) {
-               item->name = NULL;
-               p_read_tk( phase );
-            }
-            else {
-               p_test_tk( phase, TK_ID );
-               item->name = phase->tk_text;
-               item->name_pos = phase->tk_pos;
-               p_read_tk( phase );
-            }
-         }
+         head = stmt;
       }
-      if ( tail ) {
-         tail->next = item;
+      tail = stmt;
+      if ( stmt->get_selected ) {
+         break;
       }
-      else {
-         stmt->item = item;
-      }
-      tail = item;
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
       }
       else {
          break;
       }
    }
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    if ( local ) {
-      list_append( local, stmt );
+      list_append( local, head );
    }
    else {
-      list_append( &phase->region->imports, stmt );
+      list_append( &parse->region->imports, head );
    }
+}
+
+struct import* read_single_import( struct parse* parse ) {
+   struct import* import = mem_alloc( sizeof( *import ) );
+   import->node.type = NODE_IMPORT;
+   import->next = NULL;
+   import->alias = NULL;
+   import->path = NULL;
+   import->items = NULL;
+   import->get_one = false;
+   import->get_all = false;
+   import->get_selected = false;
+   import->resolved = false;
+   import->pos = parse->tk_pos;
+   // Alias.
+   if ( parse->tk == TK_ID && p_peek( parse ) == TK_ASSIGN ) {
+      import->alias = parse->tk_text;
+      import->alias_pos = parse->tk_pos;
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ASSIGN );
+      p_read_tk( parse );
+   }
+   import->path = p_read_path( parse );
+   // Import all items.
+   if ( parse->tk == TK_COLON_2 ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_STAR );
+      p_read_tk( parse );
+      import->get_all = true;
+   }
+   // Import selected items.
+   else if ( parse->tk == TK_COLON ) {
+      p_read_tk( parse );
+      import->items = read_selected_import_items( parse );
+      import->get_selected = true;
+   }
+   // Import path.
+   else {
+      import->get_one = true;
+   }
+   return import;
+}
+
+struct import_item* read_selected_import_items( struct parse* parse ) {
+   struct import_item* head = NULL;
+   struct import_item* tail;
+   while ( true ) {
+      struct import_item* item = read_import_item( parse );
+      if ( head ) {
+         tail->next = item;
+      }
+      else {
+         head = item;
+      }
+      tail = item;
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
+   return head;
+}
+
+struct import_item* read_import_item( struct parse* parse ) {
+   struct import_item* item = mem_alloc( sizeof( *item ) );
+   item->alias = NULL;
+   item->name = NULL;
+   item->next = NULL;
+   item->get_all = false;
+   item->get_struct = false;
+   // Import structure.
+   if ( parse->tk == TK_STRUCT ) {
+      item->get_struct = true;
+      p_read_tk( parse );
+   }
+   // Alias.
+   if ( parse->tk == TK_ID && p_peek( parse ) == TK_ASSIGN ) {
+      item->alias = parse->tk_text;
+      item->alias_pos = parse->tk_pos;
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ASSIGN );
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_ID );
+   item->name = parse->tk_text;
+   item->name_pos = parse->tk_pos;
+   p_read_tk( parse );
+   if ( ! item->get_struct ) {
+      if ( parse->tk == TK_COLON_2 ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_STAR );
+         p_read_tk( parse );
+         item->get_all = true;
+      }
+   }
+   return item;
 }
 
 struct path* p_read_path( struct parse* phase ) {
@@ -756,7 +792,7 @@ struct path* p_read_path( struct parse* phase ) {
    // Tail of path.
    struct path* head = path;
    struct path* tail = head;
-   while ( phase->tk == TK_COLON_2 ) {
+   while ( phase->tk == TK_COLON_2 && p_peek( phase ) == TK_ID ) {
       p_read_tk( phase );
       p_test_tk( phase, TK_ID );
       path = alloc_path( phase->tk_pos );

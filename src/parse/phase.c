@@ -131,7 +131,6 @@ void p_read_region( struct parse* phase ) {
       else {
          struct region* region = t_alloc_region( phase->task, name, false );
          region->object.pos = phase->tk_pos;
-         region->object.resolved = true;
          name->object = &region->object;
          list_append( &phase->task->regions, region );
          phase->region = region;

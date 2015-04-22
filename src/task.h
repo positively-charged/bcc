@@ -708,23 +708,26 @@ struct library {
 
 struct import {
    struct node node;
-   struct pos pos;
-   // When NULL, use upmost region.
-   struct path* path;
-   // When NULL, it means make region link.
-   struct import_item* item;
    struct import* next;
+   char* alias;
+   struct path* path;
+   struct pos pos;
+   struct pos alias_pos;
+   struct import_item* items;
+   bool get_one;
+   bool get_all;
+   bool get_selected;
+   bool resolved;
 };
 
 struct import_item {
-   struct import_item* next;
-   char* name;
    char* alias;
-   struct pos pos;
+   char* name;
+   struct import_item* next;
    struct pos name_pos;
    struct pos alias_pos;
-   bool is_struct;
-   bool is_link;
+   bool get_all;
+   bool get_struct;
 };
 
 struct task {
