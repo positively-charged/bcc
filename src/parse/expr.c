@@ -17,25 +17,25 @@ struct array_field {
    struct expr* length;
 };
 
-static void read_op( struct parse* phase, struct expr_reading* reading );
-static void read_operand( struct parse* phase, struct expr_reading* reading );
+static void read_op( struct parse* parse, struct expr_reading* reading );
+static void read_operand( struct parse* parse, struct expr_reading* reading );
 static struct binary* alloc_binary( int op, struct pos* pos );
 static struct unary* alloc_unary( int op, struct pos* pos );
-static void read_primary( struct parse* phase, struct expr_reading* reading );
-static void read_postfix( struct parse* phase, struct expr_reading* reading );
+static void read_primary( struct parse* parse, struct expr_reading* reading );
+static void read_postfix( struct parse* parse, struct expr_reading* reading );
 static struct access* alloc_access( char* name, struct pos pos );
-static void read_call( struct parse* phase, struct expr_reading* reading );
-static void read_call_args( struct parse* phase, struct expr_reading* reading,
+static void read_call( struct parse* parse, struct expr_reading* reading );
+static void read_call_args( struct parse* parse, struct expr_reading* reading,
    struct list* args );
 static struct format_item* read_format_item( struct parse* parse, bool colon );
 static void init_format_cast( struct format_cast* cast, bool colon );
 static void read_format_cast( struct parse* parse, struct format_cast* cast );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
-static void read_string( struct parse* phase, struct expr_reading* reading );
-static struct indexed_string* intern_indexed_string( struct parse* phase,
+static void read_string( struct parse* parse, struct expr_reading* reading );
+static struct indexed_string* intern_indexed_string( struct parse* parse,
    char* value, int length, bool* first_time );
-static int convert_numerictoken_to_int( struct parse* phase, int base );
+static int convert_numerictoken_to_int( struct parse* parse, int base );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
@@ -49,9 +49,9 @@ void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    reading->expect_expr = expect_expr;
 }
 
-void p_read_expr( struct parse* phase, struct expr_reading* reading ) {
-   reading->pos = phase->tk_pos;
-   read_op( phase, reading );
+void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
+   reading->pos = parse->tk_pos;
+   read_op( parse, reading );
    struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
    expr->node.type = NODE_EXPR;
    expr->root = reading->node;
@@ -62,7 +62,7 @@ void p_read_expr( struct parse* phase, struct expr_reading* reading ) {
    reading->output_node = expr;
 }
 
-void read_op( struct parse* phase, struct expr_reading* reading ) {
+void read_op( struct parse* parse, struct expr_reading* reading ) {
    int op = 0;
    struct binary* mul = NULL;
    struct binary* add = NULL;
@@ -76,11 +76,11 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    struct binary* log_or = NULL;
 
    top:
-   read_operand( phase, reading );
+   read_operand( parse, reading );
 
    op_mul:
    // -----------------------------------------------------------------------
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_STAR:
       op = BOP_MUL;
       break;
@@ -93,10 +93,10 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    default:
       goto op_add;
    }
-   mul = alloc_binary( op, &phase->tk_pos );
+   mul = alloc_binary( op, &parse->tk_pos );
    mul->lside = reading->node;
-   p_read_tk( phase );
-   read_operand( phase, reading );
+   p_read_tk( parse );
+   read_operand( parse, reading );
    mul->rside = reading->node;
    reading->node = &mul->node;
    goto op_mul;
@@ -108,7 +108,7 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &add->node;
       add = NULL;
    }
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_PLUS:
       op = BOP_ADD;
       break;
@@ -118,9 +118,9 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    default:
       goto op_shift;
    }
-   add = alloc_binary( op, &phase->tk_pos );
+   add = alloc_binary( op, &parse->tk_pos );
    add->lside = reading->node;
-   p_read_tk( phase );
+   p_read_tk( parse );
    goto top;
 
    op_shift:
@@ -130,7 +130,7 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &shift->node;
       shift = NULL;
    }
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_SHIFT_L:
       op = BOP_SHIFT_L;
       break;
@@ -140,9 +140,9 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    default:
       goto op_lt;
    }
-   shift = alloc_binary( op, &phase->tk_pos );
+   shift = alloc_binary( op, &parse->tk_pos );
    shift->lside = reading->node;
-   p_read_tk( phase );
+   p_read_tk( parse );
    goto top;
 
    op_lt:
@@ -152,7 +152,7 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &lt->node;
       lt = NULL;
    }
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_LT:
       op = BOP_LT;
       break;
@@ -168,9 +168,9 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    default:
       goto op_eq;
    }
-   lt = alloc_binary( op, &phase->tk_pos );
+   lt = alloc_binary( op, &parse->tk_pos );
    lt->lside = reading->node;
-   p_read_tk( phase );
+   p_read_tk( parse );
    goto top;
 
    op_eq:
@@ -180,7 +180,7 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &eq->node;
       eq = NULL;
    }
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_EQ:
       op = BOP_EQ;
       break;
@@ -190,9 +190,9 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
    default:
       goto op_bit_and;
    }
-   eq = alloc_binary( op, &phase->tk_pos );
+   eq = alloc_binary( op, &parse->tk_pos );
    eq->lside = reading->node;
-   p_read_tk( phase );
+   p_read_tk( parse );
    goto top;
 
    op_bit_and:
@@ -202,10 +202,10 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &bit_and->node;
       bit_and = NULL;
    }
-   if ( phase->tk == TK_BIT_AND ) {
-      bit_and = alloc_binary( BOP_BIT_AND, &phase->tk_pos );
+   if ( parse->tk == TK_BIT_AND ) {
+      bit_and = alloc_binary( BOP_BIT_AND, &parse->tk_pos );
       bit_and->lside = reading->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
       goto top;
    }
 
@@ -215,10 +215,10 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &bit_xor->node;
       bit_xor = NULL;
    }
-   if ( phase->tk == TK_BIT_XOR ) {
-      bit_xor = alloc_binary( BOP_BIT_XOR, &phase->tk_pos );
+   if ( parse->tk == TK_BIT_XOR ) {
+      bit_xor = alloc_binary( BOP_BIT_XOR, &parse->tk_pos );
       bit_xor->lside = reading->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
       goto top;
    }
 
@@ -228,10 +228,10 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &bit_or->node;
       bit_or = NULL;
    }
-   if ( phase->tk == TK_BIT_OR ) {
-      bit_or = alloc_binary( BOP_BIT_OR, &phase->tk_pos );
+   if ( parse->tk == TK_BIT_OR ) {
+      bit_or = alloc_binary( BOP_BIT_OR, &parse->tk_pos );
       bit_or->lside = reading->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
       goto top;
    }
 
@@ -241,10 +241,10 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &log_and->node;
       log_and = NULL;
    }
-   if ( phase->tk == TK_LOG_AND ) {
-      log_and = alloc_binary( BOP_LOG_AND, &phase->tk_pos );
+   if ( parse->tk == TK_LOG_AND ) {
+      log_and = alloc_binary( BOP_LOG_AND, &parse->tk_pos );
       log_and->lside = reading->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
       goto top;
    }
 
@@ -254,40 +254,40 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       reading->node = &log_or->node;
       log_or = NULL;
    }
-   if ( phase->tk == TK_LOG_OR ) {
-      log_or = alloc_binary( BOP_LOG_OR, &phase->tk_pos );
+   if ( parse->tk == TK_LOG_OR ) {
+      log_or = alloc_binary( BOP_LOG_OR, &parse->tk_pos );
       log_or->lside = reading->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
       goto top;
    }
 
    // Conditional operator.
    // -----------------------------------------------------------------------
-   if ( phase->tk == TK_QUESTION_MARK ) {
+   if ( parse->tk == TK_QUESTION_MARK ) {
       struct conditional* cond = mem_alloc( sizeof( *cond ) );
       cond->node.type = NODE_CONDITIONAL;
-      cond->pos = phase->tk_pos;
+      cond->pos = parse->tk_pos;
       cond->left = reading->node;
       cond->middle = NULL;
       cond->right = NULL;
       cond->left_value = 0;
       cond->folded = false;
-      p_read_tk( phase );
+      p_read_tk( parse );
       // Middle operand is optional.
-      if ( phase->tk != TK_COLON ) {
-         read_op( phase, reading );
+      if ( parse->tk != TK_COLON ) {
+         read_op( parse, reading );
          cond->middle = reading->node;
       }
-      p_test_tk( phase, TK_COLON );
-      p_read_tk( phase );
-      read_op( phase, reading );
+      p_test_tk( parse, TK_COLON );
+      p_read_tk( parse );
+      read_op( parse, reading );
       cond->right = reading->node;
       reading->node = &cond->node;
    }
 
    // -----------------------------------------------------------------------
    if ( ! reading->skip_assign ) {
-      switch ( phase->tk ) {
+      switch ( parse->tk ) {
       case TK_ASSIGN:
          op = AOP_NONE;
          break;
@@ -330,9 +330,9 @@ void read_op( struct parse* phase, struct expr_reading* reading ) {
       assign->op = op;
       assign->lside = reading->node;
       assign->rside = NULL;
-      assign->pos = phase->tk_pos;
-      p_read_tk( phase );
-      read_op( phase, reading );
+      assign->pos = parse->tk_pos;
+      p_read_tk( parse );
+      read_op( parse, reading );
       assign->rside = reading->node;
       reading->node = &assign->node;
    }
@@ -350,9 +350,9 @@ struct binary* alloc_binary( int op, struct pos* pos ) {
    return binary;
 }
 
-void read_operand( struct parse* phase, struct expr_reading* reading ) {
+void read_operand( struct parse* parse, struct expr_reading* reading ) {
    int op = UOP_NONE;
-   switch ( phase->tk ) {
+   switch ( parse->tk ) {
    case TK_INC:
       op = UOP_PRE_INC;
       break;
@@ -375,16 +375,16 @@ void read_operand( struct parse* phase, struct expr_reading* reading ) {
       break;
    }
    if ( op != UOP_NONE ) {
-      struct pos pos = phase->tk_pos;
-      p_read_tk( phase );
-      read_operand( phase, reading );
+      struct pos pos = parse->tk_pos;
+      p_read_tk( parse );
+      read_operand( parse, reading );
       struct unary* unary = alloc_unary( op, &pos );
       unary->operand = reading->node;
       reading->node = &unary->node;
    }
    else {
-      read_primary( phase, reading );
-      read_postfix( phase, reading );
+      read_primary( parse, reading );
+      read_postfix( parse, reading );
    }
 }
 
@@ -397,55 +397,55 @@ struct unary* alloc_unary( int op, struct pos* pos ) {
    return unary;
 }
 
-void read_primary( struct parse* phase, struct expr_reading* reading ) {
-   if ( phase->tk == TK_ID ) {
+void read_primary( struct parse* parse, struct expr_reading* reading ) {
+   if ( parse->tk == TK_ID ) {
       struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
       usage->node.type = NODE_NAME_USAGE;
-      usage->text = phase->tk_text;
-      usage->pos = phase->tk_pos;
+      usage->text = parse->tk_text;
+      usage->pos = parse->tk_pos;
       usage->object = NULL;
-      usage->lib_id = phase->task->library->id;
+      usage->lib_id = parse->task->library->id;
       reading->node = &usage->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_LIT_STRING ) {
-      read_string( phase, reading );
+   else if ( parse->tk == TK_LIT_STRING ) {
+      read_string( parse, reading );
    }
-   else if ( phase->tk == TK_REGION ) {
+   else if ( parse->tk == TK_REGION ) {
       static struct node node = { NODE_REGION_HOST };
       reading->node = &node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_UPMOST ) {
+   else if ( parse->tk == TK_UPMOST ) {
       static struct node node = { NODE_REGION_UPMOST };
       reading->node = &node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_TRUE ) {
+   else if ( parse->tk == TK_TRUE ) {
       static struct boolean boolean = { { NODE_BOOLEAN }, 1 };
       reading->node = &boolean.node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_FALSE ) {
+   else if ( parse->tk == TK_FALSE ) {
       static struct boolean boolean = { { NODE_BOOLEAN }, 0 };
       reading->node = &boolean.node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_STRCPY ) {
-      read_strcpy( phase, reading );
+   else if ( parse->tk == TK_STRCPY ) {
+      read_strcpy( parse, reading );
    }
-   else if ( phase->tk == TK_PAREN_L ) {
+   else if ( parse->tk == TK_PAREN_L ) {
       struct paren* paren = mem_alloc( sizeof( *paren ) );
       paren->node.type = NODE_PAREN;
-      p_read_tk( phase );
-      read_op( phase, reading );
-      p_test_tk( phase, TK_PAREN_R );
-      p_read_tk( phase );
+      p_read_tk( parse );
+      read_op( parse, reading );
+      p_test_tk( parse, TK_PAREN_R );
+      p_read_tk( parse );
       paren->inside = reading->node;
       reading->node = &paren->node;
    }
    else {
-      switch ( phase->tk ) {
+      switch ( parse->tk ) {
       case TK_LIT_DECIMAL:
       case TK_LIT_OCTAL:
       case TK_LIT_HEX:
@@ -454,39 +454,39 @@ void read_primary( struct parse* phase, struct expr_reading* reading ) {
       case TK_LIT_CHAR:
          break;
       default:
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-            "unexpected %s", p_get_token_name( phase->tk ) );
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "unexpected %s", p_get_token_name( parse->tk ) );
          // For areas of code where an expression is to be expected. Only show
          // this message when not a single piece of the expression is read.
          if ( reading->expect_expr &&
-            t_same_pos( &phase->tk_pos, &reading->pos ) ) {
-            p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
+            t_same_pos( &parse->tk_pos, &reading->pos ) ) {
+            p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
                "expecting an expression here" );
          }
-         p_bail( phase );
+         p_bail( parse );
       }
       struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
       literal->node.type = NODE_LITERAL;
-      literal->value = p_extract_literal_value( phase );
+      literal->value = p_extract_literal_value( parse );
       reading->node = &literal->node;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
 }
 
-void read_string( struct parse* phase, struct expr_reading* reading ) {
-   p_test_tk( phase, TK_LIT_STRING );
+void read_string( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_LIT_STRING );
    bool first_time = false;
-   struct indexed_string* string = intern_indexed_string( phase, phase->tk_text,
-      phase->tk_length, &first_time );
+   struct indexed_string* string = intern_indexed_string( parse, parse->tk_text,
+      parse->tk_length, &first_time );
    string->in_constant = reading->in_constant;
-   string->in_main_file = ( phase->source == phase->main_source );
+   string->in_main_file = ( parse->source == parse->main_source );
    if ( first_time ) {
-      string->imported = phase->task->library->imported;
+      string->imported = parse->task->library->imported;
    }
    else {
       // If an imported string is found in the main library, then the string
       // should NOT be considered imported.
-      if ( phase->task->library == phase->task->library_main ) {
+      if ( parse->task->library == parse->task->library_main ) {
          string->imported = false;
       }
    }
@@ -495,13 +495,13 @@ void read_string( struct parse* phase, struct expr_reading* reading ) {
    usage->string = string;
    reading->node = &usage->node;
    reading->has_str = true;
-   p_read_tk( phase );
+   p_read_tk( parse );
 }
 
-struct indexed_string* intern_indexed_string( struct parse* phase, char* value,
+struct indexed_string* intern_indexed_string( struct parse* parse, char* value,
    int length, bool* first_time ) {
    struct indexed_string* prev_string = NULL;
-   struct indexed_string* string =  phase->task->str_table.head_sorted;
+   struct indexed_string* string =  parse->task->str_table.head_sorted;
    while ( string ) {
       int result = strcmp( string->value, value );
       if ( result == 0 ) {
@@ -527,21 +527,21 @@ struct indexed_string* intern_indexed_string( struct parse* phase, char* value,
       string->used = false;
       string->imported = false;
       string->in_main_file = false;
-      if ( phase->task->str_table.head ) {
-         phase->task->str_table.tail->next = string;
+      if ( parse->task->str_table.head ) {
+         parse->task->str_table.tail->next = string;
       }
       else {
-         phase->task->str_table.head = string;
+         parse->task->str_table.head = string;
       }
-      phase->task->str_table.tail = string;
+      parse->task->str_table.tail = string;
       // List sorted alphabetically.
       if ( prev_string ) {
          string->next_sorted = prev_string->next_sorted;
          prev_string->next_sorted = string;
       }
       else {
-         string->next_sorted = phase->task->str_table.head_sorted;
-         phase->task->str_table.head_sorted = string;
+         string->next_sorted = parse->task->str_table.head_sorted;
+         parse->task->str_table.head_sorted = string;
       }
       if ( first_time ) {
          *first_time = true;
@@ -550,21 +550,21 @@ struct indexed_string* intern_indexed_string( struct parse* phase, char* value,
    return string;
 }
 
-int p_extract_literal_value( struct parse* phase ) {
-   if ( phase->tk == TK_LIT_DECIMAL ) {
-      return convert_numerictoken_to_int( phase, 10 );
+int p_extract_literal_value( struct parse* parse ) {
+   if ( parse->tk == TK_LIT_DECIMAL ) {
+      return convert_numerictoken_to_int( parse, 10 );
    }
-   else if ( phase->tk == TK_LIT_OCTAL ) {
-      return convert_numerictoken_to_int( phase, 8 );
+   else if ( parse->tk == TK_LIT_OCTAL ) {
+      return convert_numerictoken_to_int( parse, 8 );
    }
-   else if ( phase->tk == TK_LIT_HEX ) {
+   else if ( parse->tk == TK_LIT_HEX ) {
       // NOTE: The hexadecimal literal is converted without considering whether
       // the number can fit into a signed integer, the destination type.
       int value = 0;
       int i = 0;
-      while ( phase->tk_text[ i ] ) {
+      while ( parse->tk_text[ i ] ) {
          int digit_value = 0;
-         switch ( phase->tk_text[ i ] ) {
+         switch ( parse->tk_text[ i ] ) {
          case 'a': case 'A': digit_value = 0xA; break;
          case 'b': case 'B': digit_value = 0xB; break;
          case 'c': case 'C': digit_value = 0xC; break;
@@ -572,7 +572,7 @@ int p_extract_literal_value( struct parse* phase ) {
          case 'e': case 'E': digit_value = 0xE; break;
          case 'f': case 'F': digit_value = 0xF; break;
          default:
-            digit_value = phase->tk_text[ i ] - '0';
+            digit_value = parse->tk_text[ i ] - '0';
             break;
          }
          // NOTE: Undefined behavior may occur when shifting of a signed
@@ -582,25 +582,25 @@ int p_extract_literal_value( struct parse* phase ) {
       }
       return value;
    }
-   else if ( phase->tk == TK_LIT_BINARY ) {
+   else if ( parse->tk == TK_LIT_BINARY ) {
       unsigned int temp = 0;
-      for ( int i = 0; phase->tk_text[ i ]; ++i ) {
-         temp = ( temp << 1 ) | ( phase->tk_text[ i ] - '0' );
+      for ( int i = 0; parse->tk_text[ i ]; ++i ) {
+         temp = ( temp << 1 ) | ( parse->tk_text[ i ] - '0' );
       }
       int value = 0;
       memcpy( &value, &temp, sizeof( value ) );
       return value;
    }
-   else if ( phase->tk == TK_LIT_FIXED ) {
-      double value = atof( phase->tk_text );
+   else if ( parse->tk == TK_LIT_FIXED ) {
+      double value = atof( parse->tk_text );
       return
          // Whole.
          ( ( int ) value << 16 ) +
          // Fraction.
          ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
    }
-   else if ( phase->tk == TK_LIT_CHAR ) {
-      return phase->tk_text[ 0 ];
+   else if ( parse->tk == TK_LIT_CHAR ) {
+      return parse->tk_text[ 0 ];
    }
    else {
       return 0;
@@ -617,81 +617,81 @@ int p_extract_literal_value( struct parse* phase ) {
 // operation, and is done elsewhere.
 // TODO: Do underflow/overflow check on intermediate results of a constant
 // expression, not just on a literal operand.
-int convert_numerictoken_to_int( struct parse* phase, int base ) {
+int convert_numerictoken_to_int( struct parse* parse, int base ) {
    errno = 0;
    char* temp = NULL;
-   long value = strtol( phase->tk_text, &temp, base );
+   long value = strtol( parse->tk_text, &temp, base );
    // NOTE: The token should already be of the form that strtol() accepts.
    // Maybe make this an internal compiler error, as a sanity check?
-   if ( temp == phase->tk_text || *temp != '\0' ) {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-         "invalid numeric value `%s`", phase->tk_text );
-      p_bail( phase );
+   if ( temp == parse->tk_text || *temp != '\0' ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "invalid numeric value `%s`", parse->tk_text );
+      p_bail( parse );
    }
    if ( ( value == LONG_MAX && errno == ERANGE ) ||
       value > ( long ) ENGINE_MAX_INT_VALUE ) {
-      p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-         "numeric value `%s` is too large", phase->tk_text );
-      p_bail( phase );
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "numeric value `%s` is too large", parse->tk_text );
+      p_bail( parse );
    }
    return ( int ) value;
 }
 
-void read_postfix( struct parse* phase, struct expr_reading* reading ) {
+void read_postfix( struct parse* parse, struct expr_reading* reading ) {
    while ( true ) {
-      if ( phase->tk == TK_BRACKET_L ) {
+      if ( parse->tk == TK_BRACKET_L ) {
          struct subscript* sub = mem_alloc( sizeof( *sub ) );
          sub->node.type = NODE_SUBSCRIPT;
-         sub->pos = phase->tk_pos;
-         p_read_tk( phase );
+         sub->pos = parse->tk_pos;
+         p_read_tk( parse );
          struct expr_reading index;
          p_init_expr_reading( &index, reading->in_constant, false, false,
             true );
-         p_read_expr( phase, &index );
-         p_test_tk( phase, TK_BRACKET_R );
-         p_read_tk( phase );
+         p_read_expr( parse, &index );
+         p_test_tk( parse, TK_BRACKET_R );
+         p_read_tk( parse );
          sub->index = index.output_node;
          sub->lside = reading->node;
          reading->node = &sub->node;
       }
-      else if ( phase->tk == TK_DOT ) {
-         struct pos pos = phase->tk_pos;
-         p_read_tk( phase );
-         p_test_tk( phase, TK_ID );
-         struct access* access = alloc_access( phase->tk_text, pos );
+      else if ( parse->tk == TK_DOT ) {
+         struct pos pos = parse->tk_pos;
+         p_read_tk( parse );
+         p_test_tk( parse, TK_ID );
+         struct access* access = alloc_access( parse->tk_text, pos );
          access->lside = reading->node;
          reading->node = &access->node;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
-      else if ( phase->tk == TK_COLON_2 ) {
-         struct pos pos = phase->tk_pos;
-         p_read_tk( phase );
-         p_test_tk( phase, TK_ID );
-         struct access* access = alloc_access( phase->tk_text, pos );
+      else if ( parse->tk == TK_COLON_2 ) {
+         struct pos pos = parse->tk_pos;
+         p_read_tk( parse );
+         p_test_tk( parse, TK_ID );
+         struct access* access = alloc_access( parse->tk_text, pos );
          access->lside = reading->node;
          access->is_region = true;
          reading->node = &access->node;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
-      else if ( phase->tk == TK_PAREN_L ) {
+      else if ( parse->tk == TK_PAREN_L ) {
          if ( ! reading->skip_call ) {
-            read_call( phase, reading );
+            read_call( parse, reading );
          }
          else {
             break;
          }
       }
-      else if ( phase->tk == TK_INC ) {
-         struct unary* inc = alloc_unary( UOP_POST_INC, &phase->tk_pos );
+      else if ( parse->tk == TK_INC ) {
+         struct unary* inc = alloc_unary( UOP_POST_INC, &parse->tk_pos );
          inc->operand = reading->node;
          reading->node = &inc->node;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
-      else if ( phase->tk == TK_DEC ) {
-         struct unary* dec = alloc_unary( UOP_POST_DEC, &phase->tk_pos );
+      else if ( parse->tk == TK_DEC ) {
+         struct unary* dec = alloc_unary( UOP_POST_DEC, &parse->tk_pos );
          dec->operand = reading->node;
          reading->node = &dec->node;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
       else {
          break;
@@ -710,51 +710,51 @@ struct access* alloc_access( char* name, struct pos pos ) {
    return access;
 }
 
-void read_call( struct parse* phase, struct expr_reading* reading ) {
-   struct pos pos = phase->tk_pos;
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+void read_call( struct parse* parse, struct expr_reading* reading ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct list args;
    list_init( &args );
    // Format list:
-   if ( phase->tk == TK_ID && p_peek( phase ) == TK_COLON ) {
-      list_append( &args, p_read_format_item( phase, true ) );
-      if ( phase->tk == TK_SEMICOLON ) {
-         p_read_tk( phase );
-         read_call_args( phase, reading, &args );
+   if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
+      list_append( &args, p_read_format_item( parse, true ) );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
+         read_call_args( parse, reading, &args );
       }
    }
    // Format block:
-   else if ( phase->tk == TK_BRACE_L ) {
+   else if ( parse->tk == TK_BRACE_L ) {
       struct format_block_usage* usage = mem_alloc( sizeof( *usage ) );
       usage->node.type = NODE_FORMAT_BLOCK_USAGE;
       usage->block = NULL;
       usage->next = NULL;
-      usage->pos = phase->tk_pos;
+      usage->pos = parse->tk_pos;
       usage->obj_pos = 0;
       list_append( &args, usage );
-      p_read_tk( phase );
-      p_test_tk( phase, TK_BRACE_R );
-      p_read_tk( phase );
-      if ( phase->tk == TK_SEMICOLON ) {
-         p_read_tk( phase );
-         read_call_args( phase, reading, &args );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_BRACE_R );
+      p_read_tk( parse );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
+         read_call_args( parse, reading, &args );
       }
    }
    else {
       // This relic is not necessary in new code. The compiler is smart enough
       // to figure out when to use the constant variant of an instruction.
-      if ( phase->tk == TK_CONST ) {
-         p_read_tk( phase );
-         p_test_tk( phase, TK_COLON );
-         p_read_tk( phase );
+      if ( parse->tk == TK_CONST ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_COLON );
+         p_read_tk( parse );
       }
-      if ( phase->tk != TK_PAREN_R ) {
-         read_call_args( phase, reading, &args );
+      if ( parse->tk != TK_PAREN_R ) {
+         read_call_args( parse, reading, &args );
       }
    }
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
    struct call* call = mem_alloc( sizeof( *call ) );
    call->node.type = NODE_CALL;
    call->pos = pos;
@@ -765,15 +765,15 @@ void read_call( struct parse* phase, struct expr_reading* reading ) {
    reading->node = &call->node;
 }
 
-void read_call_args( struct parse* phase, struct expr_reading* reading,
+void read_call_args( struct parse* parse, struct expr_reading* reading,
    struct list* args ) {
    while ( true ) {
       struct expr_reading arg;
       p_init_expr_reading( &arg, reading->in_constant, false, false, true );
-      p_read_expr( phase, &arg );
+      p_read_expr( parse, &arg );
       list_append( args, arg.output_node );
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
       }
       else {
          break;
@@ -781,11 +781,11 @@ void read_call_args( struct parse* phase, struct expr_reading* reading,
    }
 }
 
-struct format_item* p_read_format_item( struct parse* phase, bool colon ) {
+struct format_item* p_read_format_item( struct parse* parse, bool colon ) {
    struct format_item* head = NULL;
    struct format_item* tail;
    while ( true ) {
-      struct format_item* item = read_format_item( phase, colon );
+      struct format_item* item = read_format_item( parse, colon );
       if ( head ) {
          tail->next = item;
       }
@@ -793,8 +793,8 @@ struct format_item* p_read_format_item( struct parse* phase, bool colon ) {
          head = item;
       }
       tail = item;
-      if ( phase->tk == TK_COMMA ) {
-         p_read_tk( phase );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
       }
       else {
          return head;

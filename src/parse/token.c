@@ -14,50 +14,50 @@ struct request {
    bool err_loaded_before;
 };
 
-static void load_source( struct parse* phase, struct request* );
+static void load_source( struct parse* parse, struct request* );
 static void init_request( struct request*, const char* );
-static bool find_source_file( struct parse* phase, struct request* request );
-static bool source_loading( struct parse* phase, struct request* request );
-static void open_source_file( struct parse* phase, struct request* request );
-static struct file_entry* assign_file_entry( struct parse* phase,
+static bool find_source_file( struct parse* parse, struct request* request );
+static bool source_loading( struct parse* parse, struct request* request );
+static void open_source_file( struct parse* parse, struct request* request );
+static struct file_entry* assign_file_entry( struct parse* parse,
    struct request* request );
-static struct file_entry* create_file_entry( struct parse* phase,
+static struct file_entry* create_file_entry( struct parse* parse,
    struct request* request );
-static void link_file_entry( struct parse* phase, struct file_entry* entry );
-static enum tk peek( struct parse* phase, int );
-static void read_source( struct parse* phase, struct token* );
-static void escape_ch( struct parse* phase, char*, char**, bool );
-static char read_ch( struct parse* phase );
+static void link_file_entry( struct parse* parse, struct file_entry* entry );
+static enum tk peek( struct parse* parse, int );
+static void read_source( struct parse* parse, struct token* );
+static void escape_ch( struct parse* parse, char*, char**, bool );
+static char read_ch( struct parse* parse );
 
-void p_load_main_source( struct parse* phase ) {
+void p_load_main_source( struct parse* parse ) {
    struct request request;
-   init_request( &request, phase->task->options->source_file );
-   load_source( phase, &request );
+   init_request( &request, parse->task->options->source_file );
+   load_source( parse, &request );
    if ( request.source ) {
-      phase->main_source = request.source;
-      phase->task->library_main->file_pos.id = request.source->file->id;
+      parse->main_source = request.source;
+      parse->task->library_main->file_pos.id = request.source->file->id;
    }
    else {
-      p_diag( phase, DIAG_ERR, "failed to load source file: %s",
-         phase->task->options->source_file );
-      p_bail( phase );
+      p_diag( parse, DIAG_ERR, "failed to load source file: %s",
+         parse->task->options->source_file );
+      p_bail( parse );
    }
 }
 
-struct source* p_load_included_source( struct parse* phase ) {
+struct source* p_load_included_source( struct parse* parse ) {
    struct request request;
-   init_request( &request, phase->tk_text );
-   load_source( phase, &request );
+   init_request( &request, parse->tk_text );
+   load_source( parse, &request );
    if ( ! request.source ) {
       if ( request.err_loading ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "file already being loaded" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-            "failed to load file: %s", phase->tk_text );
-         p_bail( phase );
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "failed to load file: %s", parse->tk_text );
+         p_bail( parse );
       }
    }
    return request.source;
@@ -73,10 +73,10 @@ void init_request( struct request* request, const char* path ) {
    request->err_loading = false;
 }
 
-void load_source( struct parse* phase, struct request* request ) {
-   if ( find_source_file( phase, request ) ) {
-      if ( ! source_loading( phase, request ) ) {
-         open_source_file( phase, request );
+void load_source( struct parse* parse, struct request* request ) {
+   if ( find_source_file( parse, request ) ) {
+      if ( ! source_loading( parse, request ) ) {
+         open_source_file( parse, request );
       }
       else {
          request->err_loading = true;
@@ -89,16 +89,16 @@ void load_source( struct parse* phase, struct request* request ) {
    str_deinit( &request->path );
 }
 
-bool find_source_file( struct parse* phase, struct request* request ) {
+bool find_source_file( struct parse* parse, struct request* request ) {
    // Try path directly.
    str_append( &request->path, request->given_path );
    if ( c_read_fileid( &request->fileid, request->path.value ) ) {
       return true;
    }
    // Try directory of current file.
-   if ( phase->source ) {
-      str_copy( &request->path, phase->source->file->full_path.value,
-         phase->source->file->full_path.length );
+   if ( parse->source ) {
+      str_copy( &request->path, parse->source->file->full_path.value,
+         parse->source->file->full_path.length );
       c_extract_dirname( &request->path );
       str_append( &request->path, "/" );
       str_append( &request->path, request->given_path );
@@ -108,7 +108,7 @@ bool find_source_file( struct parse* phase, struct request* request ) {
    }
    // Try user-specified directories.
    list_iter_t i;
-   list_iter_init( &i, &phase->task->options->includes );
+   list_iter_init( &i, &parse->task->options->includes );
    while ( ! list_end( &i ) ) {
       char* include = list_data( &i ); 
       str_clear( &request->path );
@@ -123,8 +123,8 @@ bool find_source_file( struct parse* phase, struct request* request ) {
    return false;
 }
 
-bool source_loading( struct parse* phase, struct request* request ) {
-   struct source* source = phase->source;
+bool source_loading( struct parse* parse, struct request* request ) {
+   struct source* source = parse->source;
    while ( source &&
       ! c_same_fileid( &request->fileid, &source->file->file_id ) ) {
       source = source->prev;
@@ -132,7 +132,7 @@ bool source_loading( struct parse* phase, struct request* request ) {
    return ( source != NULL );
 }
 
-void open_source_file( struct parse* phase, struct request* request ) {
+void open_source_file( struct parse* parse, struct request* request ) {
    FILE* fh = fopen( request->path.value, "rb" );
    if ( ! fh ) {
       request->err_open = true;
@@ -153,35 +153,35 @@ void open_source_file( struct parse* phase, struct request* request ) {
    }
    // Create source.
    struct source* source = mem_alloc( sizeof( *source ) );
-   source->file = assign_file_entry( phase, request );
+   source->file = assign_file_entry( parse, request );
    source->text = text;
    source->left = text;
    source->save = save;
    source->save[ 0 ] = 0;
-   source->prev = phase->source;
+   source->prev = parse->source;
    source->line = 1;
    source->column = 0;
    source->find_dirc = true;
    source->imported = false;
    source->ch = ' ';
    request->source = source;
-   phase->source = source;
-   phase->tk = TK_END;
+   parse->source = source;
+   parse->tk = TK_END;
 }
 
-struct file_entry* assign_file_entry( struct parse* phase,
+struct file_entry* assign_file_entry( struct parse* parse,
    struct request* request ) {
-   struct file_entry* entry = phase->task->file_entries;
+   struct file_entry* entry = parse->task->file_entries;
    while ( entry ) {
       if ( c_same_fileid( &request->fileid, &entry->file_id ) ) {
          return entry;
       }
       entry = entry->next;
    }
-   return create_file_entry( phase, request );
+   return create_file_entry( parse, request );
 }
 
-struct file_entry* create_file_entry( struct parse* phase,
+struct file_entry* create_file_entry( struct parse* parse,
    struct request* request ) {
    struct file_entry* entry = mem_alloc( sizeof( *entry ) );
    entry->next = NULL;
@@ -190,14 +190,14 @@ struct file_entry* create_file_entry( struct parse* phase,
    str_append( &entry->path, request->given_path );
    str_init( &entry->full_path );
    c_read_full_path( request->path.value, &entry->full_path );
-   entry->id = phase->last_id;
-   ++phase->last_id;
-   link_file_entry( phase, entry );
+   entry->id = parse->last_id;
+   ++parse->last_id;
+   link_file_entry( parse, entry );
    return entry;
 }
 
-void link_file_entry( struct parse* phase, struct file_entry* entry ) {
-   struct task* task = phase->task;
+void link_file_entry( struct parse* parse, struct file_entry* entry ) {
+   struct task* task = parse->task;
    if ( task->file_entries ) {
       struct file_entry* prev = task->file_entries;
       while ( prev->next ) {
@@ -210,52 +210,52 @@ void link_file_entry( struct parse* phase, struct file_entry* entry ) {
    }
 }
 
-void p_read_tk( struct parse* phase ) {
+void p_read_tk( struct parse* parse ) {
    struct token* token = NULL;
-   if ( phase->peeked ) {
+   if ( parse->peeked ) {
       // When dequeuing, shift the queue elements. For now, this will suffice.
       // In the future, maybe use a circular buffer.
       int i = 0;
-      while ( i < phase->peeked ) {
-         phase->queue[ i ] = phase->queue[ i + 1 ];
+      while ( i < parse->peeked ) {
+         parse->queue[ i ] = parse->queue[ i + 1 ];
          ++i;
       }
-      token = &phase->queue[ 0 ];
-      --phase->peeked;
+      token = &parse->queue[ 0 ];
+      --parse->peeked;
    }
    else {
-      token = &phase->queue[ 0 ];
-      read_source( phase, token );
+      token = &parse->queue[ 0 ];
+      read_source( parse, token );
       if ( token->type == TK_END ) {
-         bool imported = phase->source->imported;
-         if ( phase->source->prev ) {
-            phase->source = phase->source->prev;
+         bool imported = parse->source->imported;
+         if ( parse->source->prev ) {
+            parse->source = parse->source->prev;
             if ( ! imported ) {
-               p_read_tk( phase );
+               p_read_tk( parse );
                return;
             }
          }
       }
    }
-   phase->tk = token->type;
-   phase->tk_text = token->text;
-   phase->tk_pos = token->pos;
-   phase->tk_length = token->length;
+   parse->tk = token->type;
+   parse->tk_text = token->text;
+   parse->tk_pos = token->pos;
+   parse->tk_length = token->length;
 }
 
-enum tk p_peek( struct parse* phase ) {
-   return peek( phase, 1 );
+enum tk p_peek( struct parse* parse ) {
+   return peek( parse, 1 );
 }
 
 // NOTE: Make sure @pos is not more than ( TK_BUFFER_SIZE - 1 ).
-enum tk peek( struct parse* phase, int pos ) {
+enum tk peek( struct parse* parse, int pos ) {
    int i = 0;
    while ( true ) {
       // Peeked tokens begin at position 1.
-      struct token* token = &phase->queue[ i + 1 ];
-      if ( i == phase->peeked ) {
-         read_source( phase, token );
-         ++phase->peeked;
+      struct token* token = &parse->queue[ i + 1 ];
+      if ( i == parse->peeked ) {
+         read_source( parse, token );
+         ++parse->peeked;
       }
       ++i;
       if ( i == pos ) {
@@ -264,9 +264,9 @@ enum tk peek( struct parse* phase, int pos ) {
    }
 }
 
-void read_source( struct parse* phase, struct token* token ) {
-   char ch = phase->source->ch;
-   char* save = phase->source->save;
+void read_source( struct parse* parse, struct token* token ) {
+   char ch = parse->source->ch;
+   char* save = parse->source->save;
    int line = 0;
    int column = 0;
    enum tk tk = TK_END;
@@ -274,19 +274,19 @@ void read_source( struct parse* phase, struct token* token ) {
    state_space:
    // -----------------------------------------------------------------------
    while ( isspace( ch ) ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
    }
 
    state_token:
    // -----------------------------------------------------------------------
-   line = phase->source->line;
-   column = phase->source->column;
+   line = parse->source->line;
+   column = parse->source->column;
    // Identifier:
    if ( isalpha( ch ) || ch == '_' ) {
       goto id;
    }
    else if ( ch == '0' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       // Binary.
       if ( ch == 'b' || ch == 'B' ) {
          goto binary_literal;
@@ -300,7 +300,7 @@ void read_source( struct parse* phase, struct token* token ) {
          save[ 0 ] = '0';
          save[ 1 ] = '.';
          save += 2;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto fraction;
       }
       // Octal.
@@ -312,62 +312,62 @@ void read_source( struct parse* phase, struct token* token ) {
       goto decimal_literal;
    }
    else if ( ch == '"' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       goto state_string;
    }
    else if ( ch == '\'' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '\'' || ! ch ) {
          struct pos pos = {
-            .line = phase->source->line,
-            .column = phase->source->column,
-            .id = phase->source->file->id
+            .line = parse->source->line,
+            .column = parse->source->column,
+            .id = parse->source->file->id
          };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "missing character in character literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       if ( ch == '\\' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          if ( ch == '\'' ) {
             save[ 0 ] = ch;
             save[ 1 ] = 0;
             save += 2;
-            ch = read_ch( phase );
+            ch = read_ch( parse );
          }
          else {
-            escape_ch( phase, &ch, &save, false );
+            escape_ch( parse, &ch, &save, false );
          }
       }
       else  {
          save[ 0 ] = ch;
          save[ 1 ] = 0;
          save += 2;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       if ( ch != '\'' ) {
-         struct pos pos = { phase->source->line, column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "multiple characters in character literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       tk = TK_LIT_CHAR;
       goto state_finish;
    }
    else if ( ch == '/' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_DIV;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto state_finish;
       }
       else if ( ch == '/' ) {
          goto state_comment;
       }
       else if ( ch == '*' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto state_comment_m;
       }
       else {
@@ -376,10 +376,10 @@ void read_source( struct parse* phase, struct token* token ) {
       }
    }
    else if ( ch == '=' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_EQ;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_ASSIGN;
@@ -387,14 +387,14 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '+' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '+' ) {
          tk = TK_INC;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_ADD;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_PLUS;
@@ -402,14 +402,14 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '-' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '-' ) {
          tk = TK_DEC;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_SUB;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_MINUS;
@@ -417,16 +417,16 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '<' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_LTE;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '<' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          if ( ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_L;
-            ch = read_ch( phase );
+            ch = read_ch( parse );
          }
          else {
             tk = TK_SHIFT_L;
@@ -438,16 +438,16 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '>' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_GTE;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '>' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          if ( ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_R;
-            ch = read_ch( phase );
+            ch = read_ch( parse );
             goto state_finish;
          }
          else {
@@ -461,14 +461,14 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '&' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '&' ) {
          tk = TK_LOG_AND;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_AND;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_BIT_AND;
@@ -476,14 +476,14 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '|' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '|' ) {
          tk = TK_LOG_OR;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_OR;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_BIT_OR;
@@ -491,10 +491,10 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '^' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_XOR;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_BIT_XOR;
@@ -502,10 +502,10 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '!' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_NEQ;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_LOG_NOT;
@@ -513,10 +513,10 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '*' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_MUL;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_STAR;
@@ -524,10 +524,10 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '%' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_MOD;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_MOD;
@@ -535,14 +535,14 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == ':' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       if ( ch == '=' ) {
          tk = TK_ASSIGN_COLON;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == ':' ) {
          tk = TK_COLON_2;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
          tk = TK_COLON;
@@ -550,11 +550,11 @@ void read_source( struct parse* phase, struct token* token ) {
       goto state_finish;
    }
    else if ( ch == '\\' ) {
-      struct pos pos = { phase->source->line, column,
-         phase->source->file->id };
-      p_diag( phase, DIAG_POS_ERR, &pos,
+      struct pos pos = { parse->source->line, column,
+         parse->source->file->id };
+      p_diag( parse, DIAG_POS_ERR, &pos,
          "`\\` not followed with newline character" );
-      p_bail( phase );
+      p_bail( parse );
    }
    // End.
    else if ( ! ch ) {
@@ -581,14 +581,14 @@ void read_source( struct parse* phase, struct token* token ) {
       while ( true ) {
          if ( singles[ i ] == ch ) {
             tk = singles[ i + 1 ];
-            ch = read_ch( phase );
+            ch = read_ch( parse );
             goto state_finish;
          }
          else if ( ! singles[ i ] ) {
-            struct pos pos = { phase->source->line, column,
-               phase->source->file->id };
-            p_diag( phase, DIAG_POS_ERR, &pos, "invalid character" );
-            p_bail( phase );
+            struct pos pos = { parse->source->line, column,
+               parse->source->file->id };
+            p_diag( parse, DIAG_POS_ERR, &pos, "invalid character" );
+            p_bail( parse );
          }
          else {
             i += 2;
@@ -603,7 +603,7 @@ void read_source( struct parse* phase, struct token* token ) {
       while ( isalnum( ch ) || ch == '_' ) {
          *save = tolower( ch );
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       *save = 0;
       ++save;
@@ -690,31 +690,31 @@ void read_source( struct parse* phase, struct token* token ) {
 
    binary_literal:
    // -----------------------------------------------------------------------
-   ch = read_ch( phase );
+   ch = read_ch( parse );
    while ( true ) {
       if ( ch == '0' || ch == '1' ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       // Underscores can be used to improve readability of a numeric literal
       // by grouping digits, and are ignored.
       else if ( ch == '_' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in binary literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
-      else if ( save == phase->source->save ) {
-         struct pos pos = { phase->source->line, column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+      else if ( save == parse->source->save ) {
+         struct pos pos = { parse->source->line, column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in binary literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          *save = 0;
@@ -726,29 +726,29 @@ void read_source( struct parse* phase, struct token* token ) {
 
    hex_literal:
    // -----------------------------------------------------------------------
-   ch = read_ch( phase );
+   ch = read_ch( parse );
    while ( true ) {
       if ( isxdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
-      else if ( save == phase->source->save ) {
-         struct pos pos = { phase->source->line, column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+      else if ( save == parse->source->save ) {
+         struct pos pos = { parse->source->line, column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in hexadecimal literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          *save = 0;
@@ -764,21 +764,21 @@ void read_source( struct parse* phase, struct token* token ) {
       if ( ch >= '0' && ch <= '7' ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          // We consider the number zero to be a decimal literal.
-         if ( save == phase->source->save ) {
+         if ( save == parse->source->save ) {
             save[ 0 ] = '0';
             save[ 1 ] = 0;
             save += 2;
@@ -799,24 +799,24 @@ void read_source( struct parse* phase, struct token* token ) {
       if ( isdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto fraction;
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          *save = 0;
@@ -832,24 +832,24 @@ void read_source( struct parse* phase, struct token* token ) {
       if ( isdigit( ch ) ) {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else if ( save[ -1 ] == '.' ) {
-         struct pos pos = { phase->source->line, column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { parse->source->line, column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in fractional part of fixed-point literal" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          *save = 0;
@@ -863,48 +863,48 @@ void read_source( struct parse* phase, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos,
+         struct pos pos = { line, column, parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else if ( ch == '"' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto state_string_concat;
       }
       else if ( ch == '\\' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          if ( ch == '"' ) {
             *save = ch;
             ++save;
-            ch = read_ch( phase );
+            ch = read_ch( parse );
          }
          // Color codes are not parsed.
          else if ( ch == 'c' || ch == 'C' ) {
             save[ 0 ] = '\\';
             save[ 1 ] = ch;
             save += 2;
-            ch = read_ch( phase );
+            ch = read_ch( parse );
          }
          else {
-            escape_ch( phase, &ch, &save, true );
+            escape_ch( parse, &ch, &save, true );
          }
       }
       else {
          *save = ch;
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
    }
 
    state_string_concat:
    // -----------------------------------------------------------------------
    while ( isspace( ch ) ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
    }
    // Next string.
    if ( ch == '"' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       goto state_string;
    }
    // Done.
@@ -918,7 +918,7 @@ void read_source( struct parse* phase, struct token* token ) {
    state_comment:
    // -----------------------------------------------------------------------
    while ( ch && ch != '\n' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
    }
    goto state_space;
 
@@ -926,30 +926,30 @@ void read_source( struct parse* phase, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos, "unterminated comment" );
-         p_bail( phase );
+         struct pos pos = { line, column, parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos, "unterminated comment" );
+         p_bail( parse );
       }
       else if ( ch == '*' ) {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          if ( ch == '/' ) {
-            ch = read_ch( phase );
+            ch = read_ch( parse );
             goto state_space;
          }
       }
       else {
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
    }
 
    state_finish:
    // -----------------------------------------------------------------------
    token->type = tk;
-   if ( save != phase->source->save ) {
-      token->text = phase->source->save;
+   if ( save != parse->source->save ) {
+      token->text = parse->source->save;
       // Minus 1 so to not include the NUL character in the count.
-      token->length = save - phase->source->save - 1;
-      phase->source->save = save;
+      token->length = save - parse->source->save - 1;
+      parse->source->save = save;
    }
    else {
       token->text = NULL;
@@ -957,39 +957,39 @@ void read_source( struct parse* phase, struct token* token ) {
    }
    token->pos.line = line;
    token->pos.column = column;
-   token->pos.id = phase->source->file->id;
-   phase->source->ch = ch;
+   token->pos.id = parse->source->file->id;
+   parse->source->ch = ch;
 }
 
-char read_ch( struct parse* phase ) {
+char read_ch( struct parse* parse ) {
    // Determine position of character.
-   char* left = phase->source->left;
+   char* left = parse->source->left;
    if ( left[ -1 ] ) {
       if ( left[ -1 ] == '\n' ) {
-         ++phase->source->line;
-         phase->source->column = 0;
+         ++parse->source->line;
+         parse->source->column = 0;
       }
       else if ( left[ -1 ] == '\t' ) {
-         phase->source->column += phase->task->options->tab_size -
-            ( ( phase->source->column + phase->task->options->tab_size ) %
-            phase->task->options->tab_size );
+         parse->source->column += parse->task->options->tab_size -
+            ( ( parse->source->column + parse->task->options->tab_size ) %
+            parse->task->options->tab_size );
       }
       else {
-         ++phase->source->column;
+         ++parse->source->column;
       }
    }
    // Line concatenation.
    while ( left[ 0 ] == '\\' ) {
       // Linux.
       if ( left[ 1 ] == '\n' ) {
-         ++phase->source->line;
-         phase->source->column = 0;
+         ++parse->source->line;
+         parse->source->column = 0;
          left += 2;
       }
       // Windows.
       else if ( left[ 1 ] == '\r' && left[ 2 ] == '\n' ) {
-         ++phase->source->line;
-         phase->source->column = 0;
+         ++parse->source->line;
+         parse->source->column = 0;
          left += 3;
       }
       else {
@@ -998,31 +998,31 @@ char read_ch( struct parse* phase ) {
    }
    // Process character.
    if ( *left == '\n' ) {
-      phase->source->left = left + 1;
+      parse->source->left = left + 1;
       return '\n';
    }
    else if ( *left == '\r' && left[ 1 ] == '\n' ) {
-      phase->source->left = left + 2;
+      parse->source->left = left + 2;
       return '\n';
    }
    else {
-      phase->source->left = left + 1;
+      parse->source->left = left + 1;
       return *left;
    }
 }
 
-void escape_ch( struct parse* phase, char* ch_out, char** save_out,
+void escape_ch( struct parse* parse, char* ch_out, char** save_out,
    bool in_string ) {
    char ch = *ch_out;
    char* save = *save_out;
    if ( ! ch ) {
       empty: ;
-      struct pos pos = { phase->source->line, phase->source->column,
-         phase->source->file->id };
-      p_diag( phase, DIAG_POS_ERR, &pos, "empty escape sequence" );
-      p_bail( phase );
+      struct pos pos = { parse->source->line, parse->source->column,
+         parse->source->file->id };
+      p_diag( parse, DIAG_POS_ERR, &pos, "empty escape sequence" );
+      p_bail( parse );
    }
-   int slash = phase->source->column - 1;
+   int slash = parse->source->column - 1;
    static const char singles[] = {
       'a', '\a',
       'b', '\b',
@@ -1038,7 +1038,7 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
       if ( singles[ i ] == ch ) {
          *save = singles[ i + 1 ];
          ++save;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          goto finish;
       }
       i += 2;
@@ -1050,13 +1050,13 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
    while ( ch >= '0' && ch <= '7' ) {
       if ( i == 3 ) {
          too_many_digits: ;
-         struct pos pos = { phase->source->line, phase->source->column,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos, "too many digits" );
-         p_bail( phase );
+         struct pos pos = { parse->source->line, parse->source->column,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos, "too many digits" );
+         p_bail( parse );
       }
       buffer[ i ] = ch;
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       ++i;
    }
    if ( i ) {
@@ -1076,11 +1076,11 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
          save[ 0 ] = '\\';
          save += 1;
       }
-      ch = read_ch( phase );
+      ch = read_ch( parse );
    }
    // Hexadecimal notation.
    else if ( ch == 'x' || ch == 'X' ) {
-      ch = read_ch( phase );
+      ch = read_ch( parse );
       i = 0;
       while (
          ( ch >= '0' && ch <= '9' ) ||
@@ -1090,7 +1090,7 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
             goto too_many_digits;
          }
          buffer[ i ] = ch;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
          ++i;
       }
       if ( ! i ) {
@@ -1107,18 +1107,18 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
          // TODO: Merge this code and the code above. Both handle the newline
          // character.
          if ( ch == '\n' ) {
-            p_bail( phase );
+            p_bail( parse );
          }
          save[ 0 ] = '\\';
          save[ 1 ] = ch;
          save += 2;
-         ch = read_ch( phase );
+         ch = read_ch( parse );
       }
       else {
-         struct pos pos = { phase->source->line, slash,
-            phase->source->file->id };
-         p_diag( phase, DIAG_POS_ERR, &pos, "unknown escape sequence" );
-         p_bail( phase );
+         struct pos pos = { parse->source->line, slash,
+            parse->source->file->id };
+         p_diag( parse, DIAG_POS_ERR, &pos, "unknown escape sequence" );
+         p_bail( parse );
       }
    }
    goto finish;
@@ -1127,10 +1127,10 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
    // -----------------------------------------------------------------------
    // Code needs to be a valid character.
    if ( code > 127 ) {
-      struct pos pos = { phase->source->line, slash,
-         phase->source->file->id };
-      p_diag( phase, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
-      p_bail( phase );
+      struct pos pos = { parse->source->line, slash,
+         parse->source->file->id };
+      p_diag( parse, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
+      p_bail( parse );
    }
    // In a string context, the NUL character must not be escaped. Leave it
    // for the engine to process it.
@@ -1150,21 +1150,21 @@ void escape_ch( struct parse* phase, char* ch_out, char** save_out,
    *save_out = save;
 }
 
-void p_test_tk( struct parse* phase, enum tk expected ) {
-   if ( phase->tk != expected ) {
-      if ( phase->tk == TK_RESERVED ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
+void p_test_tk( struct parse* parse, enum tk expected ) {
+   if ( parse->tk != expected ) {
+      if ( parse->tk == TK_RESERVED ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "`%s` is a reserved identifier that is not currently used",
-            phase->tk_text );
+            parse->tk_text );
       }
       else {
-         p_diag( phase, DIAG_POS_ERR | DIAG_SYNTAX, &phase->tk_pos, 
-            "unexpected %s", p_get_token_name( phase->tk ) );
-         p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &phase->tk_pos,
+         p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos, 
+            "unexpected %s", p_get_token_name( parse->tk ) );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
             "expecting %s here", p_get_token_name( expected ),
-            p_get_token_name( phase->tk ) );
+            p_get_token_name( parse->tk ) );
       }
-      p_bail( phase );
+      p_bail( parse );
    }
 }
 
@@ -1304,37 +1304,37 @@ void p_increment_pos( struct pos* pos, enum tk tk ) {
    }
 }
 
-void p_skip_block( struct parse* phase ) {
-   while ( phase->tk != TK_END && phase->tk != TK_BRACE_L ) {
-      p_read_tk( phase );
+void p_skip_block( struct parse* parse ) {
+   while ( parse->tk != TK_END && parse->tk != TK_BRACE_L ) {
+      p_read_tk( parse );
    }
-   p_test_tk( phase, TK_BRACE_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_BRACE_L );
+   p_read_tk( parse );
    int depth = 0;
    while ( true ) {
-      if ( phase->tk == TK_BRACE_L ) {
+      if ( parse->tk == TK_BRACE_L ) {
          ++depth;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
-      else if ( phase->tk == TK_BRACE_R ) {
+      else if ( parse->tk == TK_BRACE_R ) {
          if ( depth ) {
             --depth;
-            p_read_tk( phase );
+            p_read_tk( parse );
          }
          else {
             break;
          }
       }
-      else if ( phase->tk == TK_LIB_END ) {
+      else if ( parse->tk == TK_LIB_END ) {
          break;
       }
-      else if ( phase->tk == TK_END ) {
+      else if ( parse->tk == TK_END ) {
          break;
       }
       else {
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
    }
-   p_test_tk( phase, TK_BRACE_R );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
 }

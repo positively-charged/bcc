@@ -4,25 +4,25 @@
 
 #include "phase.h"
 
-static void read_block( struct parse* phase, struct stmt_reading* );
-static void read_case( struct parse* phase, struct stmt_reading* );
-static void read_default_case( struct parse* phase, struct stmt_reading* );
-static void read_label( struct parse* phase, struct stmt_reading* );
-static void read_stmt( struct parse* phase, struct stmt_reading* );
-static void read_if( struct parse* phase, struct stmt_reading* );
-static void read_switch( struct parse* phase, struct stmt_reading* );
-static void read_while( struct parse* phase, struct stmt_reading* );
-static void read_do( struct parse* phase, struct stmt_reading* );
-static void read_for( struct parse* phase, struct stmt_reading* );
-static void read_jump( struct parse* phase, struct stmt_reading* );
-static void read_script_jump( struct parse* phase, struct stmt_reading* );
-static void read_return( struct parse* phase, struct stmt_reading* );
-static void read_goto( struct parse* phase, struct stmt_reading* );
-static void read_paltrans( struct parse* phase, struct stmt_reading* );
-static void read_format_item( struct parse* phase, struct stmt_reading* );
-static void read_palrange_rgb_field( struct parse* phase, struct expr**,
+static void read_block( struct parse* parse, struct stmt_reading* );
+static void read_case( struct parse* parse, struct stmt_reading* );
+static void read_default_case( struct parse* parse, struct stmt_reading* );
+static void read_label( struct parse* parse, struct stmt_reading* );
+static void read_stmt( struct parse* parse, struct stmt_reading* );
+static void read_if( struct parse* parse, struct stmt_reading* );
+static void read_switch( struct parse* parse, struct stmt_reading* );
+static void read_while( struct parse* parse, struct stmt_reading* );
+static void read_do( struct parse* parse, struct stmt_reading* );
+static void read_for( struct parse* parse, struct stmt_reading* );
+static void read_jump( struct parse* parse, struct stmt_reading* );
+static void read_script_jump( struct parse* parse, struct stmt_reading* );
+static void read_return( struct parse* parse, struct stmt_reading* );
+static void read_goto( struct parse* parse, struct stmt_reading* );
+static void read_paltrans( struct parse* parse, struct stmt_reading* );
+static void read_format_item( struct parse* parse, struct stmt_reading* );
+static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
-static void read_packed_expr( struct parse* phase, struct stmt_reading* );
+static void read_packed_expr( struct parse* parse, struct stmt_reading* );
 static struct label* alloc_label( char*, struct pos );
 static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
@@ -43,13 +43,13 @@ void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels ) {
    reading->block_node = NULL;
 }
 
-void p_read_top_stmt( struct parse* phase, struct stmt_reading* reading,
+void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
    bool need_block ) {
    if ( need_block ) {
-      read_block( phase, reading );
+      read_block( parse, reading );
    }
    else {
-      read_stmt( phase, reading );
+      read_stmt( parse, reading );
    }
    // All goto statements need to refer to valid labels.
    if ( reading->node->type == NODE_BLOCK ) {
@@ -58,52 +58,52 @@ void p_read_top_stmt( struct parse* phase, struct stmt_reading* reading,
       while ( ! list_end( &i ) ) {
          struct label* label = list_data( &i );
          if ( ! label->defined ) {
-            p_diag( phase, DIAG_POS_ERR, &label->pos,
+            p_diag( parse, DIAG_POS_ERR, &label->pos,
                "label `%s` not found", label->name );
-            p_bail( phase );
+            p_bail( parse );
          }
          list_next( &i );
       }
    }
 }
 
-void read_block( struct parse* phase, struct stmt_reading* reading ) {
-   p_test_tk( phase, TK_BRACE_L );
+void read_block( struct parse* parse, struct stmt_reading* reading ) {
+   p_test_tk( parse, TK_BRACE_L );
    struct block* block = mem_alloc( sizeof( *block ) );
    block->node.type = NODE_BLOCK;
    list_init( &block->stmts );
-   block->pos = phase->tk_pos;
-   p_read_tk( phase );
+   block->pos = parse->tk_pos;
+   p_read_tk( parse );
    while ( true ) {
-      if ( p_is_dec( phase ) ) {
+      if ( p_is_dec( parse ) ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_LOCAL;
-         dec.name_offset = phase->region->body;
+         dec.name_offset = parse->region->body;
          dec.vars = &block->stmts;
-         p_read_dec( phase, &dec );
+         p_read_dec( parse, &dec );
       }
-      else if ( phase->tk == TK_CASE ) {
-         read_case( phase, reading );
+      else if ( parse->tk == TK_CASE ) {
+         read_case( parse, reading );
          list_append( &block->stmts, reading->node );
       }
-      else if ( phase->tk == TK_DEFAULT ) {
-         read_default_case( phase, reading );
+      else if ( parse->tk == TK_DEFAULT ) {
+         read_default_case( parse, reading );
          list_append( &block->stmts, reading->node );
       }
-      else if ( phase->tk == TK_ID && p_peek( phase ) == TK_COLON ) {
-         read_label( phase, reading );
+      else if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
+         read_label( parse, reading );
          list_append( &block->stmts, reading->node );
       }
-      else if ( phase->tk == TK_IMPORT ) {
-         p_read_import( phase, &block->stmts );
+      else if ( parse->tk == TK_IMPORT ) {
+         p_read_import( parse, &block->stmts );
       }
-      else if ( phase->tk == TK_BRACE_R ) {
-         p_read_tk( phase );
+      else if ( parse->tk == TK_BRACE_R ) {
+         p_read_tk( parse );
          break;
       }
       else {
-         read_stmt( phase, reading );
+         read_stmt( parse, reading );
          if ( reading->node->type != NODE_NONE ) {
             list_append( &block->stmts, reading->node );
          }
@@ -113,40 +113,40 @@ void read_block( struct parse* phase, struct stmt_reading* reading ) {
    reading->block_node = block;
 }
 
-void read_case( struct parse* phase, struct stmt_reading* reading ) {
+void read_case( struct parse* parse, struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE;
    label->offset = 0;
    label->next = NULL;
-   label->pos = phase->tk_pos;
-   p_read_tk( phase );
+   label->pos = parse->tk_pos;
+   p_read_tk( parse );
    struct expr_reading number;
    p_init_expr_reading( &number, false, false, false, true );
-   p_read_expr( phase, &number );
+   p_read_expr( parse, &number );
    label->number = number.output_node;
-   p_test_tk( phase, TK_COLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
    reading->node = &label->node;
 }
 
-void read_default_case( struct parse* phase, struct stmt_reading* reading ) {
+void read_default_case( struct parse* parse, struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE_DEFAULT;
-   label->pos = phase->tk_pos;
+   label->pos = parse->tk_pos;
    label->offset = 0;
-   p_read_tk( phase );
-   p_test_tk( phase, TK_COLON );
-   p_read_tk( phase );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
    reading->node = &label->node;
 }
 
-void read_label( struct parse* phase, struct stmt_reading* reading ) {
+void read_label( struct parse* parse, struct stmt_reading* reading ) {
    struct label* label = NULL;
    list_iter_t i;
    list_iter_init( &i, reading->labels );
    while ( ! list_end( &i ) ) {
       struct label* prev = list_data( &i );
-      if ( strcmp( prev->name, phase->tk_text ) == 0 ) {
+      if ( strcmp( prev->name, parse->tk_text ) == 0 ) {
          label = prev;
          break;
       }
@@ -154,24 +154,24 @@ void read_label( struct parse* phase, struct stmt_reading* reading ) {
    }
    if ( label ) {
       if ( label->defined ) {
-         p_diag( phase, DIAG_POS_ERR, &phase->tk_pos,
-            "duplicate label `%s`", phase->tk_text );
-         p_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "duplicate label `%s`", parse->tk_text );
+         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
             "label already found here" );
-         p_bail( phase );
+         p_bail( parse );
       }
       else {
          label->defined = true;
-         label->pos = phase->tk_pos;
+         label->pos = parse->tk_pos;
       }
    }
    else {
-      label = alloc_label( phase->tk_text, phase->tk_pos );
+      label = alloc_label( parse->tk_text, parse->tk_pos );
       label->defined = true;
       list_append( reading->labels, label );
    }
-   p_read_tk( phase );
-   p_read_tk( phase );
+   p_read_tk( parse );
+   p_read_tk( parse );
    reading->node = &label->node;
 }
 
@@ -187,172 +187,172 @@ struct label* alloc_label( char* name, struct pos pos ) {
    return label;
 }
 
-void read_stmt( struct parse* phase, struct stmt_reading* reading ) {
-   switch ( phase->tk ) {
+void read_stmt( struct parse* parse, struct stmt_reading* reading ) {
+   switch ( parse->tk ) {
    case TK_BRACE_L:
-      read_block( phase, reading );
+      read_block( parse, reading );
       break;
    case TK_IF:
-      read_if( phase, reading );
+      read_if( parse, reading );
       break;
    case TK_SWITCH:
-      read_switch( phase, reading );
+      read_switch( parse, reading );
       break;
    case TK_WHILE:
    case TK_UNTIL:
-      read_while( phase, reading );
+      read_while( parse, reading );
       break;
    case TK_DO:
-      read_do( phase, reading );
+      read_do( parse, reading );
       break;
    case TK_FOR:
-      read_for( phase, reading );
+      read_for( parse, reading );
       break;
    case TK_BREAK:
    case TK_CONTINUE:
-      read_jump( phase, reading );
+      read_jump( parse, reading );
       break;
    case TK_TERMINATE:
    case TK_RESTART:
    case TK_SUSPEND:
-      read_script_jump( phase, reading );
+      read_script_jump( parse, reading );
       break;
    case TK_RETURN:
-      read_return( phase, reading );
+      read_return( parse, reading );
       break;
    case TK_GOTO:
-      read_goto( phase, reading );
+      read_goto( parse, reading );
       break;
    case TK_PALTRANS:
-      read_paltrans( phase, reading );
+      read_paltrans( parse, reading );
       break;
    case TK_SEMICOLON:
       {
          static struct node node = { NODE_NONE };
          reading->node = &node;
-         p_read_tk( phase );
+         p_read_tk( parse );
       }
       break;
    default:
       // Format item in a format block:
-      if ( phase->tk == TK_ID && p_peek( phase ) == TK_ASSIGN_COLON ) {
-         read_format_item( phase, reading );
+      if ( parse->tk == TK_ID && p_peek( parse ) == TK_ASSIGN_COLON ) {
+         read_format_item( parse, reading );
       }
       else {
-         read_packed_expr( phase, reading );
+         read_packed_expr( parse, reading );
       }
    }
 }
 
-void read_if( struct parse* phase, struct stmt_reading* reading ) {
-   p_read_tk( phase );
+void read_if( struct parse* parse, struct stmt_reading* reading ) {
+   p_read_tk( parse );
    struct if_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_IF;
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct expr_reading cond;
    p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( phase, &cond );
+   p_read_expr( parse, &cond );
    stmt->cond = cond.output_node;
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
    // Warn when the body of an `if` statement is empty. It is assumed that a
    // semicolon is the empty statement.
-   if ( phase->tk == TK_SEMICOLON ) {
-      p_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &phase->tk_pos, "body of `if` statement is empty (`;`)" );
+   if ( parse->tk == TK_SEMICOLON ) {
+      p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         &parse->tk_pos, "body of `if` statement is empty (`;`)" );
    }
-   read_stmt( phase, reading );
+   read_stmt( parse, reading );
    stmt->body = reading->node;
    stmt->else_body = NULL;
-   if ( phase->tk == TK_ELSE ) {
-      p_read_tk( phase );
-      if ( phase->tk == TK_SEMICOLON ) {
-         p_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &phase->tk_pos, "body of `else` is empty (`;`)" );
+   if ( parse->tk == TK_ELSE ) {
+      p_read_tk( parse );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            &parse->tk_pos, "body of `else` is empty (`;`)" );
       }
-      read_stmt( phase, reading );
+      read_stmt( parse, reading );
       stmt->else_body = reading->node;
    }
    reading->node = &stmt->node;
 }
 
-void read_switch( struct parse* phase, struct stmt_reading* reading ) {
-   p_read_tk( phase );
+void read_switch( struct parse* parse, struct stmt_reading* reading ) {
+   p_read_tk( parse );
    struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SWITCH;
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct expr_reading cond;
    p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( phase, &cond );
+   p_read_expr( parse, &cond );
    stmt->cond = cond.output_node;
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
-   read_stmt( phase, reading );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_stmt( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
 }
 
-void read_while( struct parse* phase, struct stmt_reading* reading ) {
+void read_while( struct parse* parse, struct stmt_reading* reading ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_WHILE;
-   if ( phase->tk == TK_WHILE ) {
-      p_read_tk( phase );
+   if ( parse->tk == TK_WHILE ) {
+      p_read_tk( parse );
    }
    else {
-      p_test_tk( phase, TK_UNTIL );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_UNTIL );
+      p_read_tk( parse );
       stmt->type = WHILE_UNTIL;
    }
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct expr_reading cond;
    p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( phase, &cond );
+   p_read_expr( parse, &cond );
    stmt->cond = cond.output_node;
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
-   read_stmt( phase, reading );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_stmt( parse, reading );
    stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
    reading->node = &stmt->node;
 }
 
-void read_do( struct parse* phase, struct stmt_reading* reading ) {
-   p_read_tk( phase );
+void read_do( struct parse* parse, struct stmt_reading* reading ) {
+   p_read_tk( parse );
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_DO_WHILE;
-   read_stmt( phase, reading );
+   read_stmt( parse, reading );
    stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
-   if ( phase->tk == TK_WHILE ) {
-      p_read_tk( phase );
+   if ( parse->tk == TK_WHILE ) {
+      p_read_tk( parse );
    }
    else {
-      p_test_tk( phase, TK_UNTIL );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_UNTIL );
+      p_read_tk( parse );
       stmt->type = WHILE_DO_UNTIL;
    }
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct expr_reading cond;
    p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( phase, &cond );
+   p_read_expr( parse, &cond );
    stmt->cond = cond.output_node;
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &stmt->node;
 }
 
-void read_for( struct parse* phase, struct stmt_reading* reading ) {
-   p_read_tk( phase );
+void read_for( struct parse* parse, struct stmt_reading* reading ) {
+   p_read_tk( parse );
    struct for_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_FOR;
    list_init( &stmt->init );
@@ -361,145 +361,145 @@ void read_for( struct parse* phase, struct stmt_reading* reading ) {
    stmt->body = NULL;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    // Optional initialization:
-   if ( phase->tk != TK_SEMICOLON ) {
-      if ( p_is_dec( phase ) ) {
+   if ( parse->tk != TK_SEMICOLON ) {
+      if ( p_is_dec( parse ) ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_FOR;
-         dec.name_offset = phase->region->body;
+         dec.name_offset = parse->region->body;
          dec.vars = &stmt->init;
-         p_read_dec( phase, &dec );
+         p_read_dec( parse, &dec );
       }
       else {
          while ( true ) {
             struct expr_reading expr;
             p_init_expr_reading( &expr, false, false, false, true );
-            p_read_expr( phase, &expr );
+            p_read_expr( parse, &expr );
             list_append( &stmt->init, expr.output_node );
-            if ( phase->tk == TK_COMMA ) {
-               p_read_tk( phase );
+            if ( parse->tk == TK_COMMA ) {
+               p_read_tk( parse );
             }
             else {
                break;
             }
          }
-         p_test_tk( phase, TK_SEMICOLON );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_SEMICOLON );
+         p_read_tk( parse );
       }
    }
    else {
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Optional condition:
-   if ( phase->tk != TK_SEMICOLON ) {
+   if ( parse->tk != TK_SEMICOLON ) {
       struct expr_reading cond;
       p_init_expr_reading( &cond, false, false, false, true );
-      p_read_expr( phase, &cond );
+      p_read_expr( parse, &cond );
       stmt->cond = cond.output_node;
-      p_test_tk( phase, TK_SEMICOLON );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
    }
    else {
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    // Optional post-expression:
-   if ( phase->tk != TK_PAREN_R ) {
+   if ( parse->tk != TK_PAREN_R ) {
       while ( true ) {
          struct expr_reading expr;
          p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
+         p_read_expr( parse, &expr );
          list_append( &stmt->post, expr.output_node );
-         if ( phase->tk == TK_COMMA ) {
-            p_read_tk( phase );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
          }
          else {
             break;
          }
       }
    }
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
-   read_stmt( phase, reading );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_stmt( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
 }
 
-void read_jump( struct parse* phase, struct stmt_reading* reading ) {
+void read_jump( struct parse* parse, struct stmt_reading* reading ) {
    struct jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_JUMP;
    stmt->type = JUMP_BREAK;
    stmt->next = NULL;
-   stmt->pos = phase->tk_pos;
+   stmt->pos = parse->tk_pos;
    stmt->obj_pos = 0;
-   if ( phase->tk == TK_CONTINUE ) {
+   if ( parse->tk == TK_CONTINUE ) {
       stmt->type = JUMP_CONTINUE;
    }
-   p_read_tk( phase );
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &stmt->node;
 }
 
-void read_script_jump( struct parse* phase, struct stmt_reading* reading ) {
+void read_script_jump( struct parse* parse, struct stmt_reading* reading ) {
    struct script_jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SCRIPT_JUMP;
    stmt->type = SCRIPT_JUMP_TERMINATE;
-   stmt->pos = phase->tk_pos;
-   if ( phase->tk == TK_RESTART ) {
+   stmt->pos = parse->tk_pos;
+   if ( parse->tk == TK_RESTART ) {
       stmt->type = SCRIPT_JUMP_RESTART;
    }
-   else if ( phase->tk == TK_SUSPEND ) {
+   else if ( parse->tk == TK_SUSPEND ) {
       stmt->type = SCRIPT_JUMP_SUSPEND;
    }
-   p_read_tk( phase );
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &stmt->node;
 }
 
-void read_return( struct parse* phase, struct stmt_reading* reading ) {
+void read_return( struct parse* parse, struct stmt_reading* reading ) {
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
    stmt->return_value = NULL;
    stmt->next = NULL;
    stmt->obj_pos = 0;
-   stmt->pos = phase->tk_pos;
-   p_read_tk( phase );
-   if ( phase->tk == TK_SEMICOLON ) {
-      p_read_tk( phase );
+   stmt->pos = parse->tk_pos;
+   p_read_tk( parse );
+   if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
    }
    else {
-      read_packed_expr( phase, reading );
+      read_packed_expr( parse, reading );
       stmt->return_value = ( struct packed_expr* ) reading->node;
    }
    reading->node = &stmt->node;
 }
 
-void read_goto( struct parse* phase, struct stmt_reading* reading ) {
-   struct pos pos = phase->tk_pos;
-   p_read_tk( phase );
-   p_test_tk( phase, TK_ID );
+void read_goto( struct parse* parse, struct stmt_reading* reading ) {
+   struct pos pos = parse->tk_pos;
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ID );
    struct label* label = NULL;
    list_iter_t i;
    list_iter_init( &i, reading->labels );
    while ( ! list_end( &i ) ) {
       struct label* prev = list_data( &i );
-      if ( strcmp( prev->name, phase->tk_text ) == 0 ) {
+      if ( strcmp( prev->name, parse->tk_text ) == 0 ) {
          label = prev;
          break;
       }
       list_next( &i );
    }
    if ( ! label ) {
-      label = alloc_label( phase->tk_text, phase->tk_pos );
+      label = alloc_label( parse->tk_text, parse->tk_pos );
       list_append( reading->labels, label );
    }
-   p_read_tk( phase );
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    struct goto_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_GOTO;
    stmt->label = label;
@@ -511,49 +511,49 @@ void read_goto( struct parse* phase, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_paltrans( struct parse* phase, struct stmt_reading* reading ) {
-   p_read_tk( phase );
+void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
+   p_read_tk( parse );
    struct paltrans* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_PALTRANS;
    stmt->ranges = NULL;
    stmt->ranges_tail = NULL;
-   p_test_tk( phase, TK_PAREN_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( phase, &expr );
+   p_read_expr( parse, &expr );
    stmt->number = expr.output_node;
-   while ( phase->tk == TK_COMMA ) {
+   while ( parse->tk == TK_COMMA ) {
       struct palrange* range = mem_alloc( sizeof( *range ) );
       range->next = NULL;
-      p_read_tk( phase );
+      p_read_tk( parse );
       p_init_expr_reading( &expr, false, false, false, true );
-      p_read_expr( phase, &expr );
+      p_read_expr( parse, &expr );
       range->begin = expr.output_node;
-      p_test_tk( phase, TK_COLON );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_COLON );
+      p_read_tk( parse );
       p_init_expr_reading( &expr, false, true, false, true );
-      p_read_expr( phase, &expr );
+      p_read_expr( parse, &expr );
       range->end = expr.output_node;
-      p_test_tk( phase, TK_ASSIGN );
-      p_read_tk( phase );
-      if ( phase->tk == TK_BRACKET_L ) {
-         read_palrange_rgb_field( phase, &range->value.rgb.red1,
+      p_test_tk( parse, TK_ASSIGN );
+      p_read_tk( parse );
+      if ( parse->tk == TK_BRACKET_L ) {
+         read_palrange_rgb_field( parse, &range->value.rgb.red1,
             &range->value.rgb.green1, &range->value.rgb.blue1 );
-         p_test_tk( phase, TK_COLON );
-         p_read_tk( phase );
-         read_palrange_rgb_field( phase, &range->value.rgb.red2,
+         p_test_tk( parse, TK_COLON );
+         p_read_tk( parse );
+         read_palrange_rgb_field( parse, &range->value.rgb.red2,
             &range->value.rgb.green2, &range->value.rgb.blue2 );
          range->rgb = true;
       }
       else {
          p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
+         p_read_expr( parse, &expr );
          range->value.ent.begin = expr.output_node;
-         p_test_tk( phase, TK_COLON );
-         p_read_tk( phase );
+         p_test_tk( parse, TK_COLON );
+         p_read_tk( parse );
          p_init_expr_reading( &expr, false, false, false, true );
-         p_read_expr( phase, &expr );
+         p_read_expr( parse, &expr );
          range->value.ent.end = expr.output_node;
          range->rgb = false;
       }
@@ -566,59 +566,59 @@ void read_paltrans( struct parse* phase, struct stmt_reading* reading ) {
          stmt->ranges_tail = range;
       }
    }
-   p_test_tk( phase, TK_PAREN_R );
-   p_read_tk( phase );
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &stmt->node;
 }
 
-void read_palrange_rgb_field( struct parse* phase, struct expr** r,
+void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    struct expr** g, struct expr** b ) {
-   p_test_tk( phase, TK_BRACKET_L );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_BRACKET_L );
+   p_read_tk( parse );
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( phase, &expr );
+   p_read_expr( parse, &expr );
    *r = expr.output_node;
-   p_test_tk( phase, TK_COMMA );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_COMMA );
+   p_read_tk( parse );
    p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( phase, &expr );
+   p_read_expr( parse, &expr );
    *g = expr.output_node;
-   p_test_tk( phase, TK_COMMA );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_COMMA );
+   p_read_tk( parse );
    p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( phase, &expr );
+   p_read_expr( parse, &expr );
    *b = expr.output_node;
-   p_test_tk( phase, TK_BRACKET_R );
-   p_read_tk( phase ); 
+   p_test_tk( parse, TK_BRACKET_R );
+   p_read_tk( parse ); 
 }
 
-void read_format_item( struct parse* phase, struct stmt_reading* reading ) {
-   struct format_item* item = p_read_format_item( phase, false );
+void read_format_item( struct parse* parse, struct stmt_reading* reading ) {
+   struct format_item* item = p_read_format_item( parse, false );
    reading->node = &item->node;
-   p_test_tk( phase, TK_SEMICOLON );
-   p_read_tk( phase );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
 }
 
-void read_packed_expr( struct parse* phase, struct stmt_reading* reading ) {
+void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, false );
-   p_read_expr( phase, &expr );
+   p_read_expr( parse, &expr );
    struct packed_expr* packed = mem_alloc( sizeof( *packed ) );
    packed->node.type = NODE_PACKED_EXPR;
    packed->expr = expr.output_node;
    packed->block = NULL;
    // With format block.
-   if ( phase->tk == TK_ASSIGN_COLON ) {
-      p_read_tk( phase );
-      read_block( phase, reading );
+   if ( parse->tk == TK_ASSIGN_COLON ) {
+      p_read_tk( parse );
+      read_block( parse, reading );
       packed->block = reading->block_node;
    }
    else {
-      p_test_tk( phase, TK_SEMICOLON );
-      p_read_tk( phase );
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
    }
    reading->node = &packed->node;
 }
@@ -755,33 +755,33 @@ struct import_item* read_import_item( struct parse* parse ) {
    return item;
 }
 
-struct path* p_read_path( struct parse* phase ) {
+struct path* p_read_path( struct parse* parse ) {
    // Head of path.
-   struct path* path = alloc_path( phase->tk_pos );
-   if ( phase->tk == TK_UPMOST ) {
+   struct path* path = alloc_path( parse->tk_pos );
+   if ( parse->tk == TK_UPMOST ) {
       path->is_upmost = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
-   else if ( phase->tk == TK_REGION ) {
+   else if ( parse->tk == TK_REGION ) {
       path->is_region = true;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    else {
-      p_test_tk( phase, TK_ID );
-      path->text = phase->tk_text;
-      p_read_tk( phase );
+      p_test_tk( parse, TK_ID );
+      path->text = parse->tk_text;
+      p_read_tk( parse );
    }
    // Tail of path.
    struct path* head = path;
    struct path* tail = head;
-   while ( phase->tk == TK_COLON_2 && p_peek( phase ) == TK_ID ) {
-      p_read_tk( phase );
-      p_test_tk( phase, TK_ID );
-      path = alloc_path( phase->tk_pos );
-      path->text = phase->tk_text;
+   while ( parse->tk == TK_COLON_2 && p_peek( parse ) == TK_ID ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ID );
+      path = alloc_path( parse->tk_pos );
+      path->text = parse->tk_text;
       tail->next = path;
       tail = path;
-      p_read_tk( phase );
+      p_read_tk( parse );
    }
    return head;
 }

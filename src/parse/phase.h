@@ -232,35 +232,35 @@ struct parse {
    int last_id;
 };
 
-void p_init( struct parse* phase, struct task* task );
-void p_read( struct parse* phase );
-void p_diag( struct parse* phase, int flags, ... );
-void p_bail( struct parse* phase );
-void p_load_main_source( struct parse* phase );
-void p_read_tk( struct parse* phase );
-void p_test_tk( struct parse* phase, enum tk type );
-void p_read_top_stmt( struct parse* phase, struct stmt_reading* reading,
+void p_init( struct parse* parse, struct task* task );
+void p_read( struct parse* parse );
+void p_diag( struct parse* parse, int flags, ... );
+void p_bail( struct parse* parse );
+void p_load_main_source( struct parse* parse );
+void p_read_tk( struct parse* parse );
+void p_test_tk( struct parse* parse, enum tk type );
+void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
    bool need_block );
-struct format_item* p_read_format_item( struct parse* phase, bool colon );
-void p_skip_block( struct parse* phase );
+struct format_item* p_read_format_item( struct parse* parse, bool colon );
+void p_skip_block( struct parse* parse );
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );
-void p_read_expr( struct parse* phase, struct expr_reading* reading );
-bool p_is_dec( struct parse* phase );
+void p_read_expr( struct parse* parse, struct expr_reading* reading );
+bool p_is_dec( struct parse* parse );
 void p_init_dec( struct dec* dec );
-void p_read_dec( struct parse* phase, struct dec* dec );
+void p_read_dec( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
-enum tk p_peek( struct parse* phase );
-void p_read_region_body( struct parse* phase, bool is_brace );
+enum tk p_peek( struct parse* parse );
+void p_read_region_body( struct parse* parse, bool is_brace );
 const char* p_get_token_name( enum tk type );
-void p_read_region( struct parse* phase );
+void p_read_region( struct parse* parse );
 void p_read_import( struct parse* parse, struct list* output );
-int p_extract_literal_value( struct parse* phase );
-struct source* p_load_included_source( struct parse* phase );
-void p_read_lib( struct parse* phase );
+int p_extract_literal_value( struct parse* parse );
+struct source* p_load_included_source( struct parse* parse );
+void p_read_lib( struct parse* parse );
 void p_read_script( struct parse* parse );
 void p_add_unresolved( struct region* region, struct object* object );
-struct path* p_read_path( struct parse* phase );
+struct path* p_read_path( struct parse* parse );
 void p_increment_pos( struct pos* pos, enum tk tk );
 void p_unexpect_diag( struct parse* parse );
 void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk );
