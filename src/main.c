@@ -15,6 +15,7 @@ static bool read_options( struct options*, char** );
 static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
+static void compile_mainlib( struct task* task );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
@@ -75,15 +76,7 @@ int main( int argc, char* argv[] ) {
    struct task task;
    t_init( &task, &options, &bail );
    if ( setjmp( bail ) == 0 ) {
-      struct parse parse;
-      p_init( &parse, &task );
-      p_read( &parse );
-      struct semantic semantic;
-      s_init( &semantic, &task );
-      s_test( &semantic );
-      struct codegen codegen;
-      c_init( &codegen, &task );
-      c_publish( &codegen );
+      compile_mainlib( &task );
       result = EXIT_SUCCESS;
    }
    if ( task.err_file ) {
@@ -223,4 +216,16 @@ void print_usage( char* path ) {
       "  -one-column          Start column position at 1. Default is 0\n"
       "  -tab-size <size>     Select the size of the tab character\n",
       path );
+}
+
+void compile_mainlib( struct task* task ) {
+   struct parse parse;
+   p_init( &parse, task );
+   p_read( &parse );
+   struct semantic semantic;
+   s_init( &semantic, task );
+   s_test( &semantic );
+   struct codegen codegen;
+   c_init( &codegen, task );
+   c_publish( &codegen );
 }
