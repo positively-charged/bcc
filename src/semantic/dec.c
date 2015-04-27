@@ -33,21 +33,21 @@ static void test_member_name( struct semantic* semantic,
    struct type_member* member );
 static bool test_member_dim( struct semantic* semantic,
    struct type_member* member );
-static bool test_spec( struct semantic* phase, struct var* var );
+static bool test_spec( struct semantic* semantic, struct var* var );
 static void test_name( struct semantic* semantic, struct var* var );
-static bool test_dim( struct semantic* phase, struct var* var );
-static bool test_initz( struct semantic* phase, struct var* var );
-static bool test_object_initz( struct semantic* phase, struct var* var );
+static bool test_dim( struct semantic* semantic, struct var* var );
+static bool test_initz( struct semantic* semantic, struct var* var );
+static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
-static void test_init( struct semantic* phase, struct var*, bool, bool* );
+static void test_init( struct semantic* semantic, struct var*, bool, bool* );
 static void init_multi_value_test( struct multi_value_test*, struct dim*,
    struct type*, bool constant, bool nested );
-static bool test_multi_value( struct semantic* phase, struct multi_value_test*,
+static bool test_multi_value( struct semantic* semantic, struct multi_value_test*,
    struct multi_value* multi_value );
-static bool test_multi_value_child( struct semantic* phase,
+static bool test_multi_value_child( struct semantic* semantic,
    struct multi_value_test* test, struct multi_value* multi_value,
    struct initial* initial );
-static bool test_value( struct semantic* phase, struct multi_value_test* test,
+static bool test_value( struct semantic* semantic, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value );
 static void calc_dim_size( struct dim*, struct type* );
 static bool test_func_paramlist( struct semantic* semantic, struct func* func );
@@ -58,8 +58,8 @@ static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
    struct type*, struct dim* );
 static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct type* );
-static void test_script_number( struct semantic* phase, struct script* script );
-static void test_script_body( struct semantic* phase, struct script* script );
+static void test_script_number( struct semantic* semantic, struct script* script );
+static void test_script_body( struct semantic* semantic, struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
@@ -227,22 +227,22 @@ bool test_member_dim( struct semantic* semantic,
    return true;
 }
 
-void s_test_var( struct semantic* phase, struct var* var ) {
-   if ( test_spec( phase, var ) ) {
-      test_name( phase, var );
-      if ( test_dim( phase, var ) ) {
-         var->object.resolved = test_initz( phase, var );
+void s_test_var( struct semantic* semantic, struct var* var ) {
+   if ( test_spec( semantic, var ) ) {
+      test_name( semantic, var );
+      if ( test_dim( semantic, var ) ) {
+         var->object.resolved = test_initz( semantic, var );
       }
    }
 }
 
-bool test_spec( struct semantic* phase, struct var* var ) {
+bool test_spec( struct semantic* semantic, struct var* var ) {
    bool resolved = false;
    if ( var->type_path ) {
       if ( ! var->type ) {
          struct object_search search;
          s_init_object_search( &search, var->type_path, true );
-         s_find_object( phase, &search );
+         s_find_object( semantic, &search );
          var->type = search.struct_object;
       }
       if ( ! var->type->object.resolved ) {
@@ -252,9 +252,9 @@ bool test_spec( struct semantic* phase, struct var* var ) {
       // storage because there's no standard or efficient way to allocate such
       // a variable.
       if ( var->storage == STORAGE_LOCAL ) {
-         s_diag( phase, DIAG_POS_ERR, &var->object.pos,
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
             "variable of struct type in local storage" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    return true;
@@ -269,7 +269,7 @@ void test_name( struct semantic* semantic, struct var* var ) {
    }
 }
 
-bool test_dim( struct semantic* phase, struct var* var ) {
+bool test_dim( struct semantic* semantic, struct var* var ) {
    // No need to continue when the variable is not an array.
    if ( ! var->dim ) {
       return true;
@@ -284,53 +284,53 @@ bool test_dim( struct semantic* phase, struct var* var ) {
       if ( dim->size_node ) {
          struct expr_test expr;
          s_init_expr_test( &expr, NULL, NULL, true, false );
-         s_test_expr( phase, &expr, dim->size_node );
+         s_test_expr( semantic, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return false;
          }
          if ( ! dim->size_node->folded ) {
-            s_diag( phase, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
                "dimension size not a constant expression" );
-            s_bail( phase );
+            s_bail( semantic );
          }
          if ( dim->size_node->value <= 0 ) {
-            s_diag( phase, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
                "dimension size less than or equal to 0" );
-            s_bail( phase );
+            s_bail( semantic );
          }
          dim->size = dim->size_node->value;
       }
       else {
          // Only the first dimension can have an implicit size.
          if ( dim != var->dim ) {
-            s_diag( phase, DIAG_POS_ERR, &dim->pos,
+            s_diag( semantic, DIAG_POS_ERR, &dim->pos,
                "implicit size in subsequent dimension" );
-            s_bail( phase );
+            s_bail( semantic );
          }
       }
       dim = dim->next;
    }
    if ( var->storage == STORAGE_LOCAL ) {
-      s_diag( phase, DIAG_POS_ERR, &var->object.pos,
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
          "array in local storage" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    return true;
 }
 
-bool test_initz( struct semantic* phase, struct var* var ) {
+bool test_initz( struct semantic* semantic, struct var* var ) {
    if ( var->initial ) {
       if ( var->imported ) {
          return test_imported_object_initz( var );
       }
       else {
-         return test_object_initz( phase, var );
+         return test_object_initz( semantic, var );
       }
    }
    return true;
 }
 
-bool test_object_initz( struct semantic* phase, struct var* var ) {
+bool test_object_initz( struct semantic* semantic, struct var* var ) {
    struct multi_value_test test;
    init_multi_value_test( &test, var->dim, var->type, var->is_constant_init,
       false );
@@ -338,11 +338,11 @@ bool test_object_initz( struct semantic* phase, struct var* var ) {
       if ( ! ( var->dim || ! var->type->primitive ) ) {
          struct multi_value* multi_value =
             ( struct multi_value* ) var->initial;
-         s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
+         s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
             "using brace initializer on scalar variable" );
-         s_bail( phase );
+         s_bail( semantic );
       }
-      bool resolved = test_multi_value( phase, &test,
+      bool resolved = test_multi_value( semantic, &test,
          ( struct multi_value* ) var->initial );
       if ( ! resolved ) {
          return false;
@@ -353,7 +353,7 @@ bool test_object_initz( struct semantic* phase, struct var* var ) {
       }
    }
    else {
-      bool resolved = test_value( phase, &test, var->dim, var->type,
+      bool resolved = test_value( semantic, &test, var->dim, var->type,
          ( struct value* ) var->initial );
       if ( ! resolved ) {
          return false;
@@ -390,12 +390,12 @@ void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
    test->has_string = false;
 }
 
-bool test_multi_value( struct semantic* phase, struct multi_value_test* test,
+bool test_multi_value( struct semantic* semantic, struct multi_value_test* test,
    struct multi_value* multi_value ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( ! initial->tested ) {
-         if ( ! test_multi_value_child( phase, test, multi_value, initial ) ) {
+         if ( ! test_multi_value_child( semantic, test, multi_value, initial ) ) {
             return false;
          }
          initial->tested = true;
@@ -409,14 +409,14 @@ bool test_multi_value( struct semantic* phase, struct multi_value_test* test,
    return true;
 }
 
-bool test_multi_value_child( struct semantic* phase, struct multi_value_test* test,
+bool test_multi_value_child( struct semantic* semantic, struct multi_value_test* test,
    struct multi_value* multi_value, struct initial* initial ) {
    bool capacity = ( ( test->dim && ( ! test->dim->size_node ||
       test->count < test->dim->size ) ) || test->member );
    if ( ! capacity ) {
-      s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
+      s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
          "too many values in brace initializer" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( initial->multi ) {
       // There needs to be an element or member to initialize.
@@ -424,16 +424,16 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
          ! test->type->primitive ) ) || ( test->member &&
          ( test->member->dim || ! test->member->type->primitive ) ) );
       if ( ! deeper ) {
-         s_diag( phase, DIAG_POS_ERR, &multi_value->pos,
+         s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
             "too many brace initializers" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       struct multi_value_test nested;
       init_multi_value_test( &nested,
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->type : test->member->type ),
          test->constant, true );
-      bool resolved = test_multi_value( phase, &nested,
+      bool resolved = test_multi_value( semantic, &nested,
          ( struct multi_value* ) initial );
       if ( nested.has_string ) {
          test->has_string = true;
@@ -441,52 +441,52 @@ bool test_multi_value_child( struct semantic* phase, struct multi_value_test* te
       return resolved;
    }
    else {
-      return test_value( phase, test,
+      return test_value( semantic, test,
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->type : test->member->type ),
          ( struct value* ) initial );
    }
 }
 
-bool test_value( struct semantic* phase, struct multi_value_test* test,
+bool test_value( struct semantic* semantic, struct multi_value_test* test,
    struct dim* dim, struct type* type, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
-   s_test_expr( phase, &expr, value->expr );
+   s_test_expr( semantic, &expr, value->expr );
    if ( expr.undef_erred ) {
       return false;
    }
    if ( test->constant && ! value->expr->folded ) {
-      s_diag( phase, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
          "non-constant initializer" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    // Only initialize a primitive element or an array of a single dimension--
    // using the string initializer.
    if ( ! ( ! dim && type->primitive ) && ! ( dim && ! dim->next &&
       value->expr->root->type == NODE_INDEXED_STRING_USAGE &&
       type->primitive ) ) {
-      s_diag( phase, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
          "missing %sbrace initializer", test->nested ? "another " : "" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    // String initializer.
    if ( dim ) {
       // Even though it doesn't matter what primitive type is specified, for
       // readability purposes, restrict the string initializer to an array of
       // `int` type.
-      if ( type != phase->task->type_int ) {
-         s_diag( phase, DIAG_POS_ERR, &expr.pos,
+      if ( type != semantic->task->type_int ) {
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
             "string initializer specified for a non-int array" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       struct indexed_string_usage* usage =
          ( struct indexed_string_usage* ) value->expr->root;
       if ( dim->size_node ) {
          if ( usage->string->length >= dim->size ) {
-            s_diag( phase, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
                "string initializer too long" );
-            s_bail( phase );
+            s_bail( semantic );
          }
       }
       else {
@@ -500,8 +500,8 @@ bool test_value( struct semantic* phase, struct multi_value_test* test,
    return true;
 }
 
-void s_test_local_var( struct semantic* phase, struct var* var ) {
-   s_test_var( phase, var );
+void s_test_local_var( struct semantic* semantic, struct var* var ) {
+   s_test_var( semantic, var );
    s_calc_var_size( var );
    if ( var->initial ) {
       s_calc_var_value_index( var );
@@ -569,14 +569,14 @@ bool test_func_param( struct semantic* semantic, struct param* param ) {
    return true;
 }
 
-void s_test_func_body( struct semantic* phase, struct func* func ) {
+void s_test_func_body( struct semantic* semantic, struct func* func ) {
    struct func_user* impl = func->impl;
    if ( ! impl->nested ) {
-      s_add_scope( phase );
+      s_add_scope( semantic );
       struct param* param = func->params;
       while ( param ) {
          if ( param->name ) {
-            s_bind_name( phase, param->name, ( struct object* ) param );
+            s_bind_name( semantic, param->name, ( struct object* ) param );
          }
          param = param->next;
       }
@@ -587,58 +587,58 @@ void s_test_func_body( struct semantic* phase, struct func* func ) {
    test.manual_scope = true;
    test.labels = &impl->labels;
    if ( ! impl->nested ) {
-      phase->topfunc_test = &test;
+      semantic->topfunc_test = &test;
    }
-   struct stmt_test* prev = phase->func_test;
-   phase->func_test = &test;
-   s_test_block( phase, &test, impl->body );
-   phase->func_test = prev;
+   struct stmt_test* prev = semantic->func_test;
+   semantic->func_test = &test;
+   s_test_block( semantic, &test, impl->body );
+   semantic->func_test = prev;
    impl->returns = test.returns;
    if ( ! impl->nested ) {
       impl->nested_funcs = test.nested_funcs;
-      phase->topfunc_test = NULL;
+      semantic->topfunc_test = NULL;
    }
    if ( ! impl->nested ) {
-      s_pop_scope( phase );
+      s_pop_scope( semantic );
    }
 }
 
-void s_test_script( struct semantic* phase, struct script* script ) {
-   test_script_number( phase, script );
-   test_script_body( phase, script );
+void s_test_script( struct semantic* semantic, struct script* script ) {
+   test_script_number( semantic, script );
+   test_script_body( semantic, script );
 }
 
-void test_script_number( struct semantic* phase, struct script* script ) {
+void test_script_number( struct semantic* semantic, struct script* script ) {
    if ( script->number ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, false );
-      s_test_expr( phase, &expr, script->number );
+      s_test_expr( semantic, &expr, script->number );
       if ( ! script->number->folded ) {
-         s_diag( phase, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
             "script number not a constant expression" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       if ( script->number->value < SCRIPT_MIN_NUM ||
          script->number->value > SCRIPT_MAX_NUM ) {
-         s_diag( phase, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
             "script number not between %d and %d", SCRIPT_MIN_NUM,
             SCRIPT_MAX_NUM );
-         s_bail( phase );
+         s_bail( semantic );
       }
       if ( script->number->value == 0 ) {
-         s_diag( phase, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
             "script number 0 not between `<<` and `>>`" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
 }
 
-void test_script_body( struct semantic* phase, struct script* script ) {
-   s_add_scope( phase );
+void test_script_body( struct semantic* semantic, struct script* script ) {
+   s_add_scope( semantic );
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
-         s_bind_name( phase, param->name, &param->object );
+         s_bind_name( semantic, param->name, &param->object );
       }
       param->object.resolved = true;
       param = param->next;
@@ -648,13 +648,13 @@ void test_script_body( struct semantic* phase, struct script* script ) {
    test.in_script = true;
    test.manual_scope = true;
    test.labels = &script->labels;
-   phase->topfunc_test = &test;
-   phase->func_test = phase->topfunc_test;
-   s_test_stmt( phase, &test, script->body );
+   semantic->topfunc_test = &test;
+   semantic->func_test = semantic->topfunc_test;
+   s_test_stmt( semantic, &test, script->body );
    script->nested_funcs = test.nested_funcs;
-   phase->topfunc_test = NULL;
-   phase->func_test = NULL;
-   s_pop_scope( phase );
+   semantic->topfunc_test = NULL;
+   semantic->func_test = NULL;
+   s_pop_scope( semantic );
 }
 
 void s_calc_var_size( struct var* var ) {

@@ -1,33 +1,33 @@
 #include "phase.h"
 
-static void test_block_item( struct semantic* phase, struct stmt_test*, struct node* );
-static void test_case( struct semantic* phase, struct stmt_test*, struct case_label* );
-static void test_default_case( struct semantic* phase, struct stmt_test*,
+static void test_block_item( struct semantic* semantic, struct stmt_test*, struct node* );
+static void test_case( struct semantic* semantic, struct stmt_test*, struct case_label* );
+static void test_default_case( struct semantic* semantic, struct stmt_test*,
    struct case_label* );
-static void test_label( struct semantic* phase, struct stmt_test*, struct label* );
-static void test_if( struct semantic* phase, struct stmt_test*, struct if_stmt* );
-static void test_switch( struct semantic* phase, struct stmt_test*,
+static void test_label( struct semantic* semantic, struct stmt_test*, struct label* );
+static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
+static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
-static void test_while( struct semantic* phase, struct stmt_test*, struct while_stmt* );
-static void test_for( struct semantic* phase, struct stmt_test* test,
+static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
+static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* );
-static void test_jump( struct semantic* phase, struct stmt_test*, struct jump* );
-static void test_break( struct semantic* phase, struct stmt_test* test,
+static void test_jump( struct semantic* semantic, struct stmt_test*, struct jump* );
+static void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
-static void test_continue( struct semantic* phase, struct stmt_test* test,
+static void test_continue( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
-static void test_script_jump( struct semantic* phase, struct stmt_test*,
+static void test_script_jump( struct semantic* semantic, struct stmt_test*,
    struct script_jump* );
-static void test_return( struct semantic* phase, struct stmt_test*,
+static void test_return( struct semantic* semantic, struct stmt_test*,
    struct return_stmt* );
-static void test_goto( struct semantic* phase, struct stmt_test*, struct goto_stmt* );
-static void test_paltrans( struct semantic* phase, struct stmt_test*, struct paltrans* );
-static void test_paltrans_arg( struct semantic* phase, struct expr* expr );
-static void test_format_item( struct semantic* phase, struct stmt_test*,
+static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
+static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
+static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
+static void test_format_item( struct semantic* semantic, struct stmt_test*,
    struct format_item* );
-static void test_packed_expr( struct semantic* phase, struct stmt_test*,
+static void test_packed_expr( struct semantic* semantic, struct stmt_test*,
    struct packed_expr*, struct pos* );
-static void test_goto_in_format_block( struct semantic* phase, struct list* );
+static void test_goto_in_format_block( struct semantic* semantic, struct list* );
 static void perform_import( struct semantic* semantic, struct import* import );
 static struct object* follow_import_path( struct semantic* semantic,
    struct path* path );
@@ -57,81 +57,81 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->manual_scope = false;
 }
 
-void s_test_block( struct semantic* phase, struct stmt_test* test,
+void s_test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block ) {
    if ( ! test->manual_scope ) {
-      s_add_scope( phase );
+      s_add_scope( semantic );
    }
    list_iter_t i;
    list_iter_init( &i, &block->stmts );
    while ( ! list_end( &i ) ) {
       struct stmt_test nested;
       s_init_stmt_test( &nested, test );
-      test_block_item( phase, &nested, list_data( &i ) );
+      test_block_item( semantic, &nested, list_data( &i ) );
       list_next( &i );
    }
    if ( ! test->manual_scope ) {
-      s_pop_scope( phase );
+      s_pop_scope( semantic );
    }
    if ( ! test->parent ) {
-      test_goto_in_format_block( phase, test->labels );
+      test_goto_in_format_block( semantic, test->labels );
    }
 }
 
-void test_block_item( struct semantic* phase, struct stmt_test* test,
+void test_block_item( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_CONSTANT:
-      s_test_constant( phase, ( struct constant* ) node );
+      s_test_constant( semantic, ( struct constant* ) node );
       break;
    case NODE_CONSTANT_SET:
-      s_test_constant_set( phase, ( struct constant_set* ) node );
+      s_test_constant_set( semantic, ( struct constant_set* ) node );
       break;
    case NODE_VAR:
-      s_test_local_var( phase, ( struct var* ) node );
+      s_test_local_var( semantic, ( struct var* ) node );
       break;
    case NODE_TYPE:
-      s_test_struct( phase, ( struct type* ) node );
+      s_test_struct( semantic, ( struct type* ) node );
       break;
    case NODE_FUNC:
-      s_test_func( phase, ( struct func* ) node );
+      s_test_func( semantic, ( struct func* ) node );
       break;
    case NODE_CASE:
-      test_case( phase, test, ( struct case_label* ) node );
+      test_case( semantic, test, ( struct case_label* ) node );
       break;
    case NODE_CASE_DEFAULT:
-      test_default_case( phase, test, ( struct case_label* ) node );
+      test_default_case( semantic, test, ( struct case_label* ) node );
       break;
    case NODE_GOTO_LABEL:
-      test_label( phase, test, ( struct label* ) node );
+      test_label( semantic, test, ( struct label* ) node );
       break;
    case NODE_IMPORT: {
       struct import_status status;
-      s_import( phase, ( struct import* ) node, &status );
+      s_import( semantic, ( struct import* ) node, &status );
       break; }
    default:
-      s_test_stmt( phase, test, node );
+      s_test_stmt( semantic, test, node );
    }
 }
 
-void test_case( struct semantic* phase, struct stmt_test* test,
+void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_switch ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &label->pos,
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
-   s_test_expr( phase, &expr, label->number );
+   s_test_expr( semantic, &expr, label->number );
    if ( ! label->number->folded ) {
-      s_diag( phase, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
          "case value not constant" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct case_label* prev = NULL;
    struct case_label* curr = target->case_head;
@@ -140,10 +140,10 @@ void test_case( struct semantic* phase, struct stmt_test* test,
       curr = curr->next;
    }
    if ( curr && curr->number->value == label->number->value ) {
-      s_diag( phase, DIAG_POS_ERR, &label->pos, "duplicate case" );
-      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
+      s_diag( semantic, DIAG_POS_ERR, &label->pos, "duplicate case" );
+      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
          "case with value %d found here", curr->number->value );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( prev ) {
       label->next = prev->next;
@@ -155,28 +155,28 @@ void test_case( struct semantic* phase, struct stmt_test* test,
    }
 }
 
-void test_default_case( struct semantic* phase, struct stmt_test* test,
+void test_default_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_switch ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &label->pos,
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "default outside switch statement" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( target->case_default ) {
-      s_diag( phase, DIAG_POS_ERR, &label->pos, "duplicate default case" );
-      s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( semantic, DIAG_POS_ERR, &label->pos, "duplicate default case" );
+      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &target->case_default->pos,
          "default case found here" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    target->case_default = label;
 }
 
-void test_label( struct semantic* phase, struct stmt_test* test,
+void test_label( struct semantic* semantic, struct stmt_test* test,
    struct label* label ) {
    // The label might be inside a format block. Find this block.
    struct stmt_test* target = test;
@@ -188,44 +188,44 @@ void test_label( struct semantic* phase, struct stmt_test* test,
    }
 }
 
-void s_test_stmt( struct semantic* phase, struct stmt_test* test,
+void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
-      s_test_block( phase, test, ( struct block* ) node );
+      s_test_block( semantic, test, ( struct block* ) node );
       break;
    case NODE_IF:
-      test_if( phase, test, ( struct if_stmt* ) node );
+      test_if( semantic, test, ( struct if_stmt* ) node );
       break;
    case NODE_SWITCH:
-      test_switch( phase, test, ( struct switch_stmt* ) node );
+      test_switch( semantic, test, ( struct switch_stmt* ) node );
       break;
    case NODE_WHILE:
-      test_while( phase, test, ( struct while_stmt* ) node );
+      test_while( semantic, test, ( struct while_stmt* ) node );
       break;
    case NODE_FOR:
-      test_for( phase, test, ( struct for_stmt* ) node );
+      test_for( semantic, test, ( struct for_stmt* ) node );
       break;
    case NODE_JUMP:
-      test_jump( phase, test, ( struct jump* ) node );
+      test_jump( semantic, test, ( struct jump* ) node );
       break;
    case NODE_SCRIPT_JUMP:
-      test_script_jump( phase, test, ( struct script_jump* ) node );
+      test_script_jump( semantic, test, ( struct script_jump* ) node );
       break;
    case NODE_RETURN:
-      test_return( phase, test, ( struct return_stmt* ) node );
+      test_return( semantic, test, ( struct return_stmt* ) node );
       break;
    case NODE_GOTO:
-      test_goto( phase, test, ( struct goto_stmt* ) node );
+      test_goto( semantic, test, ( struct goto_stmt* ) node );
       break;
    case NODE_PALTRANS:
-      test_paltrans( phase, test, ( struct paltrans* ) node );
+      test_paltrans( semantic, test, ( struct paltrans* ) node );
       break;
    case NODE_FORMAT_ITEM:
-      test_format_item( phase, test, ( struct format_item* ) node );
+      test_format_item( semantic, test, ( struct format_item* ) node );
       break;
    case NODE_PACKED_EXPR:
-      test_packed_expr( phase, test, ( struct packed_expr* ) node, NULL );
+      test_packed_expr( semantic, test, ( struct packed_expr* ) node, NULL );
       break;
    default:
       // TODO: Internal compiler error.
@@ -233,57 +233,57 @@ void s_test_stmt( struct semantic* phase, struct stmt_test* test,
    }
 }
 
-void test_if( struct semantic* phase, struct stmt_test* test,
+void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, true );
-   s_test_expr( phase, &expr, stmt->cond );
+   s_test_expr( semantic, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   s_test_stmt( phase, &body, stmt->body );
+   s_test_stmt( semantic, &body, stmt->body );
    if ( stmt->else_body ) {
       s_init_stmt_test( &body, test );
-      s_test_stmt( phase, &body, stmt->else_body );
+      s_test_stmt( semantic, &body, stmt->else_body );
    }
 }
 
-void test_switch( struct semantic* phase, struct stmt_test* test,
+void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, true );
-   s_test_expr( phase, &expr, stmt->cond );
+   s_test_expr( semantic, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_switch = true;
-   s_test_stmt( phase, &body, stmt->body );
+   s_test_stmt( semantic, &body, stmt->body );
    stmt->case_head = body.case_head;
    stmt->case_default = body.case_default;
    stmt->jump_break = body.jump_break;
 }
 
-void test_while( struct semantic* phase, struct stmt_test* test,
+void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( phase, &expr, stmt->cond );
+      s_test_expr( semantic, &expr, stmt->cond );
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_loop = true;
-   s_test_stmt( phase, &body, stmt->body );
+   s_test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( phase, &expr, stmt->cond );
+      s_test_expr( semantic, &expr, stmt->cond );
    }
 }
 
-void test_for( struct semantic* phase, struct stmt_test* test,
+void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* stmt ) {
-   s_add_scope( phase );
+   s_add_scope( semantic );
    // Initialization.
    list_iter_t i;
    list_iter_init( &i, &stmt->init );
@@ -292,10 +292,10 @@ void test_for( struct semantic* phase, struct stmt_test* test,
       if ( node->type == NODE_EXPR ) {
          struct expr_test expr;
          s_init_expr_test( &expr, NULL, NULL, false, false );
-         s_test_expr( phase, &expr, ( struct expr* ) node );
+         s_test_expr( semantic, &expr, ( struct expr* ) node );
       }
       else {
-         s_test_local_var( phase, ( struct var* ) node );
+         s_test_local_var( semantic, ( struct var* ) node );
       }
       list_next( &i );
    }
@@ -303,33 +303,33 @@ void test_for( struct semantic* phase, struct stmt_test* test,
    if ( stmt->cond ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( phase, &expr, stmt->cond );
+      s_test_expr( semantic, &expr, stmt->cond );
    }
    // Post expressions.
    list_iter_init( &i, &stmt->post );
    while ( ! list_end( &i ) ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, false, false );
-      s_test_expr( phase, &expr, list_data( &i ) );
+      s_test_expr( semantic, &expr, list_data( &i ) );
       list_next( &i );
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_loop = true;
-   s_test_stmt( phase, &body, stmt->body );
+   s_test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
-   s_pop_scope( phase );
+   s_pop_scope( semantic );
 }
 
-void test_jump( struct semantic* phase, struct stmt_test* test,
+void test_jump( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    switch ( stmt->type ) {
    case JUMP_BREAK:
-      test_break( phase, test, stmt );
+      test_break( semantic, test, stmt );
       break;
    case JUMP_CONTINUE:
-      test_continue( phase, test, stmt );
+      test_continue( semantic, test, stmt );
       break;
    default:
       // TODO: Internal compiler error.
@@ -337,16 +337,16 @@ void test_jump( struct semantic* phase, struct stmt_test* test,
    }
 }
 
-void test_break( struct semantic* phase, struct stmt_test* test,
+void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_loop && ! target->in_switch ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+      s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "break outside loop or switch" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    stmt->next = target->jump_break;
    target->jump_break = stmt;
@@ -355,24 +355,24 @@ void test_break( struct semantic* phase, struct stmt_test* test,
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "leaving format block with a break statement" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       target = target->parent;
    }
 }
 
-void test_continue( struct semantic* phase, struct stmt_test* test,
+void test_continue( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_loop ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+      s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "continue outside loop" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    stmt->next = target->jump_continue;
    target->jump_continue = stmt;
@@ -380,15 +380,15 @@ void test_continue( struct semantic* phase, struct stmt_test* test,
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "leaving format block with a continue statement" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       target = target->parent;
    }
 }
 
-void test_script_jump( struct semantic* phase, struct stmt_test* test,
+void test_script_jump( struct semantic* semantic, struct stmt_test* test,
    struct script_jump* stmt ) {
    static const char* names[] = { "terminate", "restart", "suspend" };
    STATIC_ASSERT( ARRAY_SIZE( names ) == SCRIPT_JUMP_TOTAL );
@@ -397,64 +397,64 @@ void test_script_jump( struct semantic* phase, struct stmt_test* test,
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+      s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "`%s` outside script", names[ stmt->type ] );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct stmt_test* finish = target;
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "`%s` inside format block", names[ stmt->type ] );
-         s_bail( phase );
+         s_bail( semantic );
       }
       target = target->parent;
    }
 }
 
-void test_return( struct semantic* phase, struct stmt_test* test,
+void test_return( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
    struct stmt_test* target = test;
    while ( target && ! target->func ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+      s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "return statement outside function" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( stmt->return_value ) {
       struct pos pos;
-      test_packed_expr( phase, test, stmt->return_value, &pos );
+      test_packed_expr( semantic, test, stmt->return_value, &pos );
       if ( ! target->func->return_type ) {
-         s_diag( phase, DIAG_POS_ERR, &pos,
+         s_diag( semantic, DIAG_POS_ERR, &pos,
             "returning value in void function" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    else {
       if ( target->func->return_type ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "missing return value" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    struct stmt_test* finish = target;
    target = test;
    while ( target != finish ) {
       if ( target->format_block ) {
-         s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "leaving format block with a return statement" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       target = target->parent;
    }
-   stmt->next = phase->func_test->returns;
-   phase->func_test->returns = stmt;
+   stmt->next = semantic->func_test->returns;
+   semantic->func_test->returns = stmt;
 }
 
-void test_goto( struct semantic* phase, struct stmt_test* test,
+void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
    struct stmt_test* target = test;
    while ( target ) {
@@ -466,55 +466,55 @@ void test_goto( struct semantic* phase, struct stmt_test* test,
    }
 }
 
-void test_paltrans( struct semantic* phase, struct stmt_test* test,
+void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt ) {
-   test_paltrans_arg( phase, stmt->number );
+   test_paltrans_arg( semantic, stmt->number );
    struct palrange* range = stmt->ranges;
    while ( range ) {
-      test_paltrans_arg( phase, range->begin );
-      test_paltrans_arg( phase, range->end );
+      test_paltrans_arg( semantic, range->begin );
+      test_paltrans_arg( semantic, range->end );
       if ( range->rgb ) {
-         test_paltrans_arg( phase, range->value.rgb.red1 );
-         test_paltrans_arg( phase, range->value.rgb.green1 );
-         test_paltrans_arg( phase, range->value.rgb.blue1 );
-         test_paltrans_arg( phase, range->value.rgb.red2 );
-         test_paltrans_arg( phase, range->value.rgb.green2 );
-         test_paltrans_arg( phase, range->value.rgb.blue2 );
+         test_paltrans_arg( semantic, range->value.rgb.red1 );
+         test_paltrans_arg( semantic, range->value.rgb.green1 );
+         test_paltrans_arg( semantic, range->value.rgb.blue1 );
+         test_paltrans_arg( semantic, range->value.rgb.red2 );
+         test_paltrans_arg( semantic, range->value.rgb.green2 );
+         test_paltrans_arg( semantic, range->value.rgb.blue2 );
       }
       else {
-         test_paltrans_arg( phase, range->value.ent.begin );
-         test_paltrans_arg( phase, range->value.ent.end );
+         test_paltrans_arg( semantic, range->value.ent.begin );
+         test_paltrans_arg( semantic, range->value.ent.end );
       }
       range = range->next;
    }
 }
 
-void test_paltrans_arg( struct semantic* phase, struct expr* expr ) {
+void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
    struct expr_test arg;
    s_init_expr_test( &arg, NULL, NULL, true, false );
-   s_test_expr( phase, &arg, expr );
+   s_test_expr( semantic, &arg, expr );
 }
 
-void test_format_item( struct semantic* phase, struct stmt_test* test,
+void test_format_item( struct semantic* semantic, struct stmt_test* test,
    struct format_item* item ) {
-   s_test_formatitemlist_stmt( phase, test, item );
+   s_test_formatitemlist_stmt( semantic, test, item );
    struct stmt_test* target = test;
    while ( target && ! target->format_block ) {
       target = target->parent;
    }
    if ( ! target ) {
-      s_diag( phase, DIAG_POS_ERR, &item->pos,
+      s_diag( semantic, DIAG_POS_ERR, &item->pos,
          "format item outside format block" );
-      s_bail( phase );
+      s_bail( semantic );
    }
 }
 
-void test_packed_expr( struct semantic* phase, struct stmt_test* test,
+void test_packed_expr( struct semantic* semantic, struct stmt_test* test,
    struct packed_expr* packed, struct pos* expr_pos ) {
    // Test expression.
    struct expr_test expr_test;
    s_init_expr_test( &expr_test, test, packed->block, false, false );
-   s_test_expr( phase, &expr_test, packed->expr );
+   s_test_expr( semantic, &expr_test, packed->expr );
    if ( expr_pos ) {
       *expr_pos = expr_test.pos;
    }
@@ -523,15 +523,15 @@ void test_packed_expr( struct semantic* phase, struct stmt_test* test,
       struct stmt_test nested;
       s_init_stmt_test( &nested, test );
       nested.format_block = packed->block;
-      s_test_block( phase, &nested, nested.format_block );
+      s_test_block( semantic, &nested, nested.format_block );
       if ( ! expr_test.format_block_usage ) {
-         s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+         s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &packed->block->pos, "unused format block" );
       }
    }
 }
 
-void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
+void test_goto_in_format_block( struct semantic* semantic, struct list* labels ) {
    list_iter_t i;
    list_iter_init( &i, labels );
    while ( ! list_end( &i ) ) {
@@ -541,11 +541,11 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
             struct goto_stmt* stmt = label->users;
             while ( stmt ) {
                if ( stmt->format_block != label->format_block ) {
-                  s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+                  s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
                      "entering format block with a goto statement" );
-                  s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+                  s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
                      "point of entry is here" ); 
-                  s_bail( phase );
+                  s_bail( semantic );
                }
                stmt = stmt->next;
             }
@@ -553,7 +553,7 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
          else {
             // If a label is unused, the user might have used the syntax of a
             // label to create a format-item.
-            s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &label->pos, "unused label in format block" );
          }
       }
@@ -561,11 +561,11 @@ void test_goto_in_format_block( struct semantic* phase, struct list* labels ) {
          struct goto_stmt* stmt = label->users;
          while ( stmt ) {
             if ( stmt->format_block ) {
-               s_diag( phase, DIAG_POS_ERR, &stmt->pos,
+               s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
                   "leaving format block with a goto statement" );
-               s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
+               s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
                   "destination of goto statement is here" );
-               s_bail( phase );
+               s_bail( semantic );
             }
             stmt = stmt->next;
          }

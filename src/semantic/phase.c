@@ -15,20 +15,20 @@ struct scope {
    struct import* imports;
 };
 
-static void determine_publishable_objects( struct semantic* phase );
-static void bind_names( struct semantic* phase );
-static void bind_regionobject_name( struct semantic* phase,
+static void determine_publishable_objects( struct semantic* semantic );
+static void bind_names( struct semantic* semantic );
+static void bind_regionobject_name( struct semantic* semantic,
    struct object* object );
 static void import_objects( struct semantic* semantic );
-static void test_objects( struct semantic* phase );
-static void test_region( struct semantic* phase, bool* resolved, bool* retry );
-static void test_region_object( struct semantic* phase,
+static void test_objects( struct semantic* semantic );
+static void test_region( struct semantic* semantic, bool* resolved, bool* retry );
+static void test_region_object( struct semantic* semantic,
    struct object* object );
-static void test_objects_bodies( struct semantic* phase );
-static void check_dup_scripts( struct semantic* phase );
-static void calc_map_var_size( struct semantic* phase );
-static void calc_map_value_index( struct semantic* phase );
-static void add_loadable_libs( struct semantic* phase );
+static void test_objects_bodies( struct semantic* semantic );
+static void check_dup_scripts( struct semantic* semantic );
+static void calc_map_var_size( struct semantic* semantic );
+static void calc_map_value_index( struct semantic* semantic );
+static void add_loadable_libs( struct semantic* semantic );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct name* name,
@@ -40,41 +40,41 @@ static void find_head_object( struct semantic* semantic,
 static void find_tail_object( struct semantic* semantic,
    struct object_search* search );
 
-void s_init( struct semantic* phase, struct task* task ) {
-   phase->task = task;
-   phase->region = NULL;
-   phase->scope = NULL;
-   phase->free_scope = NULL;
-   phase->free_sweep = NULL;
-   phase->topfunc_test = NULL;
-   phase->func_test = NULL;
-   phase->depth = 0;
-   phase->trigger_err = false;
-   phase->in_localscope = false;
+void s_init( struct semantic* semantic, struct task* task ) {
+   semantic->task = task;
+   semantic->region = NULL;
+   semantic->scope = NULL;
+   semantic->free_scope = NULL;
+   semantic->free_sweep = NULL;
+   semantic->topfunc_test = NULL;
+   semantic->func_test = NULL;
+   semantic->depth = 0;
+   semantic->trigger_err = false;
+   semantic->in_localscope = false;
 }
 
-void s_test( struct semantic* phase ) {
-   determine_publishable_objects( phase );
-   bind_names( phase );
-   import_objects( phase );
-   test_objects( phase );
-   test_objects_bodies( phase );
-   check_dup_scripts( phase );
-   calc_map_var_size( phase );
-   calc_map_value_index( phase );
-   add_loadable_libs( phase );
+void s_test( struct semantic* semantic ) {
+   determine_publishable_objects( semantic );
+   bind_names( semantic );
+   import_objects( semantic );
+   test_objects( semantic );
+   test_objects_bodies( semantic );
+   check_dup_scripts( semantic );
+   calc_map_var_size( semantic );
+   calc_map_value_index( semantic );
+   add_loadable_libs( semantic );
 }
 
 // Determines which objects be written into the object file.
-void determine_publishable_objects( struct semantic* phase ) {
+void determine_publishable_objects( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->library_main->scripts );
+   list_iter_init( &i, &semantic->task->library_main->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       script->publish = true;
       list_next( &i );
    }
-   list_iter_init( &i, &phase->task->library_main->funcs );
+   list_iter_init( &i, &semantic->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
@@ -85,49 +85,49 @@ void determine_publishable_objects( struct semantic* phase ) {
 
 // Goes through every object in every region and connects the name of the
 // object to the object.
-void bind_names( struct semantic* phase ) {
+void bind_names( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->regions );
+   list_iter_init( &i, &semantic->task->regions );
    while ( ! list_end( &i ) ) {
       struct region* region = list_data( &i );
       struct object* object = region->unresolved;
       while ( object ) {
-         bind_regionobject_name( phase, object );
+         bind_regionobject_name( semantic, object );
          object = object->next;
       }
       list_next( &i );
    }
 }
 
-void bind_regionobject_name( struct semantic* phase, struct object* object ) {
+void bind_regionobject_name( struct semantic* semantic, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT: {
       struct constant* constant = ( struct constant* ) object;
-      s_bind_name( phase, constant->name, &constant->object );
+      s_bind_name( semantic, constant->name, &constant->object );
       break; }
    case NODE_CONSTANT_SET: {
       struct constant_set* set = ( struct constant_set* ) object;
       struct constant* constant = set->head;
       while ( constant ) {
-         s_bind_name( phase, constant->name, &constant->object );
+         s_bind_name( semantic, constant->name, &constant->object );
          constant = constant->next;
       }
       break; }
    case NODE_VAR: {
       struct var* var = ( struct var* ) object;
-      s_bind_name( phase, var->name, &var->object );
+      s_bind_name( semantic, var->name, &var->object );
       break; }
    case NODE_FUNC: {
       struct func* func = ( struct func* ) object;
-      s_bind_name( phase, func->name, &func->object );
+      s_bind_name( semantic, func->name, &func->object );
       break; }
    case NODE_TYPE: {
       struct type* type = ( struct type* ) object;
-      s_bind_name( phase, type->name, &type->object );
+      s_bind_name( semantic, type->name, &type->object );
       break; }
    default:
-      t_unhandlednode_diag( phase->task, __FILE__, __LINE__, &object->node );
-      t_bail( phase->task );
+      t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
+      t_bail( semantic->task );
    }
 }
 
@@ -166,22 +166,22 @@ void import_objects( struct semantic* semantic ) {
 
 // Analyzes the objects found in regions. The bodies of scripts and functions
 // are analyzed elsewhere.
-void test_objects( struct semantic* phase ) {
+void test_objects( struct semantic* semantic ) {
    while ( true ) {
       bool resolved = false;
       bool retry = false;
       list_iter_t i;
-      list_iter_init( &i, &phase->task->regions );
+      list_iter_init( &i, &semantic->task->regions );
       while ( ! list_end( &i ) ) {
-         phase->region = list_data( &i );
-         test_region( phase, &resolved, &retry );
+         semantic->region = list_data( &i );
+         test_region( semantic, &resolved, &retry );
          list_next( &i );
       }
       if ( retry ) {
          // Continue resolving as long as something got resolved. If nothing
          // gets resolved during the last run, then nothing can be resolved
          // anymore. So report errors.
-         phase->trigger_err = ( ! resolved );
+         semantic->trigger_err = ( ! resolved );
       }
       else {
          break;
@@ -189,12 +189,12 @@ void test_objects( struct semantic* phase ) {
    }
 }
 
-void test_region( struct semantic* phase, bool* resolved, bool* retry ) {
-   struct object* object = phase->region->unresolved;
+void test_region( struct semantic* semantic, bool* resolved, bool* retry ) {
+   struct object* object = semantic->region->unresolved;
    struct object* tail = NULL;
-   phase->region->unresolved = NULL;
+   semantic->region->unresolved = NULL;
    while ( object ) {
-      test_region_object( phase, object );
+      test_region_object( semantic, object );
       if ( object->resolved ) {
          struct object* next = object->next;
          object->next = NULL;
@@ -206,7 +206,7 @@ void test_region( struct semantic* phase, bool* resolved, bool* retry ) {
             tail->next = object;
          }
          else {
-            phase->region->unresolved = object;
+            semantic->region->unresolved = object;
          }
          tail = object;
          struct object* next = object->next;
@@ -215,55 +215,55 @@ void test_region( struct semantic* phase, bool* resolved, bool* retry ) {
          *retry = true;
       }
    }
-   phase->region->object.resolved = ( phase->region->unresolved == NULL );
+   semantic->region->object.resolved = ( semantic->region->unresolved == NULL );
 }
 
-void test_region_object( struct semantic* phase, struct object* object ) {
+void test_region_object( struct semantic* semantic, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
-      s_test_constant( phase, ( struct constant* ) object );
+      s_test_constant( semantic, ( struct constant* ) object );
       break;
    case NODE_CONSTANT_SET:
-      s_test_constant_set( phase, ( struct constant_set* ) object );
+      s_test_constant_set( semantic, ( struct constant_set* ) object );
       break;
    case NODE_TYPE:
-      s_test_struct( phase, ( struct type* ) object );
+      s_test_struct( semantic, ( struct type* ) object );
       break;
    case NODE_VAR:
-      s_test_var( phase, ( struct var* ) object );
+      s_test_var( semantic, ( struct var* ) object );
       break;
    case NODE_FUNC:
-      s_test_func( phase, ( struct func* ) object );
+      s_test_func( semantic, ( struct func* ) object );
       break;
    default:
-      t_unhandlednode_diag( phase->task, __FILE__, __LINE__, &object->node );
-      t_bail( phase->task );
+      t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
+      t_bail( semantic->task );
    }
 }
 
 // Analyzes the body of functions, and scripts.
-void test_objects_bodies( struct semantic* phase ) {
-   phase->trigger_err = true;
+void test_objects_bodies( struct semantic* semantic ) {
+   semantic->trigger_err = true;
    list_iter_t i;
-   list_iter_init( &i, &phase->task->regions );
+   list_iter_init( &i, &semantic->task->regions );
    while ( ! list_end( &i ) ) {
-      phase->region = list_data( &i );
+      semantic->region = list_data( &i );
       list_iter_t k;
-      list_iter_init( &k, &phase->region->items );
+      list_iter_init( &k, &semantic->region->items );
       while ( ! list_end( &k ) ) {
          struct node* node = list_data( &k );
          if ( node->type == NODE_FUNC ) {
             struct func* func = ( struct func* ) node;
             struct func_user* impl = func->impl;
             if ( impl->publish ) {
-               s_test_func_body( phase, func );
+               s_test_func_body( semantic, func );
             }
          }
          else {
             struct script* script = ( struct script* ) node;
             if ( script->publish ) {
-               s_test_script( phase, script );
-               list_append( &phase->task->scripts, script );
+               s_test_script( semantic, script );
+               list_append( &semantic->task->scripts, script );
             }
          }
          list_next( &k );
@@ -272,9 +272,9 @@ void test_objects_bodies( struct semantic* phase ) {
    }
 }
 
-void check_dup_scripts( struct semantic* phase ) {
+void check_dup_scripts( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->scripts );
+   list_iter_init( &i, &semantic->task->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       list_iter_t k = i;
@@ -285,26 +285,26 @@ void check_dup_scripts( struct semantic* phase ) {
          if ( t_get_script_number( script ) ==
             t_get_script_number( other_script ) ) {
             if ( ! dup ) {
-               s_diag( phase, DIAG_POS_ERR, &script->pos,
+               s_diag( semantic, DIAG_POS_ERR, &script->pos,
                   "duplicate script %d", t_get_script_number( script ) );
                dup = true;
             }
-            s_diag( phase, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+            s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
                &other_script->pos, "script found here",
                t_get_script_number( script ) );
          }
          list_next( &k );
       }
       if ( dup ) {
-         s_bail( phase );
+         s_bail( semantic );
       }
       list_next( &i );
    }
 }
 
-void calc_map_var_size( struct semantic* phase ) {
+void calc_map_var_size( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->libraries );
+   list_iter_init( &i, &semantic->task->libraries );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -317,9 +317,9 @@ void calc_map_var_size( struct semantic* phase ) {
    }
 }
 
-void calc_map_value_index( struct semantic* phase ) {
+void calc_map_value_index( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &phase->task->library_main->vars );
+   list_iter_init( &i, &semantic->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->initial ) {
@@ -330,13 +330,13 @@ void calc_map_value_index( struct semantic* phase ) {
 }
 
 // NOTE: Maybe move this to the back-end?
-void add_loadable_libs( struct semantic* phase ) {
+void add_loadable_libs( struct semantic* semantic ) {
    // Any library that has its contents used is dynamically loaded.
    list_iter_t i;
-   list_iter_init( &i, &phase->task->libraries );
+   list_iter_init( &i, &semantic->task->libraries );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      if ( lib != phase->task->library_main ) {
+      if ( lib != semantic->task->library_main ) {
          bool used = false;
          // Functions.
          list_iter_t k;
@@ -364,12 +364,12 @@ void add_loadable_libs( struct semantic* phase ) {
          }
          // Add library.
          if ( used ) {
-            list_iter_init( &k, &phase->task->library_main->dynamic );
+            list_iter_init( &k, &semantic->task->library_main->dynamic );
             while ( ! list_end( &k ) && list_data( &i ) != lib ) {
                list_next( &k );
             }
             if ( list_end( &i ) ) {
-               list_append( &phase->task->library_main->dynamic, lib );
+               list_append( &semantic->task->library_main->dynamic, lib );
             }
          }
       }
@@ -377,27 +377,27 @@ void add_loadable_libs( struct semantic* phase ) {
    }
 }
 
-void s_add_scope( struct semantic* phase ) {
+void s_add_scope( struct semantic* semantic ) {
    struct scope* scope;
-   if ( phase->free_scope ) {
-      scope = phase->free_scope;
-      phase->free_scope = scope->prev;
+   if ( semantic->free_scope ) {
+      scope = semantic->free_scope;
+      semantic->free_scope = scope->prev;
    }
    else {
       scope = mem_alloc( sizeof( *scope ) );
    }
-   scope->prev = phase->scope;
+   scope->prev = semantic->scope;
    scope->sweep = NULL;
-   scope->region_link = phase->region->link;
+   scope->region_link = semantic->region->link;
    scope->imports = NULL;
-   phase->scope = scope;
-   ++phase->depth;
-   phase->in_localscope = ( phase->depth > 0 );
+   semantic->scope = scope;
+   ++semantic->depth;
+   semantic->in_localscope = ( semantic->depth > 0 );
 }
 
-void s_pop_scope( struct semantic* phase ) {
-   if ( phase->scope->sweep ) {
-      struct sweep* sweep = phase->scope->sweep;
+void s_pop_scope( struct semantic* semantic ) {
+   if ( semantic->scope->sweep ) {
+      struct sweep* sweep = semantic->scope->sweep;
       while ( sweep ) {
          // Remove names.
          for ( int i = 0; i < sweep->size; ++i ) {
@@ -406,18 +406,18 @@ void s_pop_scope( struct semantic* phase ) {
          }
          // Reuse sweep.
          struct sweep* prev = sweep->prev;
-         sweep->prev = phase->free_sweep;
-         phase->free_sweep = sweep;
+         sweep->prev = semantic->free_sweep;
+         semantic->free_sweep = sweep;
          sweep = prev;
       }
    }
-   struct scope* prev = phase->scope->prev;
-   phase->region->link = phase->scope->region_link;
-   phase->scope->prev = phase->free_scope;
-   phase->free_scope = phase->scope;
-   phase->scope = prev;
-   --phase->depth;
-   phase->in_localscope = ( phase->depth > 0 ); 
+   struct scope* prev = semantic->scope->prev;
+   semantic->region->link = semantic->scope->region_link;
+   semantic->scope->prev = semantic->free_scope;
+   semantic->free_scope = semantic->scope;
+   semantic->scope = prev;
+   --semantic->depth;
+   semantic->in_localscope = ( semantic->depth > 0 ); 
 }
 
 void s_bind_name( struct semantic* semantic, struct name* name,
@@ -650,13 +650,13 @@ struct regobjget s_get_regionobject( struct semantic* semantic,
    return result;
 }
 
-void s_diag( struct semantic* phase, int flags, ... ) {
+void s_diag( struct semantic* semantic, int flags, ... ) {
    va_list args;
    va_start( args, flags );
-   t_diag_args( phase->task, flags, &args );
+   t_diag_args( semantic->task, flags, &args );
    va_end( args );
 }
 
-void s_bail( struct semantic* phase ) {
-   t_bail( phase->task );
+void s_bail( struct semantic* semantic ) {
+   t_bail( semantic->task );
 }

@@ -26,29 +26,29 @@ static void test_nested_root( struct semantic* semantic,
    struct expr_test* parent, struct expr_test* test, struct operand* operand,
    struct expr* expr );
 static void init_operand( struct operand* );
-static void use_object( struct semantic* phase, struct expr_test*, struct operand*,
+static void use_object( struct semantic* semantic, struct expr_test*, struct operand*,
    struct object* );
-static void test_node( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_node( struct semantic* semantic, struct expr_test*, struct operand*,
    struct node* );
-static void test_literal( struct semantic* phase, struct operand*, struct literal* );
-static void test_string_usage( struct semantic* phase, struct expr_test*,
+static void test_literal( struct semantic* semantic, struct operand*, struct literal* );
+static void test_string_usage( struct semantic* semantic, struct expr_test*,
    struct operand*, struct indexed_string_usage* );
-static void test_boolean( struct semantic* phase, struct operand*, struct boolean* );
+static void test_boolean( struct semantic* semantic, struct operand*, struct boolean* );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct name_usage* usage );
 static struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* );
-static void test_unary( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_unary( struct semantic* semantic, struct expr_test*, struct operand*,
    struct unary* );
-static void test_subscript( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_subscript( struct semantic* semantic, struct expr_test*, struct operand*,
    struct subscript* );
-static void test_call( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_call( struct semantic* semantic, struct expr_test*, struct operand*,
    struct call* );
-static void test_call_args( struct semantic* phase, struct expr_test*,
+static void test_call_args( struct semantic* semantic, struct expr_test*,
    struct call_test* );
-static void test_call_first_arg( struct semantic* phase, struct expr_test*,
+static void test_call_first_arg( struct semantic* semantic, struct expr_test*,
    struct call_test* );
-static void test_call_format_arg( struct semantic* phase, struct expr_test*,
+static void test_call_format_arg( struct semantic* semantic, struct expr_test*,
    struct call_test* );
 static void test_format_item_list( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
@@ -56,15 +56,15 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
-static void test_binary( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_binary( struct semantic* semantic, struct expr_test*, struct operand*,
    struct binary* );
-static void test_assign( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_assign( struct semantic* semantic, struct expr_test*, struct operand*,
    struct assign* );
-static void test_access( struct semantic* phase, struct expr_test*, struct operand*,
+static void test_access( struct semantic* semantic, struct expr_test*, struct operand*,
    struct access* );
 static void test_region_access( struct semantic* semantic,
    struct expr_test* test, struct operand* operand, struct access* access );
-static void test_struct_access( struct semantic* phase, struct expr_test* test,
+static void test_struct_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct operand* operand, struct conditional* cond );
@@ -84,12 +84,12 @@ void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    test->suggest_paren_assign = suggest_paren_assign;
 }
 
-void s_test_expr( struct semantic* phase, struct expr_test* test,
+void s_test_expr( struct semantic* semantic, struct expr_test* test,
    struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
       struct operand operand;
       init_operand( &operand );
-      test_root( phase, test, &operand, expr );
+      test_root( semantic, test, &operand, expr );
    }
    else {
       test->undef_erred = true;
@@ -138,57 +138,57 @@ void init_operand( struct operand* operand ) {
    operand->in_paren = false;
 }
 
-void test_node( struct semantic* phase, struct expr_test* test,
+void test_node( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct node* node ) {
    switch ( node->type ) {
    case NODE_LITERAL:
-      test_literal( phase, operand, ( struct literal* ) node );
+      test_literal( semantic, operand, ( struct literal* ) node );
       break;
    case NODE_INDEXED_STRING_USAGE:
-      test_string_usage( phase, test, operand,
+      test_string_usage( semantic, test, operand,
          ( struct indexed_string_usage* ) node );
       break;
    case NODE_BOOLEAN:
-      test_boolean( phase, operand, ( struct boolean* ) node );
+      test_boolean( semantic, operand, ( struct boolean* ) node );
       break;
    case NODE_REGION_HOST:
-      operand->region = phase->region;
+      operand->region = semantic->region;
       break;
    case NODE_REGION_UPMOST:
-      operand->region = phase->task->region_upmost;
+      operand->region = semantic->task->region_upmost;
       break;
    case NODE_NAME_USAGE:
-      test_name_usage( phase, test, operand, ( struct name_usage* ) node );
+      test_name_usage( semantic, test, operand, ( struct name_usage* ) node );
       break;
    case NODE_UNARY:
-      test_unary( phase, test, operand, ( struct unary* ) node );
+      test_unary( semantic, test, operand, ( struct unary* ) node );
       break;
    case NODE_SUBSCRIPT:
-      test_subscript( phase, test, operand, ( struct subscript* ) node );
+      test_subscript( semantic, test, operand, ( struct subscript* ) node );
       break;
    case NODE_CALL:
-      test_call( phase, test, operand, ( struct call* ) node );
+      test_call( semantic, test, operand, ( struct call* ) node );
       break;
    case NODE_BINARY:
-      test_binary( phase, test, operand, ( struct binary* ) node );
+      test_binary( semantic, test, operand, ( struct binary* ) node );
       break;
    case NODE_ASSIGN:
-      test_assign( phase, test, operand, ( struct assign* ) node );
+      test_assign( semantic, test, operand, ( struct assign* ) node );
       break;
    case NODE_CONDITIONAL:
-      test_conditional( phase, test, operand, ( struct conditional* ) node );
+      test_conditional( semantic, test, operand, ( struct conditional* ) node );
       break;
    case NODE_ACCESS:
-      test_access( phase, test, operand, ( struct access* ) node );
+      test_access( semantic, test, operand, ( struct access* ) node );
       break;
    case NODE_STRCPY:
-      test_strcpy( phase, test, operand, ( struct strcpy_call* ) node );
+      test_strcpy( semantic, test, operand, ( struct strcpy_call* ) node );
       break;
    case NODE_PAREN:
       {
          operand->in_paren = true;
          struct paren* paren = ( struct paren* ) node;
-         test_node( phase, test, operand, paren->inside );
+         test_node( semantic, test, operand, paren->inside );
          operand->in_paren = false;
       }
       break;
@@ -197,32 +197,32 @@ void test_node( struct semantic* phase, struct expr_test* test,
    }
 }
 
-void test_literal( struct semantic* phase, struct operand* operand,
+void test_literal( struct semantic* semantic, struct operand* operand,
    struct literal* literal ) {
    operand->value = literal->value;
    operand->folded = true;
    operand->complete = true;
    operand->usable = true;
-   operand->type = phase->task->type_int;
+   operand->type = semantic->task->type_int;
 }
 
-void test_string_usage( struct semantic* phase, struct expr_test* test,
+void test_string_usage( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct indexed_string_usage* usage ) {
    operand->value = usage->string->index;
    operand->folded = true;
    operand->complete = true;
    operand->usable = true;
-   operand->type = phase->task->type_str;
+   operand->type = semantic->task->type_str;
    test->has_string = true;
 }
 
-void test_boolean( struct semantic* phase, struct operand* operand,
+void test_boolean( struct semantic* semantic, struct operand* operand,
    struct boolean* boolean ) {
    operand->value = boolean->value;
    operand->folded = true;
    operand->complete = true;
    operand->usable = true;
-   operand->type = phase->task->type_bool;
+   operand->type = semantic->task->type_bool;
 }
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
@@ -297,14 +297,14 @@ struct object* find_referenced_object( struct semantic* semantic,
    return NULL;
 }
 
-void use_object( struct semantic* phase, struct expr_test* test,
+void use_object( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct object* object ) {
    if ( object->node.type == NODE_REGION ) {
       operand->region = ( struct region* ) object;
    }
    else if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
-      operand->type = phase->task->type_int;
+      operand->type = semantic->task->type_int;
       operand->value = constant->value;
       operand->folded = true;
       operand->complete = true;
@@ -369,31 +369,31 @@ void use_object( struct semantic* phase, struct expr_test* test,
    }
 }
 
-void test_unary( struct semantic* phase, struct expr_test* test,
+void test_unary( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct unary* unary ) {
    struct operand target;
    init_operand( &target );
    if ( unary->op == UOP_PRE_INC || unary->op == UOP_PRE_DEC ||
       unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
-      test_node( phase, test, &target, unary->operand );
+      test_node( semantic, test, &target, unary->operand );
       // Only an l-value can be incremented.
       if ( ! target.assignable ) {
          const char* action = "incremented";
          if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
             action = "decremented";
          }
-         s_diag( phase, DIAG_POS_ERR, &unary->pos, "operand cannot be %s",
+         s_diag( semantic, DIAG_POS_ERR, &unary->pos, "operand cannot be %s",
             action );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    else {
-      test_node( phase, test, &target, unary->operand );
+      test_node( semantic, test, &target, unary->operand );
       // Remaining operations require a value to work on.
       if ( ! target.usable ) {
-         s_diag( phase, DIAG_POS_ERR, &unary->pos,
+         s_diag( semantic, DIAG_POS_ERR, &unary->pos,
             "operand of unary operation not a value" );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    // Compile-time evaluation.
@@ -420,34 +420,34 @@ void test_unary( struct semantic* phase, struct expr_test* test,
    operand->usable = true;
    // Type of the result.
    if ( unary->op == UOP_LOG_NOT ) {
-      operand->type = phase->task->type_bool;
+      operand->type = semantic->task->type_bool;
    }
    else {
-      operand->type = phase->task->type_int;
+      operand->type = semantic->task->type_int;
    }
 }
 
-void test_subscript( struct semantic* phase, struct expr_test* test,
+void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct subscript* subscript ) {
    struct operand lside;
    init_operand( &lside );
-   test_node( phase, test, &lside, subscript->lside );
+   test_node( semantic, test, &lside, subscript->lside );
    if ( ! lside.dim ) {
-      s_diag( phase, DIAG_POS_ERR, &subscript->pos,
+      s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "operand not an array" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
       test->suggest_paren_assign );
    struct operand root;
    init_operand( &root );
-   test_nested_root( phase, test, &index, &root, subscript->index );
+   test_nested_root( semantic, test, &index, &root, subscript->index );
    // Out-of-bounds warning for a constant index.
    if ( lside.dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
       subscript->index->value >= lside.dim->size ) ) {
-      s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &subscript->index->pos, "array index out-of-bounds" );
    }
    operand->type = lside.type;
@@ -466,7 +466,7 @@ void test_subscript( struct semantic* phase, struct expr_test* test,
    }
 }
 
-void test_call( struct semantic* phase, struct expr_test* expr_test,
+void test_call( struct semantic* semantic, struct expr_test* expr_test,
    struct operand* operand, struct call* call ) {
    struct call_test test = {
       .call = call,
@@ -476,14 +476,14 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
    };
    struct operand callee;
    init_operand( &callee );
-   test_node( phase, expr_test, &callee, call->operand );
+   test_node( semantic, expr_test, &callee, call->operand );
    if ( ! callee.func ) {
-      s_diag( phase, DIAG_POS_ERR, &call->pos,
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "operand not a function" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    test.func = callee.func;
-   test_call_args( phase, expr_test, &test );
+   test_call_args( semantic, expr_test, &test );
    // Some action-specials cannot be called from a script.
    if ( test.func->type == FUNC_ASPEC ) {
       struct func_aspec* impl = test.func->impl;
@@ -491,9 +491,9 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
          struct str str;
          str_init( &str );
          t_copy_name( test.func->name, false, &str );
-         s_diag( phase, DIAG_POS_ERR, &call->pos,
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
             "action-special `%s` called from script", str.value );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    // Latent function cannot be called in a function or a format block.
@@ -505,20 +505,20 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
          while ( stmt && ! stmt->format_block ) {
             stmt = stmt->parent;
          }
-         if ( stmt || phase->func_test->func ) {
-            s_diag( phase, DIAG_POS_ERR, &call->pos,
+         if ( stmt || semantic->func_test->func ) {
+            s_diag( semantic, DIAG_POS_ERR, &call->pos,
                "calling latent function inside a %s",
                stmt ? "format block" : "function" );
             // Show educational note to user.
-            if ( phase->func_test->func ) {
+            if ( semantic->func_test->func ) {
                struct str str;
                str_init( &str );
                t_copy_name( test.func->name, false, &str );
-               s_diag( phase, DIAG_FILE, &call->pos,
+               s_diag( semantic, DIAG_FILE, &call->pos,
                   "waiting functions like `%s` can only be called inside a "
                   "script", str.value );
             }
-            s_bail( phase );
+            s_bail( semantic );
          }
       }
    }
@@ -542,14 +542,14 @@ void test_call( struct semantic* phase, struct expr_test* expr_test,
    }
 }
 
-void test_call_args( struct semantic* phase, struct expr_test* expr_test,
+void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
    struct call_test* test ) {
    struct call* call = test->call;
    struct func* func = test->func;
    list_iter_t i;
    list_iter_init( &i, &call->args );
    test->i = &i;
-   test_call_first_arg( phase, expr_test, test );
+   test_call_first_arg( semantic, expr_test, test );
    // Test remaining arguments.
    while ( ! list_end( &i ) ) {
       struct expr_test nested;
@@ -558,63 +558,63 @@ void test_call_args( struct semantic* phase, struct expr_test* expr_test,
          expr_test->format_block, true, false );
       struct operand root;
       init_operand( &root );
-      test_nested_root( phase, expr_test, &nested, &root, list_data( &i ) );
+      test_nested_root( semantic, expr_test, &nested, &root, list_data( &i ) );
       ++test->num_args;
       list_next( &i );
    }
    // Number of arguments must be correct.
    if ( test->num_args < func->min_param ) {
-      s_diag( phase, DIAG_POS_ERR, &call->pos,
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "not enough arguments in function call" );
       struct str str;
       str_init( &str );
       t_copy_name( func->name, false, &str );
-      s_diag( phase, DIAG_FILE, &call->pos,
+      s_diag( semantic, DIAG_FILE, &call->pos,
          "function `%s` needs %s%d argument%s", str.value,
          func->min_param != func->max_param ? "at least " : "",
          func->min_param, func->min_param != 1 ? "s" : "" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    if ( test->num_args > func->max_param ) {
-      s_diag( phase, DIAG_POS_ERR, &call->pos,
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "too many arguments in function call" );
       struct str str;
       str_init( &str );
       t_copy_name( func->name, false, &str );
-      s_diag( phase, DIAG_FILE, &call->pos,
+      s_diag( semantic, DIAG_FILE, &call->pos,
          "function `%s` takes %s%d argument%s", str.value,
          func->min_param != func->max_param ? "up_to " : "",
          func->max_param, func->max_param != 1 ? "s" : "" );
-      s_bail( phase );
+      s_bail( semantic );
    }
 }
 
-void test_call_first_arg( struct semantic* phase, struct expr_test* expr_test,
+void test_call_first_arg( struct semantic* semantic, struct expr_test* expr_test,
    struct call_test* test ) {
    if ( test->func->type == FUNC_FORMAT ) {
-      test_call_format_arg( phase, expr_test, test );
+      test_call_format_arg( semantic, expr_test, test );
    }
    else {
       if ( ! list_end( test->i ) ) {
          struct node* node = list_data( test->i );
          if ( node->type == NODE_FORMAT_ITEM ) {
             struct format_item* item = ( struct format_item* ) node;
-            s_diag( phase, DIAG_POS_ERR, &item->pos,
+            s_diag( semantic, DIAG_POS_ERR, &item->pos,
                "passing format-item to non-format function" );
-            s_bail( phase );
+            s_bail( semantic );
          }
          else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
             struct format_block_usage* usage =
                ( struct format_block_usage* ) node;
-            s_diag( phase, DIAG_POS_ERR, &usage->pos,
+            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
                "passing format-block to non-format function" );
-            s_bail( phase );
+            s_bail( semantic );
          }
       }
    }
 }
 
-void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
+void test_call_format_arg( struct semantic* semantic, struct expr_test* expr_test,
    struct call_test* test ) {
    list_iter_t* i = test->i;
    struct node* node = NULL;
@@ -623,16 +623,16 @@ void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
    }
    if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
       node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
-      s_diag( phase, DIAG_POS_ERR, &test->call->pos,
+      s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
          "function call missing format argument" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    // Format-block:
    if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
       if ( ! expr_test->format_block ) {
-         s_diag( phase, DIAG_POS_ERR, &test->call->pos,
+         s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
             "function call missing format-block" );
-         s_bail( phase );
+         s_bail( semantic );
       }
       struct format_block_usage* usage = ( struct format_block_usage* ) node;
       usage->block = expr_test->format_block;
@@ -651,7 +651,7 @@ void test_call_format_arg( struct semantic* phase, struct expr_test* expr_test,
    }
    // Format-list:
    else {
-      test_format_item_list( phase, expr_test, ( struct format_item* ) node );
+      test_format_item_list( semantic, expr_test, ( struct format_item* ) node );
       list_next( i );
    }
    // Both a format-block or a format-list count as a single argument.
@@ -733,23 +733,23 @@ void s_test_formatitemlist_stmt( struct semantic* semantic,
    }
 }
 
-void test_binary( struct semantic* phase, struct expr_test* test,
+void test_binary( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct binary* binary ) {
    struct operand lside;
    init_operand( &lside );
-   test_node( phase, test, &lside, binary->lside );
+   test_node( semantic, test, &lside, binary->lside );
    if ( ! lside.usable ) {
-      s_diag( phase, DIAG_POS_ERR, &binary->pos,
+      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
          "operand on left side not a value" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct operand rside;
    init_operand( &rside );
-   test_node( phase, test, &rside, binary->rside );
+   test_node( semantic, test, &rside, binary->rside );
    if ( ! rside.usable ) {
-      s_diag( phase, DIAG_POS_ERR, &binary->pos,
+      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
          "operand on right side not a value" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
@@ -758,8 +758,8 @@ void test_binary( struct semantic* phase, struct expr_test* test,
       // Division and modulo get special treatment because of the possibility
       // of a division by zero.
       if ( ( binary->op == BOP_DIV || binary->op == BOP_MOD ) && ! r ) {
-         s_diag( phase, DIAG_POS_ERR, &binary->pos, "division by zero" );
-         s_bail( phase );
+         s_diag( semantic, DIAG_POS_ERR, &binary->pos, "division by zero" );
+         s_bail( semantic );
       }
       switch ( binary->op ) {
       case BOP_MOD: l %= r; break;
@@ -802,7 +802,7 @@ void test_binary( struct semantic* phase, struct expr_test* test,
    case BOP_BIT_AND:
    case BOP_BIT_XOR:
    case BOP_BIT_OR:
-      operand->type = phase->task->type_int;
+      operand->type = semantic->task->type_int;
       break;
    case BOP_GTE:
    case BOP_GT:
@@ -812,50 +812,50 @@ void test_binary( struct semantic* phase, struct expr_test* test,
    case BOP_EQ:
    case BOP_LOG_AND:
    case BOP_LOG_OR:
-      operand->type = phase->task->type_bool;
+      operand->type = semantic->task->type_bool;
       break;
    }
 }
 
-void test_assign( struct semantic* phase, struct expr_test* test,
+void test_assign( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct assign* assign ) {
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
    if ( test->suggest_paren_assign && ! operand->in_paren ) {
-      s_diag( phase, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
+      s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &assign->pos, "assignment operation not in parentheses" );
    }
    struct operand lside;
    init_operand( &lside );
-   test_node( phase, test, &lside, assign->lside );
+   test_node( semantic, test, &lside, assign->lside );
    if ( ! lside.assignable ) {
-      s_diag( phase, DIAG_POS_ERR, &assign->pos,
+      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "cannot assign to operand on left side" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    struct operand rside;
    init_operand( &rside );
-   test_node( phase, test, &rside, assign->rside );
+   test_node( semantic, test, &rside, assign->rside );
    if ( ! rside.usable ) {
-      s_diag( phase, DIAG_POS_ERR, &assign->pos,
+      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "right side of assignment not a value" );
-      s_bail( phase );
+      s_bail( semantic );
    }
    operand->complete = true;
    operand->usable = true;
    operand->type = lside.type;
 }
 
-void test_access( struct semantic* phase, struct expr_test* test,
+void test_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access ) {
    // `::` operator.
    if ( access->is_region ) {
-      test_region_access( phase, test, operand, access );
+      test_region_access( semantic, test, operand, access );
    }
    // `.` operator.
    else {
-      test_struct_access( phase, test, operand, access );
+      test_struct_access( semantic, test, operand, access );
    }
 }
 
@@ -890,54 +890,54 @@ void test_region_access( struct semantic* semantic, struct expr_test* test,
    access->rside = ( struct node* ) object;
 }
 
-void test_struct_access( struct semantic* phase, struct expr_test* test,
+void test_struct_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access ) {
    struct operand lside;
    init_operand( &lside );
-   test_node( phase, test, &lside, access->lside );
+   test_node( semantic, test, &lside, access->lside );
    if ( ! ( lside.type && ! lside.dim ) ) {
-      s_diag( phase, DIAG_POS_ERR, &access->pos,
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand not of struct type" );
-      s_bail( phase );
+      s_bail( semantic );
    }
-   struct name* name = t_make_name( phase->task, access->name, lside.type->body );
+   struct name* name = t_make_name( semantic->task, access->name, lside.type->body );
    if ( ! name->object ) {
       // The right operand might be a member of a structure that hasn't been
       // processed yet because the structure appears later in the source code.
       // Leave for now.
       // TODO: The name should already refer to a valid member by this stage.
       // Need to refactor the declaration code, then remove this.
-      if ( ! phase->trigger_err ) {
+      if ( ! semantic->trigger_err ) {
          test->undef_erred = true;
          longjmp( test->bail, 1 );
       }
       if ( lside.type->anon ) {
-         s_diag( phase, DIAG_POS_ERR, &access->pos,
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not member of anonymous struct", access->name );
-         s_bail( phase );
+         s_bail( semantic );
       }
       else {
          struct str str;
          str_init( &str );
          t_copy_name( lside.type->name, false, &str );
-         s_diag( phase, DIAG_POS_ERR, &access->pos,
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not member of struct `%s`", access->name,
             str.value );
-         s_bail( phase );
+         s_bail( semantic );
       }
    }
    if ( ! name->object->resolved ) {
-      if ( phase->trigger_err ) {
-         s_diag( phase, DIAG_POS_ERR, &access->pos,
+      if ( semantic->trigger_err ) {
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "right operand `%s` undefined", access->name );
-         s_bail( phase );
+         s_bail( semantic );
       }
       else {
          test->undef_erred = true;
          longjmp( test->bail, 1 );
       }
    }
-   use_object( phase, test, operand, name->object );
+   use_object( semantic, test, operand, name->object );
    access->rside = ( struct node* ) name->object;
 }
 

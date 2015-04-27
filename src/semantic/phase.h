@@ -72,36 +72,36 @@ struct semantic {
    bool in_localscope;
 };
 
-void s_init( struct semantic* phase, struct task* task );
-void s_test( struct semantic* phase );
+void s_init( struct semantic* semantic, struct task* task );
+void s_test( struct semantic* semantic );
 void s_test_constant( struct semantic* semantic, struct constant* );
 void s_test_constant_set( struct semantic* semantic, struct constant_set* );
 void s_test_struct( struct semantic* semantic, struct type* type );
-void s_test_var( struct semantic* phase, struct var* var );
+void s_test_var( struct semantic* semantic, struct var* var );
 void s_test_func( struct semantic* semantic, struct func* func );
-void s_test_func_body( struct semantic* phase, struct func* func );
-void s_test_local_var( struct semantic* phase, struct var* );
+void s_test_func_body( struct semantic* semantic, struct func* func );
+void s_test_local_var( struct semantic* semantic, struct var* );
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
    bool suggest_paren_assign );
-void s_test_expr( struct semantic* phase, struct expr_test*, struct expr* );
+void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
-void s_test_top_block( struct semantic* phase, struct stmt_test*, struct block* );
-void s_test_stmt( struct semantic* phase, struct stmt_test*, struct node* );
-void s_test_block( struct semantic* phase, struct stmt_test*, struct block* );
+void s_test_top_block( struct semantic* semantic, struct stmt_test*, struct block* );
+void s_test_stmt( struct semantic* semantic, struct stmt_test*, struct node* );
+void s_test_block( struct semantic* semantic, struct stmt_test*, struct block* );
 void s_test_formatitemlist_stmt( struct semantic* semantic,
    struct stmt_test* stmt_test, struct format_item* item );
 void s_import( struct semantic* semantic, struct import* import,
    struct import_status* status );
-void s_add_scope( struct semantic* phase );
-void s_pop_scope( struct semantic* phase );
-void s_test_script( struct semantic* phase, struct script* script );
+void s_add_scope( struct semantic* semantic );
+void s_pop_scope( struct semantic* semantic );
+void s_test_script( struct semantic* semantic, struct script* script );
 void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
 void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
-void s_diag( struct semantic* phase, int flags, ... );
-void s_bail( struct semantic* phase );
+void s_diag( struct semantic* semantic, int flags, ... );
+void s_bail( struct semantic* semantic );
 struct regobjget s_get_regionobject( struct semantic* semantic,
    struct region* region, const char* name, bool get_struct );
 void s_init_object_search( struct object_search* search, struct path* path,
