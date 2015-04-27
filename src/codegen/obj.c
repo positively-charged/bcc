@@ -685,12 +685,12 @@ void c_seek_end( struct codegen* codegen ) {
    codegen->buffer->pos = codegen->buffer->used;
 }
 
-void c_flush( struct codegen* phase ) {
+void c_flush( struct codegen* codegen ) {
    // Don't overwrite the object file unless it's an ACS object file, or the
    // file doesn't exist. This is a basic check done to help prevent the user
    // from accidently killing their other files. Maybe add a command-line
    // argument to force the overwrite, like --force-object-overwrite?
-   FILE* fh = fopen( phase->task->options->object_file, "rb" );
+   FILE* fh = fopen( codegen->task->options->object_file, "rb" );
    if ( fh ) {
       char id[ 4 ];
       bool proceed = false;
@@ -701,15 +701,15 @@ void c_flush( struct codegen* phase ) {
       }
       fclose( fh );
       if ( ! proceed ) {
-         t_diag( phase->task, DIAG_ERR, "trying to overwrite unknown file: %s",
-            phase->task->options->object_file );
-         t_bail( phase->task );
+         t_diag( codegen->task, DIAG_ERR, "trying to overwrite unknown file: %s",
+            codegen->task->options->object_file );
+         t_bail( codegen->task );
       }
    }
    bool failure = false;
-   fh = fopen( phase->task->options->object_file, "wb" );
+   fh = fopen( codegen->task->options->object_file, "wb" );
    if ( fh ) {
-      struct buffer* buffer = phase->buffer_head;
+      struct buffer* buffer = codegen->buffer_head;
       while ( buffer ) {
          int written = fwrite( buffer->data, 1, buffer->used, fh );
          if ( written != buffer->used ) {
@@ -724,8 +724,8 @@ void c_flush( struct codegen* phase ) {
       failure = true;
    }
    if ( failure ) {
-      t_diag( phase->task, DIAG_ERR, "failed to write object file: %s",
-         phase->task->options->object_file );
-      t_bail( phase->task );
+      t_diag( codegen->task, DIAG_ERR, "failed to write object file: %s",
+         codegen->task->options->object_file );
+      t_bail( codegen->task );
    }
 }
