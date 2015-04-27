@@ -6,6 +6,7 @@
 
 struct request {
    const char* given_path;
+   struct file_entry* file;
    struct source* source;
    struct str path;
    struct fileid fileid;
@@ -65,6 +66,7 @@ struct source* p_load_included_source( struct parse* parse ) {
 
 void init_request( struct request* request, const char* path ) {
    request->given_path = path;
+   request->file = NULL;
    request->source = NULL;
    str_init( &request->path );
    // NOTE: request->file_id NOT initialized.
@@ -74,7 +76,12 @@ void init_request( struct request* request, const char* path ) {
 }
 
 void load_source( struct parse* parse, struct request* request ) {
-   if ( find_source_file( parse, request ) ) {
+   struct file_query query;
+   t_init_file_query( &query, ( parse->source ? parse->source->file : NULL ),
+      request->given_path );
+   t_find_file( parse->task, &query );
+   if ( query.success ) {
+      request->file = query.file;
       if ( ! source_loading( parse, request ) ) {
          open_source_file( parse, request );
       }
@@ -125,15 +132,14 @@ bool find_source_file( struct parse* parse, struct request* request ) {
 
 bool source_loading( struct parse* parse, struct request* request ) {
    struct source* source = parse->source;
-   while ( source &&
-      ! c_same_fileid( &request->fileid, &source->file->file_id ) ) {
+   while ( source && request->file != source->file ) {
       source = source->prev;
    }
    return ( source != NULL );
 }
 
 void open_source_file( struct parse* parse, struct request* request ) {
-   FILE* fh = fopen( request->path.value, "rb" );
+   FILE* fh = fopen( request->file->full_path.value, "rb" );
    if ( ! fh ) {
       request->err_open = true;
       return;
@@ -153,7 +159,7 @@ void open_source_file( struct parse* parse, struct request* request ) {
    }
    // Create source.
    struct source* source = mem_alloc( sizeof( *source ) );
-   source->file = assign_file_entry( parse, request );
+   source->file = request->file;
    source->text = text;
    source->left = text;
    source->save = save;
