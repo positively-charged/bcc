@@ -8,8 +8,6 @@ struct request {
    const char* given_path;
    struct file_entry* file;
    struct source* source;
-   struct str path;
-   struct fileid fileid;
    bool err_open;
    bool err_loading;
    bool err_loaded_before;
@@ -17,14 +15,8 @@ struct request {
 
 static void load_source( struct parse* parse, struct request* );
 static void init_request( struct request*, const char* );
-static bool find_source_file( struct parse* parse, struct request* request );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
-static struct file_entry* assign_file_entry( struct parse* parse,
-   struct request* request );
-static struct file_entry* create_file_entry( struct parse* parse,
-   struct request* request );
-static void link_file_entry( struct parse* parse, struct file_entry* entry );
 static enum tk peek( struct parse* parse, int );
 static void read_source( struct parse* parse, struct token* );
 static void escape_ch( struct parse* parse, char*, char**, bool );
@@ -68,8 +60,6 @@ void init_request( struct request* request, const char* path ) {
    request->given_path = path;
    request->file = NULL;
    request->source = NULL;
-   str_init( &request->path );
-   // NOTE: request->file_id NOT initialized.
    request->err_open = false;
    request->err_loaded_before = false;
    request->err_loading = false;
@@ -92,42 +82,6 @@ void load_source( struct parse* parse, struct request* request ) {
    else {
       request->err_open = true;
    }
-   // Deinitialize request.
-   str_deinit( &request->path );
-}
-
-bool find_source_file( struct parse* parse, struct request* request ) {
-   // Try path directly.
-   str_append( &request->path, request->given_path );
-   if ( c_read_fileid( &request->fileid, request->path.value ) ) {
-      return true;
-   }
-   // Try directory of current file.
-   if ( parse->source ) {
-      str_copy( &request->path, parse->source->file->full_path.value,
-         parse->source->file->full_path.length );
-      c_extract_dirname( &request->path );
-      str_append( &request->path, "/" );
-      str_append( &request->path, request->given_path );
-      if ( c_read_fileid( &request->fileid, request->path.value ) ) {
-         return true;
-      }
-   }
-   // Try user-specified directories.
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->options->includes );
-   while ( ! list_end( &i ) ) {
-      char* include = list_data( &i ); 
-      str_clear( &request->path );
-      str_append( &request->path, include );
-      str_append( &request->path, "/" );
-      str_append( &request->path, request->given_path );
-      if ( c_read_fileid( &request->fileid, request->path.value ) ) {
-         return true;
-      }
-      list_next( &i );
-   }
-   return false;
 }
 
 bool source_loading( struct parse* parse, struct request* request ) {
@@ -173,47 +127,6 @@ void open_source_file( struct parse* parse, struct request* request ) {
    request->source = source;
    parse->source = source;
    parse->tk = TK_END;
-}
-
-struct file_entry* assign_file_entry( struct parse* parse,
-   struct request* request ) {
-   struct file_entry* entry = parse->task->file_entries;
-   while ( entry ) {
-      if ( c_same_fileid( &request->fileid, &entry->file_id ) ) {
-         return entry;
-      }
-      entry = entry->next;
-   }
-   return create_file_entry( parse, request );
-}
-
-struct file_entry* create_file_entry( struct parse* parse,
-   struct request* request ) {
-   struct file_entry* entry = mem_alloc( sizeof( *entry ) );
-   entry->next = NULL;
-   entry->file_id = request->fileid;
-   str_init( &entry->path );
-   str_append( &entry->path, request->given_path );
-   str_init( &entry->full_path );
-   c_read_full_path( request->path.value, &entry->full_path );
-   entry->id = parse->last_id;
-   ++parse->last_id;
-   link_file_entry( parse, entry );
-   return entry;
-}
-
-void link_file_entry( struct parse* parse, struct file_entry* entry ) {
-   struct task* task = parse->task;
-   if ( task->file_entries ) {
-      struct file_entry* prev = task->file_entries;
-      while ( prev->next ) {
-         prev = prev->next;
-      }
-      prev->next = entry;
-   }
-   else {
-      task->file_entries = entry;
-   }
 }
 
 void p_read_tk( struct parse* parse ) {
