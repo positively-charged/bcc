@@ -3,7 +3,6 @@
 #include "phase.h"
 
 static void make_main_lib( struct parse* parse );
-static struct library* add_library( struct task* );
 static void read_region_name( struct parse* parse );
 static void read_region_body( struct parse* parse );
 static void read_dirc( struct parse* parse, struct pos* );
@@ -38,35 +37,8 @@ void p_read( struct parse* parse ) {
 }
 
 void make_main_lib( struct parse* parse ) {
-   parse->task->library = add_library( parse->task );
+   parse->task->library = t_add_library( parse->task );
    parse->task->library_main = parse->task->library;
-}
-
-struct library* add_library( struct task* task ) {
-   struct library* lib = mem_alloc( sizeof( *lib ) );
-   str_init( &lib->name );
-   str_copy( &lib->name, "", 0 );
-   list_init( &lib->vars );
-   list_init( &lib->funcs );
-   list_init( &lib->scripts );
-   list_init( &lib->dynamic );
-   lib->file_pos.line = 0;
-   lib->file_pos.column = 0;
-   lib->file_pos.id = 0;
-   lib->id = list_size( &task->libraries );
-   lib->format = FORMAT_LITTLE_E;
-   lib->importable = false;
-   lib->imported = false;
-   if ( task->library_main ) {
-      struct library* last_lib = list_tail( &task->libraries );
-      lib->hidden_names = t_make_name( task, "a.", last_lib->hidden_names );
-   }
-   else {
-      lib->hidden_names = t_make_name( task, "!hidden.", task->root_name );
-   }
-   lib->encrypt_str = false;
-   list_append( &task->libraries, lib );
-   return lib;
 }
 
 void p_read_lib( struct parse* parse ) {
@@ -267,7 +239,7 @@ void read_include( struct parse* parse, struct pos* pos, bool import ) {
    if ( import ) {
       source->imported = true;
       struct library* parent_lib = parse->task->library;
-      struct library* lib = add_library( parse->task );
+      struct library* lib = t_add_library( parse->task );
       list_append( &parent_lib->dynamic, lib );
       parse->task->library = lib;
       parse->task->library->imported = true;

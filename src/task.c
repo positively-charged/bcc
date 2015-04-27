@@ -489,3 +489,30 @@ void link_file_entry( struct task* task, struct file_entry* entry ) {
       task->file_entries = entry;
    }
 }
+
+struct library* t_add_library( struct task* task ) {
+   struct library* lib = mem_alloc( sizeof( *lib ) );
+   str_init( &lib->name );
+   str_copy( &lib->name, "", 0 );
+   list_init( &lib->vars );
+   list_init( &lib->funcs );
+   list_init( &lib->scripts );
+   list_init( &lib->dynamic );
+   lib->file_pos.line = 0;
+   lib->file_pos.column = 0;
+   lib->file_pos.id = 0;
+   lib->id = list_size( &task->libraries );
+   lib->format = FORMAT_LITTLE_E;
+   lib->importable = false;
+   lib->imported = false;
+   if ( task->library_main ) {
+      struct library* last_lib = list_tail( &task->libraries );
+      lib->hidden_names = t_make_name( task, "a.", last_lib->hidden_names );
+   }
+   else {
+      lib->hidden_names = t_make_name( task, "!hidden.", task->root_name );
+   }
+   lib->encrypt_str = false;
+   list_append( &task->libraries, lib );
+   return lib;
+}

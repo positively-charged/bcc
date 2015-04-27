@@ -792,5 +792,6 @@ struct type* t_create_type( struct task* task, struct name* name );
 void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );
 void t_find_file( struct task* task, struct file_query* query );
+struct library* t_add_library( struct task* task );
 
 #endif
