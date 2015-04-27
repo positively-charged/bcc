@@ -18,6 +18,12 @@ void show_diag( struct task* task, int flags, va_list* args );
 void log_diag( struct task* task, int flags, va_list* args );
 static void decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
+static bool identify_file( struct task* task, struct file_query* query );
+static struct file_entry* add_file( struct task* task,
+   struct file_query* query );
+static struct file_entry* create_file_entry( struct task* task,
+   struct file_query* query );
+static void link_file_entry( struct task* task, struct file_entry* entry );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->options = options;
@@ -38,6 +44,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    list_init( &task->regions );
    list_append( &task->regions, region );
    list_init( &task->scripts );
+   task->last_id = 0;
 }
 
 void init_str_table( struct str_table* table ) {
@@ -387,4 +394,98 @@ bool t_same_pos( struct pos* a, struct pos* b ) {
       a->id == b->id &&
       a->line == b->line &&
       a->column == b->column );
+}
+
+void t_init_file_query( struct file_query* query,
+   struct file_entry* offset_file, const char* path ) {
+   query->given_path = path;
+   query->path = NULL;
+   // NOTE: .fileid NOT initialized.
+   query->file = NULL;
+   query->offset_file = offset_file;
+   query->success = false;
+}
+
+void t_find_file( struct task* task, struct file_query* query ) {
+   struct str path;
+   str_init( &path );
+   query->path = &path;
+   if ( identify_file( task, query ) ) {
+      query->file = add_file( task, query );
+      query->success = true;
+   }
+   str_deinit( &path );
+}
+
+bool identify_file( struct task* task, struct file_query* query ) {
+   // Try path directly.
+   str_append( query->path, query->given_path );
+   if ( c_read_fileid( &query->fileid, query->path->value ) ) {
+      return true;
+   }
+   // Try directory of current file.
+   if ( query->offset_file ) {
+      str_copy( query->path, query->offset_file->full_path.value,
+         query->offset_file->full_path.length );
+      c_extract_dirname( query->path );
+      str_append( query->path, "/" );
+      str_append( query->path, query->given_path );
+      if ( c_read_fileid( &query->fileid, query->path->value ) ) {
+         return true;
+      }
+   }
+   // Try user-specified directories.
+   list_iter_t i;
+   list_iter_init( &i, &task->options->includes );
+   while ( ! list_end( &i ) ) {
+      char* include = list_data( &i ); 
+      str_clear( query->path );
+      str_append( query->path, include );
+      str_append( query->path, "/" );
+      str_append( query->path, query->given_path );
+      if ( c_read_fileid( &query->fileid, query->path->value ) ) {
+         return true;
+      }
+      list_next( &i );
+   }
+   return false;
+}
+
+struct file_entry* add_file( struct task* task, struct file_query* query ) {
+   struct file_entry* entry = task->file_entries;
+   while ( entry ) {
+      if ( c_same_fileid( &query->fileid, &entry->file_id ) ) {
+         return entry;
+      }
+      entry = entry->next;
+   }
+   return create_file_entry( task, query );
+}
+
+struct file_entry* create_file_entry( struct task* task,
+   struct file_query* query ) {
+   struct file_entry* entry = mem_alloc( sizeof( *entry ) );
+   entry->next = NULL;
+   entry->file_id = query->fileid;
+   str_init( &entry->path );
+   str_append( &entry->path, query->given_path );
+   str_init( &entry->full_path );
+   c_read_full_path( query->path->value, &entry->full_path );
+   entry->id = task->last_id;
+   ++task->last_id;
+   link_file_entry( task, entry );
+   return entry;
+}
+
+void link_file_entry( struct task* task, struct file_entry* entry ) {
+   if ( task->file_entries ) {
+      struct file_entry* prev = task->file_entries;
+      while ( prev->next ) {
+         prev = prev->next;
+      }
+      prev->next = entry;
+   }
+   else {
+      task->file_entries = entry;
+   }
 }

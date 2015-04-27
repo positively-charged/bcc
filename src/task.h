@@ -18,6 +18,15 @@ struct file_entry {
    int id;
 };
 
+struct file_query {
+   const char* given_path;
+   struct str* path;
+   struct fileid fileid;
+   struct file_entry* file;
+   struct file_entry* offset_file;
+   bool success;
+};
+
 struct pos {
    int line;
    int column;
@@ -747,6 +756,7 @@ struct task {
    struct list libraries;
    struct list regions;
    struct list scripts;
+   int last_id;
 };
 
 #define DIAG_NONE 0
@@ -779,5 +789,8 @@ void t_init_type_members( struct task* );
 struct region* t_alloc_region( struct task* task, struct name* name,
    bool upmost );
 struct type* t_create_type( struct task* task, struct name* name );
+void t_init_file_query( struct file_query* query,
+   struct file_entry* offset_file, const char* path );
+void t_find_file( struct task* task, struct file_query* query );
 
 #endif
