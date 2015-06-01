@@ -3,8 +3,8 @@
 
 region jm {
 
-import region: r = region;
-import upmost: region = std;
+import r = region;
+import std::*;
 
 enum MODE_COOP = 0;
 enum MODE_SVMZ = 1;
@@ -170,8 +170,7 @@ script 933 ( int player ) disconnect {
 
 }
 
-region jm {
-region config {
+region jm::config {
 
 enum TICS_IN_SECOND = 35;
 enum SECONDS_IN_MINUTE = 60;
@@ -189,12 +188,10 @@ enum ANGLE_SOUTH = 192;
 enum ANGLE_SOUTHEAST = 224;
 
 }
-}
 
-region jm {
-region utility {
+region jm::utility {
 
-import upmost: region = std;
+import std::*;
 import jm: config;
 
 void init() {
@@ -305,10 +302,9 @@ str conv_month_string( int month ) {
 }
 
 }
-}
 
 region jm::client {
-   import upmost: region = std;
+   import std::*;
 
    // Player number retrival.
    // Thanks to Euranna for the solution and helping me understand it.
@@ -355,8 +351,8 @@ region jm::client {
 }
 
 region jm::map_msg {
-   import upmost: region = std;
-   import jm: jm = region, config, hs;
+   import std::*;
+   import jm, jm: config, hs;
 
    enum {
       SKILL_VARIED,
@@ -451,7 +447,7 @@ region jm::map_msg {
 }
 
 region jm::timer {
-   import upmost: region = std;
+   import std::*;
    import jm: config;
 
    str par = "";
@@ -508,7 +504,7 @@ region jm::timer {
 }
 
 region jm::who_exited {
-   import upmost: region = std;
+   import std::*;
    import jm: utility;
 
    void show() {
@@ -533,7 +529,7 @@ region jm::who_exited {
 }
 
 region jm::luk {
-   import upmost: region = std;
+   import std::*;
    import jm: config;
 
    // Query delimiter.
@@ -877,7 +873,7 @@ region jm::luk {
 }
 
 region jm::hs {
-   import upmost: region = std;
+   import std::*;
    import jm: config, utility, luk;
 
    enum LINE_NOTICE = 27233;
@@ -982,7 +978,7 @@ region jm::hs {
 }
 
 region jm::solo_ranker {
-   import upmost: region = std;
+   import std::*;
    import jm: config, utility, luk, hs;
 
    // Start script number.
@@ -1405,7 +1401,7 @@ region jm::solo_ranker {
 }
 
 region jm::team_ranker {
-   import upmost: region = std;
+   import std::*;
    import jm: config, utility, luk, hs;
 
    enum SCRIPT_START = 960;
@@ -1893,7 +1889,7 @@ region jm::team_ranker {
 }
 
 region jm::telepatch {
-   import upmost: region = std;
+   import std::*;
    import jm: config;
 
    enum TID_OFFSET = 28100;
@@ -1934,7 +1930,7 @@ region jm::telepatch {
 }
 
 region jm::auto_fist {
-   import upmost: region = std;
+   import std::*;
    import jm: client;
 
    script 995 enter {
@@ -1959,7 +1955,7 @@ region jm::auto_fist {
 // breaks down a long string message into smaller segments that fit nicely on
 // a player's screens and shows them one at a time.
 region jm::rsd {
-   import upmost: region = std;
+   import std::*;
 
    enum RSD_START_SCRIPT = 945;
    enum RSD_TICS_IN_SECOND = 35.71;
@@ -2269,7 +2265,7 @@ region jm::rsd {
 }
 
 region jm::svmz {
-   import upmost: region = std;
+   import std::*;
    import jm: config, utility;
 
    // The smallest minimum escapee requirement possible.
@@ -2584,7 +2580,7 @@ region jm::svmz {
 }
 
 region jm::svmz::escapee {
-   import upmost: region = std;
+   import std::*;
    import jm: config, svmz;
 
    bool escaped[ config::MAX_PLAYERS ];
@@ -2615,7 +2611,7 @@ region jm::svmz::escapee {
 }
 
 region jm::svmz::timer {
-   import upmost: region = std;
+   import std::*;
    import jm: config, svmz;
 
    enum WARNING_TIME = 10; // In seconds.
@@ -2683,7 +2679,7 @@ region jm::svmz::timer {
 }
 
 region jm::svmz::item {
-   import upmost: region = std;
+   import std::*;
    import jm: config, utility, svmz;
 
    // Item initialization script, executed from DECORATE.
