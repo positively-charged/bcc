@@ -1265,7 +1265,7 @@ str GetDBResultKeyString( int, int ) -= 118;
 str GetDBResultValueString( int, int ) -= 119;
 int GetDBResultValue( int, int ) -= 120;
 int GetDBEntryRank( str, str, bool ) -= 121;
-int RequestScriptPuke( int, int = 0, int = 0, int = 0 ) -= 122;
+int RequestScriptPuke( int, int, int, int ) -= 122;
 int GetTeamScore( int ) -= 19620;
 void SetTeamScore( int, int ) -= 19621;
 
