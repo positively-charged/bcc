@@ -12,7 +12,6 @@ enum {
 
 static void init_str_table( struct str_table* table );
 static struct type* get_type( struct task*, int type );
-static struct name* new_name( void );
 static void open_logfile( struct task* task );
 void show_diag( struct task* task, int flags, va_list* args );
 void log_diag( struct task* task, int flags, va_list* args );
@@ -31,7 +30,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->bail = bail;
    task->file_entries = NULL;
    init_str_table( &task->str_table );
-   task->root_name = new_name();
+   task->root_name = t_create_name();
    task->anon_name = t_make_name( task, "!anon.", task->root_name );
    struct region* region = t_alloc_region( task, task->root_name, true );
    task->root_name->object = &region->object;
@@ -54,7 +53,7 @@ void init_str_table( struct str_table* table ) {
    table->tail = NULL;
 }
 
-struct name* new_name( void ) {
+struct name* t_create_name( void ) {
    struct name* name = mem_slot_alloc( sizeof( *name ) );
    name->parent = NULL;
    name->next = NULL;
@@ -64,9 +63,9 @@ struct name* new_name( void ) {
    return name;
 }
 
-struct name* t_make_name( struct task* task, const char* ch,
-   struct name* parent ) {
+struct name* t_extend_name( struct name* parent, const char* extension ) {
    struct name* name = parent->drop;
+   const char* ch = extension;
    while ( *ch ) {
       // Find the correct node to enter.
       struct name* prev = NULL;
@@ -76,7 +75,7 @@ struct name* t_make_name( struct task* task, const char* ch,
       }
       // Enter a new node if no node could be found.
       if ( ! name ) {
-         name = new_name();
+         name = t_create_name();
          name->parent = parent;
          name->ch = *ch;
          if ( prev ) {
@@ -89,7 +88,7 @@ struct name* t_make_name( struct task* task, const char* ch,
       // Enter a new node if no node with the same character exists in the
       // parent node.
       else if ( name->ch != *ch ) {
-         struct name* smaller_name = new_name();
+         struct name* smaller_name = t_create_name();
          smaller_name->next = name;
          smaller_name->parent = parent;
          smaller_name->ch = *ch;
@@ -106,6 +105,11 @@ struct name* t_make_name( struct task* task, const char* ch,
       ++ch;
    }
    return parent;
+}
+
+struct name* t_make_name( struct task* task, const char* ch,
+   struct name* parent ) {
+   return t_extend_name( parent, ch );
 }
 
 void t_copy_name( struct name* start, bool full, struct str* str ) {

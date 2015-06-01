@@ -793,5 +793,7 @@ void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );
 void t_find_file( struct task* task, struct file_query* query );
 struct library* t_add_library( struct task* task );
+struct name* t_create_name( void );
+struct name* t_extend_name( struct name* parent, const char* extension );
 
 #endif
