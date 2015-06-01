@@ -363,6 +363,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct name* name = NULL;
    struct pos name_pos = parse->tk_pos;
    bool name_specified = false;
+   bool anon = false;
    if ( parse->tk == TK_ID ) {
       name = t_extend_name( parse->region->body_struct, parse->tk_text );
       name_specified = true;
@@ -370,14 +371,12 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    }
    // When no name is specified, make random name.
    else {
-      name = t_extend_name( parse->task->anon_name, "a" );
-      parse->task->anon_name = name;
+      name = t_create_name();
+      anon = true;
    }
    struct type* type = t_create_type( parse->task, name );
    type->object.pos = dec->type_pos;
-   if ( name == parse->task->anon_name ) {
-      type->anon = true;
-   }
+   type->anon = anon;
    // Members:
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );

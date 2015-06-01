@@ -746,7 +746,6 @@ struct task {
    struct file_entry* file_entries;
    struct str_table str_table;
    struct name* root_name;
-   struct name* anon_name;
    struct region* region_upmost;
    struct type* type_int;
    struct type* type_str;

@@ -31,7 +31,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->file_entries = NULL;
    init_str_table( &task->str_table );
    task->root_name = t_create_name();
-   task->anon_name = t_extend_name( task->root_name, "!anon." );
    struct region* region = t_alloc_region( task, task->root_name, true );
    task->root_name->object = &region->object;
    task->region_upmost = region;
