@@ -619,8 +619,8 @@ void s_find_linkedobject( struct semantic* semantic,
 
 struct regobjget s_get_regionobject( struct semantic* semantic,
    struct region* region, const char* lookup, bool get_struct ) {
-   struct name* name = t_make_name( semantic->task, lookup,
-      ( get_struct ? region->body_struct : region->body ) );
+   struct name* name = t_extend_name(
+      ( get_struct ? region->body_struct : region->body ), lookup );
    struct object* object = name->object;
    if ( object ) {
       while ( object->next_scope ) {

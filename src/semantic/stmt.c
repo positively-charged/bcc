@@ -737,9 +737,9 @@ void import_item( struct semantic* semantic, struct import_item* item,
 
 void alias_imported( struct semantic* semantic, char* alias_name,
    struct pos* alias_pos, struct object* object ) {
-   struct name* name = t_make_name( semantic->task, alias_name,
-      object->node.type == NODE_TYPE ? semantic->region->body_struct :
-         semantic->region->body );
+   struct name* name = t_extend_name(
+      ( object->node.type == NODE_TYPE ? semantic->region->body_struct :
+         semantic->region->body ), alias_name );
    // Duplicate imports are allowed as long as both names refer to the
    // same object.
    if ( name->object && name->object->node.type == NODE_ALIAS ) {

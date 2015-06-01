@@ -266,16 +266,14 @@ struct object* find_referenced_object( struct semantic* semantic,
          }
          list_next( &i );
       }
-      struct name* name = t_make_name( semantic->task, usage->text,
-         lib->hidden_names );
+      struct name* name = t_extend_name( lib->hidden_names, usage->text );
       if ( name->object ) {
          return name->object;
       }
    }
 
    // Try searching in the current scope.
-   struct name* name = t_make_name( semantic->task, usage->text,
-      semantic->region->body );
+   struct name* name = t_extend_name( semantic->region->body, usage->text );
    if ( name->object ) {
       struct object* object = name->object;
       if ( object->node.type == NODE_ALIAS ) {
@@ -900,7 +898,7 @@ void test_struct_access( struct semantic* semantic, struct expr_test* test,
          "left operand not of struct type" );
       s_bail( semantic );
    }
-   struct name* name = t_make_name( semantic->task, access->name, lside.type->body );
+   struct name* name = t_extend_name( lside.type->body, access->name );
    if ( ! name->object ) {
       // The right operand might be a member of a structure that hasn't been
       // processed yet because the structure appears later in the source code.

@@ -31,7 +31,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->file_entries = NULL;
    init_str_table( &task->str_table );
    task->root_name = t_create_name();
-   task->anon_name = t_make_name( task, "!anon.", task->root_name );
+   task->anon_name = t_extend_name( task->root_name, "!anon." );
    struct region* region = t_alloc_region( task, task->root_name, true );
    task->root_name->object = &region->object;
    task->region_upmost = region;
@@ -160,11 +160,11 @@ struct region* t_alloc_region( struct task* task, struct name* name,
    region->name = name;
    if ( upmost ) {
       region->body = name;
-      region->body_struct = t_make_name( task, "struct::", name );
+      region->body_struct = t_extend_name( name, "struct::" );
    }
    else {
-      region->body = t_make_name( task, "::", name );
-      region->body_struct = t_make_name( task, "::struct::", name );
+      region->body = t_extend_name( name, "::" );
+      region->body_struct = t_extend_name( name, "::struct::" );
    }
    region->link = NULL;
    region->unresolved = NULL;
@@ -176,20 +176,20 @@ struct region* t_alloc_region( struct task* task, struct name* name,
 
 void t_init_types( struct task* task ) {
    struct type* type = t_create_type( task,
-      t_make_name( task, "int", task->region_upmost->body ) );
+      t_extend_name( task->region_upmost->body, "int" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    task->type_int = type;
    type = t_create_type( task,
-      t_make_name( task, "str", task->region_upmost->body ) );
+      t_extend_name( task->region_upmost->body, "str" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    type->is_str = true;
    task->type_str = type;
    type = t_create_type( task,
-      t_make_name( task, "bool", task->region_upmost->body ) );
+      t_extend_name( task->region_upmost->body, "bool" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
@@ -200,7 +200,7 @@ struct type* t_create_type( struct task* task, struct name* name ) {
    struct type* type = mem_alloc( sizeof( *type ) );
    t_init_object( &type->object, NODE_TYPE );
    type->name = name;
-   type->body = t_make_name( task, "::", name );
+   type->body = t_extend_name( name, "::" );
    type->member = NULL;
    type->member_tail = NULL;
    type->size = 0;
@@ -227,7 +227,7 @@ void t_init_type_members( struct task* task ) {
       func->object.resolved = true;
       func->type = FUNC_INTERNAL;
       struct type* type = get_type( task, list[ i ].type );
-      struct name* name = t_make_name( task, list[ i ].name, type->body );
+      struct name* name = t_extend_name( type->body, list[ i ].name );
       name->object = &func->object;
       func->name = name;
       func->params = NULL;
@@ -511,10 +511,10 @@ struct library* t_add_library( struct task* task ) {
    lib->imported = false;
    if ( task->library_main ) {
       struct library* last_lib = list_tail( &task->libraries );
-      lib->hidden_names = t_make_name( task, "a.", last_lib->hidden_names );
+      lib->hidden_names = t_extend_name( last_lib->hidden_names, "a." );
    }
    else {
-      lib->hidden_names = t_make_name( task, "!hidden.", task->root_name );
+      lib->hidden_names = t_extend_name( task->root_name, "!hidden." );
    }
    lib->encrypt_str = false;
    list_append( &task->libraries, lib );

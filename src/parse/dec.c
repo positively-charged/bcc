@@ -240,8 +240,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       }
       struct constant* constant = alloc_constant();
       constant->object.pos = parse->tk_pos;
-      constant->name = t_make_name( parse->task, parse->tk_text,
-         parse->region->body );
+      constant->name = t_extend_name( parse->region->body, parse->tk_text );
       p_read_tk( parse );
       if ( parse->tk == TK_ASSIGN ) {
          p_read_tk( parse );
@@ -316,8 +315,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_ID );
    struct constant* constant = alloc_constant();
    constant->object.pos = parse->tk_pos;
-   constant->name = t_make_name( parse->task, parse->tk_text,
-      parse->region->body );
+   constant->name = t_extend_name( parse->region->body, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );
@@ -366,14 +364,13 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct pos name_pos = parse->tk_pos;
    bool name_specified = false;
    if ( parse->tk == TK_ID ) {
-      name = t_make_name( parse->task, parse->tk_text,
-         parse->region->body_struct );
+      name = t_extend_name( parse->region->body_struct, parse->tk_text );
       name_specified = true;
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
    else {
-      name = t_make_name( parse->task, "a", parse->task->anon_name );
+      name = t_extend_name( parse->task->anon_name, "a" );
       parse->task->anon_name = name;
    }
    struct type* type = t_create_type( parse->task, name );
@@ -491,7 +488,7 @@ void read_storage_index( struct parse* parse, struct dec* dec ) {
 
 void read_name( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_ID ) {
-      dec->name = t_make_name( parse->task, parse->tk_text, dec->name_offset );
+      dec->name = t_extend_name( dec->name_offset, parse->tk_text );
       dec->name_pos = parse->tk_pos;
       p_read_tk( parse );
    }
@@ -1022,8 +1019,7 @@ void read_params( struct parse* parse, struct params* params ) {
       p_read_tk( parse );
       // Name not required for a parameter.
       if ( parse->tk == TK_ID ) {
-         param->name = t_make_name( parse->task, parse->tk_text,
-            parse->region->body );
+         param->name = t_extend_name( parse->region->body, parse->tk_text );
          param->object.pos = parse->tk_pos;
          p_read_tk( parse );
       }

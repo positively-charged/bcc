@@ -112,8 +112,7 @@ void p_read_region( struct parse* parse ) {
 
 void read_region_name( struct parse* parse ) {
    p_test_tk( parse, TK_ID );
-   struct name* name = t_make_name( parse->task, parse->tk_text,
-      parse->region->body );
+   struct name* name = t_extend_name( parse->region->body, parse->tk_text );
    // Regions must be opened once. This works like modules in other languages.
    if ( name->object ) {
       if ( p_peek( parse ) == TK_COLON_2 ) {
@@ -308,12 +307,12 @@ void read_define( struct parse* parse ) {
    t_init_object( &constant->object, NODE_CONSTANT );
    constant->object.pos = parse->tk_pos;
    if ( hidden ) {
-      constant->name = t_make_name( parse->task, parse->tk_text,
-         parse->task->library->hidden_names );
+      constant->name = t_extend_name( parse->task->library->hidden_names,
+         parse->tk_text );
    }
    else {
-      constant->name = t_make_name( parse->task, parse->tk_text,
-         parse->task->region_upmost->body );
+      constant->name = t_extend_name( parse->task->region_upmost->body,
+            parse->tk_text );
    }
    p_read_tk( parse );
    struct expr_reading value;
