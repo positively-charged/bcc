@@ -107,11 +107,6 @@ struct name* t_extend_name( struct name* parent, const char* extension ) {
    return parent;
 }
 
-struct name* t_make_name( struct task* task, const char* ch,
-   struct name* parent ) {
-   return t_extend_name( parent, ch );
-}
-
 void t_copy_name( struct name* start, bool full, struct str* str ) {
    int length = 0;
    char term = ':';

@@ -770,7 +770,6 @@ struct task {
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
 void t_init( struct task*, struct options*, jmp_buf* );
-struct name* t_make_name( struct task*, const char*, struct name* );
 void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
 int t_get_script_number( struct script* );
