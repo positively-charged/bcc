@@ -44,8 +44,8 @@ static void visit_aspec_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_ext_call( struct codegen* codegen, struct operand*,
    struct call* );
-static int push_aspecext_callargs( struct codegen* codegen,
-   struct call* call );
+static int push_nonzero_args( struct codegen* codegen, struct param* params,
+   struct list* args, int min );
 static void visit_ded_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_format_call( struct codegen* codegen, struct operand*,
@@ -368,7 +368,8 @@ void visit_call( struct codegen* codegen, struct operand* operand,
 
 void visit_aspec_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   int count = push_aspecext_callargs( codegen, call );
+   int count = push_nonzero_args( codegen, call->func->params,
+      &call->args, 0 );
    struct func_aspec* aspec = call->func->impl;
    if ( operand->push ) {
       while ( count < 5 ) {
@@ -394,18 +395,34 @@ void visit_aspec_call( struct codegen* codegen, struct operand* operand,
 
 void visit_ext_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   // Count the minimum arguments required.
+   int count = push_nonzero_args( codegen, call->func->params, &call->args,
+      call->func->min_param );
+   struct func_ext* impl = call->func->impl;
+   c_add_opc( codegen, PCD_CALLFUNC );
+   c_add_arg( codegen, count );
+   c_add_arg( codegen, impl->id );
+   operand->pushed = true;
+}
+
+// Pushes the specified function arguments onto the stack. A minimum amount of
+// arguments will always be pushed. After the minimum amount, only those
+// arguments up to, and including, the last non-zero argument will be pushed.
+// There is no need to pass the trailing zero arguments because the engine will
+// implicitly pass them.
+int push_nonzero_args( struct codegen* codegen, struct param* params,
+   struct list* args, int min ) {
    int count = 0;
    list_iter_t k;
-   list_iter_init( &k, &call->args );
-   struct param* param = call->func->params;
-   while ( count < call->func->min_param ) {
+   list_iter_init( &k, args );
+   struct param* param = params;
+   // Add to the count the minimum arguments required.
+   while ( count < min ) {
       param = param->next;
       list_next( &k );
       ++count;
    }
-
-   // Add to count the trailing non-zero arguments.
+   // Add to the count the range of arguments that contains all remaining
+   // non-zero arguments.
    int i = count;
    while ( param ) {
       struct expr* arg = param->default_value;
@@ -414,64 +431,16 @@ void visit_ext_call( struct codegen* codegen, struct operand* operand,
          list_next( &k );
       }
       ++i;
-      if ( ! ( arg->folded && ! arg->has_str && arg->value == 0 ) ) {
-         count = i;
-      }
-      param = param->next;
-   }
-
-   // Write arguments.
-   i = 0;
-   param = call->func->params;
-   list_iter_init( &k, &call->args );
-   while ( i < count ) {
-      struct expr* arg = param->default_value;
-      if ( ! list_end( &k ) ) {
-         arg = list_data( &k );
-         list_next( &k );
-      }
-      c_push_expr( codegen, arg, false );
-      if ( param->used ) {
-         c_add_opc( codegen, PCD_DUP );
-         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-         c_add_arg( codegen, param->index );
-      }
-      param = param->next;
-      ++i;
-   }
-
-   struct func_ext* impl = call->func->impl;
-   c_add_opc( codegen, PCD_CALLFUNC );
-   c_add_arg( codegen, count );
-   c_add_arg( codegen, impl->id );
-   operand->pushed = true;
-}
-
-int push_aspecext_callargs( struct codegen* codegen, struct call* call ) {
-   // Count the number of arguments to write. There is no need to write
-   // trailing arguments of value 0, because the engine will implicitly
-   // pass those.
-   int count = 0;
-   int i = 0;
-   list_iter_t k;
-   list_iter_init( &k, &call->args );
-   struct param* param = call->func->params;
-   while ( param ) {
-      struct expr* arg = param->default_value;
-      if ( ! list_end( &k ) ) {
-         arg = list_data( &k );
-         list_next( &k );
-      }
-      ++i;
-      if ( ! ( arg->folded && ! arg->has_str && arg->value == 0 ) ) {
+      bool zero = ( arg->folded && ! arg->has_str && arg->value == 0 );
+      if ( ! zero ) {
          count = i;
       }
       param = param->next;
    }
    // Write arguments.
    i = 0;
-   param = call->func->params;
-   list_iter_init( &k, &call->args );
+   param = params;
+   list_iter_init( &k, args );
    while ( i < count ) {
       struct expr* arg = param->default_value;
       if ( ! list_end( &k ) ) {
