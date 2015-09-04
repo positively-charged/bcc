@@ -1414,9 +1414,9 @@ void NamedScriptWait( str ) += 361, 1;
 void Print( {} ) *= 86;
 void PrintBold( {} ) *= 101;
 void HudMessage( {}, int, int, int, int, int, int, int = 0.0,
-   int = 0.0 ) *= 161;
+   int = 0.0, int = 0.0 ) *= 161;
 void HudMessageBold( {}, int, int, int, int, int, int, int = 0.0,
-   int = 0.0 ) *= 162;
+   int = 0.0, int = 0.0 ) *= 162;
 void Log( {} ) *= 270;
 str StrParam( {} ) *= 352;
 
