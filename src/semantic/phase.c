@@ -345,7 +345,7 @@ void assign_script_numbers( struct semantic* semantic ) {
          --named_script_number;
       }
       else {
-         script->assigned_number = script->number->value;
+         script->assigned_number = t_get_script_number( script );
       }
       list_next( &i );
    }
