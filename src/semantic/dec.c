@@ -1,7 +1,7 @@
 #include "phase.h"
 
 #define SCRIPT_MIN_NUM 0
-#define SCRIPT_MAX_NUM 999
+#define SCRIPT_MAX_NUM 32767
 
 struct multi_value_test {
    struct dim* dim;
