@@ -5,7 +5,7 @@
 
 #define MAX_WORLD_LOCATIONS 256
 #define MAX_GLOBAL_LOCATIONS 64
-#define SCRIPT_MAX_PARAMS 3
+#define SCRIPT_MAX_PARAMS 4
 
 struct params {
    struct param* node;

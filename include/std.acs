@@ -1011,7 +1011,7 @@ int Acs_Execute( int, int, int = 0, int = 0, int = 0 ) = 80, 1;
 int Acs_Suspend( int, int ) = 81, 1;
 int Acs_Terminate( int, int ) = 82, 1;
 int Acs_LockedExecute( int, int, int, int, int ) = 83, 1;
-int Acs_ExecuteWithResult( int, int = 0, int = 0, int = 0 ) = 84, 1;
+int Acs_ExecuteWithResult( int, int = 0, int = 0, int = 0, int = 0 ) = 84, 1;
 int Acs_LockedExecuteDoor( int, int, int, int, int ) = 85, 1;
 int Polyobj_MoveToSpot( int, int, int ) = 86, 1;
 int Polyobj_Stop( int ) = 87, 1;
@@ -1203,7 +1203,8 @@ bool Acs_NamedSuspend( str, int ) -= 40;
 bool Acs_NamedTerminate( str, int ) -= 41;
 bool Acs_NamedLockedExecute( str, int, int, int, int ) -= 42;
 bool Acs_NamedLockedExecuteDoor( str, int, int, int, int ) -= 43;
-int Acs_NamedExecuteWithResult( str, int = 0, int = 0, int = 0 ) -= 44;
+int Acs_NamedExecuteWithResult( str, int = 0, int = 0, int = 0,
+   int = 0 ) -= 44;
 bool Acs_NamedExecuteAlways( str, int, int = 0, int = 0, int = 0 ) -= 45;
 int UniqueTid( int = 0, int = 0 ) -= 46;
 bool IsTidUsed( int ) -= 47;
