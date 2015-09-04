@@ -514,3 +514,11 @@ struct library* t_add_library( struct task* task ) {
    list_append( &task->libraries, lib );
    return lib;
 }
+
+struct indexed_string* t_lookup_string( struct task* task, int index ) {
+   struct indexed_string* string = task->str_table.head;
+   while ( string && string->index != index ) {
+      string = string->next;
+   }
+   return string;
+}

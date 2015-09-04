@@ -64,6 +64,8 @@ static void visit_nested_userfunc_call( struct codegen* codegen,
    struct operand* operand, struct call* call );
 static void visit_internal_call( struct codegen* codegen, struct operand*,
    struct call* );
+static void write_executewait( struct codegen* codegen, struct call* call,
+   bool named_impl );
 static void visit_binary( struct codegen* codegen, struct operand*,
    struct binary* );
 static void visit_logicalor( struct codegen* codegen, struct operand* operand,
@@ -392,7 +394,52 @@ void visit_aspec_call( struct codegen* codegen, struct operand* operand,
 
 void visit_ext_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
-   int count = push_aspecext_callargs( codegen, call );
+   // Count the minimum arguments required.
+   int count = 0;
+   list_iter_t k;
+   list_iter_init( &k, &call->args );
+   struct param* param = call->func->params;
+   while ( count < call->func->min_param ) {
+      param = param->next;
+      list_next( &k );
+      ++count;
+   }
+
+   // Add to count the trailing non-zero arguments.
+   int i = count;
+   while ( param ) {
+      struct expr* arg = param->default_value;
+      if ( ! list_end( &k ) ) {
+         arg = list_data( &k );
+         list_next( &k );
+      }
+      ++i;
+      if ( ! ( arg->folded && ! arg->has_str && arg->value == 0 ) ) {
+         count = i;
+      }
+      param = param->next;
+   }
+
+   // Write arguments.
+   i = 0;
+   param = call->func->params;
+   list_iter_init( &k, &call->args );
+   while ( i < count ) {
+      struct expr* arg = param->default_value;
+      if ( ! list_end( &k ) ) {
+         arg = list_data( &k );
+         list_next( &k );
+      }
+      c_push_expr( codegen, arg, false );
+      if ( param->used ) {
+         c_add_opc( codegen, PCD_DUP );
+         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
+         c_add_arg( codegen, param->index );
+      }
+      param = param->next;
+      ++i;
+   }
+
    struct func_ext* impl = call->func->impl;
    c_add_opc( codegen, PCD_CALLFUNC );
    c_add_arg( codegen, count );
@@ -709,24 +756,10 @@ void visit_array_format_item( struct codegen* codegen,
 void visit_internal_call( struct codegen* codegen, struct operand* operand,
    struct call* call ) {
    struct func_intern* impl = call->func->impl; 
-   if ( impl->id == INTERN_FUNC_ACS_EXECWAIT ) {
-      list_iter_t i;
-      list_iter_init( &i, &call->args );
-      c_push_expr( codegen, list_data( &i ), false );
-      c_add_opc( codegen, PCD_DUP );
-      list_next( &i );
-      // Second argument unused.
-      list_next( &i );
-      // Second argument to Acs_Execute is 0--the current map.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
-      while ( ! list_end( &i ) ) {
-         c_push_expr( codegen, list_data( &i ), true );
-         list_next( &i );
-      }
-      c_add_opc( codegen, g_aspec_code[ list_size( &call->args ) - 1 ] );
-      c_add_arg( codegen, 80 );
-      c_add_opc( codegen, PCD_SCRIPTWAIT );
+   if ( impl->id == INTERN_FUNC_ACS_EXECWAIT ||
+      impl->id == INTERN_FUNC_ACS_NAMEDEXECUTEWAIT ) {
+      write_executewait( codegen, call,
+         ( impl->id == INTERN_FUNC_ACS_NAMEDEXECUTEWAIT ) );
    }
    else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
       visit_operand( codegen, operand, call->operand );
@@ -738,6 +771,38 @@ void visit_internal_call( struct codegen* codegen, struct operand* operand,
       c_add_opc( codegen, PCD_CALLFUNC );
       c_add_arg( codegen, 2 );
       c_add_arg( codegen, 15 );
+   }
+}
+
+void write_executewait( struct codegen* codegen, struct call* call,
+   bool named_impl ) {
+   list_iter_t i;
+   list_iter_init( &i, &call->args );
+   c_push_expr( codegen, list_data( &i ), false );
+   c_add_opc( codegen, PCD_DUP );
+   list_next( &i );
+   if ( ! list_end( &i ) ) {
+      // Second argument to Acs_Execute is 0--the current map. Ignore what the
+      // user specified.
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, 0 );
+      list_next( &i );
+      while ( ! list_end( &i ) ) {
+         c_push_expr( codegen, list_data( &i ), true );
+         list_next( &i );
+      }
+   }
+   if ( named_impl ) {
+      c_add_opc( codegen, PCD_CALLFUNC );
+      c_add_arg( codegen, list_size( &call->args ) );
+      c_add_arg( codegen, 39 );
+      c_add_opc( codegen, PCD_DROP );
+      c_add_opc( codegen, PCD_SCRIPTWAITNAMED );
+   }
+   else {
+      c_add_opc( codegen, g_aspec_code[ list_size( &call->args ) - 1 ] );
+      c_add_arg( codegen, 80 );
+      c_add_opc( codegen, PCD_SCRIPTWAIT );
    }
 }
 

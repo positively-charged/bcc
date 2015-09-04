@@ -9,6 +9,7 @@ static void do_sptr( struct codegen* codegen );
 static void do_svct( struct codegen* codegen );
 static bool svct_script( struct script* script );
 static void do_sflg( struct codegen* codegen );
+static void do_snam( struct codegen* codegen );
 static void do_func( struct codegen* codegen );
 static void do_fnam( struct codegen* codegen );
 static void do_strl( struct codegen* codegen );
@@ -48,6 +49,7 @@ void c_write_chunk_obj( struct codegen* codegen ) {
    do_sptr( codegen );
    do_svct( codegen );
    do_sflg( codegen );
+   do_snam( codegen );
    do_func( codegen );
    do_fnam( codegen );
    do_strl( codegen );
@@ -97,7 +99,7 @@ void do_sptr( struct codegen* codegen ) {
       list_iter_init( &i, &codegen->task->library_main->scripts );
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
-         entry.number = ( short ) t_get_script_number( script );
+         entry.number = ( short ) script->assigned_number;
          entry.type = ( short ) script->type;
          entry.offset = script->offset;
          entry.num_param = script->num_param;
@@ -169,6 +171,65 @@ void do_sflg( struct codegen* codegen ) {
          }
          list_next( &i );
       }
+   }
+}
+
+void do_snam( struct codegen* codegen ) {
+   int count = 0;
+   int total_length = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      if ( script->named_script ) {
+         struct indexed_string* name = t_lookup_string( codegen->task,
+            script->number->value );
+         total_length += name->length + 1;
+         ++count;
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   int size =
+      sizeof( int ) +
+      sizeof( int ) * count +
+      total_length;
+   int padding = alignpad( size, 4 );
+   size += padding;
+   c_add_str( codegen, "SNAM" );
+   c_add_int( codegen, size );
+   c_add_int( codegen, count );
+   // Offsets
+   // -----------------------------------------------------------------------
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   int offset = sizeof( int ) + sizeof( int ) * count;
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      if ( script->named_script ) {
+         c_add_int( codegen, offset );
+         struct indexed_string* name = t_lookup_string( codegen->task,
+            script->number->value );
+         offset += name->length + 1;
+      }
+      list_next( &i );
+   }
+   // Text
+   // -----------------------------------------------------------------------
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      if ( script->named_script ) {
+         struct indexed_string* name = t_lookup_string( codegen->task,
+            script->number->value );
+         c_add_sized( codegen, name->value, name->length + 1 );
+      }
+      list_next( &i );
+   }
+   while ( padding ) {
+      c_add_byte( codegen, 0 );
+      --padding;
    }
 }
 

@@ -1406,6 +1406,7 @@ int MorphActor( int, str = "", str = "", int = 0, int = 0, str = "",
 int UnmorphActor( int, int = 0 ) += 346, 0;
 int GetPlayerInput( int, int ) += 347, 0;
 int ClassifyActor( int ) += 348, 0;
+void NamedScriptWait( str ) += 361, 1;
 
 // Format functions
 // Tail format: *= <terminating-opcode>
@@ -1421,5 +1422,6 @@ str StrParam( {} ) *= 352;
 // Internal functions
 // Tail format: /= <function-id>
 void Acs_ExecuteWait( int, int = 0, int = 0, int = 0, int = 0 ) /= 0;
+void Acs_NamedExecuteWait( int, int = 0, int = 0, int = 0, int = 0 ) /= 1;
 
 }

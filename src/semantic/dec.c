@@ -618,17 +618,21 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             "script number not a constant expression" );
          s_bail( semantic );
       }
-      if ( script->number->value < SCRIPT_MIN_NUM ||
-         script->number->value > SCRIPT_MAX_NUM ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
-            "script number not between %d and %d", SCRIPT_MIN_NUM,
-            SCRIPT_MAX_NUM );
-         s_bail( semantic );
-      }
-      if ( script->number->value == 0 ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
-            "script number 0 not between `<<` and `>>`" );
-         s_bail( semantic );
+      script->named_script = ( script->number->type ==
+         semantic->task->type_str );
+      if ( ! script->named_script ) {
+         if ( script->number->value < SCRIPT_MIN_NUM ||
+            script->number->value > SCRIPT_MAX_NUM ) {
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+               "script number not between %d and %d", SCRIPT_MIN_NUM,
+               SCRIPT_MAX_NUM );
+            s_bail( semantic );
+         }
+         if ( script->number->value == 0 ) {
+            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+               "script number 0 not between `<<` and `>>`" );
+            s_bail( semantic );
+         }
       }
    }
 }

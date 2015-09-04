@@ -109,6 +109,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
          "expression does not produce a value" );
       s_bail( semantic );
    }
+   expr->type = operand->type;
    expr->folded = operand->folded;
    expr->value = operand->value;
    test->pos = expr->pos;
@@ -302,7 +303,10 @@ void use_object( struct semantic* semantic, struct expr_test* test,
    }
    else if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
-      operand->type = semantic->task->type_int;
+      // TODO: Add type as a field.
+      operand->type = constant->value_node ?
+         constant->value_node->type :
+         semantic->task->type_int;
       operand->value = constant->value;
       operand->folded = true;
       operand->complete = true;

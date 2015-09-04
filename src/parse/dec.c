@@ -1166,10 +1166,12 @@ void p_read_script( struct parse* parse ) {
    script->nested_funcs = NULL;
    script->nested_calls = NULL;
    list_init( &script->labels );
+   script->assigned_number = 0;
    script->num_param = 0;
    script->offset = 0;
    script->size = 0;
    script->publish = false;
+   script->named_script = false;
    p_read_tk( parse );
    struct script_reading reading;
    read_script_number( parse, script );

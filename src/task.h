@@ -280,7 +280,11 @@ struct strcpy_call {
 struct expr {
    struct node node;
    struct node* root;
+   struct type* type;
    struct pos pos;
+   // The value is handled based on the expression type. For numeric types,
+   // it'll contain the numeric result of the expression. For the string type,
+   // it'll contain the string index, that can be used to lookup the string.
    int value;
    bool folded;
    bool has_str;
@@ -543,7 +547,9 @@ struct func_user {
 struct func_intern {
    enum {
       INTERN_FUNC_ACS_EXECWAIT,
+      INTERN_FUNC_ACS_NAMEDEXECUTEWAIT,
       INTERN_FUNC_STANDALONE_TOTAL,
+
       INTERN_FUNC_STR_LENGTH = INTERN_FUNC_STANDALONE_TOTAL,
       INTERN_FUNC_STR_AT,
       INTERN_FUNC_MEMBER_TOTAL
@@ -627,10 +633,12 @@ struct script {
    struct func* nested_funcs;
    struct call* nested_calls;
    struct list labels;
+   int assigned_number;
    int num_param;
    int offset;
    int size;
    bool publish;
+   bool named_script;
 };
 
 struct alias {
@@ -793,5 +801,6 @@ void t_find_file( struct task* task, struct file_query* query );
 struct library* t_add_library( struct task* task );
 struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
+struct indexed_string* t_lookup_string( struct task* task, int index );
 
 #endif
