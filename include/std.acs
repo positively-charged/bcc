@@ -1171,7 +1171,7 @@ int GetSideUdmfFixed( int, bool, str ) -= 8;
 int GetActorVelX( int ) -= 9;
 int GetActorVelY( int ) -= 10;
 int GetActorVelZ( int ) -= 11;
-bool SetActivator( int ) -= 12;
+bool SetActivator( int, int = AAPTR_DEFAULT ) -= 12;
 bool SetActivatorToTarget( int ) -= 13;
 int GetActorViewHeight( int ) -= 14;
 int GetChar( str, int ) -= 15;
