@@ -276,9 +276,10 @@ void t_diag_args( struct task* task, int flags, va_list* args ) {
 void show_diag( struct task* task, int flags, va_list* args ) {
    if ( flags & DIAG_FILE ) {
       const char* file = NULL;
-      int line = 0, column = 0;
-      decode_pos( task, va_arg( args, struct pos* ), &file, &line,
-         &column );
+      int line = 0;
+      int column = 0;
+      struct pos* pos = va_arg( *args, struct pos* );
+      decode_pos( task, pos, &file, &line, &column );
       printf( "%s", file );
       if ( flags & DIAG_LINE ) {
          printf( ":%d", line );
@@ -309,8 +310,10 @@ void log_diag( struct task* task, int flags, va_list* args ) {
    }
    if ( flags & DIAG_FILE ) {
       const char* file = NULL;
-      int line = 0, column = 0;
-      decode_pos( task, va_arg( *args, struct pos* ), &file, &line, &column );
+      int line = 0;
+      int column = 0;
+      struct pos* pos = va_arg( *args, struct pos* );
+      decode_pos( task, pos, &file, &line, &column );
       fprintf( task->err_file, "%s:", file );
       if ( flags & DIAG_LINE ) {
          // For some reason, DB2 decrements the line number by one. Add one to
