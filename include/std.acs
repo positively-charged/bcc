@@ -256,7 +256,9 @@ enum {
    APROP_MELEERANGE,
    APROP_VIEWHEIGHT,
    APROP_ATTACKZOFFSET,
-   APROP_STENCILCOLOR
+   APROP_STENCILCOLOR,
+   APROP_FRICTION,
+   APROP_DAMAGEMULTIPLIER
 };
 
 enum {
@@ -637,6 +639,9 @@ enum CHAN_WEAPON = 1;
 enum CHAN_VOICE = 2;
 enum CHAN_ITEM = 3;
 enum CHAN_BODY = 4;
+enum CHAN_5 = 5;
+enum CHAN_6 = 6;
+enum CHAN_7 = 7;
 enum CHAN_LISTENERZ = 0x8;
 enum CHAN_MAYBE_LOCAL = 0x10;
 enum CHAN_UI = 0x20;
@@ -679,6 +684,7 @@ enum AAPTR_PLAYER6 = 0x800;
 enum AAPTR_PLAYER7 = 0x1000;
 enum AAPTR_PLAYER8 = 0x2000;
 enum AAPTR_FRIENDPLAYER = 0x4000;
+enum AAPTR_GET_LINETARGET = 0x8000;
 
 enum PTROP_UNSAFETARGET = 0x1;
 enum PTROP_UNSAFEMASTER = 0x2;
@@ -887,6 +893,7 @@ enum BLOCKF_EVERYTHING = 0x20;
 enum BLOCKF_RAILING = 0x40;
 enum BLOCKF_USE = 0x80;
 enum BLOCKF_SIGHT = 0x100;
+enum BLOCKF_HITSCAN = 0x200;
 
 enum FOGP_DENSITY = 0;
 enum FOGP_OUTSIDEDENSITY = 1;
@@ -900,6 +907,7 @@ enum CSF_NOFAKEFLOORS = 0x1;
 enum CSF_NOBLOCKALL = 0x2;
 
 enum FHF_NORANDOMPUFFZ = 0x1;
+enum FHF_NOIMPACTDECAL = 0x2;
 
 enum {
    GAMESTATE_UNSPECIFIED = -1,
@@ -920,8 +928,111 @@ enum {
    GAMEEVENT_ROUND_ABORTED
 };
 
+enum {
+   MF_SPECIAL = 0x1,
+   MF_SOLID = 0x2,
+   MF_SHOOTABLE = 0x4,
+   MF_NOSECTOR = 0x8,
+   MF_NOBLOCKMAP = 0x10,
+   MF_AMBUSH = 0x20,
+   MF_JUSTHIT = 0x40,
+   MF_JUSTATTACKED = 0x80,
+   MF_SPAWNCEILING = 0x100,
+   MF_NOGRAVITY = 0x200,
+   MF_DROPOFF = 0x400,
+   MF_PICKUP = 0x800,
+   MF_NOCLIP = 0x1000,
+   MF_INCHASE = 0x2000,
+   MF_FLOAT = 0x4000,
+   MF_TELEPORT = 0x8000,
+   MF_MISSILE = 0x1_0000,
+   MF_DROPPED = 0x2_0000,
+   MF_SHADOW = 0x4_0000,
+   MF_NOBLOOD = 0x8_0000,
+   MF_CORPSE = 0x10_0000,
+   // The following two enumerators have the same value. Not sure if it's
+   // intentional or an error.
+   MF_INFLOAT = 0x20_0000,
+   MF_INBOUNCE = 0x20_0000,
+   MF_COUNTKILL = 0x40_0000,
+   MF_COUNTITEM = 0x80_0000,
+   MF_SKULLFLY = 0x100_0000,
+   MF_NOTDMATCH = 0x200_0000,
+   MF_SPAWNSOUNDSOURCE = 0x400_0000,
+   MF_FRIENDLY = 0x800_0000,
+   MF_UNMORPHED = 0x1000_0000,
+   MF_NOLIFTDROP = 0x2000_0000,
+   MF_STEALTH = 0x4000_0000,
+   MF_ICECORPSE = 0x8000_0000
+};
+
+enum {
+   ML_BLOCKING = 0x1,
+   ML_BLOCKMONSTERS = 0x2,
+   ML_TWOSIDED = 0x4,
+   ML_DONTPEGTOP = 0x8,
+   ML_DONTPEGBOTTOM = 0x10,
+   ML_SECRET = 0x20,
+   ML_SOUNDBLOCK = 0x40,
+   ML_DONTDRAW = 0x80,
+   ML_MAPPED = 0x100,
+   ML_REPEAT_SPECIAL = 0x200,
+   ML_ADDTRANS = 0x400,
+   ML_MONSTERSCANACTIVATE = 0x2000,
+   ML_BLOCK_PLAYERS = 0x4000,
+   ML_BLOCKEVERYTHING = 0x8000,
+   ML_ZONEBOUNDARY = 0x1_0000,
+   ML_RAILING = 0x2_0000,
+   ML_BLOCK_FLOATERS = 0x4_0000,
+   ML_CLIP_MIDTEX = 0x8_0000,
+   ML_WRAP_MIDTEX = 0x10_0000,
+   ML_3DMIDTEX = 0x20_0000,
+   ML_CHECKSWITCHRANGE = 0x40_0000,
+   ML_FIRSTSIDEONLY = 0x80_0000,
+   ML_BLOCKPROJECTILE = 0x100_0000,
+   ML_BLOCKUSE = 0x200_0000,
+   ML_BLOCKSIGHT = 0x400_0000,
+   ML_BLOCKHITSCAN = 0x800_0000
+};
+
+enum {
+   QF_RELATIVE = 0x1,
+   QF_SCALEDOWN = 0x2,
+   QF_SCALEUP = 0x4,
+   QF_MAX = 0x8,
+   QF_FULLINTENSITY = 0x10,
+   QF_WAVE = 0x20
+};
+
+enum {
+   WARPF_ABSOLUTEOFFSET = 0x1,
+   WARPF_ABSOLUTEANGLE = 0x2,
+   WARPF_USECALLERANGLE = 0x4,
+   WARPF_NOCHECKPOSITION = 0x8,
+   WARPF_INTERPOLATE = 0x10,
+   WARPF_WARPINTERPOLATION = 0x20,
+   WARPF_COPYINTERPOLATION = 0x40,
+   WARPF_STOP = 0x80,
+   WARPF_TOFLOOR = 0x100,
+   WARPF_TESTONLY = 0x200,
+   WARPF_ABSOLUTEPOSITION = 0x400,
+   WARPF_BOB = 0x800,
+   WARPF_MOVEPTR = 0x1000,
+   WARPF_USEPTR = 0x2000
+};
+
 enum DB_ORDER_DESC = false;
 enum DB_ORDER_ASC = true;
+
+enum {
+   TM_SECOND,
+   TM_MINUTE,
+   TM_HOUR,
+   TM_DAY,
+   TM_MONTH,
+   TM_YEAR,
+   TM_WEEKDAY
+};
 
 enum INT_MIN = -INT_MAX - 1;
 enum INT_MAX = 2147483647;
@@ -1221,7 +1332,7 @@ bool SetCVarString( str, str ) -= 57;
 str GetUserCVarString( int, str ) -= 58;
 bool SetUserCVarString( int, str, str ) -= 59;
 void LineAttack( int, int, int, int, str, str, int, int = 0 ) -= 60;
-void PlaySound( int, str, int, int, bool, int ) -= 61;
+void PlaySound( int, str, int = 0, int = 0.0, bool = false, int = 0.0 ) -= 61;
 void StopSound( int, int ) -= 62;
 int Strcmp( str, str, int = 0 ) -= 63;
 int Stricmp( str, str, int = 0 ) -= 64;
@@ -1244,6 +1355,24 @@ int GetActorPowerupTics( int, str ) -= 78;
 void ChangeActorAngle( int, int, bool = false ) -= 79;
 void ChangeActorPitch( int, int, bool = false ) -= 80;
 int GetArmorInfo( int ) -= 81;
+void DropInventory( int, str ) -= 82;
+bool PickActor( int, int, int, int, int, int = MF_SHOOTABLE,
+   int = ML_BLOCKEVERYTHING | ML_BLOCKHITSCAN, bool = false ) -= 83;
+bool IsPointerEqual( int, int, int = 0, int = 0 ) -= 84;
+bool CanRaiseActor( int ) -= 85;
+void SetActorTeleFog( int, str, str ) -= 86;
+int SwapActorTeleFog( int ) -= 87;
+void SetActorRoll( int, int ) -= 88;
+void ChangeActorRoll( int, int, bool = false ) -= 89;
+int GetActorRoll( int ) -= 90;
+// NOTE: The default values given here are not correct. The engine already
+// provides the correct values. Set the default parameters to zero so the
+// compiler doesn't pass the default values. Figure out a better way to
+// specify the minimum number of arguments.
+bool QuakeEx( int, int, int, int, int, int, int, str, int = 0, int = 0.0,
+   int = 0.0, int = 0.0 ) -= 91;
+bool Warp( int, int, int, int, int, int, str = "", bool = false,
+   int = 0.0 ) -= 92;
 bool ResetMap() -= 100;
 bool PlayerIsSpectator( int ) -= 101;
 int ConsolePlayerNumber() -= 102;
@@ -1266,7 +1395,14 @@ str GetDBResultKeyString( int, int ) -= 118;
 str GetDBResultValueString( int, int ) -= 119;
 int GetDBResultValue( int, int ) -= 120;
 int GetDBEntryRank( str, str, bool ) -= 121;
-int RequestScriptPuke( int, int, int, int ) -= 122;
+int RequestScriptPuke( int, int = 0, int = 0, int = 0, int = 0 ) -= 122;
+void BeginDBTransaction() -= 123;
+void EndDBTransaction() -= 124;
+int GetDBEntries( str ) -= 125;
+int NamedRequestScriptPuke( str, int = 0, int = 0, int = 0, int = 0 ) -= 126;
+int SystemTime() -= 127;
+int GetTimeProperty( int, int, bool = false ) -= 128;
+str Strftime( int, str, bool = false ) -= 129;
 int GetTeamScore( int ) -= 19620;
 void SetTeamScore( int, int ) -= 19621;
 
