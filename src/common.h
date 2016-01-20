@@ -19,6 +19,9 @@ void mem_free_all( void );
 
 #define ARRAY_SIZE( a ) ( sizeof( a ) / sizeof( a[ 0 ] ) )
 #define STATIC_ASSERT( cond ) switch ( 0 ) { case 0: case cond: ; }
+#define UNREACHABLE() printf( \
+   "%s:%d: internal error: unreachable code\n", \
+   __FILE__, __LINE__ );
 
 struct str {
    char* value;
