@@ -664,16 +664,6 @@ void read_postfix( struct parse* parse, struct expr_reading* reading ) {
          reading->node = &access->node;
          p_read_tk( parse );
       }
-      else if ( parse->tk == TK_COLON_2 ) {
-         struct pos pos = parse->tk_pos;
-         p_read_tk( parse );
-         p_test_tk( parse, TK_ID );
-         struct access* access = alloc_access( parse->tk_text, pos );
-         access->lside = reading->node;
-         access->is_region = true;
-         reading->node = &access->node;
-         p_read_tk( parse );
-      }
       else if ( parse->tk == TK_PAREN_L ) {
          if ( ! reading->skip_call ) {
             read_call( parse, reading );
@@ -707,7 +697,6 @@ struct access* alloc_access( char* name, struct pos pos ) {
    access->pos = pos;
    access->lside = NULL;
    access->rside = NULL;
-   access->is_region = false;
    return access;
 }
 

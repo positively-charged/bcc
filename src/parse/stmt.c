@@ -636,19 +636,7 @@ struct path* p_read_path( struct parse* parse ) {
       path->text = parse->tk_text;
       p_read_tk( parse );
    }
-   // Tail of path.
-   struct path* head = path;
-   struct path* tail = head;
-   while ( parse->tk == TK_COLON_2 && p_peek( parse ) == TK_ID ) {
-      p_read_tk( parse );
-      p_test_tk( parse, TK_ID );
-      path = alloc_path( parse->tk_pos );
-      path->text = parse->tk_text;
-      tail->next = path;
-      tail = path;
-      p_read_tk( parse );
-   }
-   return head;
+   return path;
 }
 
 struct path* alloc_path( struct pos pos ) {

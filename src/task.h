@@ -247,7 +247,6 @@ struct access {
    struct node* lside;
    struct node* rside;
    char* name;
-   bool is_region;
 };
 
 struct call {

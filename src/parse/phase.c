@@ -91,15 +91,7 @@ void p_read_region( struct parse* parse ) {
    p_test_tk( parse, TK_REGION );
    p_read_tk( parse );
    struct region* parent = parse->region;
-   while ( true ) {
-      read_region_name( parse );
-      if ( parse->tk == TK_COLON_2 ) {
-         p_read_tk( parse );
-      }
-      else {
-         break;
-      }
-   }
+   read_region_name( parse );
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    read_region_body( parse );
@@ -113,25 +105,17 @@ void read_region_name( struct parse* parse ) {
    struct name* name = t_extend_name( parse->region->body, parse->tk_text );
    // Regions must be opened once. This works like modules in other languages.
    if ( name->object ) {
-      if ( p_peek( parse ) == TK_COLON_2 ) {
-         // It is assumed the object will always be a region.
-         parse->region = ( struct region* ) name->object;
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "duplicate region" );
-         p_diag( parse, DIAG_POS, &name->object->pos,
-            "region already found here" );
-         p_bail( parse );
-      }
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "duplicate region" );
+      p_diag( parse, DIAG_POS, &name->object->pos,
+         "region already found here" );
+      p_bail( parse );
    }
-   else {
-      struct region* region = t_alloc_region( parse->task, name, false );
-      region->object.pos = parse->tk_pos;
-      name->object = &region->object;
-      list_append( &parse->task->regions, region );
-      parse->region = region;
-   }
+   struct region* region = t_alloc_region( parse->task, name, false );
+   region->object.pos = parse->tk_pos;
+   name->object = &region->object;
+   list_append( &parse->task->regions, region );
+   parse->region = region;
    p_read_tk( parse );
 }
 

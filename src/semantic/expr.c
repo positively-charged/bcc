@@ -62,8 +62,6 @@ static void test_assign( struct semantic* semantic, struct expr_test*, struct op
    struct assign* );
 static void test_access( struct semantic* semantic, struct expr_test*, struct operand*,
    struct access* );
-static void test_region_access( struct semantic* semantic,
-   struct expr_test* test, struct operand* operand, struct access* access );
 static void test_struct_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access );
 static void test_conditional( struct semantic* semantic,
@@ -851,45 +849,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
 
 void test_access( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct access* access ) {
-   // `::` operator.
-   if ( access->is_region ) {
-      test_region_access( semantic, test, operand, access );
-   }
-   // `.` operator.
-   else {
-      test_struct_access( semantic, test, operand, access );
-   }
-}
-
-void test_region_access( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct access* access ) {
-   struct operand lside;
-   init_operand( &lside );
-   test_node( semantic, test, &lside, access->lside );
-   if ( ! lside.region ) {
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "left operand not a region" );
-      s_bail( semantic );
-   }
-   struct regobjget result = s_get_regionobject( semantic,
-      lside.region, access->name, false );
-   struct object* object = result.object;
-   if ( ! object ) {
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "`%s` not found in region", access->name );
-      s_bail( semantic );
-   }
-   if ( ! object->resolved ) {
-      if ( semantic->trigger_err ) {
-         s_diag( semantic, DIAG_POS_ERR, &access->pos,
-            "right operand `%s` undefined", access->name );
-         s_bail( semantic );
-      }
-      test->undef_erred = true;
-      longjmp( test->bail, 1 );
-   }
-   use_object( semantic, test, operand, object );
-   access->rside = ( struct node* ) object;
+   test_struct_access( semantic, test, operand, access );
 }
 
 void test_struct_access( struct semantic* semantic, struct expr_test* test,

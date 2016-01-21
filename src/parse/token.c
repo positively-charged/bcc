@@ -459,10 +459,6 @@ void read_source( struct parse* parse, struct token* token ) {
          tk = TK_ASSIGN_COLON;
          ch = read_ch( parse );
       }
-      else if ( ch == ':' ) {
-         tk = TK_COLON_2;
-         ch = read_ch( parse );
-      }
       else {
          tk = TK_COLON;
       }
@@ -1193,9 +1189,8 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
       { TK_QUESTION_MARK, "`?`" },
-      { TK_STRCPY, "`strcpy`" },
-      { TK_COLON_2, "`::`" } };
-   STATIC_ASSERT( TK_TOTAL == 109 );
+      { TK_STRCPY, "`strcpy`" } };
+   STATIC_ASSERT( TK_TOTAL == 108 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

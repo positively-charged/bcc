@@ -21,7 +21,7 @@ enum tk {
    TK_ID,
    TK_COMMA,
    TK_COLON,
-   TK_COLON_2,
+   TK_STRCPY,
    TK_SEMICOLON,
    TK_ASSIGN,
    TK_ASSIGN_ADD,
@@ -124,7 +124,6 @@ enum tk {
    TK_LIB_END,
    TK_LIT_BINARY,
    TK_QUESTION_MARK,
-   TK_STRCPY,
    TK_TOTAL
 };
 
