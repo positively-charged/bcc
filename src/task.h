@@ -73,13 +73,12 @@ struct node {
       NODE_PALTRANS,
       NODE_ALIAS,
       NODE_BOOLEAN,
-      NODE_IMPORT,
       NODE_NAME_USAGE,
       NODE_REGION,
       NODE_REGION_HOST,
       NODE_REGION_UPMOST,
-      // 40
       NODE_SCRIPT,
+      // 40
       NODE_PACKED_EXPR,
       NODE_CONDITIONAL,
       NODE_STRCPY
@@ -698,7 +697,6 @@ struct region {
    }* link;
    struct object* unresolved;
    struct object* unresolved_tail;
-   struct list imports;
    struct list items;
 };
 
@@ -723,30 +721,6 @@ struct library {
    bool importable;
    bool imported;
    bool encrypt_str;
-};
-
-struct import {
-   struct node node;
-   struct import* next;
-   char* alias;
-   struct path* path;
-   struct pos pos;
-   struct pos alias_pos;
-   struct import_item* items;
-   bool get_one;
-   bool get_all;
-   bool get_selected;
-   bool resolved;
-};
-
-struct import_item {
-   char* alias;
-   char* name;
-   struct import_item* next;
-   struct pos name_pos;
-   struct pos alias_pos;
-   bool get_all;
-   bool get_struct;
 };
 
 struct task {

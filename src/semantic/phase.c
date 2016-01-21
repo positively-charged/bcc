@@ -12,14 +12,12 @@ struct scope {
    struct scope* prev;
    struct sweep* sweep;
    struct region_link* region_link;
-   struct import* imports;
 };
 
 static void determine_publishable_objects( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_lib( struct semantic* semantic, struct library* lib );
 static void bind_object( struct semantic* semantic, struct object* object );
-static void import_objects( struct semantic* semantic );
 static void test_objects( struct semantic* semantic );
 static void test_region( struct semantic* semantic, bool* resolved, bool* retry );
 static void test_region_object( struct semantic* semantic,
@@ -65,7 +63,6 @@ void s_init( struct semantic* semantic, struct task* task,
 void s_test( struct semantic* semantic ) {
    determine_publishable_objects( semantic );
    bind_names( semantic );
-   import_objects( semantic );
    test_objects( semantic );
    test_objects_bodies( semantic );
    check_dup_scripts( semantic );
@@ -147,39 +144,6 @@ void bind_object( struct semantic* semantic, struct object* object ) {
    default:
       t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
       t_bail( semantic->task );
-   }
-}
-
-// Executes import-statements found in regions.
-void import_objects( struct semantic* semantic ) {
-   while ( true ) {
-      bool erred = false;
-      bool resolved = false;
-      list_iter_t i;
-      list_iter_init( &i, &semantic->task->regions );
-      while ( ! list_end( &i ) ) {
-         semantic->region = list_data( &i );
-         list_iter_t k;
-         list_iter_init( &k, &semantic->region->imports );
-         while ( ! list_end( &k ) ) {
-            struct import_status status;
-            s_import( semantic, list_data( &k ), &status );
-            if ( status.resolved ) {
-               resolved = true;
-            }
-            if ( status.erred ) {
-               erred = true;
-            }
-            list_next( &k );
-         }
-         list_next( &i );
-      }
-      if ( erred ) {
-         semantic->trigger_err = ( ! resolved );
-      }
-      else {
-         break;
-      }
    }
 }
 
@@ -394,7 +358,6 @@ void s_add_scope( struct semantic* semantic ) {
    scope->prev = semantic->scope;
    scope->sweep = NULL;
    scope->region_link = semantic->region->link;
-   scope->imports = NULL;
    semantic->scope = scope;
    ++semantic->depth;
    semantic->in_localscope = ( semantic->depth > 0 );

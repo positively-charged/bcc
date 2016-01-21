@@ -61,9 +61,6 @@ void p_read_lib( struct parse* parse ) {
       else if ( parse->tk == TK_REGION ) {
          p_read_region( parse );
       }
-      else if ( parse->tk == TK_IMPORT ) {
-         p_read_import( parse, NULL );
-      }
       else if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
       }
@@ -156,9 +153,6 @@ void read_region_body( struct parse* parse ) {
       }
       else if ( parse->tk == TK_REGION ) {
          p_read_region( parse );
-      }
-      else if ( parse->tk == TK_IMPORT ) {
-         p_read_import( parse, NULL );
       }
       else if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );

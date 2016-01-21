@@ -24,11 +24,6 @@ struct regionlink_search {
    bool get_struct;
 };
 
-struct import_status {
-   bool resolved;
-   bool erred;
-};
-
 struct stmt_test {
    struct stmt_test* parent;
    struct func* func;
@@ -93,8 +88,6 @@ void s_test_stmt( struct semantic* semantic, struct stmt_test*, struct node* );
 void s_test_block( struct semantic* semantic, struct stmt_test*, struct block* );
 void s_test_formatitemlist_stmt( struct semantic* semantic,
    struct stmt_test* stmt_test, struct format_item* item );
-void s_import( struct semantic* semantic, struct import* import,
-   struct import_status* status );
 void s_add_scope( struct semantic* semantic );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );

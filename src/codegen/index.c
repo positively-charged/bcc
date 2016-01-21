@@ -335,7 +335,6 @@ void visit_block_item( struct alloc* alloc, struct node* node ) {
       break;
    case NODE_CASE_DEFAULT:
    case NODE_GOTO_LABEL:
-   case NODE_IMPORT:
       // Ignored.
       break;
    default:

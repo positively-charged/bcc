@@ -254,7 +254,6 @@ enum tk p_peek( struct parse* parse );
 void p_read_region_body( struct parse* parse, bool is_brace );
 const char* p_get_token_name( enum tk type );
 void p_read_region( struct parse* parse );
-void p_read_import( struct parse* parse, struct list* output );
 int p_extract_literal_value( struct parse* parse );
 struct source* p_load_included_source( struct parse* parse );
 void p_read_lib( struct parse* parse );

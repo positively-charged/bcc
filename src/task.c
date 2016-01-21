@@ -162,7 +162,6 @@ struct region* t_alloc_region( struct task* task, struct name* name,
    region->link = NULL;
    region->unresolved = NULL;
    region->unresolved_tail = NULL;
-   list_init( &region->imports );
    list_init( &region->items );
    return region;
 }
