@@ -1184,7 +1184,6 @@ void p_read_script( struct parse* parse ) {
    read_script_flag( parse, script );
    read_script_body( parse, script );
    list_append( &parse->task->library->scripts, script );
-   list_append( &parse->task->library->objects, script );
 }
 
 void read_script_number( struct parse* parse, struct script* script ) {

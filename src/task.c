@@ -494,6 +494,8 @@ struct library* t_add_library( struct task* task ) {
    lib->file = NULL;
    lib->unresolved = NULL;
    lib->unresolved_tail = NULL;
+   lib->header = false;
+   lib->compiletime = false;
    return lib;
 }
 

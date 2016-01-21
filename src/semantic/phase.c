@@ -38,6 +38,8 @@ static void find_head_object( struct semantic* semantic,
    struct object_search* search );
 static void find_tail_object( struct semantic* semantic,
    struct object_search* search );
+static void confirm_compiletime_content( struct semantic* semantic );
+static bool is_compiletime_object( struct object* object );
 static void unbind_all( struct semantic* semantic );
 static void unbind_lib( struct library* lib );
 static void unbind_object( struct object* object );
@@ -69,6 +71,16 @@ void s_test( struct semantic* semantic ) {
    }
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
+   if ( semantic->lib->compiletime ) {
+      confirm_compiletime_content( semantic );
+      if ( ! semantic->lib->imported ) {
+         s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+            "compiling a compile-time only library" );
+         s_diag( semantic, DIAG_FILE, &semantic->lib->file_pos,
+            "a compile-time library can only be #imported" );
+         s_bail( semantic );
+      }
+   }
    if ( semantic->lib->imported ) {
       unbind_all( semantic );
    }
@@ -141,8 +153,6 @@ void bind_object( struct semantic* semantic, struct object* object ) {
       struct type* type = ( struct type* ) object;
       s_bind_name( semantic, type->name, &type->object );
       break; }
-   case NODE_SCRIPT:
-      break;
    default:
       t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
       t_bail( semantic->task );
@@ -222,7 +232,14 @@ void test_object( struct semantic* semantic, struct object* object ) {
 // Analyzes the body of functions, and scripts.
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
+   // Scripts.
    list_iter_t i;
+   list_iter_init( &i, &semantic->lib->scripts );
+   while ( ! list_end( &i ) ) {
+      s_test_script( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   // Functions.
    list_iter_init( &i, &semantic->lib->objects );
    while ( ! list_end( &i ) ) {
       struct node* node = list_data( &i );
@@ -231,9 +248,6 @@ void test_objects_bodies( struct semantic* semantic ) {
          if ( func->type == FUNC_USER ) {
             s_test_func_body( semantic, func );
          }
-      }
-      else if ( node->type == NODE_SCRIPT ) {
-         s_test_script( semantic, ( struct script* ) node );
       }
       list_next( &i );
    }
@@ -548,6 +562,39 @@ void s_bail( struct semantic* semantic ) {
    t_bail( semantic->task );
 }
 
+// Compile-time modules can only have constant information like constants,
+// structure definitions, and builtin function definitions.
+void confirm_compiletime_content( struct semantic* semantic ) {
+   list_iter_t i;
+   list_iter_init( &i, &semantic->lib->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      if ( ! is_compiletime_object( object ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &object->pos,
+            "runtime-time object found in compile-time library" );
+         s_bail( semantic );
+      }
+      list_next( &i );
+   }
+}
+
+bool is_compiletime_object( struct object* object ) {
+   if ( object->node.type == NODE_FUNC ) {
+      struct func* func = ( struct func* ) object;
+      return ( func->type != FUNC_USER );
+   }
+   else {
+      switch ( object->node.type ) {
+      case NODE_CONSTANT:
+      case NODE_CONSTANT_SET:
+      case NODE_TYPE:
+         return true;
+      default:
+         return false;
+      }
+   }
+}
+
 void unbind_all( struct semantic* semantic ) {
    // Imported objects.
    list_iter_t i;
@@ -590,8 +637,6 @@ void unbind_object( struct object* object ) {
       struct func* func = ( struct func* ) object;
       func->name->object = NULL;
       break; }
-   case NODE_SCRIPT:
-      break;
    default:
       UNREACHABLE();
    }

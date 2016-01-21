@@ -11,6 +11,7 @@ static struct library* find_lib( struct parse* parse,
    struct file_entry* file );
 static void append_imported_lib( struct parse* parse, struct library* lib );
 static void read_library( struct parse* parse, struct pos* );
+static void read_library_name( struct parse* parse, struct pos* pos );
 static void read_define( struct parse* parse );
 static void link_usable_strings( struct parse* parse );
 static void add_usable_string( struct indexed_string**,
@@ -74,7 +75,7 @@ void p_read_lib( struct parse* parse ) {
    }
    // Library must have the #library directive.
    if ( parse->task->library->imported &&
-      ! parse->task->library->name.length ) {
+      ! parse->task->library->header ) {
       p_diag( parse, DIAG_ERR | DIAG_FILE, &parse->tk_pos,
          "#imported file missing #library directive" );
       p_bail( parse );
@@ -192,6 +193,16 @@ void append_imported_lib( struct parse* parse, struct library* lib ) {
 }
 
 void read_library( struct parse* parse, struct pos* pos ) {
+   parse->task->library->header = true;
+   if ( parse->tk == TK_LIT_STRING ) {
+      read_library_name( parse, pos );
+   }
+   else {
+      parse->task->library->compiletime = true;
+   }
+}
+
+void read_library_name( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_LIT_STRING );
    if ( ! parse->tk_length ) {
       p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,

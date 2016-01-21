@@ -718,6 +718,8 @@ struct library {
    bool importable;
    bool imported;
    bool encrypt_str;
+   bool compiletime;
+   bool header;
 };
 
 struct task {
