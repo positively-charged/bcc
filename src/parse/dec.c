@@ -689,14 +689,6 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
 }
 
 void test_var( struct parse* parse, struct dec* dec ) {
-   if ( dec->static_qual &&
-      ( dec->area == DEC_TOP || dec->area == DEC_FOR ) ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "static variable" );
-      p_diag( parse, DIAG_POS, &dec->static_qual_pos,
-         "static variables are not allowed here" );
-      p_bail( parse );
-   }
    test_storage( parse, dec );
    // Variable must have a type.
    if ( dec->type_void ) {
@@ -894,6 +886,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;
+      impl->hidden = ( dec->static_qual );
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! parse->task->library->imported ) {
@@ -911,11 +904,11 @@ void read_func( struct parse* parse, struct dec* dec ) {
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
    }
-   if ( dec->static_qual ) {
+   if ( dec->static_qual && func->type != FUNC_USER ) {
       p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "static function" );
+         "static non-user function" );
       p_diag( parse, DIAG_POS, &dec->static_qual_pos,
-         "functions are not allowed to be static" );
+         "only user-created functions can be made static" );
       p_bail( parse );
    }
    if ( dec->storage.specified ) {

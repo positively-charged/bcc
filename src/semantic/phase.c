@@ -17,7 +17,8 @@ struct scope {
 static void determine_publishable_objects( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_lib( struct semantic* semantic, struct library* lib );
-static void bind_object( struct semantic* semantic, struct object* object );
+static void bind_object( struct semantic* semantic, struct object* object,
+   bool require_hidden  );
 static void test_objects( struct semantic* semantic );
 static void test_lib( struct semantic* semantic, bool* resolved, bool* retry );
 static void test_object( struct semantic* semantic, struct object* object );
@@ -122,12 +123,13 @@ void bind_lib( struct semantic* semantic, struct library* lib ) {
    list_iter_t i;
    list_iter_init( &i, &lib->objects );
    while ( ! list_end( &i ) ) {
-      bind_object( semantic, list_data( &i ) );
+      bind_object( semantic, list_data( &i ), ( lib == semantic->lib ) );
       list_next( &i );
    }
 }
 
-void bind_object( struct semantic* semantic, struct object* object ) {
+void bind_object( struct semantic* semantic, struct object* object,
+   bool require_hidden ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT: {
       struct constant* constant = ( struct constant* ) object;
@@ -143,11 +145,22 @@ void bind_object( struct semantic* semantic, struct object* object ) {
       break; }
    case NODE_VAR: {
       struct var* var = ( struct var* ) object;
-      s_bind_name( semantic, var->name, &var->object );
+      if ( require_hidden || ! var->hidden ) {
+         s_bind_name( semantic, var->name, &var->object );
+      }
       break; }
    case NODE_FUNC: {
       struct func* func = ( struct func* ) object;
-      s_bind_name( semantic, func->name, &func->object );
+      bool perform_bind = true;
+      if ( ! require_hidden ) {
+         if ( func->type == FUNC_USER ) {
+            struct func_user* impl = func->impl;
+            perform_bind = ( ! impl->hidden );
+         }
+      }
+      if ( perform_bind ) {
+         s_bind_name( semantic, func->name, &func->object );
+      }
       break; }
    case NODE_TYPE: {
       struct type* type = ( struct type* ) object;

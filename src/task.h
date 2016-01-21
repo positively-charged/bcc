@@ -535,6 +535,7 @@ struct func_user {
    int index_offset;
    bool nested;
    bool publish;
+   bool hidden;
 };
 
 struct func_intern {

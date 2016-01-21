@@ -182,8 +182,19 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      if ( ! func->hidden ) {
-         struct func_user* impl = func->impl;
+      struct func_user* impl = func->impl;
+      if ( ! impl->hidden ) {
+         impl->index = index;
+         ++index;
+      }
+      list_next( &i );
+   }
+   // Hidden functions:
+   list_iter_init( &i, &codegen->task->library_main->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      if ( impl->hidden ) {
          impl->index = index;
          ++index;
       }
