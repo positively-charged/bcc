@@ -61,6 +61,7 @@ struct expr_test {
 
 struct semantic {
    struct task* task;
+   struct library* lib;
    struct region* region;
    struct scope* scope;
    struct scope* free_scope;
@@ -72,7 +73,8 @@ struct semantic {
    bool in_localscope;
 };
 
-void s_init( struct semantic* semantic, struct task* task );
+void s_init( struct semantic* semantic, struct task* task,
+   struct library* lib );
 void s_test( struct semantic* semantic );
 void s_test_constant( struct semantic* semantic, struct constant* );
 void s_test_constant_set( struct semantic* semantic, struct constant_set* );

@@ -7,6 +7,11 @@ static void read_region_name( struct parse* parse );
 static void read_region_body( struct parse* parse );
 static void read_dirc( struct parse* parse, struct pos* );
 static void read_include( struct parse* parse, struct pos*, bool );
+static void read_import( struct parse* parse, struct pos* pos );
+static void load_imported_lib( struct parse* parse );
+static struct library* find_lib( struct parse* parse,
+   struct file_entry* file );
+static void append_imported_lib( struct parse* parse, struct library* lib );
 static void read_library( struct parse* parse, struct pos* );
 static void read_define( struct parse* parse );
 static void link_usable_strings( struct parse* parse );
@@ -30,6 +35,7 @@ void p_init( struct parse* parse, struct task* task ) {
 void p_read( struct parse* parse ) {
    make_main_lib( parse );
    p_load_main_source( parse );
+   parse->task->library->file = parse->main_source->file;
    p_read_tk( parse );
    p_read_lib( parse );
    link_usable_strings( parse );
@@ -50,12 +56,7 @@ void p_read_lib( struct parse* parse ) {
          p_read_dec( parse, &dec );
       }
       else if ( parse->tk == TK_SCRIPT ) {
-         if ( parse->task->library->imported ) {
-            p_skip_block( parse );
-         }
-         else {
-            p_read_script( parse );
-         }
+         p_read_script( parse );
       }
       else if ( parse->tk == TK_REGION ) {
          p_read_region( parse );
@@ -182,23 +183,11 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
    }
    if ( parse->tk == TK_IMPORT ) {
       p_read_tk( parse );
-      if ( parse->source->imported ) {
-         p_test_tk( parse, TK_LIT_STRING );
-         p_read_tk( parse );
-      }
-      else {
-         read_include( parse, pos, true );
-      }
+      read_import( parse, pos );
    }
    else if ( strcmp( parse->tk_text, "include" ) == 0 ) {
       p_read_tk( parse );
-      if ( parse->source->imported ) {
-         p_test_tk( parse, TK_LIT_STRING );
-         p_read_tk( parse );
-      }
-      else {
-         read_include( parse, pos, false );
-      }
+      read_include( parse, pos, false );
    }
    else if ( strcmp( parse->tk_text, "define" ) == 0 ||
       strcmp( parse->tk_text, "libdefine" ) == 0 ) {
@@ -233,19 +222,72 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
 
 void read_include( struct parse* parse, struct pos* pos, bool import ) {
    p_test_tk( parse, TK_LIT_STRING );
-   struct source* source = p_load_included_source( parse );
+   p_load_included_source( parse );
    p_read_tk( parse );
-   if ( import ) {
+}
+
+void read_import( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_LIT_STRING );
+   load_imported_lib( parse );
+   p_read_tk( parse );
+}
+
+#include "semantic/phase.h"
+
+void load_imported_lib( struct parse* parse ) {
+   struct file_query query;
+   t_init_file_query( &query, parse->source->file, parse->tk_text );
+   t_find_file( parse->task, &query );
+   if ( ! query.file ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "library not found: %s", parse->tk_text );
+      p_bail( parse );
+   }
+   struct library* lib = find_lib( parse, query.file );
+   if ( ! lib ) {
+      struct source* source = p_load_included_source( parse );
       source->imported = true;
       struct library* parent_lib = parse->task->library;
-      struct library* lib = t_add_library( parse->task );
-      list_append( &parent_lib->dynamic, lib );
+      lib = t_add_library( parse->task );
       parse->task->library = lib;
       parse->task->library->imported = true;
-      p_read_lib( parse );
       p_read_tk( parse );
+      p_read_lib( parse );
+      struct semantic semantic;
+      s_init( &semantic, parse->task, lib );
+      s_test( &semantic );
       parse->task->library = parent_lib;
+      lib->file = query.file;
    }
+   append_imported_lib( parse, lib );
+}
+
+struct library* find_lib( struct parse* parse, struct file_entry* file ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->libraries );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      if ( lib->file == file ) {
+         return lib;
+      }
+      list_next( &i );
+   }
+   return NULL;
+}
+
+void append_imported_lib( struct parse* parse, struct library* lib ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->library->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* imported_lib = list_data( &i );
+      if ( lib == imported_lib ) {
+         p_diag( parse, DIAG_WARN | DIAG_POS, &parse->tk_pos,
+            "duplicate import of library" );
+         return;
+      }
+      list_next( &i );
+   }
+   list_append( &parse->task->library->dynamic, lib );
 }
 
 void read_library( struct parse* parse, struct pos* pos ) {

@@ -708,9 +708,11 @@ struct library {
    struct list vars;
    struct list funcs;
    struct list scripts;
+   struct list objects;
    // #included/#imported libraries.
    struct list dynamic;
    struct name* hidden_names;
+   struct file_entry* file;
    struct pos file_pos;
    int id;
    enum {
@@ -762,7 +764,6 @@ struct task {
    struct library* library_main;
    struct list libraries;
    struct list regions;
-   struct list scripts;
    int last_id;
 };
 

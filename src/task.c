@@ -41,7 +41,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    list_init( &task->libraries );
    list_init( &task->regions );
    list_append( &task->regions, region );
-   list_init( &task->scripts );
    task->last_id = 0;
 }
 
@@ -498,6 +497,7 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->vars );
    list_init( &lib->funcs );
    list_init( &lib->scripts );
+   list_init( &lib->objects );
    list_init( &lib->dynamic );
    lib->file_pos.line = 0;
    lib->file_pos.column = 0;
@@ -515,6 +515,7 @@ struct library* t_add_library( struct task* task ) {
    }
    lib->encrypt_str = false;
    list_append( &task->libraries, lib );
+   lib->file = NULL;
    return lib;
 }
 

@@ -223,7 +223,7 @@ void compile_mainlib( struct task* task ) {
    p_init( &parse, task );
    p_read( &parse );
    struct semantic semantic;
-   s_init( &semantic, task );
+   s_init( &semantic, task, task->library_main );
    s_test( &semantic );
    struct codegen codegen;
    c_init( &codegen, task );

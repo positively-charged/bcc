@@ -17,8 +17,8 @@ struct scope {
 
 static void determine_publishable_objects( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
-static void bind_regionobject_name( struct semantic* semantic,
-   struct object* object );
+static void bind_lib( struct semantic* semantic, struct library* lib );
+static void bind_object( struct semantic* semantic, struct object* object );
 static void import_objects( struct semantic* semantic );
 static void test_objects( struct semantic* semantic );
 static void test_region( struct semantic* semantic, bool* resolved, bool* retry );
@@ -31,7 +31,6 @@ static void match_duplicate_script( struct semantic* semantic,
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
-static void add_loadable_libs( struct semantic* semantic );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct name* name,
@@ -42,9 +41,16 @@ static void find_head_object( struct semantic* semantic,
    struct object_search* search );
 static void find_tail_object( struct semantic* semantic,
    struct object_search* search );
+static void unbind_all( struct semantic* semantic );
+static void unbind_lib( struct library* lib );
+static void unbind_object( struct object* object );
+static void unbind_enum( struct constant_set* enum_ );
+static void unbind_struct( struct type* struct_ );
 
-void s_init( struct semantic* semantic, struct task* task ) {
+void s_init( struct semantic* semantic, struct task* task,
+   struct library* lib ) {
    semantic->task = task;
+   semantic->lib = lib;
    semantic->region = NULL;
    semantic->scope = NULL;
    semantic->free_scope = NULL;
@@ -66,19 +72,21 @@ void s_test( struct semantic* semantic ) {
    assign_script_numbers( semantic );
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
-   add_loadable_libs( semantic );
+   if ( semantic->lib->imported ) {
+      unbind_all( semantic );
+   }
 }
 
 // Determines which objects be written into the object file.
 void determine_publishable_objects( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->library_main->scripts );
+   list_iter_init( &i, &semantic->lib->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       script->publish = true;
       list_next( &i );
    }
-   list_iter_init( &i, &semantic->task->library_main->funcs );
+   list_iter_init( &i, &semantic->lib->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
@@ -90,20 +98,27 @@ void determine_publishable_objects( struct semantic* semantic ) {
 // Goes through every object in every region and connects the name of the
 // object to the object.
 void bind_names( struct semantic* semantic ) {
+   // Imported objects.
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->regions );
+   list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
-      struct region* region = list_data( &i );
-      struct object* object = region->unresolved;
-      while ( object ) {
-         bind_regionobject_name( semantic, object );
-         object = object->next;
-      }
+      bind_lib( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   // Objects of the current library.
+   bind_lib( semantic, semantic->lib );
+}
+
+void bind_lib( struct semantic* semantic, struct library* lib ) {
+   list_iter_t i;
+   list_iter_init( &i, &lib->objects );
+   while ( ! list_end( &i ) ) {
+      bind_object( semantic, list_data( &i ) );
       list_next( &i );
    }
 }
 
-void bind_regionobject_name( struct semantic* semantic, struct object* object ) {
+void bind_object( struct semantic* semantic, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT: {
       struct constant* constant = ( struct constant* ) object;
@@ -259,16 +274,11 @@ void test_objects_bodies( struct semantic* semantic ) {
          if ( node->type == NODE_FUNC ) {
             struct func* func = ( struct func* ) node;
             struct func_user* impl = func->impl;
-            if ( impl->publish ) {
-               s_test_func_body( semantic, func );
-            }
+            s_test_func_body( semantic, func );
          }
          else {
             struct script* script = ( struct script* ) node;
-            if ( script->publish ) {
-               s_test_script( semantic, script );
-               list_append( &semantic->task->scripts, script );
-            }
+            s_test_script( semantic, script );
          }
          list_next( &k );
       }
@@ -278,7 +288,7 @@ void test_objects_bodies( struct semantic* semantic ) {
 
 void check_dup_scripts( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->scripts );
+   list_iter_init( &i, &semantic->lib->scripts );
    while ( ! list_end( &i ) ) {
       list_iter_t k = i;
       list_next( &k );
@@ -337,7 +347,7 @@ void match_duplicate_script( struct semantic* semantic, struct script* script,
 void assign_script_numbers( struct semantic* semantic ) {
    int named_script_number = -1;
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->scripts );
+   list_iter_init( &i, &semantic->lib->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       if ( script->named_script ) {
@@ -353,74 +363,20 @@ void assign_script_numbers( struct semantic* semantic ) {
 
 void calc_map_var_size( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->libraries );
+   list_iter_init( &i, &semantic->lib->vars );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         s_calc_var_size( list_data( &k ) );
-         list_next( &k );
-      }
+      s_calc_var_size( list_data( &i ) );
       list_next( &i );
    }
 }
 
 void calc_map_value_index( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->library_main->vars );
+   list_iter_init( &i, &semantic->lib->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->initial ) {
          s_calc_var_value_index( var );
-      }
-      list_next( &i );
-   }
-}
-
-// NOTE: Maybe move this to the back-end?
-void add_loadable_libs( struct semantic* semantic ) {
-   // Any library that has its contents used is dynamically loaded.
-   list_iter_t i;
-   list_iter_init( &i, &semantic->task->libraries );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      if ( lib != semantic->task->library_main ) {
-         bool used = false;
-         // Functions.
-         list_iter_t k;
-         list_iter_init( &k, &lib->funcs );
-         while ( ! list_end( &k ) ) {
-            struct func* func = list_data( &k );
-            struct func_user* impl = func->impl;
-            if ( impl->usage ) {
-               used = true;
-               break;
-            }
-            list_next( &k );
-         }
-         // Variables.
-         if ( ! used ) {
-            list_iter_init( &k, &lib->vars );
-            while ( ! list_end( &k ) ) {
-               struct var* var = list_data( &k );
-               if ( var->storage == STORAGE_MAP && var->used ) {
-                  used = true;
-                  break;
-               }
-               list_next( &k );
-            }
-         }
-         // Add library.
-         if ( used ) {
-            list_iter_init( &k, &semantic->task->library_main->dynamic );
-            while ( ! list_end( &k ) && list_data( &i ) != lib ) {
-               list_next( &k );
-            }
-            if ( list_end( &i ) ) {
-               list_append( &semantic->task->library_main->dynamic, lib );
-            }
-         }
       }
       list_next( &i );
    }
@@ -708,4 +664,68 @@ void s_diag( struct semantic* semantic, int flags, ... ) {
 
 void s_bail( struct semantic* semantic ) {
    t_bail( semantic->task );
+}
+
+void unbind_all( struct semantic* semantic ) {
+   // Imported objects.
+   list_iter_t i;
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      unbind_lib( list_data( &i ) );
+      list_next( &i );
+   }
+   // Objects of the current library.
+   unbind_lib( semantic->lib );
+}
+
+void unbind_lib( struct library* lib ) {
+   list_iter_t i;
+   list_iter_init( &i, &lib->objects );
+   while ( ! list_end( &i ) ) {
+      unbind_object( list_data( &i ) );
+      list_next( &i );
+   }
+}
+
+void unbind_object( struct object* object ) {
+   switch ( object->node.type ) {
+   case NODE_CONSTANT: {
+      struct constant* constant = ( struct constant* ) object;
+      constant->name->object = NULL;
+      break; }
+   case NODE_CONSTANT_SET:
+      unbind_enum(
+         ( struct constant_set* ) object );
+      break;
+   case NODE_TYPE:
+      unbind_struct( ( struct type* ) object );
+      break;
+   case NODE_VAR: {
+      struct var* var = ( struct var* ) object;
+      var->name->object = NULL;
+      break; }
+   case NODE_FUNC: {
+      struct func* func = ( struct func* ) object;
+      func->name->object = NULL;
+      break; }
+   default:
+      UNREACHABLE();
+   }
+}
+
+void unbind_enum( struct constant_set* enum_ ) {
+   struct constant* enumerator = enum_->head;
+   while ( enumerator ) {
+      enumerator->name->object = NULL;
+      enumerator = enumerator->next;
+   }
+}
+
+void unbind_struct( struct type* struct_ ) {
+   struct_->name->object = NULL;
+   struct type_member* member = struct_->member;
+   while ( member ) {
+      member->name->object = NULL;
+      member = member->next;
+   }
 }

@@ -269,5 +269,6 @@ void p_unexpect_name( struct parse* parse, struct pos* pos,
 void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk );
 void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject );
+void p_load_library( struct parse* parent );
 
 #endif

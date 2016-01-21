@@ -281,6 +281,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
    else {
       p_add_unresolved( parse->region, &set->object );
+      list_append( &parse->task->library->objects, set );
    }
    dec->type = parse->task->type_int;
    if ( parse->tk == TK_SEMICOLON ) {
@@ -328,6 +329,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    }
    else {
       p_add_unresolved( parse->region, &constant->object );
+      list_append( &parse->task->library->objects, constant );
    }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
@@ -410,6 +412,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    }
    else {
       p_add_unresolved( parse->region, &type->object );
+      list_append( &parse->task->library->objects, type );
    }
    dec->type = type;
    if ( dec->leave && type->anon ) {
@@ -767,6 +770,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse->region, &var->object );
       list_append( &parse->task->library->vars, var );
+      list_append( &parse->task->library->objects, var );
    }
    else if ( dec->storage.type == STORAGE_MAP ) {
       list_append( &parse->task->library->vars, var );
@@ -948,6 +952,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse->region, &func->object );
+      list_append( &parse->task->library->objects, func );
       if ( func->type == FUNC_USER ) {
          list_append( &parse->task->library->funcs, func );
          list_append( &parse->region->items, func );
