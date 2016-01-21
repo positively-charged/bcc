@@ -240,7 +240,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       }
       struct constant* constant = alloc_constant();
       constant->object.pos = parse->tk_pos;
-      constant->name = t_extend_name( parse->region->body, parse->tk_text );
+      constant->name = t_extend_name( parse->task->body, parse->tk_text );
       p_read_tk( parse );
       if ( parse->tk == TK_ASSIGN ) {
          p_read_tk( parse );
@@ -280,7 +280,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, set );
    }
    else {
-      p_add_unresolved( parse->region, &set->object );
+      p_add_unresolved( parse->task->library, &set->object );
       list_append( &parse->task->library->objects, set );
    }
    dec->type = parse->task->type_int;
@@ -316,7 +316,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_ID );
    struct constant* constant = alloc_constant();
    constant->object.pos = parse->tk_pos;
-   constant->name = t_extend_name( parse->region->body, parse->tk_text );
+   constant->name = t_extend_name( parse->task->body, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );
@@ -328,7 +328,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, constant );
    }
    else {
-      p_add_unresolved( parse->region, &constant->object );
+      p_add_unresolved( parse->task->library, &constant->object );
       list_append( &parse->task->library->objects, constant );
    }
    p_test_tk( parse, TK_SEMICOLON );
@@ -367,7 +367,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    bool name_specified = false;
    bool anon = false;
    if ( parse->tk == TK_ID ) {
-      name = t_extend_name( parse->region->body_struct, parse->tk_text );
+      name = t_extend_name( parse->task->body_struct, parse->tk_text );
       name_specified = true;
       p_read_tk( parse );
    }
@@ -411,7 +411,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, type );
    }
    else {
-      p_add_unresolved( parse->region, &type->object );
+      p_add_unresolved( parse->task->library, &type->object );
       list_append( &parse->task->library->objects, type );
    }
    dec->type = type;
@@ -768,7 +768,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
       var->hidden = true;
    }
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse->region, &var->object );
+      p_add_unresolved( parse->task->library, &var->object );
       list_append( &parse->task->library->vars, var );
       list_append( &parse->task->library->objects, var );
    }
@@ -951,11 +951,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
       }
    }
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse->region, &func->object );
+      p_add_unresolved( parse->task->library, &func->object );
       list_append( &parse->task->library->objects, func );
       if ( func->type == FUNC_USER ) {
          list_append( &parse->task->library->funcs, func );
-         list_append( &parse->region->items, func );
       }
    }
    else {
@@ -1023,7 +1022,7 @@ void read_params( struct parse* parse, struct params* params ) {
       p_read_tk( parse );
       // Name not required for a parameter.
       if ( parse->tk == TK_ID ) {
-         param->name = t_extend_name( parse->region->body, parse->tk_text );
+         param->name = t_extend_name( parse->task->body, parse->tk_text );
          param->object.pos = parse->tk_pos;
          p_read_tk( parse );
       }
@@ -1185,7 +1184,7 @@ void p_read_script( struct parse* parse ) {
    read_script_flag( parse, script );
    read_script_body( parse, script );
    list_append( &parse->task->library->scripts, script );
-   list_append( &parse->region->items, script );
+   list_append( &parse->task->library->objects, script );
 }
 
 void read_script_number( struct parse* parse, struct script* script ) {

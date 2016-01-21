@@ -112,12 +112,10 @@ enum tk {
    TK_TERMINATE,
    TK_FUNCTION,
    TK_IMPORT,
-   TK_REGION,
-   TK_UPMOST,
    TK_GOTO,
-   // 100
    TK_TRUE,
    TK_FALSE,
+   // 100
    TK_EVENT,
    TK_NL,
    TK_LIB,
@@ -227,7 +225,6 @@ struct parse {
    int tk_length;
    struct source* source;
    struct source* main_source;
-   struct region* region;
    int last_id;
 };
 
@@ -250,14 +247,12 @@ void p_init_dec( struct dec* dec );
 void p_read_dec( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
-void p_read_region_body( struct parse* parse, bool is_brace );
 const char* p_get_token_name( enum tk type );
-void p_read_region( struct parse* parse );
 int p_extract_literal_value( struct parse* parse );
 struct source* p_load_included_source( struct parse* parse );
 void p_read_lib( struct parse* parse );
 void p_read_script( struct parse* parse );
-void p_add_unresolved( struct region* region, struct object* object );
+void p_add_unresolved( struct library* lib, struct object* object );
 struct path* p_read_path( struct parse* parse );
 void p_increment_pos( struct pos* pos, enum tk tk );
 void p_unexpect_diag( struct parse* parse );

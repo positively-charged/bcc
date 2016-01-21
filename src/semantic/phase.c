@@ -19,9 +19,8 @@ static void bind_names( struct semantic* semantic );
 static void bind_lib( struct semantic* semantic, struct library* lib );
 static void bind_object( struct semantic* semantic, struct object* object );
 static void test_objects( struct semantic* semantic );
-static void test_region( struct semantic* semantic, bool* resolved, bool* retry );
-static void test_region_object( struct semantic* semantic,
-   struct object* object );
+static void test_lib( struct semantic* semantic, bool* resolved, bool* retry );
+static void test_object( struct semantic* semantic, struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
 static void check_dup_scripts( struct semantic* semantic );
 static void match_duplicate_script( struct semantic* semantic,
@@ -49,7 +48,6 @@ void s_init( struct semantic* semantic, struct task* task,
    struct library* lib ) {
    semantic->task = task;
    semantic->lib = lib;
-   semantic->region = NULL;
    semantic->scope = NULL;
    semantic->free_scope = NULL;
    semantic->free_sweep = NULL;
@@ -64,9 +62,11 @@ void s_test( struct semantic* semantic ) {
    determine_publishable_objects( semantic );
    bind_names( semantic );
    test_objects( semantic );
-   test_objects_bodies( semantic );
-   check_dup_scripts( semantic );
-   assign_script_numbers( semantic );
+   if ( ! semantic->lib->imported ) {
+      test_objects_bodies( semantic );
+      check_dup_scripts( semantic );
+      assign_script_numbers( semantic );
+   }
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
    if ( semantic->lib->imported ) {
@@ -141,6 +141,8 @@ void bind_object( struct semantic* semantic, struct object* object ) {
       struct type* type = ( struct type* ) object;
       s_bind_name( semantic, type->name, &type->object );
       break; }
+   case NODE_SCRIPT:
+      break;
    default:
       t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
       t_bail( semantic->task );
@@ -153,13 +155,7 @@ void test_objects( struct semantic* semantic ) {
    while ( true ) {
       bool resolved = false;
       bool retry = false;
-      list_iter_t i;
-      list_iter_init( &i, &semantic->task->regions );
-      while ( ! list_end( &i ) ) {
-         semantic->region = list_data( &i );
-         test_region( semantic, &resolved, &retry );
-         list_next( &i );
-      }
+      test_lib( semantic, &resolved, &retry );
       if ( retry ) {
          // Continue resolving as long as something got resolved. If nothing
          // gets resolved during the last run, then nothing can be resolved
@@ -172,12 +168,12 @@ void test_objects( struct semantic* semantic ) {
    }
 }
 
-void test_region( struct semantic* semantic, bool* resolved, bool* retry ) {
-   struct object* object = semantic->region->unresolved;
+void test_lib( struct semantic* semantic, bool* resolved, bool* retry ) {
+   struct object* object = semantic->lib->unresolved;
    struct object* tail = NULL;
-   semantic->region->unresolved = NULL;
+   semantic->lib->unresolved = NULL;
    while ( object ) {
-      test_region_object( semantic, object );
+      test_object( semantic, object );
       if ( object->resolved ) {
          struct object* next = object->next;
          object->next = NULL;
@@ -189,7 +185,7 @@ void test_region( struct semantic* semantic, bool* resolved, bool* retry ) {
             tail->next = object;
          }
          else {
-            semantic->region->unresolved = object;
+            semantic->lib->unresolved = object;
          }
          tail = object;
          struct object* next = object->next;
@@ -198,10 +194,9 @@ void test_region( struct semantic* semantic, bool* resolved, bool* retry ) {
          *retry = true;
       }
    }
-   semantic->region->object.resolved = ( semantic->region->unresolved == NULL );
 }
 
-void test_region_object( struct semantic* semantic, struct object* object ) {
+void test_object( struct semantic* semantic, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
       s_test_constant( semantic, ( struct constant* ) object );
@@ -228,23 +223,17 @@ void test_region_object( struct semantic* semantic, struct object* object ) {
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->regions );
+   list_iter_init( &i, &semantic->lib->objects );
    while ( ! list_end( &i ) ) {
-      semantic->region = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &semantic->region->items );
-      while ( ! list_end( &k ) ) {
-         struct node* node = list_data( &k );
-         if ( node->type == NODE_FUNC ) {
-            struct func* func = ( struct func* ) node;
-            struct func_user* impl = func->impl;
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_FUNC ) {
+         struct func* func = ( struct func* ) node;
+         if ( func->type == FUNC_USER ) {
             s_test_func_body( semantic, func );
          }
-         else {
-            struct script* script = ( struct script* ) node;
-            s_test_script( semantic, script );
-         }
-         list_next( &k );
+      }
+      else if ( node->type == NODE_SCRIPT ) {
+         s_test_script( semantic, ( struct script* ) node );
       }
       list_next( &i );
    }
@@ -357,7 +346,6 @@ void s_add_scope( struct semantic* semantic ) {
    }
    scope->prev = semantic->scope;
    scope->sweep = NULL;
-   scope->region_link = semantic->region->link;
    semantic->scope = scope;
    ++semantic->depth;
    semantic->in_localscope = ( semantic->depth > 0 );
@@ -380,7 +368,6 @@ void s_pop_scope( struct semantic* semantic ) {
       }
    }
    struct scope* prev = semantic->scope->prev;
-   semantic->region->link = semantic->scope->region_link;
    semantic->scope->prev = semantic->free_scope;
    semantic->free_scope = semantic->scope;
    semantic->scope = prev;
@@ -490,105 +477,37 @@ void find_next_object( struct semantic* semantic,
          "object not a struct" );
       s_bail( semantic );
    }
-   else if ( search->path->next &&
-      search->object->node.type != NODE_REGION ) {
-      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
-         "`%s` not a region", search->path->text );
-      s_bail( semantic );
-   }
 }
+
+struct regobjget s_get_regionobject( struct semantic* semantic,
+   const char* lookup, bool get_struct );
 
 void find_head_object( struct semantic* semantic,
    struct object_search* search ) {
-   if ( search->path->is_upmost ) {
-      search->object = &semantic->task->region_upmost->object;
-      return;
-   }
-   else if ( search->path->is_region ) {
-      search->object = &semantic->region->object;
-      return;
-   }
    // Search for the head in the current region.
    struct regobjget result = s_get_regionobject( semantic,
-      semantic->region, search->path->text, search->get_struct );
+      search->path->text, search->get_struct );
    search->object = result.object;
    search->struct_object = result.struct_object;
    if ( search->object ) {
       return;
    }
-   // Search for the head in the linked regions.
-   struct regionlink_search linked;
-   s_init_regionlink_search( &linked, semantic->region,
-      search->path->text, &search->path->pos, search->get_struct );
-   s_find_linkedobject( semantic, &linked );
-   search->object = linked.object;
-   search->struct_object = linked.struct_object;
 }
 
 // Assumes that the object currently found is a region.
 void find_tail_object( struct semantic* semantic,
    struct object_search* search ) {
    struct regobjget result = s_get_regionobject( semantic,
-      ( struct region* ) search->object, search->path->text,
-      search->get_struct );
+      search->path->text, search->get_struct );
    search->object = result.object;
    search->struct_object = result.struct_object;
 }
 
-void s_init_regionlink_search( struct regionlink_search* search,
-   struct region* region, const char* name, struct pos* name_pos,
-   bool get_struct ) {
-   search->region = region;
-   search->name = name;
-   search->name_pos = name_pos;
-   search->object = NULL;
-   search->struct_object = NULL;
-   search->get_struct = get_struct;
-}
-
-void s_find_linkedobject( struct semantic* semantic,
-   struct regionlink_search* search ) {
-   struct region_link* link = search->region->link;
-   while ( link ) {
-      struct regobjget result = s_get_regionobject( semantic,
-         link->region, search->name, search->get_struct );
-      link = link->next;
-      if ( result.object ) {
-         search->object = result.object;
-         search->struct_object = result.struct_object;
-         break;
-      }
-   }
-   // Make sure no other object with the same name can be found.
-   struct object* object = search->object;
-   bool dup = false;
-   while ( link ) {
-      struct regobjget result = s_get_regionobject( semantic,
-         link->region, search->name, search->get_struct );
-      if ( result.object ) {
-         if ( ! dup ) {
-            s_diag( semantic, DIAG_POS_ERR, search->name_pos,
-               "multiple instances of %s`%s`",
-               ( search->get_struct ? "struct " : "" ), search->name );
-            dup = true;
-         }
-         s_diag( semantic, DIAG_POS, &object->pos,
-            "instance found here, and" );
-         object = result.object;
-      }
-      link = link->next;
-   }
-   if ( dup ) {
-      s_diag( semantic, DIAG_POS, &object->pos,
-         "instance found here" );
-      s_bail( semantic );
-   }
-}
-
 struct regobjget s_get_regionobject( struct semantic* semantic,
-   struct region* region, const char* lookup, bool get_struct ) {
+   const char* lookup, bool get_struct ) {
    struct name* name = t_extend_name(
-      ( get_struct ? region->body_struct : region->body ), lookup );
+      ( get_struct ? semantic->task->body_struct :
+         semantic->task->body ), lookup );
    struct object* object = name->object;
    if ( object ) {
       while ( object->next_scope ) {
@@ -671,6 +590,8 @@ void unbind_object( struct object* object ) {
       struct func* func = ( struct func* ) object;
       func->name->object = NULL;
       break; }
+   case NODE_SCRIPT:
+      break;
    default:
       UNREACHABLE();
    }

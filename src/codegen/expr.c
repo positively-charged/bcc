@@ -1051,12 +1051,6 @@ void visit_access( struct codegen* codegen, struct operand* operand,
       struct access* nested = ( struct access* ) object;
       object = nested->rside;
    }
-   // When the left side is a module, only process the right side.
-   if ( object->type == NODE_REGION || object->type == NODE_REGION_HOST ||
-      object->type == NODE_REGION_UPMOST ) {
-      lside = access->rside;
-      rside = NULL;
-   }
    // Left side:
    if ( lside->type == NODE_VAR ) {
       set_var( codegen, operand, ( struct var* ) lside );

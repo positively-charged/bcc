@@ -79,7 +79,7 @@ void read_block( struct parse* parse, struct stmt_reading* reading ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_LOCAL;
-         dec.name_offset = parse->region->body;
+         dec.name_offset = parse->task->body;
          dec.vars = &block->stmts;
          p_read_dec( parse, &dec );
       }
@@ -366,7 +366,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_FOR;
-         dec.name_offset = parse->region->body;
+         dec.name_offset = parse->task->body;
          dec.vars = &stmt->init;
          p_read_dec( parse, &dec );
       }
@@ -621,21 +621,10 @@ void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 struct path* p_read_path( struct parse* parse ) {
-   // Head of path.
    struct path* path = alloc_path( parse->tk_pos );
-   if ( parse->tk == TK_UPMOST ) {
-      path->is_upmost = true;
-      p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_REGION ) {
-      path->is_region = true;
-      p_read_tk( parse );
-   }
-   else {
-      p_test_tk( parse, TK_ID );
-      path->text = parse->tk_text;
-      p_read_tk( parse );
-   }
+   p_test_tk( parse, TK_ID );
+   path->text = parse->tk_text;
+   p_read_tk( parse );
    return path;
 }
 
@@ -644,7 +633,5 @@ struct path* alloc_path( struct pos pos ) {
    path->next = NULL;
    path->text = NULL;
    path->pos = pos;
-   path->is_region = false;
-   path->is_upmost = false;
    return path;
 }

@@ -3,8 +3,6 @@
 #include "phase.h"
 
 static void make_main_lib( struct parse* parse );
-static void read_region_name( struct parse* parse );
-static void read_region_body( struct parse* parse );
 static void read_dirc( struct parse* parse, struct pos* );
 static void read_include( struct parse* parse, struct pos*, bool );
 static void read_import( struct parse* parse, struct pos* pos );
@@ -28,7 +26,6 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->tk_length = 0;
    parse->source = NULL;
    parse->main_source = NULL;
-   parse->region = task->region_upmost;
    parse->last_id = 0;
 }
 
@@ -52,14 +49,11 @@ void p_read_lib( struct parse* parse ) {
       if ( p_is_dec( parse ) ) {
          struct dec dec;
          p_init_dec( &dec );
-         dec.name_offset = parse->task->region_upmost->body;
+         dec.name_offset = parse->task->body;
          p_read_dec( parse, &dec );
       }
       else if ( parse->tk == TK_SCRIPT ) {
          p_read_script( parse );
-      }
-      else if ( parse->tk == TK_REGION ) {
-         p_read_region( parse );
       }
       else if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
@@ -87,78 +81,7 @@ void p_read_lib( struct parse* parse ) {
    }
 }
 
-void p_read_region( struct parse* parse ) {
-   p_test_tk( parse, TK_REGION );
-   p_read_tk( parse );
-   struct region* parent = parse->region;
-   read_region_name( parse );
-   p_test_tk( parse, TK_BRACE_L );
-   p_read_tk( parse );
-   read_region_body( parse );
-   p_test_tk( parse, TK_BRACE_R );
-   p_read_tk( parse );
-   parse->region = parent;
-}
-
-void read_region_name( struct parse* parse ) {
-   p_test_tk( parse, TK_ID );
-   struct name* name = t_extend_name( parse->region->body, parse->tk_text );
-   // Regions must be opened once. This works like modules in other languages.
-   if ( name->object ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "duplicate region" );
-      p_diag( parse, DIAG_POS, &name->object->pos,
-         "region already found here" );
-      p_bail( parse );
-   }
-   struct region* region = t_alloc_region( parse->task, name, false );
-   region->object.pos = parse->tk_pos;
-   name->object = &region->object;
-   list_append( &parse->task->regions, region );
-   parse->region = region;
-   p_read_tk( parse );
-}
-
-void read_region_body( struct parse* parse ) {
-   while ( true ) {
-      if ( p_is_dec( parse ) ) {
-         struct dec dec;
-         p_init_dec( &dec );
-         dec.name_offset = parse->region->body;
-         p_read_dec( parse, &dec );
-      }
-      else if ( parse->tk == TK_SCRIPT ) {
-         if ( ! parse->task->library->imported ) {
-            p_read_script( parse );
-         }
-         else {
-            p_skip_block( parse );
-         }
-      }
-      else if ( parse->tk == TK_REGION ) {
-         p_read_region( parse );
-      }
-      else if ( parse->tk == TK_SEMICOLON ) {
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_BRACE_R ) {
-         break;
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "unexpected %s", p_get_token_name( parse->tk ) );
-         p_bail( parse );
-      }
-   }
-}
-
 void read_dirc( struct parse* parse, struct pos* pos ) {
-   // Directives can only appear in the upmost region.
-   if ( parse->region != parse->task->region_upmost ) {
-      p_diag( parse, DIAG_POS_ERR, pos,
-         "directive not in upmost region" );
-      p_bail( parse );
-   }
    if ( parse->tk == TK_IMPORT ) {
       p_read_tk( parse );
       read_import( parse, pos );
@@ -331,7 +254,7 @@ void read_define( struct parse* parse ) {
          parse->tk_text );
    }
    else {
-      constant->name = t_extend_name( parse->task->region_upmost->body,
+      constant->name = t_extend_name( parse->task->body,
             parse->tk_text );
    }
    p_read_tk( parse );
@@ -342,17 +265,17 @@ void read_define( struct parse* parse ) {
    constant->value = 0;
    constant->hidden = hidden;
    constant->lib_id = parse->task->library->id;
-   p_add_unresolved( parse->region, &constant->object );
+   p_add_unresolved( parse->task->library, &constant->object );
 }
 
-void p_add_unresolved( struct region* region, struct object* object ) {
-   if ( region->unresolved ) {
-      region->unresolved_tail->next = object;
+void p_add_unresolved( struct library* lib, struct object* object ) {
+   if ( lib->unresolved ) {
+      lib->unresolved_tail->next = object;
    }
    else {
-      region->unresolved = object;
+      lib->unresolved = object;
    }
-   region->unresolved_tail = object;
+   lib->unresolved_tail = object;
 }
 
 void link_usable_strings( struct parse* parse ) {

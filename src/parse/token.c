@@ -556,7 +556,6 @@ void read_source( struct parse* parse, struct token* token ) {
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },
          { "redreturn", TK_RED_RETURN },
-         { "region", TK_REGION },
          { "respawn", TK_RESPAWN },
          { "restart", TK_RESTART },
          { "return", TK_RETURN },
@@ -572,7 +571,6 @@ void read_source( struct parse* parse, struct token* token ) {
          { "true", TK_TRUE },
          { "unloading", TK_UNLOADING },
          { "until", TK_UNTIL },
-         { "upmost", TK_UPMOST },
          { "void", TK_VOID },
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },
@@ -1176,8 +1174,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_TRUE, "`true`" },
       { TK_FALSE, "`false`" },
       { TK_IMPORT, "`import`" },
-      { TK_REGION, "`region`" },
-      { TK_UPMOST, "`upmost`" },
       { TK_EVENT, "`event`" },
       { TK_LIT_OCTAL, "octal number" },
       { TK_LIT_DECIMAL, "decimal number" },
@@ -1190,7 +1186,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LIB_END, "end-of-library" },
       { TK_QUESTION_MARK, "`?`" },
       { TK_STRCPY, "`strcpy`" } };
-   STATIC_ASSERT( TK_TOTAL == 108 );
+   STATIC_ASSERT( TK_TOTAL == 106 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

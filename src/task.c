@@ -31,16 +31,13 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->file_entries = NULL;
    init_str_table( &task->str_table );
    task->root_name = t_create_name();
-   struct region* region = t_alloc_region( task, task->root_name, true );
-   task->root_name->object = &region->object;
-   task->region_upmost = region;
+   task->body = task->root_name;
+   task->body_struct = t_extend_name( task->body, "!struct." );
    t_init_types( task );
    t_init_type_members( task );
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
-   list_init( &task->regions );
-   list_append( &task->regions, region );
    task->last_id = 0;
 }
 
@@ -146,42 +143,22 @@ void t_init_object( struct object* object, int node_type ) {
    object->next_scope = NULL;
 }
 
-struct region* t_alloc_region( struct task* task, struct name* name,
-   bool upmost ) {
-   struct region* region = mem_alloc( sizeof( *region ) );
-   t_init_object( &region->object, NODE_REGION );
-   region->name = name;
-   if ( upmost ) {
-      region->body = name;
-      region->body_struct = t_extend_name( name, "struct::" );
-   }
-   else {
-      region->body = t_extend_name( name, "::" );
-      region->body_struct = t_extend_name( name, "::struct::" );
-   }
-   region->link = NULL;
-   region->unresolved = NULL;
-   region->unresolved_tail = NULL;
-   list_init( &region->items );
-   return region;
-}
-
 void t_init_types( struct task* task ) {
    struct type* type = t_create_type( task,
-      t_extend_name( task->region_upmost->body, "int" ) );
+      t_extend_name( task->body, "int" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    task->type_int = type;
    type = t_create_type( task,
-      t_extend_name( task->region_upmost->body, "str" ) );
+      t_extend_name( task->body, "str" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    type->is_str = true;
    task->type_str = type;
    type = t_create_type( task,
-      t_extend_name( task->region_upmost->body, "bool" ) );
+      t_extend_name( task->body, "bool" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
@@ -515,6 +492,8 @@ struct library* t_add_library( struct task* task ) {
    lib->encrypt_str = false;
    list_append( &task->libraries, lib );
    lib->file = NULL;
+   lib->unresolved = NULL;
+   lib->unresolved_tail = NULL;
    return lib;
 }
 

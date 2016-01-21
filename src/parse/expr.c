@@ -412,16 +412,6 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    else if ( parse->tk == TK_LIT_STRING ) {
       read_string( parse, reading );
    }
-   else if ( parse->tk == TK_REGION ) {
-      static struct node node = { NODE_REGION_HOST };
-      reading->node = &node;
-      p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_UPMOST ) {
-      static struct node node = { NODE_REGION_UPMOST };
-      reading->node = &node;
-      p_read_tk( parse );
-   }
    else if ( parse->tk == TK_TRUE ) {
       static struct boolean boolean = { { NODE_BOOLEAN }, 1 };
       reading->node = &boolean.node;

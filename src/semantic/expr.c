@@ -3,7 +3,6 @@
 struct operand {
    struct func* func;
    struct dim* dim;
-   struct region* region;
    struct type* type;
    int value;
    bool complete;
@@ -128,7 +127,6 @@ void init_operand( struct operand* operand ) {
    operand->func = NULL;
    operand->dim = NULL;
    operand->type = NULL;
-   operand->region = NULL;
    operand->value = 0;
    operand->complete = false;
    operand->usable = false;
@@ -149,12 +147,6 @@ void test_node( struct semantic* semantic, struct expr_test* test,
       break;
    case NODE_BOOLEAN:
       test_boolean( semantic, operand, ( struct boolean* ) node );
-      break;
-   case NODE_REGION_HOST:
-      operand->region = semantic->region;
-      break;
-   case NODE_REGION_UPMOST:
-      operand->region = semantic->task->region_upmost;
       break;
    case NODE_NAME_USAGE:
       test_name_usage( semantic, test, operand, ( struct name_usage* ) node );
@@ -271,8 +263,8 @@ struct object* find_referenced_object( struct semantic* semantic,
       }
    }
 
-   // Try searching in the current scope.
-   struct name* name = t_extend_name( semantic->region->body, usage->text );
+   // Try searching in the upmost scope.
+   struct name* name = t_extend_name( semantic->task->body, usage->text );
    if ( name->object ) {
       struct object* object = name->object;
       if ( object->node.type == NODE_ALIAS ) {
@@ -282,24 +274,12 @@ struct object* find_referenced_object( struct semantic* semantic,
       return object;
    }
 
-   // Try searching in any of the linked regions.
-   struct regionlink_search linked;
-   s_init_regionlink_search( &linked, semantic->region,
-      usage->text, &usage->pos, false );
-   s_find_linkedobject( semantic, &linked );
-   if ( linked.object ) {
-      return linked.object;
-   }
-
    return NULL;
 }
 
 void use_object( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct object* object ) {
-   if ( object->node.type == NODE_REGION ) {
-      operand->region = ( struct region* ) object;
-   }
-   else if ( object->node.type == NODE_CONSTANT ) {
+   if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
       // TODO: Add type as a field.
       operand->type = constant->value_node ?

@@ -74,14 +74,11 @@ struct node {
       NODE_ALIAS,
       NODE_BOOLEAN,
       NODE_NAME_USAGE,
-      NODE_REGION,
-      NODE_REGION_HOST,
-      NODE_REGION_UPMOST,
       NODE_SCRIPT,
-      // 40
       NODE_PACKED_EXPR,
       NODE_CONDITIONAL,
       NODE_STRCPY
+      // 40
    } type;
 };
 
@@ -114,8 +111,6 @@ struct path {
    struct path* next;
    char* text;
    struct pos pos;
-   bool is_region;
-   bool is_upmost;
 };
 
 struct type {
@@ -684,6 +679,7 @@ struct str_table {
    struct indexed_string* tail;
 };
 
+/*
 struct region {
    struct object object;
    struct name* name;
@@ -697,7 +693,7 @@ struct region {
    struct object* unresolved;
    struct object* unresolved_tail;
    struct list items;
-};
+}; */
 
 struct library {
    struct str name;
@@ -709,6 +705,8 @@ struct library {
    // #included/#imported libraries.
    struct list dynamic;
    struct name* hidden_names;
+   struct object* unresolved;
+   struct object* unresolved_tail;
    struct file_entry* file;
    struct pos file_pos;
    int id;
@@ -729,14 +727,14 @@ struct task {
    struct file_entry* file_entries;
    struct str_table str_table;
    struct name* root_name;
-   struct region* region_upmost;
+   struct name* body;
+   struct name* body_struct;
    struct type* type_int;
    struct type* type_str;
    struct type* type_bool;
    struct library* library;
    struct library* library_main;
    struct list libraries;
-   struct list regions;
    int last_id;
 };
 
@@ -766,8 +764,6 @@ bool t_same_pos( struct pos*, struct pos* );
 void t_init_object( struct object* object, int node_type );
 void t_init_types( struct task* task );
 void t_init_type_members( struct task* );
-struct region* t_alloc_region( struct task* task, struct name* name,
-   bool upmost );
 struct type* t_create_type( struct task* task, struct name* name );
 void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );
