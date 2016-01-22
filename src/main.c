@@ -15,6 +15,7 @@ static bool read_options( struct options*, char** );
 static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
+static void perform_task( struct task* task );
 static void compile_mainlib( struct task* task );
 
 int main( int argc, char* argv[] ) {
@@ -76,7 +77,7 @@ int main( int argc, char* argv[] ) {
    struct task task;
    t_init( &task, &options, &bail );
    if ( setjmp( bail ) == 0 ) {
-      compile_mainlib( &task );
+      perform_task( &task );
       result = EXIT_SUCCESS;
    }
    if ( task.err_file ) {
@@ -99,6 +100,7 @@ void init_options( struct options* options ) {
    options->acc_err = false;
    options->one_column = false;
    options->help = false;
+   options->preprocess = false;
 }
 
 bool read_options( struct options* options, char** argv ) {
@@ -165,6 +167,9 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
       }
+      else if ( strcmp( option, "E" ) == 0 ) {
+         options->preprocess = true;
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -216,6 +221,17 @@ void print_usage( char* path ) {
       "  -one-column          Start column position at 1. Default is 0\n"
       "  -tab-size <size>     Select the size of the tab character\n",
       path );
+}
+
+void perform_task( struct task* task ) {
+   if ( task->options->preprocess ) {
+      struct parse parse;
+      p_init( &parse, task );
+      p_preprocess( &parse );
+   }
+   else {
+      compile_mainlib( task );
+   }
 }
 
 void compile_mainlib( struct task* task ) {

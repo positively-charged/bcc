@@ -72,6 +72,7 @@ struct options {
    bool acc_err;
    bool one_column;
    bool help;
+   bool preprocess;
 };
 
 #if OS_WINDOWS
