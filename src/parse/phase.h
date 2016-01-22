@@ -140,7 +140,6 @@ struct source {
    struct file_entry* file;
    char* text;
    char* left;
-   char* save;
    struct source* prev;
    int line;
    int column;
@@ -226,6 +225,8 @@ struct parse {
    struct source* source;
    struct source* main_source;
    int last_id;
+   struct str temp_text;
+   struct list text_buffers;
 };
 
 void p_init( struct parse* parse, struct task* task );

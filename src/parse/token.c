@@ -13,14 +13,24 @@ struct request {
    bool err_loaded_before;
 };
 
+struct text_buffer {
+   char* data;
+   unsigned int used;
+   unsigned int size;
+};
+
 static void load_source( struct parse* parse, struct request* );
 static void init_request( struct request*, const char* );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static enum tk peek( struct parse* parse, int );
 static void read_source( struct parse* parse, struct token* );
-static void escape_ch( struct parse* parse, char*, char**, bool );
+static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
+static struct str* temp_text( struct parse* parse );
+static char* save_text( struct parse* parse );
+static unsigned int calc_buffer_size( struct parse* parse );
+static void append_ch( struct str* str, char ch );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
@@ -102,6 +112,7 @@ void open_source_file( struct parse* parse, struct request* request ) {
    size_t size = ftell( fh );
    rewind( fh );
    char* save = mem_alloc( size + 1 + 1 );
+   save[ 0 ] = 0;
    char* text = save + 1;
    size_t num_read = fread( text, sizeof( char ), size, fh );
    text[ size ] = 0;
@@ -116,8 +127,6 @@ void open_source_file( struct parse* parse, struct request* request ) {
    source->file = request->file;
    source->text = text;
    source->left = text;
-   source->save = save;
-   source->save[ 0 ] = 0;
    source->prev = parse->source;
    source->line = 1;
    source->column = 0;
@@ -185,10 +194,10 @@ enum tk peek( struct parse* parse, int pos ) {
 
 void read_source( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
-   char* save = parse->source->save;
    int line = 0;
    int column = 0;
    enum tk tk = TK_END;
+   struct str* text = NULL;
 
    state_space:
    // -----------------------------------------------------------------------
@@ -216,9 +225,9 @@ void read_source( struct parse* parse, struct token* token ) {
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
-         save[ 0 ] = '0';
-         save[ 1 ] = '.';
-         save += 2;
+         text = temp_text( parse );
+         append_ch( text, '0' );
+         append_ch( text, '.' );
          ch = read_ch( parse );
          goto fraction;
       }
@@ -235,6 +244,7 @@ void read_source( struct parse* parse, struct token* token ) {
       goto state_string;
    }
    else if ( ch == '\'' ) {
+      text = temp_text( parse );
       ch = read_ch( parse );
       if ( ch == '\'' || ! ch ) {
          struct pos pos = {
@@ -249,19 +259,15 @@ void read_source( struct parse* parse, struct token* token ) {
       if ( ch == '\\' ) {
          ch = read_ch( parse );
          if ( ch == '\'' ) {
-            save[ 0 ] = ch;
-            save[ 1 ] = 0;
-            save += 2;
+            append_ch( text, ch );
             ch = read_ch( parse );
          }
          else {
-            escape_ch( parse, &ch, &save, false );
+            escape_ch( parse, &ch, text, false );
          }
       }
       else  {
-         save[ 0 ] = ch;
-         save[ 1 ] = 0;
-         save += 2;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       if ( ch != '\'' ) {
@@ -514,14 +520,11 @@ void read_source( struct parse* parse, struct token* token ) {
    id:
    // -----------------------------------------------------------------------
    {
-      char* id = save;
+      text = temp_text( parse );
       while ( isalnum( ch ) || ch == '_' ) {
-         *save = tolower( ch );
-         ++save;
+         append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
       }
-      *save = 0;
-      ++save;
       // NOTE: Reserved identifiers must be listed in ascending order.
       static const struct { const char* name; enum tk tk; }
       reserved[] = {
@@ -580,6 +583,7 @@ void read_source( struct parse* parse, struct token* token ) {
       #define RESERVED_MAX ARRAY_SIZE( reserved )
       #define RESERVED_MID ( RESERVED_MAX / 2 )
       int i = 0;
+      const char* id = text->value;
       if ( strcmp( id, reserved[ RESERVED_MID ].name ) >= 0 ) {
          i = RESERVED_MID;
       }
@@ -603,11 +607,11 @@ void read_source( struct parse* parse, struct token* token ) {
 
    binary_literal:
    // -----------------------------------------------------------------------
+   text = temp_text( parse );
    ch = read_ch( parse );
    while ( true ) {
       if ( ch == '0' || ch == '1' ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       // Underscores can be used to improve readability of a numeric literal
@@ -622,7 +626,7 @@ void read_source( struct parse* parse, struct token* token ) {
             "invalid digit in binary literal" );
          p_bail( parse );
       }
-      else if ( save == parse->source->save ) {
+      else if ( text->length == 0 ) {
          struct pos pos = { parse->source->line, column,
             parse->source->file->id };
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -630,8 +634,6 @@ void read_source( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         *save = 0;
-         ++save;
          tk = TK_LIT_BINARY;
          goto state_finish;
       }
@@ -639,11 +641,11 @@ void read_source( struct parse* parse, struct token* token ) {
 
    hex_literal:
    // -----------------------------------------------------------------------
+   text = temp_text( parse );
    ch = read_ch( parse );
    while ( true ) {
       if ( isxdigit( ch ) ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
@@ -656,7 +658,7 @@ void read_source( struct parse* parse, struct token* token ) {
             "invalid digit in hexadecimal literal" );
          p_bail( parse );
       }
-      else if ( save == parse->source->save ) {
+      else if ( text->length == 0 ) {
          struct pos pos = { parse->source->line, column,
             parse->source->file->id };
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -664,8 +666,6 @@ void read_source( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         *save = 0;
-         ++save;
          tk = TK_LIT_HEX;
          goto state_finish;
       }
@@ -673,10 +673,10 @@ void read_source( struct parse* parse, struct token* token ) {
 
    octal_literal:
    // -----------------------------------------------------------------------
+   text = temp_text( parse );
    while ( true ) {
       if ( ch >= '0' && ch <= '7' ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
@@ -691,15 +691,11 @@ void read_source( struct parse* parse, struct token* token ) {
       }
       else {
          // We consider the number zero to be a decimal literal.
-         if ( save == parse->source->save ) {
-            save[ 0 ] = '0';
-            save[ 1 ] = 0;
-            save += 2;
+         if ( text->length == 0 ) {
+            append_ch( text, '0' );
             tk = TK_LIT_DECIMAL;
          }
          else {
-            *save = 0;
-            ++save;
             tk = TK_LIT_OCTAL;
          }
          goto state_finish;
@@ -708,10 +704,10 @@ void read_source( struct parse* parse, struct token* token ) {
 
    decimal_literal:
    // -----------------------------------------------------------------------
+   text = temp_text( parse );
    while ( true ) {
       if ( isdigit( ch ) ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
@@ -719,8 +715,7 @@ void read_source( struct parse* parse, struct token* token ) {
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
          goto fraction;
       }
@@ -732,8 +727,6 @@ void read_source( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         *save = 0;
-         ++save;
          tk = TK_LIT_DECIMAL;
          goto state_finish;
       }
@@ -743,8 +736,7 @@ void read_source( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( isdigit( ch ) ) {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( ch == '_' ) {
@@ -757,7 +749,7 @@ void read_source( struct parse* parse, struct token* token ) {
             "invalid digit in fractional part of fixed-point literal" );
          p_bail( parse );
       }
-      else if ( save[ -1 ] == '.' ) {
+      else if ( text->value[ text->length - 1 ] == '.' ) {
          struct pos pos = { parse->source->line, column,
             parse->source->file->id };
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -765,8 +757,6 @@ void read_source( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         *save = 0;
-         ++save;
          tk = TK_LIT_FIXED;
          goto state_finish;
       }
@@ -774,6 +764,7 @@ void read_source( struct parse* parse, struct token* token ) {
 
    state_string:
    // -----------------------------------------------------------------------
+   text = temp_text( parse );
    while ( true ) {
       if ( ! ch ) {
          struct pos pos = { line, column, parse->source->file->id };
@@ -783,49 +774,39 @@ void read_source( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
-         goto state_string_concat;
+         while ( isspace( ch ) ) {
+            ch = read_ch( parse );
+         }
+         // Next string.
+         if ( ch == '"' ) {
+            ch = read_ch( parse );
+         }
+         // Done.
+         else {
+            tk = TK_LIT_STRING;
+            goto state_finish;
+         }
       }
       else if ( ch == '\\' ) {
          ch = read_ch( parse );
          if ( ch == '"' ) {
-            *save = ch;
-            ++save;
+            append_ch( text, ch );
             ch = read_ch( parse );
          }
          // Color codes are not parsed.
          else if ( ch == 'c' || ch == 'C' ) {
-            save[ 0 ] = '\\';
-            save[ 1 ] = ch;
-            save += 2;
+            append_ch( text, '\\' );
+            append_ch( text, ch );
             ch = read_ch( parse );
          }
          else {
-            escape_ch( parse, &ch, &save, true );
+            escape_ch( parse, &ch, text, true );
          }
       }
       else {
-         *save = ch;
-         ++save;
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
-   }
-
-   state_string_concat:
-   // -----------------------------------------------------------------------
-   while ( isspace( ch ) ) {
-      ch = read_ch( parse );
-   }
-   // Next string.
-   if ( ch == '"' ) {
-      ch = read_ch( parse );
-      goto state_string;
-   }
-   // Done.
-   else {
-      *save = 0;
-      ++save;
-      tk = TK_LIT_STRING;
-      goto state_finish;
    }
 
    state_comment:
@@ -858,11 +839,9 @@ void read_source( struct parse* parse, struct token* token ) {
    state_finish:
    // -----------------------------------------------------------------------
    token->type = tk;
-   if ( save != parse->source->save ) {
-      token->text = parse->source->save;
-      // Minus 1 so to not include the NUL character in the count.
-      token->length = save - parse->source->save - 1;
-      parse->source->save = save;
+   if ( text != NULL ) {
+      token->text = save_text( parse );
+      token->length = text->length;
    }
    else {
       token->text = NULL;
@@ -924,10 +903,9 @@ char read_ch( struct parse* parse ) {
    }
 }
 
-void escape_ch( struct parse* parse, char* ch_out, char** save_out,
+void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    bool in_string ) {
    char ch = *ch_out;
-   char* save = *save_out;
    if ( ! ch ) {
       empty: ;
       struct pos pos = { parse->source->line, parse->source->column,
@@ -949,8 +927,7 @@ void escape_ch( struct parse* parse, char* ch_out, char** save_out,
    int i = 0;
    while ( singles[ i ] ) {
       if ( singles[ i ] == ch ) {
-         *save = singles[ i + 1 ];
-         ++save;
+         append_ch( text, singles[ i + 1 ] );
          ch = read_ch( parse );
          goto finish;
       }
@@ -981,13 +958,11 @@ void escape_ch( struct parse* parse, char* ch_out, char** save_out,
       // In a string context, like the NUL character, the backslash character
       // must not be escaped.
       if ( in_string ) {
-         save[ 0 ] = '\\';
-         save[ 1 ] = '\\';
-         save += 2;
+         append_ch( text, '\\' );
+         append_ch( text, '\\' );
       }
       else {
-         save[ 0 ] = '\\';
-         save += 1;
+         append_ch( text, '\\' );
       }
       ch = read_ch( parse );
    }
@@ -1022,9 +997,8 @@ void escape_ch( struct parse* parse, char* ch_out, char** save_out,
          if ( ch == '\n' ) {
             p_bail( parse );
          }
-         save[ 0 ] = '\\';
-         save[ 1 ] = ch;
-         save += 2;
+         append_ch( text, '\\' );
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else {
@@ -1048,19 +1022,70 @@ void escape_ch( struct parse* parse, char* ch_out, char** save_out,
    // In a string context, the NUL character must not be escaped. Leave it
    // for the engine to process it.
    if ( code == 0 && in_string ) {
-      save[ 0 ] = '\\';
-      save[ 1 ] = '0';
-      save += 2;
+      append_ch( text, '\\' );
+      append_ch( text, '0' );
    }
    else {
-      *save = ( char ) code;
-      ++save;
+      append_ch( text, ( char ) code );
    }
 
    finish:
    // -----------------------------------------------------------------------
    *ch_out = ch;
-   *save_out = save;
+}
+
+struct str* temp_text( struct parse* parse ) {
+   str_clear( &parse->temp_text );
+   return &parse->temp_text;
+}
+
+char* save_text( struct parse* parse ) {
+   // Find buffer with enough free space to fit the text.
+   struct text_buffer* buffer = NULL;
+   list_iter_t i;
+   list_iter_init( &i, &parse->text_buffers );
+   while ( ! list_end( &i ) ) {
+      struct text_buffer* candidate_buffer = list_data( &i );
+      if ( candidate_buffer->size - candidate_buffer->used >=
+         parse->temp_text.length + 1 ) {
+         buffer = candidate_buffer;
+         break;
+      }
+      list_next( &i );
+   }
+   // Create a new buffer when no suitable buffer could be found.
+   if ( ! buffer ) {
+      buffer = mem_alloc( sizeof( *buffer ) );
+      buffer->used = 0u;
+      buffer->size = calc_buffer_size( parse );
+      buffer->data = mem_alloc( sizeof( char ) * buffer->size );
+      list_append( &parse->text_buffers, buffer );
+   }
+   // Save text into buffer.
+   memcpy( buffer->data + buffer->used, parse->temp_text.value,
+      parse->temp_text.length + 1 );
+   char* text = buffer->data + buffer->used;
+   buffer->used += parse->temp_text.length + 1;
+   return text;
+}
+
+// The size calculated should be at least twice as big as the text to be
+// stored. This is an attempt at reducing buffer allocations.
+// NOTE: Integer overflow is possible in this function, although for an
+// overflow to happen would require a really long piece of text.
+unsigned int calc_buffer_size( struct parse* parse ) {
+   enum { INITIAL_SIZE = 4096 };
+   unsigned int size = INITIAL_SIZE;
+   unsigned int required_size = ( parse->temp_text.length + 1 ) * 2;
+   while ( size < required_size ) {
+      size <<= 1;
+   }
+   return size;
+}
+
+void append_ch( struct str* str, char ch ) {
+   char segment[ 2 ] = { ch, '\0' };
+   str_append( str, segment );
 }
 
 void p_test_tk( struct parse* parse, enum tk expected ) {

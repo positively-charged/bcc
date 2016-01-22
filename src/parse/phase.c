@@ -28,6 +28,8 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->source = NULL;
    parse->main_source = NULL;
    parse->last_id = 0;
+   str_init( &parse->temp_text );
+   list_init( &parse->text_buffers );
 }
 
 void p_read( struct parse* parse ) {
@@ -35,6 +37,13 @@ void p_read( struct parse* parse ) {
    p_load_main_source( parse );
    parse->task->library->file = parse->main_source->file;
    p_read_tk( parse );
+
+   while ( parse->tk != TK_END ) {
+      printf( "a %s %d\n", parse->tk_text, parse->tk_length );
+      p_read_tk( parse );
+   }
+   p_bail( parse );
+
    p_read_lib( parse );
    link_usable_strings( parse );
    alloc_string_indexes( parse );
