@@ -23,10 +23,13 @@ static void load_source( struct parse* parse, struct request* );
 static void init_request( struct request*, const char* );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
+static struct source* alloc_source( struct parse* parse );
+static void reset_filepos( struct source* source );
 static enum tk peek( struct parse* parse, int );
 static void read_source( struct parse* parse, struct token* );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
+static void read_initial_ch( struct parse* parse );
 static struct str* temp_text( struct parse* parse );
 static char* save_text( struct parse* parse );
 static unsigned int calc_buffer_size( struct parse* parse );
@@ -109,34 +112,56 @@ void open_source_file( struct parse* parse, struct request* request ) {
       request->err_open = true;
       return;
    }
-   fseek( fh, 0, SEEK_END );
-   size_t size = ftell( fh );
-   rewind( fh );
-   char* save = mem_alloc( size + 1 + 1 );
-   save[ 0 ] = 0;
-   char* text = save + 1;
-   size_t num_read = fread( text, sizeof( char ), size, fh );
-   text[ size ] = 0;
-   fclose( fh );
-   if ( num_read != size ) {
-      // For now, a read-error will be the same as an open-error.
-      request->err_open = true;
-      return;
-   }
    // Create source.
-   struct source* source = mem_alloc( sizeof( *source ) );
+   struct source* source = alloc_source( parse );
    source->file = request->file;
-   source->text = text;
-   source->left = text;
+   source->fh = fh;
    source->prev = parse->source;
-   source->line = 1;
-   source->column = 0;
-   source->find_dirc = true;
-   source->imported = false;
-   source->ch = ' ';
-   request->source = source;
    parse->source = source;
    parse->tk = TK_END;
+   read_initial_ch( parse );
+   request->source = source;
+}
+
+struct source* alloc_source( struct parse* parse ) {
+   // Allocate.
+   struct source* source;
+   if ( parse->free_source ) {
+      source = parse->free_source;
+      parse->free_source = source->prev;
+   }
+   else {
+      source = mem_alloc( sizeof( *source ) );
+   }
+   // Initialize with default values.
+   source->file = NULL;
+   source->fh = NULL;
+   source->prev = NULL;
+   reset_filepos( source );
+   source->find_dirc = true;
+   source->imported = false;
+   source->ch = '\0';
+   source->buffer_pos = SOURCE_BUFFER_SIZE;
+   return source;
+}
+
+void reset_filepos( struct source* source ) {
+   source->line = 1;
+   source->column = 0;
+}
+
+void unload_source( struct parse* parse ) {
+   struct source* source = parse->source;
+   parse->source = source->prev;
+   source->prev = parse->free_source;
+   parse->free_source = source;
+   fclose( source->fh );
+}
+
+void unload_source_all( struct parse* parse ) {
+   while ( parse->source ) {
+      unload_source( parse );
+   }
 }
 
 void p_read_tk( struct parse* parse ) {
@@ -156,13 +181,11 @@ void p_read_tk( struct parse* parse ) {
       token = &parse->queue[ 0 ];
       read_source( parse, token );
       if ( token->type == TK_END ) {
-         bool imported = parse->source->imported;
-         if ( parse->source->prev ) {
-            parse->source = parse->source->prev;
-            if ( ! imported ) {
-               p_read_tk( parse );
-               return;
-            }
+         bool reread = ( ! parse->source->imported );
+         unload_source( parse );
+         if ( parse->source && reread ) {
+            p_read_tk( parse );
+            return;
          }
       }
    }
@@ -859,57 +882,77 @@ void read_source( struct parse* parse, struct token* token ) {
    token->pos.line = line;
    token->pos.column = column;
    token->pos.id = parse->source->file->id;
-   parse->source->ch = ch;
 }
 
 char read_ch( struct parse* parse ) {
-   // Determine position of character.
-   char* left = parse->source->left;
-   if ( left[ -1 ] ) {
-      if ( left[ -1 ] == '\n' ) {
-         ++parse->source->line;
-         parse->source->column = 0;
-      }
-      else if ( left[ -1 ] == '\t' ) {
-         parse->source->column += parse->task->options->tab_size -
-            ( ( parse->source->column + parse->task->options->tab_size ) %
-            parse->task->options->tab_size );
-      }
-      else {
-         ++parse->source->column;
-      }
+   struct source* source = parse->source;
+   // Adjust the file position. The file position is adjusted based on the
+   // previous character. (If we adjust the file position based on the new
+   // character, the file position will refer to the next character.)
+   if ( source->ch == '\n' ) {
+      ++source->line;
+      source->column = 0;
+   }
+   else if ( source->ch == '\t' ) {
+      source->column += parse->task->options->tab_size -
+         ( ( source->column + parse->task->options->tab_size ) %
+         parse->task->options->tab_size );
+   }
+   else {
+      ++source->column;
+   }
+   // Read character.
+   enum { LOOKAHEAD_AMOUNT = 3 };
+   enum { SAFE_AMOUNT = SOURCE_BUFFER_SIZE - LOOKAHEAD_AMOUNT };
+   if ( source->buffer_pos >= SAFE_AMOUNT ) {
+      int unread = SOURCE_BUFFER_SIZE - source->buffer_pos;
+      memcpy( source->buffer, source->buffer + source->buffer_pos, unread );
+      size_t count = fread( source->buffer, sizeof( source->buffer[ 0 ] ),
+         SOURCE_BUFFER_SIZE - unread, source->fh );
+      source->buffer[ count ] = '\0';
+      source->buffer_pos = 0;
    }
    // Line concatenation.
-   while ( left[ 0 ] == '\\' ) {
-      // Linux.
-      if ( left[ 1 ] == '\n' ) {
-         ++parse->source->line;
-         parse->source->column = 0;
-         left += 2;
+   while ( source->buffer[ source->buffer_pos ] == '\\' ) {
+      // Linux newline character.
+      if ( source->buffer[ source->buffer_pos + 1 ] == '\n' ) {
+         source->buffer_pos += 2;
+         ++source->line;
+         source->column = 0;
       }
-      // Windows.
-      else if ( left[ 1 ] == '\r' && left[ 2 ] == '\n' ) {
-         ++parse->source->line;
-         parse->source->column = 0;
-         left += 3;
+      // Windows newline character.
+      else if ( source->buffer[ source->buffer_pos + 1 ] == '\r' &&
+         source->buffer[ source->buffer_pos + 2 ] == '\n' ) {
+         source->buffer_pos += 3;
+         ++source->line;
+         source->column = 0;
       }
       else {
          break;
       }
    }
    // Process character.
-   if ( *left == '\n' ) {
-      parse->source->left = left + 1;
-      return '\n';
-   }
-   else if ( *left == '\r' && left[ 1 ] == '\n' ) {
-      parse->source->left = left + 2;
-      return '\n';
+   char ch = source->buffer[ source->buffer_pos ];
+   if ( ch == '\r' && source->buffer[ source->buffer_pos + 1 ] == '\n' ) {
+      // Replace the two-character Windows newline with a single-character
+      // newline to simplify things.
+      ch = '\n';
+      source->buffer_pos += 2;
    }
    else {
-      parse->source->left = left + 1;
-      return *left;
+      ++source->buffer_pos;
    }
+   source->ch = ch;
+   return ch;
+}
+
+void read_initial_ch( struct parse* parse ) {
+   read_ch( parse );
+   // The file position is adjusted based on the previous character. Initially,
+   // there is no previous character, but the file position is still adjusted
+   // when we read a character from read_ch(). We want the initial character to
+   // retain the initial file position, so reset the file position.
+   reset_filepos( parse->source );
 }
 
 void escape_ch( struct parse* parse, char* ch_out, struct str* text,
@@ -1426,4 +1469,8 @@ const struct token_info* get_token_info( enum tk tk ) {
       UNREACHABLE();
       return NULL;
    }
+}
+
+void p_deinit_tk( struct parse* parse ) {
+   unload_source_all( parse );
 }

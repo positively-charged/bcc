@@ -27,6 +27,7 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->tk_length = 0;
    parse->source = NULL;
    parse->main_source = NULL;
+   parse->free_source = NULL;
    parse->last_id = 0;
    str_init( &parse->temp_text );
    list_init( &parse->text_buffers );
@@ -38,11 +39,13 @@ void p_read( struct parse* parse ) {
    parse->task->library->file = parse->main_source->file;
    p_read_tk( parse );
 
+/*
    while ( parse->tk != TK_END ) {
       printf( "a %s %d\n", parse->tk_text, parse->tk_length );
       p_read_tk( parse );
    }
    p_bail( parse );
+*/
    p_read_lib( parse );
    link_usable_strings( parse );
    alloc_string_indexes( parse );
@@ -388,5 +391,6 @@ void p_unexpect_last_name( struct parse* parse, struct pos* pos,
 }
 
 void p_bail( struct parse* parse ) {
+   p_deinit_tk( parse );
    t_bail( parse->task );
 }

@@ -147,10 +147,11 @@ struct token_info {
    unsigned int flags;
 };
 
+enum { SOURCE_BUFFER_SIZE = 1024 };
+
 struct source {
    struct file_entry* file;
-   char* text;
-   char* left;
+   FILE* fh;
    struct source* prev;
    int line;
    int column;
@@ -158,6 +159,9 @@ struct source {
    bool load_once;
    bool imported;
    char ch;
+   // Plus one for the null character.
+   char buffer[ SOURCE_BUFFER_SIZE + 1 ];
+   int buffer_pos;
 };
 
 struct dec {
@@ -231,6 +235,7 @@ struct parse {
    int tk_length;
    struct source* source;
    struct source* main_source;
+   struct source* free_source;
    int last_id;
    struct str temp_text;
    struct list text_buffers;
@@ -271,5 +276,6 @@ void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk );
 void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject );
 void p_load_library( struct parse* parent );
+void p_deinit_tk( struct parse* parse );
 
 #endif
