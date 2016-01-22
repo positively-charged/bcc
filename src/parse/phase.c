@@ -43,7 +43,6 @@ void p_read( struct parse* parse ) {
       p_read_tk( parse );
    }
    p_bail( parse );
-
    p_read_lib( parse );
    link_usable_strings( parse );
    alloc_string_indexes( parse );

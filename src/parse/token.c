@@ -31,6 +31,7 @@ static struct str* temp_text( struct parse* parse );
 static char* save_text( struct parse* parse );
 static unsigned int calc_buffer_size( struct parse* parse );
 static void append_ch( struct str* str, char ch );
+static const struct token_info* get_token_info( enum tk tk );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
@@ -596,6 +597,7 @@ void read_source( struct parse* parse, struct token* token ) {
          // Reserved identifier.
          else if ( strcmp( reserved[ i ].name, id ) == 0 ) {
             tk = reserved[ i ].tk;
+            text = NULL;
             break;
          }
          else {
@@ -844,8 +846,15 @@ void read_source( struct parse* parse, struct token* token ) {
       token->length = text->length;
    }
    else {
-      token->text = NULL;
-      token->length = 0;
+      const struct token_info* info = get_token_info( tk );
+      if ( info && info->shared_text[ 0 ] ) {
+         token->text = info->shared_text;
+         token->length = info->length;
+      }
+      else {
+         token->text = NULL;
+         token->length = 0;
+      }
    }
    token->pos.line = line;
    token->pos.column = column;
@@ -1272,4 +1281,149 @@ void p_skip_block( struct parse* parse ) {
    }
    p_test_tk( parse, TK_BRACE_R );
    p_read_tk( parse );
+}
+
+const struct token_info* get_token_info( enum tk tk ) {
+   // The table below contains information about the available tokens. The
+   // order of the table corresponds to the order of the token enumeration.
+   #define ENTRY( text, flags ) \
+      { text, ARRAY_SIZE( text ) - 1, flags }
+   #define BLANK ""
+   static struct token_info table[] = {
+      // 0
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( "[", TKF_NONE ),
+      ENTRY( "]", TKF_NONE ),
+      ENTRY( "(", TKF_NONE ),
+      ENTRY( ")", TKF_NONE ),
+      ENTRY( "{", TKF_NONE ),
+      ENTRY( "}", TKF_NONE ),
+      ENTRY( ".", TKF_NONE ),
+      ENTRY( "++", TKF_NONE ),
+
+      // 10
+      ENTRY( "--", TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( ",", TKF_NONE ),
+      ENTRY( ":", TKF_NONE ),
+      ENTRY( "strcpy", TKF_KEYWORD ),
+      ENTRY( ";", TKF_NONE ),
+      ENTRY( "=", TKF_NONE ),
+      ENTRY( "+=", TKF_NONE ),
+      ENTRY( "-=", TKF_NONE ),
+      ENTRY( "*=", TKF_NONE ),
+
+      // 20
+      ENTRY( "/=", TKF_NONE ),
+      ENTRY( "%=", TKF_NONE ),
+      ENTRY( "<<=", TKF_NONE ),
+      ENTRY( ">>=", TKF_NONE ),
+      ENTRY( "&=", TKF_NONE ),
+      ENTRY( "^=", TKF_NONE ),
+      ENTRY( "|=", TKF_NONE ),
+      ENTRY( "==", TKF_NONE ),
+      ENTRY( "!=", TKF_NONE ),
+      ENTRY( "!", TKF_NONE ),
+
+      // 30
+      ENTRY( "&&", TKF_NONE ),
+      ENTRY( "||", TKF_NONE ),
+      ENTRY( "&", TKF_NONE ),
+      ENTRY( "|", TKF_NONE ),
+      ENTRY( "^", TKF_NONE ),
+      ENTRY( "~", TKF_NONE ),
+      ENTRY( "<", TKF_NONE ),
+      ENTRY( "<=", TKF_NONE ),
+      ENTRY( ">", TKF_NONE ),
+      ENTRY( ">=", TKF_NONE ),
+
+      // 40
+      ENTRY( "+", TKF_NONE ),
+      ENTRY( "-", TKF_NONE ),
+      ENTRY( "/", TKF_NONE ),
+      ENTRY( "*", TKF_NONE ),
+      ENTRY( "%", TKF_NONE ),
+      ENTRY( "<<", TKF_NONE ),
+      ENTRY( ">>", TKF_NONE ),
+      ENTRY( ":=", TKF_NONE ),
+      ENTRY( "break", TKF_KEYWORD ),
+      ENTRY( "case", TKF_KEYWORD ),
+
+      // 50
+      ENTRY( "const", TKF_KEYWORD ),
+      ENTRY( "continue", TKF_KEYWORD ),
+      ENTRY( "default", TKF_KEYWORD ),
+      ENTRY( "do", TKF_KEYWORD ),
+      ENTRY( "else", TKF_KEYWORD ),
+      ENTRY( "enum", TKF_KEYWORD ),
+      ENTRY( "for", TKF_KEYWORD ),
+      ENTRY( "if", TKF_KEYWORD ),
+      ENTRY( "int", TKF_KEYWORD ),
+      ENTRY( "return", TKF_KEYWORD ),
+
+      // 60
+      ENTRY( "static", TKF_KEYWORD ),
+      ENTRY( "str", TKF_KEYWORD ),
+      ENTRY( "struct", TKF_KEYWORD ),
+      ENTRY( "switch", TKF_KEYWORD ),
+      ENTRY( "void", TKF_KEYWORD ),
+      ENTRY( "while", TKF_KEYWORD ),
+      ENTRY( "bool", TKF_KEYWORD ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+
+      // 70
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( "#", TKF_NONE ),
+      ENTRY( "createtranslation", TKF_KEYWORD ),
+      ENTRY( "global", TKF_KEYWORD ),
+      ENTRY( "script", TKF_KEYWORD ),
+      ENTRY( "until", TKF_KEYWORD ),
+      ENTRY( "world", TKF_KEYWORD ),
+      ENTRY( "open", TKF_KEYWORD ),
+
+      // 80
+      ENTRY( "respawn", TKF_KEYWORD ),
+      ENTRY( "death", TKF_KEYWORD ),
+      ENTRY( "enter", TKF_KEYWORD ),
+      ENTRY( "pickup", TKF_KEYWORD ),
+      ENTRY( "bluereturn", TKF_KEYWORD ),
+      ENTRY( "redreturn", TKF_KEYWORD ),
+      ENTRY( "whitereturn", TKF_KEYWORD ),
+      ENTRY( "lightning", TKF_KEYWORD ),
+      ENTRY( "disconnect", TKF_KEYWORD ),
+      ENTRY( "unloading", TKF_KEYWORD ),
+
+      // 90
+      ENTRY( "clientside", TKF_KEYWORD ),
+      ENTRY( "net", TKF_KEYWORD ),
+      ENTRY( "restart", TKF_KEYWORD ),
+      ENTRY( "suspend", TKF_KEYWORD ),
+      ENTRY( "terminate", TKF_KEYWORD ),
+      ENTRY( "function", TKF_KEYWORD ),
+      ENTRY( "import", TKF_KEYWORD ),
+      ENTRY( "goto", TKF_KEYWORD ),
+      ENTRY( "true", TKF_KEYWORD ),
+      ENTRY( "false", TKF_KEYWORD ),
+
+      // 100
+      ENTRY( "event", TKF_KEYWORD ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( BLANK, TKF_NONE ),
+      ENTRY( "?", TKF_KEYWORD ),
+   };
+   #undef ENTRY
+   if ( tk < ARRAY_SIZE( table ) ) {
+      return &table[ tk ];
+   }
+   else {
+      UNREACHABLE();
+      return NULL;
+   }
 }

@@ -136,6 +136,17 @@ struct token {
    int length;
 };
 
+enum {
+   TKF_NONE,
+   TKF_KEYWORD = 0x1,
+};
+
+struct token_info {
+   char* shared_text;
+   unsigned int length;
+   unsigned int flags;
+};
+
 struct source {
    struct file_entry* file;
    char* text;
@@ -216,10 +227,6 @@ struct parse {
    int peeked;
    enum tk tk;
    struct pos tk_pos;
-   // The text contains the character content of the token. The text and the
-   // length of the text are applicable only to a token that is an identifier,
-   // a string, a character literal, or any of the numbers. For the rest, the
-   // text will be NULL and the length will be zero.
    char* tk_text;
    int tk_length;
    struct source* source;
