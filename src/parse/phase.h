@@ -245,9 +245,11 @@ struct parse {
    enum {
       READF_NONE = 0x0,
       READF_CONCATSTRINGS = 0x1,
-      READF_WHITESPACE = 0x2,
-      READF_ESCAPESEQ = 0x4,
+      READF_ESCAPESEQ = 0x2,
+      READF_NL = 0x4,
+      READF_SPACETAB = 0x8,
    } read_flags;
+   bool line_beginning;
 };
 
 void p_init( struct parse* parse, struct task* task );

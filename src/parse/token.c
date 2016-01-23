@@ -227,8 +227,9 @@ void read_source( struct parse* parse, struct token* token ) {
    switch ( ch ) {
    case ' ':
    case '\t':
+      goto spacetab;
    case '\n':
-      goto whitespace;
+      goto newline;
    default:
       if ( isspace( ch ) ) {
          ch = read_ch( parse );
@@ -239,26 +240,23 @@ void read_source( struct parse* parse, struct token* token ) {
       }
    }
 
-   whitespace:
+   spacetab:
    // -----------------------------------------------------------------------
-   if ( parse->read_flags & READF_WHITESPACE ) {
-      switch ( ch ) {
-      case ' ':
-         tk = TK_SPACE;
-         break;
-      case '\t':
-         tk = TK_TAB;
-         break;
-      case '\n':
-         tk = TK_NL;
-         break;
-      default:
-         UNREACHABLE();
-      }
+   if ( parse->read_flags & READF_SPACETAB ) {
+      tk = ( ch == ' ' ? TK_SPACE : TK_TAB );
       ch = read_ch( parse );
       goto state_finish;
    }
    ch = read_ch( parse );
+   goto state_space;
+
+   newline:
+   // -----------------------------------------------------------------------
+   ch = read_ch( parse );
+   if ( parse->read_flags & READF_NL ) {
+      tk = TK_NL;
+      goto state_finish;
+   }
    goto state_space;
 
    state_token:

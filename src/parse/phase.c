@@ -32,6 +32,7 @@ void p_init( struct parse* parse, struct task* task ) {
    str_init( &parse->temp_text );
    list_init( &parse->text_buffers );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
+   parse->line_beginning = true;
 }
 
 void p_read( struct parse* parse ) {
