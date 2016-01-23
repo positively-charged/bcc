@@ -83,6 +83,8 @@ struct fileid {
    int id_low;
 };
 
+#define NEWLINE_CHAR "\r\n"
+
 #else
 
 #include <sys/types.h>
@@ -91,6 +93,8 @@ struct fileid {
    dev_t device;
    ino_t number;
 };
+
+#define NEWLINE_CHAR "\n"
 
 #endif
 

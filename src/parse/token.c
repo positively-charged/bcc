@@ -42,7 +42,6 @@ void p_load_main_source( struct parse* parse ) {
    load_source( parse, &request );
    if ( request.source ) {
       parse->main_source = request.source;
-      parse->task->library_main->file_pos.id = request.source->file->id;
    }
    else {
       p_diag( parse, DIAG_ERR, "failed to load source file: %s",
@@ -225,9 +224,42 @@ void read_source( struct parse* parse, struct token* token ) {
 
    state_space:
    // -----------------------------------------------------------------------
-   while ( isspace( ch ) ) {
-      ch = read_ch( parse );
+   switch ( ch ) {
+   case ' ':
+   case '\t':
+   case '\n':
+      goto whitespace;
+   default:
+      if ( isspace( ch ) ) {
+         ch = read_ch( parse );
+         goto state_space;
+      }
+      else {
+         goto state_token;
+      }
    }
+
+   whitespace:
+   // -----------------------------------------------------------------------
+   if ( parse->read_flags & READF_WHITESPACE ) {
+      switch ( ch ) {
+      case ' ':
+         tk = TK_SPACE;
+         break;
+      case '\t':
+         tk = TK_TAB;
+         break;
+      case '\n':
+         tk = TK_NL;
+         break;
+      default:
+         UNREACHABLE();
+      }
+      ch = read_ch( parse );
+      goto state_finish;
+   }
+   ch = read_ch( parse );
+   goto state_space;
 
    state_token:
    // -----------------------------------------------------------------------
@@ -281,13 +313,21 @@ void read_source( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       if ( ch == '\\' ) {
-         ch = read_ch( parse );
-         if ( ch == '\'' ) {
-            append_ch( text, ch );
+         if ( parse->read_flags & READF_ESCAPESEQ ) {
             ch = read_ch( parse );
+            if ( ch == '\'' ) {
+               append_ch( text, ch );
+               ch = read_ch( parse );
+            }
+            else {
+               escape_ch( parse, &ch, text, false );
+            }
          }
          else {
-            escape_ch( parse, &ch, text, false );
+            append_ch( text, ch );
+            ch = read_ch( parse );
+            append_ch( text, ch );
+            ch = read_ch( parse );
          }
       }
       else  {
@@ -799,18 +839,19 @@ void read_source( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
-         while ( isspace( ch ) ) {
-            ch = read_ch( parse );
-         }
-         // Next string.
-         if ( ch == '"' ) {
-            ch = read_ch( parse );
+         if ( parse->read_flags & READF_CONCATSTRINGS ) {
+            while ( isspace( ch ) ) {
+               ch = read_ch( parse );
+            }
+            // Next string.
+            if ( ch == '"' ) {
+               ch = read_ch( parse );
+               continue;
+            }
          }
          // Done.
-         else {
-            tk = TK_LIT_STRING;
-            goto state_finish;
-         }
+         tk = TK_LIT_STRING;
+         goto state_finish;
       }
       else if ( ch == '\\' ) {
          ch = read_ch( parse );
@@ -825,7 +866,14 @@ void read_source( struct parse* parse, struct token* token ) {
             ch = read_ch( parse );
          }
          else {
-            escape_ch( parse, &ch, text, true );
+            if ( parse->read_flags & READF_ESCAPESEQ ) {
+               escape_ch( parse, &ch, text, true );
+            }
+            else {
+               append_ch( text, '\\' );
+               append_ch( text, ch );
+               ch = read_ch( parse );
+            }
          }
       }
       else {
@@ -870,14 +918,8 @@ void read_source( struct parse* parse, struct token* token ) {
    }
    else {
       const struct token_info* info = get_token_info( tk );
-      if ( info && info->shared_text[ 0 ] ) {
-         token->text = info->shared_text;
-         token->length = info->length;
-      }
-      else {
-         token->text = NULL;
-         token->length = 0;
-      }
+      token->text = info->shared_text;
+      token->length = info->length;
    }
    token->pos.line = line;
    token->pos.column = column;
@@ -1263,7 +1305,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LIB_END, "end-of-library" },
       { TK_QUESTION_MARK, "`?`" },
       { TK_STRCPY, "`strcpy`" } };
-   STATIC_ASSERT( TK_TOTAL == 106 );
+   STATIC_ASSERT( TK_TOTAL == 108 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
@@ -1460,14 +1502,20 @@ const struct token_info* get_token_info( enum tk tk ) {
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( "?", TKF_KEYWORD ),
+      ENTRY( " ", TKF_KEYWORD ),
+      ENTRY( "\t", TKF_KEYWORD ),
+
+      // Invalid entry.
+      // This entry should not be reached when all tokens are acccounted for.
+      ENTRY( BLANK, TKF_NONE )
    };
    #undef ENTRY
-   if ( tk < ARRAY_SIZE( table ) ) {
+   if ( tk < ARRAY_SIZE( table ) - 1 ) {
       return &table[ tk ];
    }
    else {
       UNREACHABLE();
-      return NULL;
+      return &table[ ARRAY_SIZE( table ) - 1 ];
    }
 }
 

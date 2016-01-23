@@ -31,11 +31,13 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->last_id = 0;
    str_init( &parse->temp_text );
    list_init( &parse->text_buffers );
+   parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
 }
 
 void p_read( struct parse* parse ) {
    make_main_lib( parse );
    p_load_main_source( parse );
+   parse->task->library->file_pos.id = parse->source->file->id;
    parse->task->library->file = parse->main_source->file;
    p_read_tk( parse );
 

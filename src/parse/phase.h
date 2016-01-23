@@ -122,6 +122,9 @@ enum tk {
    TK_LIB_END,
    TK_LIT_BINARY,
    TK_QUESTION_MARK,
+   TK_SPACE,
+   TK_TAB,
+
    TK_TOTAL
 };
 
@@ -239,6 +242,12 @@ struct parse {
    int last_id;
    struct str temp_text;
    struct list text_buffers;
+   enum {
+      READF_NONE = 0x0,
+      READF_CONCATSTRINGS = 0x1,
+      READF_WHITESPACE = 0x2,
+      READF_ESCAPESEQ = 0x4,
+   } read_flags;
 };
 
 void p_init( struct parse* parse, struct task* task );
