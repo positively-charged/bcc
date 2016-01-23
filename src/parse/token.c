@@ -14,7 +14,7 @@ static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
-static enum tk peek( struct parse* parse, int );
+static struct token* peek( struct parse* parse, int );
 static void read_source( struct parse* parse, struct token* );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
@@ -184,11 +184,15 @@ void p_read_tk( struct parse* parse ) {
 }
 
 enum tk p_peek( struct parse* parse ) {
+   return peek( parse, 1 )->type;
+}
+
+struct token* p_peek_tk( struct parse* parse ) {
    return peek( parse, 1 );
 }
 
 // NOTE: Make sure @pos is not more than ( TK_BUFFER_SIZE - 1 ).
-enum tk peek( struct parse* parse, int pos ) {
+struct token* peek( struct parse* parse, int pos ) {
    int i = 0;
    while ( true ) {
       // Peeked tokens begin at position 1.
@@ -199,7 +203,7 @@ enum tk peek( struct parse* parse, int pos ) {
       }
       ++i;
       if ( i == pos ) {
-         return token->type;
+         return token;
       }
    }
 }

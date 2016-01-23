@@ -281,6 +281,7 @@ void p_init_dec( struct dec* dec );
 void p_read_dec( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
+struct token* p_peek_tk( struct parse* parse );
 const char* p_get_token_name( enum tk type );
 int p_extract_literal_value( struct parse* parse );
 struct source* p_load_included_source( struct parse* parse );

@@ -5,6 +5,7 @@
 static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
+static bool pseudo_dirc( struct parse* parse );
 static void read_dirc( struct parse* parse );
 static void read_known_dirc( struct parse* parse );
 static void read_include( struct parse* parse );
@@ -75,13 +76,36 @@ void read_token( struct parse* parse ) {
       // A directive must appear at the beginning of a line.
       if ( parse->line_beginning ) {
          parse->line_beginning = false;
-         read_dirc( parse );
+         if ( ! pseudo_dirc( parse ) ) {
+            read_dirc( parse );
+         }
       }
       break;
    default:
       parse->line_beginning = false;
       break;
    }
+}
+
+bool pseudo_dirc( struct parse* parse ) {
+   static const char* table[] = {
+      "library",
+      "import",
+      "nocompact",
+      "encryptstrings",
+      "wadauthor",
+      "nowadauthor",
+   };
+   int flags = parse->read_flags;
+   parse->read_flags ^= READF_SPACETAB;
+   struct token* token = p_peek_tk( parse );
+   parse->read_flags = flags;
+   for ( int i = 0; i < ARRAY_SIZE( table ); ++i ) {
+      if ( strcmp( table[ i ], token->text ) == 0 ) {
+         return true;
+      }
+   }
+   return false;
 }
 
 void read_dirc( struct parse* parse ) {
