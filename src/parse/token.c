@@ -4,23 +4,12 @@
 
 #include "phase.h"
 
-struct request {
-   const char* given_path;
-   struct file_entry* file;
-   struct source* source;
-   bool err_open;
-   bool err_loading;
-   bool err_loaded_before;
-};
-
 struct text_buffer {
    char* data;
    unsigned int used;
    unsigned int size;
 };
 
-static void load_source( struct parse* parse, struct request* );
-static void init_request( struct request*, const char* );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static struct source* alloc_source( struct parse* parse );
@@ -38,8 +27,8 @@ static const struct token_info* get_token_info( enum tk tk );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
-   init_request( &request, parse->task->options->source_file );
-   load_source( parse, &request );
+   p_init_request( &request, parse->task->options->source_file );
+   p_load_source( parse, &request );
    if ( request.source ) {
       parse->main_source = request.source;
    }
@@ -52,8 +41,8 @@ void p_load_main_source( struct parse* parse ) {
 
 struct source* p_load_included_source( struct parse* parse ) {
    struct request request;
-   init_request( &request, parse->tk_text );
-   load_source( parse, &request );
+   p_init_request( &request, parse->tk_text );
+   p_load_source( parse, &request );
    if ( ! request.source ) {
       if ( request.err_loading ) {
          p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
@@ -69,7 +58,7 @@ struct source* p_load_included_source( struct parse* parse ) {
    return request.source;
 }
 
-void init_request( struct request* request, const char* path ) {
+void p_init_request( struct request* request, const char* path ) {
    request->given_path = path;
    request->file = NULL;
    request->source = NULL;
@@ -78,7 +67,7 @@ void init_request( struct request* request, const char* path ) {
    request->err_loading = false;
 }
 
-void load_source( struct parse* parse, struct request* request ) {
+void p_load_source( struct parse* parse, struct request* request ) {
    struct file_query query;
    t_init_file_query( &query, ( parse->source ? parse->source->file : NULL ),
       request->given_path );

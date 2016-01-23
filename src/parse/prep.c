@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "phase.h"
 
 static void output_source( struct parse* parse, struct str* output );
@@ -5,6 +7,7 @@ static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
 static void read_dirc( struct parse* parse );
 static void read_known_dirc( struct parse* parse );
+static void read_include( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -89,12 +92,44 @@ void read_dirc( struct parse* parse ) {
    if ( parse->tk != TK_NL ) {
       read_known_dirc( parse );
    }
-   p_test_tk( parse, TK_NL );
    parse->line_beginning = true;
    parse->read_flags = flags;
    read_token( parse );
 }
 
 void read_known_dirc( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   if ( strcmp( parse->tk_text, "include" ) == 0 ) {
+      read_include( parse );
+   }
+   else {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unknown directive" );
+      p_bail( parse );
+   }
+}
 
+void read_include( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_LIT_STRING );
+   const char* path = parse->tk_text;
+   struct pos pos = parse->tk_pos;
+   p_read_tk( parse );
+   p_test_tk( parse, TK_NL );
+   struct request request;
+   p_init_request( &request, path );
+   p_load_source( parse, &request );
+   if ( ! request.source ) {
+      if ( request.err_loading ) {
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "file already being loaded" );
+         p_bail( parse );
+      }
+      else {
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "failed to load file: %s", path );
+         p_bail( parse );
+      }
+   }
 }
