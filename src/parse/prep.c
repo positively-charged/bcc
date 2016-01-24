@@ -78,6 +78,8 @@ void read_token( struct parse* parse ) {
       // A directive must appear at the beginning of a line.
       if ( parse->line_beginning ) {
          parse->line_beginning = false;
+         // NOTE: Maybe instead of testing for pseudo directives, we should
+         // test for real directives. 
          if ( ! pseudo_dirc( parse ) ) {
             read_dirc( parse );
          }
@@ -92,11 +94,13 @@ void read_token( struct parse* parse ) {
 bool pseudo_dirc( struct parse* parse ) {
    static const char* table[] = {
       "library",
+      "libdefine",
       "import",
       "nocompact",
       "encryptstrings",
       "wadauthor",
       "nowadauthor",
+      "pragma",
    };
    int flags = parse->read_flags;
    parse->read_flags ^= READF_SPACETAB;
