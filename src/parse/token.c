@@ -103,6 +103,7 @@ void open_source_file( struct parse* parse, struct request* request ) {
    // Create source.
    struct source* source = alloc_source( parse );
    source->file = request->file;
+   source->file_entry_id = source->file->id;
    source->fh = fh;
    source->prev = parse->source;
    parse->source = source;
@@ -914,7 +915,7 @@ void read_source( struct parse* parse, struct token* token ) {
    }
    token->pos.line = line;
    token->pos.column = column;
-   token->pos.id = parse->source->file->id;
+   token->pos.id = parse->source->file_entry_id;
 }
 
 char read_ch( struct parse* parse ) {

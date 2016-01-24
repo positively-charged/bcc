@@ -738,6 +738,8 @@ struct task {
    struct library* library;
    struct library* library_main;
    struct list libraries;
+   // List of alternative filenames. Each entry is a string.
+   struct list altern_filenames;
    int last_id;
 };
 
@@ -775,5 +777,6 @@ struct library* t_add_library( struct task* task );
 struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
 struct indexed_string* t_lookup_string( struct task* task, int index );
+int t_add_altern_filename( struct task* task, const char* filename );
 
 #endif

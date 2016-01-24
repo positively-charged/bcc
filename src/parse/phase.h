@@ -156,6 +156,7 @@ struct source {
    struct file_entry* file;
    FILE* fh;
    struct source* prev;
+   int file_entry_id;
    int line;
    int column;
    bool find_dirc;

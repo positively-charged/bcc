@@ -10,6 +10,7 @@ static void read_dirc( struct parse* parse );
 static void read_known_dirc( struct parse* parse, struct pos* pos );
 static void read_include( struct parse* parse );
 static void read_error( struct parse* parse, struct pos* pos );
+static void read_line( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -131,6 +132,9 @@ void read_known_dirc( struct parse* parse, struct pos* pos ) {
    else if ( strcmp( parse->tk_text, "error" ) == 0 ) {
       read_error( parse, pos );
    }
+   else if ( strcmp( parse->tk_text, "line" ) == 0 ) {
+      read_line( parse );
+   }
    else {
       p_diag( parse, DIAG_POS_ERR, pos,
          "unknown directive" );
@@ -186,4 +190,25 @@ void read_error( struct parse* parse, struct pos* pos ) {
    }
    p_diag( parse, DIAG_POS_ERR, pos, message.value );
    p_bail( parse );
+}
+
+void read_line( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_LIT_DECIMAL );
+   int line = strtol( parse->tk_text, NULL, 10 );
+   if ( line == 0 ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "invalid line-number argument" );
+      p_bail( parse );
+   }
+   parse->source->line = line;
+   p_read_tk( parse );
+   // Custom filename.
+   if ( parse->tk == TK_LIT_STRING ) {
+      parse->source->file_entry_id = t_add_altern_filename(
+         parse->task, parse->tk_text );
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_NL );
 }

@@ -10,6 +10,8 @@ enum {
    TYPE_VOID
 };
 
+enum { ALTERN_FILENAME_INITIAL_ID = -1 };
+
 static void init_str_table( struct str_table* table );
 static struct type* get_type( struct task*, int type );
 static void open_logfile( struct task* task );
@@ -38,6 +40,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
+   list_init( &task->altern_filenames );
    task->last_id = 0;
 }
 
@@ -349,11 +352,36 @@ void open_logfile( struct task* task ) {
 
 void decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column ) {
-   struct file_entry* entry = task->file_entries;
-   while ( entry && entry->id != pos->id ) {
-      entry = entry->next;
+   const char* filename = "";
+   // Negative IDs indicate an alternative filename.
+   if ( pos->id < 0 ) {
+      int id = ALTERN_FILENAME_INITIAL_ID;
+      list_iter_t i;
+      list_iter_init( &i, &task->altern_filenames );
+      while ( ! list_end( &i ) ) {
+         if ( id == pos->id ) {
+            filename = list_data( &i );
+            break;
+         }
+         --id;
+         list_next( &i );
+      }
    }
-   *file = entry->path.value;
+   else {
+      struct file_entry* entry = task->file_entries;
+      while ( entry ) {
+         if ( entry->id == pos->id ) {
+            filename = entry->path.value;
+            break;
+         }
+         entry = entry->next;
+      }
+   }
+   // Instead of printing blank filenames, provide a default value.
+   if ( filename[ 0 ] == '\0' ) {
+      filename = "<no-filename>";
+   }
+   *file = filename;
    *line = pos->line;
    *column = pos->column;
    if ( task->options->one_column ) {
@@ -505,4 +533,20 @@ struct indexed_string* t_lookup_string( struct task* task, int index ) {
       string = string->next;
    }
    return string;
+}
+
+int t_add_altern_filename( struct task* task, const char* filename ) {
+   int id = ALTERN_FILENAME_INITIAL_ID;
+   list_iter_t i;
+   list_iter_init( &i, &task->altern_filenames );
+   while ( ! list_end( &i ) ) {
+      const char* added_filename = list_data( &i );
+      if ( strcmp( filename, added_filename ) == 0 ) {
+         return id;
+      }
+      --id;
+      list_next( &i );
+   }
+   list_append( &task->altern_filenames, ( void* ) filename );
+   return id;
 }
