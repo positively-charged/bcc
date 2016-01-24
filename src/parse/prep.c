@@ -7,8 +7,9 @@ static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
 static bool pseudo_dirc( struct parse* parse );
 static void read_dirc( struct parse* parse );
-static void read_known_dirc( struct parse* parse );
+static void read_known_dirc( struct parse* parse, struct pos* pos );
 static void read_include( struct parse* parse );
+static void read_error( struct parse* parse, struct pos* pos );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -111,23 +112,27 @@ bool pseudo_dirc( struct parse* parse ) {
 void read_dirc( struct parse* parse ) {
    int flags = parse->read_flags;
    parse->read_flags ^= READF_SPACETAB;
+   struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_HASH );
    p_read_tk( parse );
    if ( parse->tk != TK_NL ) {
-      read_known_dirc( parse );
+      read_known_dirc( parse, &pos );
    }
    parse->line_beginning = true;
    parse->read_flags = flags;
    read_token( parse );
 }
 
-void read_known_dirc( struct parse* parse ) {
+void read_known_dirc( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
    if ( strcmp( parse->tk_text, "include" ) == 0 ) {
       read_include( parse );
    }
+   else if ( strcmp( parse->tk_text, "error" ) == 0 ) {
+      read_error( parse, pos );
+   }
    else {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+      p_diag( parse, DIAG_POS_ERR, pos,
          "unknown directive" );
       p_bail( parse );
    }
@@ -156,4 +161,29 @@ void read_include( struct parse* parse ) {
          p_bail( parse );
       }
    }
+}
+
+void read_error( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_ID );
+   int flags = parse->read_flags;
+   parse->read_flags |= READF_SPACETAB;
+   p_read_tk( parse );
+   struct str message;
+   str_init( &message );
+   while ( parse->tk != TK_NL ) {
+      bool space_separator = false;
+      while (
+         parse->tk == TK_SPACE ||
+         parse->tk == TK_TAB ) {
+         space_separator = true;
+         p_read_tk( parse );
+      }
+      if ( message.length > 0 && space_separator ) {
+         str_append( &message, " " );
+      }
+      output_token( parse, &message );
+      p_read_tk( parse );
+   }
+   p_diag( parse, DIAG_POS_ERR, pos, message.value );
+   p_bail( parse );
 }
