@@ -188,7 +188,7 @@ void read_error( struct parse* parse, struct pos* pos ) {
       output_token( parse, &message );
       p_read_tk( parse );
    }
-   p_diag( parse, DIAG_POS_ERR, pos, message.value );
+   p_diag( parse, DIAG_POS_ERR | DIAG_CUSTOM, pos, message.value );
    p_bail( parse );
 }
 

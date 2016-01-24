@@ -750,6 +750,7 @@ struct task {
 #define DIAG_WARN 0x8
 #define DIAG_ERR 0x10
 #define DIAG_SYNTAX 0x20
+#define DIAG_CUSTOM 0x40
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
