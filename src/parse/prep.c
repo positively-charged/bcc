@@ -47,7 +47,9 @@ static void append_token( struct macro* macro, struct token* token );
 static struct macro* find_macro( struct parse* parse, const char* name );
 static bool same_macro( struct macro* a, struct macro* b );
 static void add_macro( struct parse* parse, struct macro* macro );
+static struct macro* remove_macro( struct parse* parse, const char* name );
 static void free_macro( struct parse* parse, struct macro* macro );
+static void read_undef( struct parse* parse );
 static bool space_token( struct parse* parse );
 static bool dirc_end( struct parse* parse );
 static void read_ifdef( struct parse* parse, struct pos* pos );
@@ -190,6 +192,9 @@ void read_known_dirc( struct parse* parse, struct pos* pos ) {
    }
    else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
       read_endif( parse, pos );
+   }
+   else if ( strcmp( parse->tk_text, "undef" ) == 0 ) {
+      read_undef( parse );
    }
    else if ( strcmp( parse->tk_text, "error" ) == 0 ) {
       read_error( parse, pos );
@@ -551,6 +556,46 @@ void free_macro( struct parse* parse, struct macro* macro ) {
    // Reuse macro.
    macro->next = parse->macro_free;
    parse->macro_free = macro;
+}
+
+void read_undef( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ID );
+   struct macro* macro = remove_macro( parse, parse->tk_text );
+   if ( macro ) {
+      free_macro( parse, macro );
+   }
+   p_read_tk( parse );
+   p_test_tk( parse, TK_NL );
+}
+
+struct macro* remove_macro( struct parse* parse, const char* name ) {
+   struct macro* macro_prev = NULL;
+   struct macro* macro = parse->macro_head;
+   while ( macro ) {
+      int result = strcmp( macro->name, name );
+      if ( result == 0 ) {
+         break;
+      }
+      else if ( result > 0 ) {
+         macro = NULL;
+         break;
+      }
+      else {
+         macro_prev = macro;
+         macro = macro->next;
+      }
+   }
+   if ( macro ) {
+      if ( macro_prev ) {
+         macro_prev->next = macro->next;
+      }
+      else {
+         parse->macro_head = macro->next;
+      }
+   }
+   return macro;
 }
 
 inline bool space_token( struct parse* parse ) {
