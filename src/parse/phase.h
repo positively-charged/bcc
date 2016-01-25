@@ -124,11 +124,13 @@ enum tk {
    TK_QUESTION_MARK,
    TK_SPACE,
    TK_TAB,
+   TK_ELLIPSIS,
 
    TK_TOTAL
 };
 
 struct token {
+   struct token* next;
    // The text contains the character content of the token. The text and the
    // length of the text are applicable only to a token that is an identifier,
    // a string, a character literal, or any of the numbers. For the rest, the
@@ -241,6 +243,8 @@ struct expr_reading {
 struct parse {
    struct task* task;
    struct token queue[ TK_BUFFER_SIZE ];
+   struct token* token;
+   struct token* token_free;
    int peeked;
    enum tk tk;
    struct pos tk_pos;
@@ -260,6 +264,9 @@ struct parse {
       READF_SPACETAB = 0x8,
    } read_flags;
    bool line_beginning;
+   struct macro* macro_head;
+   struct macro* macro_free;
+   struct macro_param* macro_param_free;
 };
 
 void p_init( struct parse* parse, struct task* task );

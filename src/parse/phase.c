@@ -21,6 +21,8 @@ static void alloc_string_indexes( struct parse* parse );
 void p_init( struct parse* parse, struct task* task ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
+   parse->token = NULL;
+   parse->token_free = NULL;
    parse->peeked = 0;
    parse->tk = TK_END;
    parse->tk_text = "";
@@ -33,6 +35,9 @@ void p_init( struct parse* parse, struct task* task ) {
    list_init( &parse->text_buffers );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
    parse->line_beginning = true;
+   parse->macro_head = NULL;
+   parse->macro_free = NULL;
+   parse->macro_param_free = NULL;
 }
 
 void p_read( struct parse* parse ) {

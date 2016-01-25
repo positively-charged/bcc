@@ -2,6 +2,23 @@
 
 #include "phase.h"
 
+struct macro {
+   const char* name;
+   struct macro* next;
+   struct macro_param* param_head;
+   struct macro_param* param_tail;
+   struct token* body;
+   struct token* body_tail;
+   struct pos pos;
+   bool func_like;
+   bool variadic;
+};
+
+struct macro_param {
+   const char* name;
+   struct macro_param* next;
+};
+
 static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
@@ -11,6 +28,22 @@ static void read_known_dirc( struct parse* parse, struct pos* pos );
 static void read_include( struct parse* parse );
 static void read_error( struct parse* parse, struct pos* pos );
 static void read_line( struct parse* parse );
+static void read_define( struct parse* parse );
+static struct macro* alloc_macro( struct parse* parse );
+static bool valid_macro_name( const char* name );
+static void read_param_list( struct parse* parse, struct macro* macro );
+static struct macro_param* alloc_param( struct parse* parse );
+static void append_param( struct macro* macro, struct macro_param* param );
+static void read_body( struct parse* parse, struct macro* macro );
+static void read_body_item( struct parse* parse, struct macro* macro );
+static struct token* alloc_token( struct parse* parse );
+static void append_token( struct macro* macro, struct token* token );
+static struct macro* find_macro( struct parse* parse, const char* name );
+static bool same_macro( struct macro* a, struct macro* b );
+static void add_macro( struct parse* parse, struct macro* macro );
+static void free_macro( struct parse* parse, struct macro* macro );
+static bool space_token( struct parse* parse );
+static bool dirc_end( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -130,7 +163,10 @@ void read_dirc( struct parse* parse ) {
 
 void read_known_dirc( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
-   if ( strcmp( parse->tk_text, "include" ) == 0 ) {
+   if ( strcmp( parse->tk_text, "define" ) == 0 ) {
+      read_define( parse );
+   }
+   else if ( strcmp( parse->tk_text, "include" ) == 0 ) {
       read_include( parse );
    }
    else if ( strcmp( parse->tk_text, "error" ) == 0 ) {
@@ -215,4 +251,290 @@ void read_line( struct parse* parse ) {
       p_read_tk( parse );
    }
    p_test_tk( parse, TK_NL );
+}
+
+void read_define( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   struct macro* macro = alloc_macro( parse );
+   // Name.
+   p_test_tk( parse, TK_ID );
+   if ( ! valid_macro_name( parse->tk_text ) ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "invalid macro name" );
+      p_bail( parse );
+   }
+   macro->name = parse->tk_text;
+   macro->pos = parse->tk_pos;
+   int flags = parse->read_flags;
+   parse->read_flags |= READF_SPACETAB;
+   p_read_tk( parse );
+   bool space_separator = space_token( parse );
+   parse->read_flags = flags;
+   // Parameter list.
+   if ( space_separator ) {
+      p_read_tk( parse );
+   }
+   else {
+      if ( parse->tk == TK_PAREN_L ) {
+         read_param_list( parse, macro );
+      }
+      else {
+         // For an object-like macro, there needs to be whitespace between the
+         // name and the body of the macro.
+         if ( ! dirc_end( parse ) ) {
+            p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+               "missing whitespace between macro name and macro body" );
+            p_bail( parse );
+         }
+      }
+   }
+   // Body.
+   read_body( parse, macro );
+   struct macro* prev_macro = find_macro( parse, macro->name );
+   if ( prev_macro ) {
+      if ( same_macro( prev_macro, macro ) ) {
+         prev_macro->pos = macro->pos;
+         free_macro( parse, macro );
+      }
+      else {
+         p_diag( parse, DIAG_POS_ERR, &macro->pos,
+            "macro `%s` redefined", macro->name );
+         p_diag( parse, DIAG_POS, &prev_macro->pos,
+            "macro previously defined here" );
+         p_bail( parse );
+      }
+   }
+   else {
+      add_macro( parse, macro );
+   }
+   p_test_tk( parse, TK_NL );
+}
+
+struct macro* alloc_macro( struct parse* parse ) {
+   struct macro* macro;
+   if ( parse->macro_free ) {
+      macro = parse->macro_free;
+      parse->macro_free = macro->next;
+   }
+   else {
+      macro = mem_alloc( sizeof( *macro ) );
+   }
+   macro->name = NULL;
+   macro->next = NULL;
+   macro->param_head = NULL;
+   macro->param_tail = NULL;
+   macro->body = NULL;
+   macro->func_like = false;
+   macro->variadic = false;
+   return macro;
+}
+
+inline bool valid_macro_name( const char* name ) {
+   // At this time, only one name is reserved and cannot be used.
+   return ( strcmp( name, "defined" ) != 0 );
+}
+
+void read_param_list( struct parse* parse, struct macro* macro ) {
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   // Named parameters.
+   while ( parse->tk == TK_ID ) {
+      // Check for a duplicate parameter.
+      struct macro_param* param = macro->param_head;
+      while ( param ) {
+         if ( strcmp( param->name, parse->tk_text ) == 0 ) {
+            p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+               "duplicate macro parameter" );
+            p_bail( parse );
+         }
+         param = param->next;
+      }
+      param = alloc_param( parse );
+      param->name = parse->tk_text;
+      append_param( macro, param );
+      p_read_tk( parse );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         if ( parse->tk != TK_ID && parse->tk != TK_ELLIPSIS ) {
+            p_unexpect_diag( parse );
+            p_unexpect_name( parse, NULL, "macro-parameter name" );
+            p_unexpect_last( parse, NULL, TK_ELLIPSIS );
+            p_bail( parse );
+         }
+      }
+   }
+   // Variadic parameter.
+   if ( parse->tk == TK_ELLIPSIS ) {
+      struct macro_param* param = alloc_param( parse );
+      param->name = "__va_args__";
+      append_param( macro, param );
+      macro->variadic = true;
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   macro->func_like = true;
+}
+
+struct macro_param* alloc_param( struct parse* parse ) {
+   struct macro_param* param = parse->macro_param_free;
+   if ( param ) {
+      parse->macro_param_free = param->next;
+   }
+   else {
+      param = mem_alloc( sizeof( *param ) );
+   }
+   param->name = NULL;
+   param->next = NULL;
+   return param;
+}
+
+void append_param( struct macro* macro, struct macro_param* param ) {
+   if ( macro->param_head ) {
+      macro->param_tail->next = param;
+   }
+   else {
+      macro->param_head = param;
+   }
+   macro->param_tail = param;
+}
+
+void read_body( struct parse* parse, struct macro* macro ) {
+   int flags = parse->read_flags;
+   parse->read_flags |= READF_SPACETAB;
+   while ( ! dirc_end( parse ) ) {
+      read_body_item( parse, macro );
+   }
+   parse->read_flags = flags;
+}
+
+void read_body_item( struct parse* parse, struct macro* macro ) {
+   struct token* token = alloc_token( parse );
+   *token = *parse->token;
+   append_token( macro, token );
+   p_read_tk( parse );
+}
+
+// NOTE: Does not initialize fields.
+struct token* alloc_token( struct parse* parse ) {
+   struct token* token;
+   if ( parse->token_free ) {
+      token = parse->token_free;
+      parse->token_free = token->next;
+   }
+   else {
+      token = mem_alloc( sizeof( *token ) );
+   }
+   return token;
+}
+
+void append_token( struct macro* macro, struct token* token ) {
+   if ( macro->body ) {
+      macro->body_tail->next = token;
+   }
+   else {
+      macro->body = token;
+   }
+   macro->body_tail = token;
+}
+
+struct macro* find_macro( struct parse* parse, const char* name ) {
+   struct macro* macro = parse->macro_head;
+   while ( macro ) {
+      int result = strcmp( macro->name, name );
+      if ( result == 0 ) {
+         break;
+      }
+      if ( result > 0 ) {
+         macro = NULL;
+         break;
+      }
+      macro = macro->next;
+   }
+   return macro;
+}
+
+bool same_macro( struct macro* a, struct macro* b ) {
+   // Macros need to be of the same kind.
+   if ( a->func_like != b->func_like ) {
+      return false;
+   }
+   // Parameter list.
+   if ( a->func_like ) {
+      struct macro_param* param_a = a->param_head;
+      struct macro_param* param_b = b->param_head;
+      while ( param_a && param_b ) {
+         if ( strcmp( param_a->name, param_b->name ) != 0 ) {
+            return false;
+         }
+         param_a = param_a->next;
+         param_b = param_b->next;
+      }
+      // Parameter count needs to be the same.
+      if ( param_a || param_b ) {
+         return false;
+      }
+   }
+   // Body.
+   struct token* token_a = a->body;
+   struct token* token_b = b->body;
+   while ( token_a && token_b ) {
+      if ( token_a->type != token_b->type ) {
+         return false;
+      }
+      // Tokens that can have different values need to have the same value.
+      if ( token_a->text ) {
+         if ( strcmp( token_a->text, token_b->text ) != 0 ) {
+            return false;
+         }
+      }
+      token_a = token_a->next;
+      token_b = token_b->next;
+   }
+   // Number of tokens need to be the same.
+   if ( token_a || token_b ) {
+      return false;
+   }
+   return true;
+}
+
+void add_macro( struct parse* parse, struct macro* macro ) {
+   struct macro* prev = NULL;
+   struct macro* curr = parse->macro_head;
+   while ( curr && strcmp( curr->name, macro->name ) < 0 ) {
+      prev = curr;
+      curr = curr->next;
+   }
+   if ( prev ) {
+      macro->next = prev->next;
+      prev->next = macro;
+   }
+   else {
+      macro->next = parse->macro_head;
+      parse->macro_head = macro;
+   }
+}
+
+void free_macro( struct parse* parse, struct macro* macro ) {
+   // Reuse parameters.
+   if ( macro->param_head ) {
+      macro->param_tail->next = parse->macro_param_free;
+      parse->macro_param_free = macro->param_head;
+   }
+   // Reuse tokens.
+   if ( macro->body ) {
+      macro->body_tail->next = parse->token_free;
+      parse->token_free = macro->body;
+   }
+   // Reuse macro.
+   macro->next = parse->macro_free;
+   parse->macro_free = macro;
+}
+
+inline bool space_token( struct parse* parse ) {
+   return ( parse->tk == TK_SPACE || parse->tk == TK_TAB );
+}
+
+inline bool dirc_end( struct parse* parse ) {
+   return ( parse->tk == TK_NL || parse->tk == TK_END );
 }

@@ -178,6 +178,7 @@ void p_read_tk( struct parse* parse ) {
          }
       }
    }
+   parse->token = token;
    parse->tk = token->type;
    parse->tk_text = token->text;
    parse->tk_pos = token->pos;
@@ -916,6 +917,7 @@ void read_source( struct parse* parse, struct token* token ) {
    token->pos.line = line;
    token->pos.column = column;
    token->pos.id = parse->source->file_entry_id;
+   token->next = NULL;
 }
 
 char read_ch( struct parse* parse ) {
@@ -1296,8 +1298,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LIB, "start-of-library" },
       { TK_LIB_END, "end-of-library" },
       { TK_QUESTION_MARK, "`?`" },
+      { TK_ELLIPSIS, "`...`" },
       { TK_STRCPY, "`strcpy`" } };
-   STATIC_ASSERT( TK_TOTAL == 108 );
+   STATIC_ASSERT( TK_TOTAL == 109 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
