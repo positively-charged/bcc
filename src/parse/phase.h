@@ -267,6 +267,7 @@ struct parse {
    struct macro* macro_head;
    struct macro* macro_free;
    struct macro_param* macro_param_free;
+   struct ifdirc* ifdirc_stack;
 };
 
 void p_init( struct parse* parse, struct task* task );

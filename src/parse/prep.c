@@ -19,6 +19,12 @@ struct macro_param {
    struct macro_param* next;
 };
 
+struct ifdirc {
+   struct ifdirc* prev;
+   const char* name;
+   struct pos pos;
+};
+
 static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
@@ -44,6 +50,12 @@ static void add_macro( struct parse* parse, struct macro* macro );
 static void free_macro( struct parse* parse, struct macro* macro );
 static bool space_token( struct parse* parse );
 static bool dirc_end( struct parse* parse );
+static void read_ifdef( struct parse* parse, struct pos* pos );
+static struct ifdirc* push_ifdirc( struct parse* parse );
+static bool pop_ifdirc( struct parse* parse );
+static void skip_ifsection( struct parse* parse );
+static void read_endif( struct parse* parse, struct pos* pos );
+static void confirm_ifdircs_closed( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -118,6 +130,9 @@ void read_token( struct parse* parse ) {
          }
       }
       break;
+   case TK_END:
+      confirm_ifdircs_closed( parse );
+      break;
    default:
       parse->line_beginning = false;
       break;
@@ -168,6 +183,13 @@ void read_known_dirc( struct parse* parse, struct pos* pos ) {
    }
    else if ( strcmp( parse->tk_text, "include" ) == 0 ) {
       read_include( parse );
+   }
+   else if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
+      strcmp( parse->tk_text, "ifndef" ) == 0 ) {
+      read_ifdef( parse, pos );
+   }
+   else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
+      read_endif( parse, pos );
    }
    else if ( strcmp( parse->tk_text, "error" ) == 0 ) {
       read_error( parse, pos );
@@ -537,4 +559,90 @@ inline bool space_token( struct parse* parse ) {
 
 inline bool dirc_end( struct parse* parse ) {
    return ( parse->tk == TK_NL || parse->tk == TK_END );
+}
+
+void read_ifdef( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_ID );
+   const char* name = parse->tk_text;
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ID );
+   struct macro* macro = find_macro( parse, parse->tk_text );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_NL );
+   struct ifdirc* entry = push_ifdirc( parse );
+   entry->name = name;
+   entry->pos = *pos;
+   bool proceed = ( name[ 2 ] == 'n' ) ?
+      macro == NULL : macro != NULL;
+   if ( ! proceed ) {
+      skip_ifsection( parse );
+   }
+}
+
+struct ifdirc* push_ifdirc( struct parse* parse ) {
+   struct ifdirc* entry = mem_alloc( sizeof( *entry ) );
+   entry->name = NULL;
+   entry->prev = parse->ifdirc_stack;
+   parse->ifdirc_stack = entry;
+   return entry;
+}
+
+void skip_ifsection( struct parse* parse ) {
+   int depth = 1;
+   while ( depth > 0 ) {
+      if ( parse->tk == TK_END ) {
+         confirm_ifdircs_closed( parse );
+      }
+      if ( parse->tk == TK_NL ) {
+         p_read_tk( parse );
+         if ( parse->tk == TK_HASH ) {
+            struct pos pos = parse->tk_pos;
+            p_read_tk( parse );
+            p_test_tk( parse, TK_ID );
+            if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
+               strcmp( parse->tk_text, "ifndef" ) == 0 ) {
+               read_ifdef( parse, &pos );
+               ++depth;
+            }
+            else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
+               read_endif( parse, &pos );
+               --depth;
+            }
+         }
+      }
+      else {
+         p_read_tk( parse );
+      }
+   }
+}
+
+void read_endif( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   if ( ! pop_ifdirc( parse ) ) {
+      p_diag( parse, DIAG_POS_ERR, pos,
+         "#endif used with no open if-directive" );
+      p_bail( parse );
+   }
+   p_test_tk( parse, TK_NL );
+}
+
+bool pop_ifdirc( struct parse* parse ) {
+   if ( parse->ifdirc_stack ) {
+      parse->ifdirc_stack = parse->ifdirc_stack->prev;
+      return true;
+   }
+   return false;
+}
+
+void confirm_ifdircs_closed( struct parse* parse ) {
+   if ( parse->ifdirc_stack ) {
+      struct ifdirc* entry = parse->ifdirc_stack;
+      while ( entry ) {
+         p_diag( parse, DIAG_POS_ERR, &entry->pos,
+            "unterminated #%s", entry->name );
+         entry = entry->prev;
+      }
+      p_bail( parse );
+   }
 }
