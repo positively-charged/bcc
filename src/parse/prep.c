@@ -694,6 +694,15 @@ void read_nested_ifelsedirc( struct parse* parse,
       push_ifdirc( parse, parse->tk_text, &pos );
       ++search->depth;
    }
+   else if ( strcmp( parse->tk_text, "elif" ) == 0 ) {
+      if ( search->depth == 1 ) {
+         p_read_tk( parse );
+         if ( eval_expr( parse ) != 0 ) {
+            search->done = true;
+         }
+         p_test_tk( parse, TK_NL );
+      }
+   }
    else if ( strcmp( parse->tk_text, "else" ) == 0 ) {
       if ( search->depth == 1 ) {
          p_read_tk( parse );
