@@ -139,6 +139,7 @@ struct token {
    struct pos pos;
    enum tk type;
    int length;
+   bool is_id;
 };
 
 enum {

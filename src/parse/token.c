@@ -216,6 +216,7 @@ void read_source( struct parse* parse, struct token* token ) {
    int column = 0;
    enum tk tk = TK_END;
    struct str* text = NULL;
+   bool is_id = false;
 
    state_space:
    // -----------------------------------------------------------------------
@@ -660,6 +661,7 @@ void read_source( struct parse* parse, struct token* token ) {
             ++i;
          }
       }
+      is_id = true;
       goto state_finish;
    }
 
@@ -918,6 +920,7 @@ void read_source( struct parse* parse, struct token* token ) {
    token->pos.column = column;
    token->pos.id = parse->source->file_entry_id;
    token->next = NULL;
+   token->is_id = is_id;
 }
 
 char read_ch( struct parse* parse ) {

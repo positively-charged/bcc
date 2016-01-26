@@ -25,6 +25,11 @@ struct ifdirc {
    struct pos pos;
 };
 
+struct elsedirc_search {
+   int depth;
+   bool done;
+};
+
 static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 static void read_token( struct parse* parse );
@@ -54,9 +59,12 @@ static bool space_token( struct parse* parse );
 static bool dirc_end( struct parse* parse );
 static void read_ifdef( struct parse* parse, struct pos* pos );
 static struct ifdirc* push_ifdirc( struct parse* parse );
-static bool pop_ifdirc( struct parse* parse );
-static void skip_ifsection( struct parse* parse );
+static void find_else( struct parse* parse );
+static void read_nested_ifelsedirc( struct parse* parse,
+   struct elsedirc_search* search );
+static void read_else( struct parse* parse );
 static void read_endif( struct parse* parse, struct pos* pos );
+static bool pop_ifdirc( struct parse* parse );
 static void confirm_ifdircs_closed( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
@@ -179,7 +187,11 @@ void read_dirc( struct parse* parse ) {
 }
 
 void read_known_dirc( struct parse* parse, struct pos* pos ) {
-   p_test_tk( parse, TK_ID );
+   if ( ! parse->token->is_id ) {
+      p_unexpect_diag( parse );
+      p_unexpect_last( parse, NULL, TK_ID );
+      p_bail( parse );
+   }
    if ( strcmp( parse->tk_text, "define" ) == 0 ) {
       read_define( parse );
    }
@@ -189,6 +201,9 @@ void read_known_dirc( struct parse* parse, struct pos* pos ) {
    else if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
       strcmp( parse->tk_text, "ifndef" ) == 0 ) {
       read_ifdef( parse, pos );
+   }
+   else if ( strcmp( parse->tk_text, "else" ) == 0 ) {
+      read_else( parse );
    }
    else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
       read_endif( parse, pos );
@@ -620,7 +635,7 @@ void read_ifdef( struct parse* parse, struct pos* pos ) {
    bool proceed = ( name[ 2 ] == 'n' ) ?
       macro == NULL : macro != NULL;
    if ( ! proceed ) {
-      skip_ifsection( parse );
+      find_else( parse );
    }
 }
 
@@ -632,33 +647,63 @@ struct ifdirc* push_ifdirc( struct parse* parse ) {
    return entry;
 }
 
-void skip_ifsection( struct parse* parse ) {
-   int depth = 1;
-   while ( depth > 0 ) {
+void find_else( struct parse* parse ) {
+   struct elsedirc_search search = { 1, false };
+   while ( ! search.done ) {
       if ( parse->tk == TK_END ) {
          confirm_ifdircs_closed( parse );
       }
       if ( parse->tk == TK_NL ) {
          p_read_tk( parse );
          if ( parse->tk == TK_HASH ) {
-            struct pos pos = parse->tk_pos;
-            p_read_tk( parse );
-            p_test_tk( parse, TK_ID );
-            if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
-               strcmp( parse->tk_text, "ifndef" ) == 0 ) {
-               read_ifdef( parse, &pos );
-               ++depth;
-            }
-            else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
-               read_endif( parse, &pos );
-               --depth;
-            }
+            read_nested_ifelsedirc( parse, &search );
          }
       }
       else {
          p_read_tk( parse );
       }
    }
+}
+
+void read_nested_ifelsedirc( struct parse* parse,
+   struct elsedirc_search* search ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_HASH );
+   p_read_tk( parse );
+   if ( ! parse->token->is_id ) {
+      p_unexpect_diag( parse );
+      p_unexpect_last( parse, NULL, TK_ID );
+      p_bail( parse );
+   }
+   if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
+      strcmp( parse->tk_text, "ifndef" ) == 0 ) {
+      struct ifdirc* entry = push_ifdirc( parse );
+      entry->name = parse->tk_text;
+      entry->pos = pos;
+      ++search->depth;
+   }
+   else if ( strcmp( parse->tk_text, "else" ) == 0 ) {
+      if ( search->depth == 1 ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_NL );
+         search->done = true;
+      }
+   }
+   else if ( strcmp( parse->tk_text, "endif" ) == 0 ) {
+      pop_ifdirc( parse );
+      --search->depth;
+      if ( search->depth == 0 ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_NL );
+         search->done = true;
+      }
+   }
+}
+
+void read_else( struct parse* parse ) {
+   p_test_tk( parse, TK_ELSE );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_NL );
 }
 
 void read_endif( struct parse* parse, struct pos* pos ) {
