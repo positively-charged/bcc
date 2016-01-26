@@ -38,7 +38,7 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->macro_head = NULL;
    parse->macro_free = NULL;
    parse->macro_param_free = NULL;
-   parse->ifdirc_stack = NULL;
+   parse->ifdirc_top = NULL;
 }
 
 void p_read( struct parse* parse ) {

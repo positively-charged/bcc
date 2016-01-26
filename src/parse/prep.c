@@ -57,8 +57,10 @@ static void free_macro( struct parse* parse, struct macro* macro );
 static void read_undef( struct parse* parse );
 static bool space_token( struct parse* parse );
 static bool dirc_end( struct parse* parse );
+static void read_if( struct parse* parse, struct pos* pos );
 static void read_ifdef( struct parse* parse, struct pos* pos );
-static struct ifdirc* push_ifdirc( struct parse* parse );
+static void push_ifdirc( struct parse* parse, const char* name,
+   struct pos* pos );
 static void find_else( struct parse* parse );
 static void read_nested_ifelsedirc( struct parse* parse,
    struct elsedirc_search* search );
@@ -66,6 +68,7 @@ static void read_else( struct parse* parse );
 static void read_endif( struct parse* parse, struct pos* pos );
 static bool pop_ifdirc( struct parse* parse );
 static void confirm_ifdircs_closed( struct parse* parse );
+static int eval_expr( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -201,6 +204,9 @@ void read_known_dirc( struct parse* parse, struct pos* pos ) {
    else if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
       strcmp( parse->tk_text, "ifndef" ) == 0 ) {
       read_ifdef( parse, pos );
+   }
+   else if ( strcmp( parse->tk_text, "if" ) == 0 ) {
+      read_if( parse, pos );
    }
    else if ( strcmp( parse->tk_text, "else" ) == 0 ) {
       read_else( parse );
@@ -621,30 +627,37 @@ inline bool dirc_end( struct parse* parse ) {
    return ( parse->tk == TK_NL || parse->tk == TK_END );
 }
 
+void read_if( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_IF );
+   push_ifdirc( parse, parse->tk_text, pos );
+   p_read_tk( parse );
+   if ( ! eval_expr( parse ) ) {
+      find_else( parse );
+   }
+}
+
+// Handles #ifdef/#ifndef.
 void read_ifdef( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
-   const char* name = parse->tk_text;
+   push_ifdirc( parse, parse->tk_text, pos );
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
    struct macro* macro = find_macro( parse, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_NL );
-   struct ifdirc* entry = push_ifdirc( parse );
-   entry->name = name;
-   entry->pos = *pos;
-   bool proceed = ( name[ 2 ] == 'n' ) ?
-      macro == NULL : macro != NULL;
-   if ( ! proceed ) {
+   bool success = ( parse->ifdirc_top->name[ 2 ] == 'd' ) ?
+      macro != NULL : macro == NULL;
+   if ( ! success ) {
       find_else( parse );
    }
 }
 
-struct ifdirc* push_ifdirc( struct parse* parse ) {
+void push_ifdirc( struct parse* parse, const char* name, struct pos* pos ) {
    struct ifdirc* entry = mem_alloc( sizeof( *entry ) );
-   entry->name = NULL;
-   entry->prev = parse->ifdirc_stack;
-   parse->ifdirc_stack = entry;
-   return entry;
+   entry->prev = parse->ifdirc_top;
+   entry->name = name;
+   entry->pos = *pos;
+   parse->ifdirc_top = entry;
 }
 
 void find_else( struct parse* parse ) {
@@ -675,11 +688,10 @@ void read_nested_ifelsedirc( struct parse* parse,
       p_unexpect_last( parse, NULL, TK_ID );
       p_bail( parse );
    }
-   if ( strcmp( parse->tk_text, "ifdef" ) == 0 ||
+   if ( strcmp( parse->tk_text, "if" ) == 0 ||
+      strcmp( parse->tk_text, "ifdef" ) == 0 ||
       strcmp( parse->tk_text, "ifndef" ) == 0 ) {
-      struct ifdirc* entry = push_ifdirc( parse );
-      entry->name = parse->tk_text;
-      entry->pos = pos;
+      push_ifdirc( parse, parse->tk_text, &pos );
       ++search->depth;
    }
    else if ( strcmp( parse->tk_text, "else" ) == 0 ) {
@@ -718,16 +730,16 @@ void read_endif( struct parse* parse, struct pos* pos ) {
 }
 
 bool pop_ifdirc( struct parse* parse ) {
-   if ( parse->ifdirc_stack ) {
-      parse->ifdirc_stack = parse->ifdirc_stack->prev;
+   if ( parse->ifdirc_top ) {
+      parse->ifdirc_top = parse->ifdirc_top->prev;
       return true;
    }
    return false;
 }
 
 void confirm_ifdircs_closed( struct parse* parse ) {
-   if ( parse->ifdirc_stack ) {
-      struct ifdirc* entry = parse->ifdirc_stack;
+   if ( parse->ifdirc_top ) {
+      struct ifdirc* entry = parse->ifdirc_top;
       while ( entry ) {
          p_diag( parse, DIAG_POS_ERR, &entry->pos,
             "unterminated #%s", entry->name );
@@ -735,4 +747,11 @@ void confirm_ifdircs_closed( struct parse* parse ) {
       }
       p_bail( parse );
    }
+}
+
+int eval_expr( struct parse* parse ) {
+   p_test_tk( parse, TK_LIT_DECIMAL );
+   int value = strtol( parse->tk_text, NULL, 10 );
+   p_read_tk( parse );
+   return value;
 }
