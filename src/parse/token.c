@@ -239,6 +239,8 @@ void read_source( struct parse* parse, struct token* token ) {
    spacetab:
    // -----------------------------------------------------------------------
    if ( parse->read_flags & READF_SPACETAB ) {
+      line = parse->source->line;
+      column = parse->source->column;
       tk = ( ch == ' ' ? TK_SPACE : TK_TAB );
       ch = read_ch( parse );
       goto state_finish;
@@ -250,6 +252,8 @@ void read_source( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    ch = read_ch( parse );
    if ( parse->read_flags & READF_NL ) {
+      line = parse->source->line;
+      column = parse->source->column;
       tk = TK_NL;
       goto state_finish;
    }
