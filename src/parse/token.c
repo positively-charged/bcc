@@ -14,8 +14,7 @@ static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
-static struct token* peek( struct parse* parse, int );
-static void read_source( struct parse* parse, struct token* );
+static void read_token( struct parse* parse, struct token* token );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
 static void read_initial_ch( struct parse* parse );
@@ -153,64 +152,18 @@ void unload_source_all( struct parse* parse ) {
    }
 }
 
-void p_read_tk( struct parse* parse ) {
-   struct token* token = NULL;
-   if ( parse->peeked ) {
-      // When dequeuing, shift the queue elements. For now, this will suffice.
-      // In the future, maybe use a circular buffer.
-      int i = 0;
-      while ( i < parse->peeked ) {
-         parse->queue[ i ] = parse->queue[ i + 1 ];
-         ++i;
-      }
-      token = &parse->queue[ 0 ];
-      --parse->peeked;
-   }
-   else {
-      token = &parse->queue[ 0 ];
-      read_source( parse, token );
-      if ( token->type == TK_END ) {
-         bool reread = ( ! parse->source->imported );
-         unload_source( parse );
-         if ( parse->source && reread ) {
-            p_read_tk( parse );
-            return;
-         }
-      }
-   }
-   parse->token = token;
-   parse->tk = token->type;
-   parse->tk_text = token->text;
-   parse->tk_pos = token->pos;
-   parse->tk_length = token->length;
-}
-
-enum tk p_peek( struct parse* parse ) {
-   return peek( parse, 1 )->type;
-}
-
-struct token* p_peek_tk( struct parse* parse ) {
-   return peek( parse, 1 );
-}
-
-// NOTE: Make sure @pos is not more than ( TK_BUFFER_SIZE - 1 ).
-struct token* peek( struct parse* parse, int pos ) {
-   int i = 0;
-   while ( true ) {
-      // Peeked tokens begin at position 1.
-      struct token* token = &parse->queue[ i + 1 ];
-      if ( i == parse->peeked ) {
-         read_source( parse, token );
-         ++parse->peeked;
-      }
-      ++i;
-      if ( i == pos ) {
-         return token;
+void p_read_source( struct parse* parse, struct token* token ) {
+   read_token( parse, token );
+   if ( token->type == TK_END ) {
+      bool reread = ( ! parse->source->imported );
+      unload_source( parse );
+      if ( parse->source && reread ) {
+         p_read_source( parse, token );
       }
    }
 }
 
-void read_source( struct parse* parse, struct token* token ) {
+void read_token( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
    int line = 0;
    int column = 0;

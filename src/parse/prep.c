@@ -2,33 +2,6 @@
 
 #include "phase.h"
 
-struct macro {
-   const char* name;
-   struct macro* next;
-   struct macro_param* param_head;
-   struct macro_param* param_tail;
-   struct token* body;
-   struct token* body_tail;
-   struct pos pos;
-   bool func_like;
-   bool variadic;
-};
-
-struct macro_param {
-   const char* name;
-   struct macro_param* next;
-};
-
-struct macro_expan {
-   struct macro* macro;
-   //struct macro_arg* args;
-   //struct macro_arg* args_left;
-   struct token* token;
-   struct token* token_arg;
-   struct macro_expan* prev;
-   struct pos pos;
-};
-
 struct ifdirc {
    struct ifdirc* prev;
    const char* name;
@@ -47,10 +20,6 @@ struct endif_search {
 
 static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
-static void read_token( struct parse* parse );
-static bool dirc_present( struct parse* parse );
-static bool pseudo_dirc( struct parse* parse );
-static void read_dirc( struct parse* parse );
 static void read_known_dirc( struct parse* parse, struct pos* pos );
 static void read_include( struct parse* parse );
 static void read_error( struct parse* parse, struct pos* pos );
@@ -65,7 +34,6 @@ static void read_body( struct parse* parse, struct macro* macro );
 static void read_body_item( struct parse* parse, struct macro* macro );
 static struct token* alloc_token( struct parse* parse );
 static void append_token( struct macro* macro, struct token* token );
-static struct macro* find_macro( struct parse* parse, const char* name );
 static bool same_macro( struct macro* a, struct macro* b );
 static void add_macro( struct parse* parse, struct macro* macro );
 static struct macro* remove_macro( struct parse* parse, const char* name );
@@ -90,11 +58,6 @@ static void read_endif( struct parse* parse, struct endif_search* search,
 static bool pop_ifdirc( struct parse* parse );
 static void skip_section( struct parse* parse, struct pos* pos );
 static int eval_expr( struct parse* parse );
-static void confirm_ifdircs_closed( struct parse* parse );
-static void read_stream( struct parse* parse );
-static void read_active_stream( struct parse* parse );
-static bool expand_macro( struct parse* parse, struct macro* macro );
-static void read_macro_stream( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -111,7 +74,7 @@ void p_preprocess( struct parse* parse ) {
 
 void output_source( struct parse* parse, struct str* output ) {
    while ( true ) {
-      read_token( parse );
+      p_read_token( parse );
       if ( parse->token->type != TK_END ) {
          output_token( parse, output );
       }
@@ -146,65 +109,7 @@ void output_token( struct parse* parse, struct str* output ) {
    }
 }
 
-void read_token( struct parse* parse ) {
-   top:
-   read_stream( parse );
-   // Read directives.
-   if ( parse->line_beginning ) {
-      while ( dirc_present( parse ) ) {
-         read_dirc( parse );
-      }
-   }
-   // Read token from source.
-   switch ( parse->token->type ) {
-   case TK_NL:
-      parse->line_beginning = true;
-      if ( ! ( parse->read_flags & READF_NL ) ) {
-         goto top;
-      }
-      break;
-   case TK_SPACE:
-   case TK_TAB:
-      break;
-   case TK_END:
-      confirm_ifdircs_closed( parse );
-      break;
-   default:
-      parse->line_beginning = false;
-      break;
-   }
-}
-
-inline bool dirc_present( struct parse* parse ) {
-   // NOTE: Maybe instead of testing for pseudo directives, we should
-   // test for real directives.
-   return ( parse->tk == TK_HASH && ! pseudo_dirc( parse ) );
-}
-
-bool pseudo_dirc( struct parse* parse ) {
-   static const char* table[] = {
-      "library",
-      "libdefine",
-      "import",
-      "nocompact",
-      "encryptstrings",
-      "wadauthor",
-      "nowadauthor",
-      "pragma",
-   };
-   int flags = parse->read_flags;
-   parse->read_flags ^= READF_SPACETAB;
-   struct token* token = p_peek_tk( parse );
-   parse->read_flags = flags;
-   for ( int i = 0; i < ARRAY_SIZE( table ); ++i ) {
-      if ( strcmp( table[ i ], token->text ) == 0 ) {
-         return true;
-      }
-   }
-   return false;
-}
-
-void read_dirc( struct parse* parse ) {
+void p_read_dirc( struct parse* parse ) {
    int flags = parse->read_flags;
    parse->read_flags ^= READF_SPACETAB;
    struct pos pos = parse->tk_pos;
@@ -365,7 +270,7 @@ void read_define( struct parse* parse ) {
    }
    // Body.
    read_body( parse, macro );
-   struct macro* prev_macro = find_macro( parse, macro->name );
+   struct macro* prev_macro = p_find_macro( parse, macro->name );
    if ( prev_macro ) {
       if ( same_macro( prev_macro, macro ) ) {
          prev_macro->pos = macro->pos;
@@ -512,7 +417,7 @@ void append_token( struct macro* macro, struct token* token ) {
    macro->body_tail = token;
 }
 
-struct macro* find_macro( struct parse* parse, const char* name ) {
+struct macro* p_find_macro( struct parse* parse, const char* name ) {
    struct macro* macro = parse->macro_head;
    while ( macro ) {
       int result = strcmp( macro->name, name );
@@ -670,7 +575,7 @@ void read_ifdef( struct parse* parse, struct pos* pos ) {
    push_ifdirc( parse, parse->tk_text, pos );
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
-   struct macro* macro = find_macro( parse, parse->tk_text );
+   struct macro* macro = p_find_macro( parse, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_NL );
    bool success = ( parse->ifdirc_top->name[ 2 ] == 'd' ) ?
@@ -714,7 +619,7 @@ void find_endif( struct parse* parse, struct endif_search* search ) {
       else {
          p_read_tk( parse );
          if ( parse->tk == TK_END ) {
-            confirm_ifdircs_closed( parse );
+            p_confirm_ifdircs_closed( parse );
          }
       }
    }
@@ -827,7 +732,7 @@ int eval_expr( struct parse* parse ) {
    return value;
 }
 
-void confirm_ifdircs_closed( struct parse* parse ) {
+void p_confirm_ifdircs_closed( struct parse* parse ) {
    if ( parse->ifdirc_top ) {
       struct ifdirc* entry = parse->ifdirc_top;
       while ( entry ) {
@@ -836,73 +741,5 @@ void confirm_ifdircs_closed( struct parse* parse ) {
          entry = entry->prev;
       }
       p_bail( parse );
-   }
-}
-
-void read_stream( struct parse* parse ) {
-   top:
-   parse->token = NULL;
-   while ( ! parse->token ) {
-      read_active_stream( parse );
-   }
-   if ( parse->token->is_id ) {
-      struct macro* macro = find_macro( parse, parse->token->text );
-      if ( macro ) {
-         bool expanded = expand_macro( parse, macro );
-         if ( expanded ) {
-            goto top;
-         }
-      }
-   }
-}
-
-void read_active_stream( struct parse* parse ) {
-   if ( parse->macro_expan ) {
-      read_macro_stream( parse );
-   }
-   else {
-      p_read_tk( parse );
-   }
-}
-
-bool expand_macro( struct parse* parse, struct macro* macro ) {
-   // The macro should not already be undergoing expansion.
-   struct macro_expan* expan = parse->macro_expan;
-   while ( expan ) {
-      if ( expan->macro == macro ) {
-         return false;
-      }
-      expan = expan->prev;
-   }
-   // Allocate.
-   if ( parse->macro_expan_free ) {
-      expan = parse->macro_expan_free;
-      parse->macro_expan_free = expan->prev;
-   }
-   else {
-      expan = mem_alloc( sizeof( *expan ) );
-   }
-   // Initialize.
-   expan->macro = macro;
-   expan->token = macro->body;
-   expan->token_arg = NULL;
-   expan->prev = parse->macro_expan;
-   expan->pos = parse->token->pos;
-   parse->macro_expan = expan;
-   return true;
-}
-
-void read_macro_stream( struct parse* parse ) {
-   if ( parse->macro_expan->token ) {
-      struct token* token = parse->macro_expan->token;
-      parse->macro_expan->token = token->next;
-      parse->token = token;
-   }
-   else {
-      struct macro_expan* expan = parse->macro_expan;
-      parse->macro_expan = expan->prev;
-      expan->prev = parse->macro_expan_free;
-      parse->macro_expan_free = expan;
-      parse->token = NULL;
    }
 }

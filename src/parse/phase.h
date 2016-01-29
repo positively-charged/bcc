@@ -153,6 +153,23 @@ struct token_info {
    unsigned int flags;
 };
 
+struct macro {
+   const char* name;
+   struct macro* next;
+   struct macro_param* param_head;
+   struct macro_param* param_tail;
+   struct token* body;
+   struct token* body_tail;
+   struct pos pos;
+   bool func_like;
+   bool variadic;
+};
+
+struct macro_param {
+   const char* name;
+   struct macro_param* next;
+};
+
 enum { SOURCE_BUFFER_SIZE = 1024 };
 
 struct source {
@@ -313,5 +330,10 @@ void p_load_library( struct parse* parent );
 void p_deinit_tk( struct parse* parse );
 void p_init_request( struct request* request, const char* path );
 void p_load_source( struct parse* parse, struct request* request );
+void p_read_source( struct parse* parse, struct token* token );
+void p_read_token( struct parse* parse );
+void p_read_dirc( struct parse* parse );
+void p_confirm_ifdircs_closed( struct parse* parse );
+struct macro* p_find_macro( struct parse* parse, const char* name );
 
 #endif
