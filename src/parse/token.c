@@ -1136,24 +1136,6 @@ void append_ch( struct str* str, char ch ) {
    str_append( str, segment );
 }
 
-void p_test_tk( struct parse* parse, enum tk expected ) {
-   if ( parse->tk != expected ) {
-      if ( parse->tk == TK_RESERVED ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "`%s` is a reserved identifier that is not currently used",
-            parse->tk_text );
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos, 
-            "unexpected %s", p_get_token_name( parse->tk ) );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &parse->tk_pos,
-            "expecting %s here", p_get_token_name( expected ),
-            p_get_token_name( parse->tk ) );
-      }
-      p_bail( parse );
-   }
-}
-
 const char* p_get_token_name( enum tk tk ) {
    static const struct { enum tk tk; const char* name; } names[] = {
       { TK_BRACKET_L, "`[`" },
