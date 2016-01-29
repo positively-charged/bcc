@@ -19,6 +19,16 @@ struct macro_param {
    struct macro_param* next;
 };
 
+struct macro_expan {
+   struct macro* macro;
+   //struct macro_arg* args;
+   //struct macro_arg* args_left;
+   struct token* token;
+   struct token* token_arg;
+   struct macro_expan* prev;
+   struct pos pos;
+};
+
 struct ifdirc {
    struct ifdirc* prev;
    const char* name;
@@ -81,6 +91,10 @@ static bool pop_ifdirc( struct parse* parse );
 static void skip_section( struct parse* parse, struct pos* pos );
 static int eval_expr( struct parse* parse );
 static void confirm_ifdircs_closed( struct parse* parse );
+static void read_stream( struct parse* parse );
+static void read_active_stream( struct parse* parse );
+static bool expand_macro( struct parse* parse, struct macro* macro );
+static void read_macro_stream( struct parse* parse );
 
 void p_preprocess( struct parse* parse ) {
    p_load_main_source( parse );
@@ -98,7 +112,7 @@ void p_preprocess( struct parse* parse ) {
 void output_source( struct parse* parse, struct str* output ) {
    while ( true ) {
       read_token( parse );
-      if ( parse->tk != TK_END ) {
+      if ( parse->token->type != TK_END ) {
          output_token( parse, output );
       }
       else {
@@ -108,7 +122,7 @@ void output_source( struct parse* parse, struct str* output ) {
 }
 
 void output_token( struct parse* parse, struct str* output ) {
-   switch ( parse->tk ) {
+   switch ( parse->token->type ) {
    case TK_NL:
       str_append( output, NEWLINE_CHAR );
       break;
@@ -118,23 +132,23 @@ void output_token( struct parse* parse, struct str* output ) {
       break;
    case TK_LIT_STRING:
       str_append( output, "\"" );
-      str_append( output, parse->tk_text );
+      str_append( output, parse->token->text );
       str_append( output, "\"" );
       break;
    case TK_LIT_CHAR:
       str_append( output, "'" );
-      str_append( output, parse->tk_text );
+      str_append( output, parse->token->text );
       str_append( output, "'" );
       break;
    default:
-      str_append( output, parse->tk_text );
+      str_append( output, parse->token->text );
       break;
    }
 }
 
 void read_token( struct parse* parse ) {
    top:
-   p_read_tk( parse );
+   read_stream( parse );
    // Read directives.
    if ( parse->line_beginning ) {
       while ( dirc_present( parse ) ) {
@@ -142,7 +156,7 @@ void read_token( struct parse* parse ) {
       }
    }
    // Read token from source.
-   switch ( parse->tk ) {
+   switch ( parse->token->type ) {
    case TK_NL:
       parse->line_beginning = true;
       if ( ! ( parse->read_flags & READF_NL ) ) {
@@ -822,5 +836,73 @@ void confirm_ifdircs_closed( struct parse* parse ) {
          entry = entry->prev;
       }
       p_bail( parse );
+   }
+}
+
+void read_stream( struct parse* parse ) {
+   top:
+   parse->token = NULL;
+   while ( ! parse->token ) {
+      read_active_stream( parse );
+   }
+   if ( parse->token->is_id ) {
+      struct macro* macro = find_macro( parse, parse->token->text );
+      if ( macro ) {
+         bool expanded = expand_macro( parse, macro );
+         if ( expanded ) {
+            goto top;
+         }
+      }
+   }
+}
+
+void read_active_stream( struct parse* parse ) {
+   if ( parse->macro_expan ) {
+      read_macro_stream( parse );
+   }
+   else {
+      p_read_tk( parse );
+   }
+}
+
+bool expand_macro( struct parse* parse, struct macro* macro ) {
+   // The macro should not already be undergoing expansion.
+   struct macro_expan* expan = parse->macro_expan;
+   while ( expan ) {
+      if ( expan->macro == macro ) {
+         return false;
+      }
+      expan = expan->prev;
+   }
+   // Allocate.
+   if ( parse->macro_expan_free ) {
+      expan = parse->macro_expan_free;
+      parse->macro_expan_free = expan->prev;
+   }
+   else {
+      expan = mem_alloc( sizeof( *expan ) );
+   }
+   // Initialize.
+   expan->macro = macro;
+   expan->token = macro->body;
+   expan->token_arg = NULL;
+   expan->prev = parse->macro_expan;
+   expan->pos = parse->token->pos;
+   parse->macro_expan = expan;
+   return true;
+}
+
+void read_macro_stream( struct parse* parse ) {
+   if ( parse->macro_expan->token ) {
+      struct token* token = parse->macro_expan->token;
+      parse->macro_expan->token = token->next;
+      parse->token = token;
+   }
+   else {
+      struct macro_expan* expan = parse->macro_expan;
+      parse->macro_expan = expan->prev;
+      expan->prev = parse->macro_expan_free;
+      parse->macro_expan_free = expan;
+      parse->token = NULL;
    }
 }
