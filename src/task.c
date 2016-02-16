@@ -394,6 +394,11 @@ void decode_pos( struct task* task, struct pos* pos, const char** file,
       ++*column;
    }
 }
+
+void t_decode_pos( struct task* task, struct pos* pos, const char** file,
+   int* line, int* column ) {
+   decode_pos( task, pos, file, line, column );
+}
  
 void t_bail( struct task* task ) {
    longjmp( *task->bail, 1 );

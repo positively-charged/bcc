@@ -767,6 +767,8 @@ void t_unhandlednode_diag( struct task*, const char* file, int line,
    struct node* node );
 void t_bail( struct task* );
 bool t_same_pos( struct pos*, struct pos* );
+void t_decode_pos( struct task* task, struct pos* pos, const char** file,
+   int* line, int* column );
 void t_init_object( struct object* object, int node_type );
 void t_init_types( struct task* task );
 void t_init_type_members( struct task* );

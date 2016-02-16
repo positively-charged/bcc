@@ -17,12 +17,12 @@ static void reset_filepos( struct source* source );
 static void read_token( struct parse* parse, struct token* token );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
+static char peek_ch( struct parse* parse );
 static void read_initial_ch( struct parse* parse );
 static struct str* temp_text( struct parse* parse );
 static char* save_text( struct parse* parse );
 static unsigned int calc_buffer_size( struct parse* parse );
 static void append_ch( struct str* str, char ch );
-static const struct token_info* get_token_info( enum tk tk );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
@@ -153,12 +153,14 @@ void unload_source_all( struct parse* parse ) {
 }
 
 void p_read_source( struct parse* parse, struct token* token ) {
-   read_token( parse, token );
-   if ( token->type == TK_END ) {
-      bool reread = ( ! parse->source->imported );
-      unload_source( parse );
-      if ( parse->source && reread ) {
-         p_read_source( parse, token );
+   if ( parse->source ) {
+      read_token( parse, token );
+      if ( token->type == TK_END ) {
+         bool reread = ( ! parse->source->imported );
+         unload_source( parse );
+         if ( parse->source && reread ) {
+            p_read_source( parse, token );
+         }
       }
    }
 }
@@ -167,6 +169,7 @@ void read_token( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
    int line = 0;
    int column = 0;
+   int length = 0;
    enum tk tk = TK_END;
    struct str* text = NULL;
    bool is_id = false;
@@ -176,41 +179,31 @@ void read_token( struct parse* parse, struct token* token ) {
    switch ( ch ) {
    case ' ':
    case '\t':
-      goto spacetab;
+      goto space;
    case '\n':
       goto newline;
    default:
-      if ( isspace( ch ) ) {
-         ch = read_ch( parse );
-         goto state_space;
-      }
-      else {
-         goto state_token;
-      }
+      goto state_token;
    }
 
-   spacetab:
+   space:
    // -----------------------------------------------------------------------
-   if ( parse->read_flags & READF_SPACETAB ) {
-      line = parse->source->line;
-      column = parse->source->column;
-      tk = ( ch == ' ' ? TK_SPACE : TK_TAB );
+   line = parse->source->line;
+   column = parse->source->column;
+   while ( ch == ' ' || ch == '\t' ) {
       ch = read_ch( parse );
-      goto state_finish;
    }
-   ch = read_ch( parse );
-   goto state_space;
+   length = parse->source->column - column;
+   tk = TK_HORZSPACE;
+   goto state_finish;
 
    newline:
    // -----------------------------------------------------------------------
+   line = parse->source->line;
+   column = parse->source->column;
+   tk = TK_NL;
    ch = read_ch( parse );
-   if ( parse->read_flags & READF_NL ) {
-      line = parse->source->line;
-      column = parse->source->column;
-      tk = TK_NL;
-      goto state_finish;
-   }
-   goto state_space;
+   goto state_finish;
 
    state_token:
    // -----------------------------------------------------------------------
@@ -492,6 +485,27 @@ void read_token( struct parse* parse, struct token* token ) {
          "`\\` not followed with newline character" );
       p_bail( parse );
    }
+   else if ( ch == '#' ) {
+      tk = TK_HASH;
+      ch = read_ch( parse );
+      if ( ch == '#' ) {
+         tk = TK_PREP_HASHHASH;
+         ch = read_ch( parse );
+      }
+      goto state_finish;
+   }
+   else if ( ch == '.' ) {
+      ch = read_ch( parse );
+      if ( ch == '.' && peek_ch( parse ) == '.' ) {
+         read_ch( parse );
+         ch = read_ch( parse );
+         tk = TK_ELLIPSIS;
+      }
+      else {
+         tk = TK_DOT;
+      }
+      goto state_finish;
+   }
    // End.
    else if ( ! ch ) {
       tk = TK_END;
@@ -509,9 +523,7 @@ void read_token( struct parse* parse, struct token* token ) {
          '[', TK_BRACKET_L,
          ']', TK_BRACKET_R,
          '~', TK_BIT_NOT,
-         '.', TK_DOT,
          '?', TK_QUESTION_MARK,
-         '#', TK_HASH,
          0 };
       int i = 0;
       while ( true ) {
@@ -791,6 +803,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
+/*
          if ( parse->read_flags & READF_CONCATSTRINGS ) {
             while ( isspace( ch ) ) {
                ch = read_ch( parse );
@@ -801,6 +814,7 @@ void read_token( struct parse* parse, struct token* token ) {
                continue;
             }
          }
+*/
          // Done.
          tk = TK_LIT_STRING;
          goto state_finish;
@@ -869,9 +883,10 @@ void read_token( struct parse* parse, struct token* token ) {
       token->length = text->length;
    }
    else {
-      const struct token_info* info = get_token_info( tk );
+      const struct token_info* info = p_get_token_info( tk );
       token->text = info->shared_text;
-      token->length = info->length;
+      token->length = ( length > 0 ) ?
+         length : info->length;
    }
    token->pos.line = line;
    token->pos.column = column;
@@ -888,6 +903,7 @@ char read_ch( struct parse* parse ) {
    if ( source->ch == '\n' ) {
       ++source->line;
       source->column = 0;
+      ++parse->line;
    }
    else if ( source->ch == '\t' ) {
       source->column += parse->task->options->tab_size -
@@ -915,6 +931,7 @@ char read_ch( struct parse* parse ) {
          source->buffer_pos += 2;
          ++source->line;
          source->column = 0;
+         ++parse->line;
       }
       // Windows newline character.
       else if ( source->buffer[ source->buffer_pos + 1 ] == '\r' &&
@@ -922,6 +939,7 @@ char read_ch( struct parse* parse ) {
          source->buffer_pos += 3;
          ++source->line;
          source->column = 0;
+         ++parse->line;
       }
       else {
          break;
@@ -940,6 +958,10 @@ char read_ch( struct parse* parse ) {
    }
    source->ch = ch;
    return ch;
+}
+
+char peek_ch( struct parse* parse ) {
+   return parse->source->buffer[ parse->source->buffer_pos ];
 }
 
 void read_initial_ch( struct parse* parse ) {
@@ -1136,130 +1158,6 @@ void append_ch( struct str* str, char ch ) {
    str_append( str, segment );
 }
 
-const char* p_get_token_name( enum tk tk ) {
-   static const struct { enum tk tk; const char* name; } names[] = {
-      { TK_BRACKET_L, "`[`" },
-      { TK_BRACKET_R, "`]`" },
-      { TK_PAREN_L, "`(`" },
-      { TK_PAREN_R, "`)`" },
-      { TK_BRACE_L, "`{`" },
-      { TK_BRACE_R, "`}`" },
-      { TK_DOT, "`.`" },
-      { TK_INC, "`++`" },
-      { TK_DEC, "`--`" },
-      { TK_COMMA, "`,`" },
-      { TK_COLON, "`:`" },
-      { TK_SEMICOLON, "`;`" },
-      { TK_ASSIGN, "`=`" },
-      { TK_ASSIGN_ADD, "`+=`" },
-      { TK_ASSIGN_SUB, "`-=`" },
-      { TK_ASSIGN_MUL, "`*=`" },
-      { TK_ASSIGN_DIV, "`/=`" },
-      { TK_ASSIGN_MOD, "`%=`" },
-      { TK_ASSIGN_SHIFT_L, "`<<=`" },
-      { TK_ASSIGN_SHIFT_R, "`>>=`" },
-      { TK_ASSIGN_BIT_AND, "`&=`" },
-      { TK_ASSIGN_BIT_XOR, "`^=`" },
-      { TK_ASSIGN_BIT_OR, "`|=`" },
-      { TK_ASSIGN_COLON, "`:=`" },
-      { TK_EQ, "`==`" },
-      { TK_NEQ, "`!=`" },
-      { TK_LOG_NOT, "`!`" },
-      { TK_LOG_AND, "`&&`" },
-      { TK_LOG_OR, "`||`" },
-      { TK_BIT_AND, "`&`" },
-      { TK_BIT_OR, "`|`" },
-      { TK_BIT_XOR, "`^`" },
-      { TK_BIT_NOT, "`~`" },
-      { TK_LT, "`<`" },
-      { TK_LTE, "`<=`" },
-      { TK_GT, "`>`" },
-      { TK_GTE, "`>=`" },
-      { TK_PLUS, "`+`" },
-      { TK_MINUS, "`-`" },
-      { TK_SLASH, "`/`" },
-      { TK_STAR, "`*`" },
-      { TK_MOD, "`%`" },
-      { TK_SHIFT_L, "`<<`" },
-      { TK_SHIFT_R, "`>>`" },
-      { TK_HASH, "`#`" },
-      { TK_BREAK, "`break`" },
-      { TK_CASE, "`case`" },
-      { TK_CONST, "`const`" },
-      { TK_CONTINUE, "`continue`" },
-      { TK_DEFAULT, "`default`" },
-      { TK_DO, "`do`" },
-      { TK_ELSE, "`else`" },
-      { TK_ENUM, "`enum`" },
-      { TK_FOR, "`for`" },
-      { TK_IF, "`if`" },
-      { TK_INT, "`int`" },
-      { TK_RETURN, "`return`" },
-      { TK_STATIC, "`static`" },
-      { TK_STR, "`str`" },
-      { TK_STRUCT, "`struct`" },
-      { TK_SWITCH, "`switch`" },
-      { TK_VOID, "`void`" },
-      { TK_WHILE, "`while`" },
-      { TK_BOOL, "`bool`" },
-      { TK_PALTRANS, "`createtranslation`" },
-      { TK_GLOBAL, "`global`" },
-      { TK_SCRIPT, "`script`" },
-      { TK_UNTIL, "`until`" },
-      { TK_WORLD, "`world`" },
-      { TK_OPEN, "`open`" },
-      { TK_RESPAWN, "`respawn`" },
-      { TK_DEATH, "`death`" },
-      { TK_ENTER, "`enter`" },
-      { TK_PICKUP, "`pickup`" },
-      { TK_BLUE_RETURN, "`bluereturn`" },
-      { TK_RED_RETURN, "`redreturn`" },
-      { TK_WHITE_RETURN, "`whitereturn`" },
-      { TK_LIGHTNING, "`lightning`" },
-      { TK_DISCONNECT, "`disconnect`" },
-      { TK_UNLOADING, "`unloading`" },
-      { TK_CLIENTSIDE, "`clientside`" },
-      { TK_NET, "`net`" },
-      { TK_RESTART, "`restart`" },
-      { TK_SUSPEND, "`suspend`" },
-      { TK_TERMINATE, "`terminate`" },
-      { TK_FUNCTION, "`function`" },
-      { TK_IMPORT, "`import`" },
-      { TK_GOTO, "`goto`" },
-      { TK_TRUE, "`true`" },
-      { TK_FALSE, "`false`" },
-      { TK_IMPORT, "`import`" },
-      { TK_EVENT, "`event`" },
-      { TK_LIT_OCTAL, "octal number" },
-      { TK_LIT_DECIMAL, "decimal number" },
-      { TK_LIT_HEX, "hexadecimal number" },
-      { TK_LIT_BINARY, "binary number" },
-      { TK_LIT_FIXED, "fixed-point number" },
-      { TK_NL, "newline character" },
-      { TK_END, "end-of-input" },
-      { TK_LIB, "start-of-library" },
-      { TK_LIB_END, "end-of-library" },
-      { TK_QUESTION_MARK, "`?`" },
-      { TK_ELLIPSIS, "`...`" },
-      { TK_STRCPY, "`strcpy`" } };
-   STATIC_ASSERT( TK_TOTAL == 109 );
-   switch ( tk ) {
-   case TK_LIT_STRING:
-      return "string literal";
-   case TK_LIT_CHAR:
-      return "character literal";
-   case TK_ID:
-      return "identifier";
-   default:
-      for ( size_t i = 0; i < ARRAY_SIZE( names ); ++i ) {
-         if ( names[ i ].tk == tk ) {
-            return names[ i ].name;
-         }
-      }
-      return "";
-   }
-}
-
 void p_increment_pos( struct pos* pos, enum tk tk ) {
    switch ( tk ) {
    case TK_BRACE_R:
@@ -1270,192 +1168,68 @@ void p_increment_pos( struct pos* pos, enum tk tk ) {
    }
 }
 
-void p_skip_block( struct parse* parse ) {
-   while ( parse->tk != TK_END && parse->tk != TK_BRACE_L ) {
-      p_read_tk( parse );
-   }
-   p_test_tk( parse, TK_BRACE_L );
-   p_read_tk( parse );
-   int depth = 0;
-   while ( true ) {
-      if ( parse->tk == TK_BRACE_L ) {
-         ++depth;
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_BRACE_R ) {
-         if ( depth ) {
-            --depth;
-            p_read_tk( parse );
-         }
-         else {
-            break;
-         }
-      }
-      else if ( parse->tk == TK_LIB_END ) {
-         break;
-      }
-      else if ( parse->tk == TK_END ) {
-         break;
-      }
-      else {
-         p_read_tk( parse );
-      }
-   }
-   p_test_tk( parse, TK_BRACE_R );
-   p_read_tk( parse );
+void p_deinit_tk( struct parse* parse ) {
+   unload_source_all( parse );
 }
 
-const struct token_info* get_token_info( enum tk tk ) {
-   // The table below contains information about the available tokens. The
-   // order of the table corresponds to the order of the token enumeration.
-   #define ENTRY( text, flags ) \
-      { text, ARRAY_SIZE( text ) - 1, flags }
-   #define BLANK ""
-   static struct token_info table[] = {
-      // 0
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( "[", TKF_NONE ),
-      ENTRY( "]", TKF_NONE ),
-      ENTRY( "(", TKF_NONE ),
-      ENTRY( ")", TKF_NONE ),
-      ENTRY( "{", TKF_NONE ),
-      ENTRY( "}", TKF_NONE ),
-      ENTRY( ".", TKF_NONE ),
-      ENTRY( "++", TKF_NONE ),
+#include <time.h>
 
-      // 10
-      ENTRY( "--", TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( ",", TKF_NONE ),
-      ENTRY( ":", TKF_NONE ),
-      ENTRY( "strcpy", TKF_KEYWORD ),
-      ENTRY( ";", TKF_NONE ),
-      ENTRY( "=", TKF_NONE ),
-      ENTRY( "+=", TKF_NONE ),
-      ENTRY( "-=", TKF_NONE ),
-      ENTRY( "*=", TKF_NONE ),
-
-      // 20
-      ENTRY( "/=", TKF_NONE ),
-      ENTRY( "%=", TKF_NONE ),
-      ENTRY( "<<=", TKF_NONE ),
-      ENTRY( ">>=", TKF_NONE ),
-      ENTRY( "&=", TKF_NONE ),
-      ENTRY( "^=", TKF_NONE ),
-      ENTRY( "|=", TKF_NONE ),
-      ENTRY( "==", TKF_NONE ),
-      ENTRY( "!=", TKF_NONE ),
-      ENTRY( "!", TKF_NONE ),
-
-      // 30
-      ENTRY( "&&", TKF_NONE ),
-      ENTRY( "||", TKF_NONE ),
-      ENTRY( "&", TKF_NONE ),
-      ENTRY( "|", TKF_NONE ),
-      ENTRY( "^", TKF_NONE ),
-      ENTRY( "~", TKF_NONE ),
-      ENTRY( "<", TKF_NONE ),
-      ENTRY( "<=", TKF_NONE ),
-      ENTRY( ">", TKF_NONE ),
-      ENTRY( ">=", TKF_NONE ),
-
-      // 40
-      ENTRY( "+", TKF_NONE ),
-      ENTRY( "-", TKF_NONE ),
-      ENTRY( "/", TKF_NONE ),
-      ENTRY( "*", TKF_NONE ),
-      ENTRY( "%", TKF_NONE ),
-      ENTRY( "<<", TKF_NONE ),
-      ENTRY( ">>", TKF_NONE ),
-      ENTRY( ":=", TKF_NONE ),
-      ENTRY( "break", TKF_KEYWORD ),
-      ENTRY( "case", TKF_KEYWORD ),
-
-      // 50
-      ENTRY( "const", TKF_KEYWORD ),
-      ENTRY( "continue", TKF_KEYWORD ),
-      ENTRY( "default", TKF_KEYWORD ),
-      ENTRY( "do", TKF_KEYWORD ),
-      ENTRY( "else", TKF_KEYWORD ),
-      ENTRY( "enum", TKF_KEYWORD ),
-      ENTRY( "for", TKF_KEYWORD ),
-      ENTRY( "if", TKF_KEYWORD ),
-      ENTRY( "int", TKF_KEYWORD ),
-      ENTRY( "return", TKF_KEYWORD ),
-
-      // 60
-      ENTRY( "static", TKF_KEYWORD ),
-      ENTRY( "str", TKF_KEYWORD ),
-      ENTRY( "struct", TKF_KEYWORD ),
-      ENTRY( "switch", TKF_KEYWORD ),
-      ENTRY( "void", TKF_KEYWORD ),
-      ENTRY( "while", TKF_KEYWORD ),
-      ENTRY( "bool", TKF_KEYWORD ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-
-      // 70
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( "#", TKF_NONE ),
-      ENTRY( "createtranslation", TKF_KEYWORD ),
-      ENTRY( "global", TKF_KEYWORD ),
-      ENTRY( "script", TKF_KEYWORD ),
-      ENTRY( "until", TKF_KEYWORD ),
-      ENTRY( "world", TKF_KEYWORD ),
-      ENTRY( "open", TKF_KEYWORD ),
-
-      // 80
-      ENTRY( "respawn", TKF_KEYWORD ),
-      ENTRY( "death", TKF_KEYWORD ),
-      ENTRY( "enter", TKF_KEYWORD ),
-      ENTRY( "pickup", TKF_KEYWORD ),
-      ENTRY( "bluereturn", TKF_KEYWORD ),
-      ENTRY( "redreturn", TKF_KEYWORD ),
-      ENTRY( "whitereturn", TKF_KEYWORD ),
-      ENTRY( "lightning", TKF_KEYWORD ),
-      ENTRY( "disconnect", TKF_KEYWORD ),
-      ENTRY( "unloading", TKF_KEYWORD ),
-
-      // 90
-      ENTRY( "clientside", TKF_KEYWORD ),
-      ENTRY( "net", TKF_KEYWORD ),
-      ENTRY( "restart", TKF_KEYWORD ),
-      ENTRY( "suspend", TKF_KEYWORD ),
-      ENTRY( "terminate", TKF_KEYWORD ),
-      ENTRY( "function", TKF_KEYWORD ),
-      ENTRY( "import", TKF_KEYWORD ),
-      ENTRY( "goto", TKF_KEYWORD ),
-      ENTRY( "true", TKF_KEYWORD ),
-      ENTRY( "false", TKF_KEYWORD ),
-
-      // 100
-      ENTRY( "event", TKF_KEYWORD ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( BLANK, TKF_NONE ),
-      ENTRY( "?", TKF_KEYWORD ),
-      ENTRY( " ", TKF_KEYWORD ),
-      ENTRY( "\t", TKF_KEYWORD ),
-
-      // Invalid entry.
-      // This entry should not be reached when all tokens are acccounted for.
-      ENTRY( BLANK, TKF_NONE )
-   };
-   #undef ENTRY
-   if ( tk < ARRAY_SIZE( table ) - 1 ) {
-      return &table[ tk ];
+void p_read_sourcepos_token( struct parse* parse, struct pos* pos ) {
+   const char* file;
+   int line;
+   int column;
+   t_decode_pos( parse->task, pos, &file, &line, &column );
+   if ( parse->predef_macro_expan == PREDEFMACROEXPAN_LINE ) {
+      struct str* text = temp_text( parse );
+      str_grow( text, 11 );
+      int length = snprintf( text->value, 11, "%d", line );
+      static struct token token;
+      token.type = TK_LIT_DECIMAL;
+      token.text = text->value;
+      token.length = length;
+      token.pos = parse->token->pos;
+      token.is_id = false;
+      parse->token = &token;
+   }
+   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_FILE ) {
+      static struct token token;
+      token.type = TK_LIT_STRING;
+      token.text = ( char* ) file;
+      token.length = strlen( token.text );
+      token.pos = parse->token->pos;
+      token.is_id = false;
+      parse->token = &token;
+   }
+   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_TIME ) {
+      static char buffer[ 9 ];
+      time_t timestamp;
+      time( &timestamp );
+      struct tm* info = localtime( &timestamp );
+      int length = snprintf( buffer, 9, "%02d:%02d:%02d", info->tm_hour,
+         info->tm_min, info->tm_sec );
+      static struct token token;
+      token.type = TK_LIT_STRING;
+      token.text = buffer;
+      token.length = strlen( buffer );
+      token.pos = parse->token->pos;
+      token.is_id = false;
+      parse->token = &token;
+   }
+   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_DATE ) {
+      time_t timestamp;
+      time( &timestamp );
+      struct tm* info = localtime( &timestamp );
+      static char buffer[ 12 ];
+      strftime( buffer, 12, "%b %e %Y", info );
+      static struct token token;
+      token.type = TK_LIT_STRING;
+      token.text = buffer;
+      token.length = strlen( buffer );
+      token.pos = parse->token->pos;
+      token.is_id = false;
+      parse->token = &token;
    }
    else {
       UNREACHABLE();
-      return &table[ ARRAY_SIZE( table ) - 1 ];
    }
-}
-
-void p_deinit_tk( struct parse* parse ) {
-   unload_source_all( parse );
 }

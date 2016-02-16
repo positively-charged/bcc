@@ -29,9 +29,21 @@ solution 'bcc'
          'src/*.c',
       }
       links {
+         'src_token',
          'src_parse',
          'src_semantic',
          'src_codegen'
+      }
+
+   project 'src_token'
+      location 'build/src_token'
+      targetdir 'build/src_token'
+      kind 'StaticLib'
+      files {
+         'src/parse/token/*.c'
+      }
+      includedirs {
+         'src/parse',
       }
 
    project 'src_parse'

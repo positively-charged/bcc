@@ -22,6 +22,8 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
    parse->token = NULL;
+   parse->token_peeked = NULL;
+   parse->source_token = NULL;
    parse->token_free = NULL;
    parse->peeked = 0;
    parse->tk = TK_END;
@@ -35,12 +37,19 @@ void p_init( struct parse* parse, struct task* task ) {
    list_init( &parse->text_buffers );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
    parse->line_beginning = true;
+   parse->concat_strings = false;
    parse->macro_head = NULL;
    parse->macro_free = NULL;
    parse->macro_param_free = NULL;
    parse->macro_expan = NULL;
    parse->macro_expan_free = NULL;
    parse->ifdirc_top = NULL;
+
+   parse->line = 0;
+   parse->column = 0;
+   parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
+   parse->prep_context = PREPCONTEXT_NONE;
+   parse->source_token = &parse->queue_source[ 0 ];
 }
 
 void p_read( struct parse* parse ) {
@@ -372,13 +381,14 @@ void alloc_string_indexes( struct parse* parse ) {
 void p_diag( struct parse* parse, int flags, ... ) {
    va_list args;
    va_start( args, flags );
+   p_macro_trace_diag( parse );
    t_diag_args( parse->task, flags, &args );
    va_end( args );
 }
 
 void p_unexpect_diag( struct parse* parse ) {
-   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos,
-      "unexpected %s", p_get_token_name( parse->tk ) );
+   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos,
+      "unexpected %s", p_get_token_name( parse->token->type ) );
 }
 
 void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
@@ -387,7 +397,7 @@ void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
 
 void p_unexpect_name( struct parse* parse, struct pos* pos,
    const char* subject ) {
-   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->token->pos ),
       "expecting %s here, or", subject );
 }
 
@@ -397,7 +407,7 @@ void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk ) {
 
 void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject ) {
-   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->token->pos ),
       "expecting %s here", subject );
 }
 
