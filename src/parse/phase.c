@@ -1,12 +1,15 @@
 #include <string.h>
 
 #include "phase.h"
+#include "cache/cache.h"
 
 static void make_main_lib( struct parse* parse );
 static void read_dirc( struct parse* parse, struct pos* );
 static void read_include( struct parse* parse, struct pos*, bool );
 static void read_import( struct parse* parse, struct pos* pos );
 static void load_imported_lib( struct parse* parse );
+static struct library* get_previously_processed_lib( struct parse* parse,
+   struct file_entry* file );
 static struct library* find_lib( struct parse* parse,
    struct file_entry* file );
 static void append_imported_lib( struct parse* parse, struct library* lib );
@@ -18,7 +21,7 @@ static void add_usable_string( struct indexed_string**,
    struct indexed_string**, struct indexed_string* );
 static void alloc_string_indexes( struct parse* parse );
 
-void p_init( struct parse* parse, struct task* task ) {
+void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
    parse->token = NULL;
@@ -50,6 +53,7 @@ void p_init( struct parse* parse, struct task* task ) {
    parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
    parse->prep_context = PREPCONTEXT_NONE;
    parse->source_token = &parse->queue_source[ 0 ];
+   parse->cache = cache;
 }
 
 void p_read( struct parse* parse ) {
@@ -176,7 +180,7 @@ void load_imported_lib( struct parse* parse ) {
          "library not found: %s", parse->tk_text );
       p_bail( parse );
    }
-   struct library* lib = find_lib( parse, query.file );
+   struct library* lib = get_previously_processed_lib( parse, query.file );
    if ( ! lib ) {
       struct source* source = p_load_included_source( parse );
       source->imported = true;
@@ -191,8 +195,20 @@ void load_imported_lib( struct parse* parse ) {
       s_test( &semantic );
       parse->task->library = parent_lib;
       lib->file = query.file;
+      if ( ! parse->task->options->ignore_cache ) {
+         cache_add( parse->cache, lib );
+      }
    }
    append_imported_lib( parse, lib );
+}
+
+struct library* get_previously_processed_lib( struct parse* parse,
+   struct file_entry* file ) {
+   struct library* lib = find_lib( parse, file );
+   if ( ! lib && ! parse->task->options->ignore_cache ) {
+      lib = cache_get( parse->cache, file );
+   }
+   return lib;
 }
 
 struct library* find_lib( struct parse* parse, struct file_entry* file ) {

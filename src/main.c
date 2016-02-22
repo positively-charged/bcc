@@ -6,6 +6,7 @@
 #include "parse/phase.h"
 #include "semantic/phase.h"
 #include "codegen/phase.h"
+#include "cache/cache.h"
 
 #define TAB_SIZE_MIN 1
 #define TAB_SIZE_MAX 100
@@ -16,7 +17,8 @@ static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
 static void perform_task( struct task* task );
-static void compile_mainlib( struct task* task );
+static void perform_selected_task( struct task* task, struct cache* cache );
+static void compile_mainlib( struct task* task, struct cache* cache );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
@@ -95,12 +97,16 @@ void init_options( struct options* options ) {
    list_init( &options->includes );
    options->source_file = NULL;
    options->object_file = NULL;
+   options->cache_path = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
+   options->cache_lifetime = 0;
    options->acc_err = false;
    options->one_column = false;
    options->help = false;
    options->preprocess = false;
+   options->clear_cache = false;
+   options->ignore_cache = true;
 }
 
 bool read_options( struct options* options, char** argv ) {
@@ -167,6 +173,12 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
       }
+      else if ( strcmp( option, "clear-cache" ) == 0 ) {
+         options->clear_cache = true;
+      }
+      else if ( strcmp( option, "ignore-cache" ) == 0 ) {
+         options->ignore_cache = true;
+      }
       else if ( strcmp( option, "E" ) == 0 ) {
          options->preprocess = true;
       }
@@ -224,19 +236,31 @@ void print_usage( char* path ) {
 }
 
 void perform_task( struct task* task ) {
-   if ( task->options->preprocess ) {
+   struct cache cache;
+   cache_init( &cache, task );
+   cache_load( &cache );
+   perform_selected_task( task, &cache );
+   cache_close( &cache );
+}
+
+void perform_selected_task( struct task* task, struct cache* cache ) {
+   if ( task->options->clear_cache ) {
+      cache_clear( cache );
+   }
+   else if ( task->options->preprocess ) {
       struct parse parse;
-      p_init( &parse, task );
+      p_init( &parse, task, cache );
       p_preprocess( &parse );
    }
    else {
-      compile_mainlib( task );
+      //cache_test( task, cache );
+      compile_mainlib( task, cache );
    }
 }
 
-void compile_mainlib( struct task* task ) {
+void compile_mainlib( struct task* task, struct cache* cache ) {
    struct parse parse;
-   p_init( &parse, task );
+   p_init( &parse, task, cache );
    p_read( &parse );
    struct semantic semantic;
    s_init( &semantic, task, task->library_main );

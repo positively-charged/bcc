@@ -7,6 +7,7 @@
 #include <stdarg.h>
 
 #include "common.h"
+#include "gbuf.h"
 
 #define MAX_LIB_NAME_LENGTH 8
 
@@ -412,6 +413,8 @@ enum {
    STORAGE_GLOBAL
 };
 
+#define DBG_LASTMEMBER char __last[];
+
 struct var {
    struct object object;
    struct name* name;
@@ -430,6 +433,7 @@ struct var {
    bool initial_has_str;
    bool imported;
    bool is_constant_init;
+   DBG_LASTMEMBER
 };
 
 struct param {
@@ -741,6 +745,8 @@ struct task {
    // List of alternative filenames. Each entry is a string.
    struct list altern_filenames;
    int last_id;
+   time_t compile_time;
+   struct gbuf growing_buffer;
 };
 
 #define DIAG_NONE 0

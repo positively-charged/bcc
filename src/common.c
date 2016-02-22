@@ -411,3 +411,33 @@ void c_extract_dirname( struct str* path ) {
       }
    }
 }
+
+void fs_init_query( struct fs_query* query, const char* path ) {
+   int result = stat( path, &query->stat );
+   query->exists = ( result == 0 );
+}
+
+bool fs_exists( struct fs_query* query ) {
+   return query->exists;
+}
+
+bool fs_isdir( struct fs_query* query ) {
+   return S_ISDIR( query->stat.st_mode );
+}
+
+int fs_get_mtime( struct fs_query* query ) {
+   return query->stat.st_mtime;
+}
+
+bool fs_create_dir( const char* path ) {
+   mode_t mode =
+      S_IRUSR | S_IWUSR | S_IXUSR |
+      S_IRGRP | S_IXGRP |
+      S_IROTH | S_IXOTH;
+   int result = mkdir( path, mode );
+   return ( result == 0 );
+}
+
+const char* fs_get_tempdir( void ) {
+   return "/tmp";
+}

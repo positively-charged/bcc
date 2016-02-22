@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "task.h"
 
@@ -42,6 +43,8 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    list_init( &task->libraries );
    list_init( &task->altern_filenames );
    task->last_id = 0;
+   task->compile_time = time( NULL );
+   gbuf_init( &task->growing_buffer );
 }
 
 void init_str_table( struct str_table* table ) {
@@ -179,6 +182,7 @@ struct type* t_create_type( struct task* task, struct name* name ) {
    type->primitive = false;
    type->is_str = false;
    type->anon = false;
+   name->object = &type->object;
    return type;
 }
 

@@ -68,11 +68,15 @@ struct options {
    struct list includes;
    const char* source_file;
    const char* object_file;
+   const char* cache_path;
    int tab_size;
+   int cache_lifetime;
    bool acc_err;
    bool one_column;
    bool help;
    bool preprocess;
+   bool clear_cache;
+   bool ignore_cache;
 };
 
 #if OS_WINDOWS
@@ -88,6 +92,7 @@ struct fileid {
 #else
 
 #include <sys/types.h>
+#include <sys/stat.h>
 
 struct fileid {
    dev_t device;
@@ -95,6 +100,11 @@ struct fileid {
 };
 
 #define NEWLINE_CHAR "\n"
+
+struct fs_query {
+   struct stat stat;
+   bool exists;
+};
 
 #endif
 
@@ -104,5 +114,12 @@ bool c_read_full_path( const char* path, struct str* );
 void c_extract_dirname( struct str* );
 
 int alignpad( int size, int align_size );
+
+void fs_init_query( struct fs_query* query, const char* path );
+bool fs_exists( struct fs_query* query );
+bool fs_isdir( struct fs_query* query );
+int fs_get_mtime( struct fs_query* query );
+bool fs_create_dir( const char* path );
+const char* fs_get_tempdir( void );
 
 #endif

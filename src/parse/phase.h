@@ -3,6 +3,8 @@
 
 #include "task.h"
 
+struct cache;
+
 // Token types.
 enum tk {
    // 0
@@ -330,9 +332,10 @@ struct parse {
       PREPCONTEXT_NONE,
       PREPCONTEXT_DEFINEBODY
    } prep_context;
+   struct cache* cache;
 };
 
-void p_init( struct parse* parse, struct task* task );
+void p_init( struct parse* parse, struct task* task, struct cache* cache );
 void p_read( struct parse* parse );
 void p_preprocess( struct parse* parse );
 void p_diag( struct parse* parse, int flags, ... );

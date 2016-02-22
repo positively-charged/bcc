@@ -1,0 +1,107 @@
+#ifndef SRC_SERIAL_FIELD_H
+#define SRC_SERIAL_FIELD_H
+
+enum field {
+   // 0
+   // Integer fields.
+   F_STARTINT,
+   F_INTCACHEDFILEID,
+   F_INTCOLUMN,
+   F_INTDEPENDENCYLIST,
+   F_INTELEMENTSIZE,
+   F_INTENTRYNUMBER,
+   F_INTFLAGS,
+   F_INTID,
+   F_INTINDEX,
+   F_INTLINE,
+   // 10
+   F_INTMAXPARAM,
+   F_INTMINPARAM,
+   F_INTOBJMEMTOTALSIZE,
+   F_INTOFFSET,
+   F_INTOPCODE,
+   F_INTSIZE,
+   F_INTSTORAGE,
+   F_INTTYPE,
+   F_INTVALUE,
+   F_ENDINT,
+
+   // Boolean fields.
+   F_STARTBOOL,
+   // 20
+   F_BOOLHIDDEN,
+   F_BOOLIMPORTED,
+   F_BOOLINITZZERO,
+   F_BOOLISCONSTANTINIT,
+   F_BOOLISREGION,
+   F_BOOLISUPMOST,
+   F_BOOLLATENT,
+   F_BOOLSCRIPTCALLABLE,
+   F_BOOLUSED,
+   F_ENDBOOL,
+
+   // String fields.
+   // 30
+   F_STARTSTR,
+   F_STRFILEPATH,
+   F_STRNAME,
+   F_STRRETURNTYPE,
+   F_STRTEXT,
+   F_STRTYPE,
+   F_ENDSTR,
+
+   // time_t fields.
+   F_STARTTIME,
+   F_TIMECOMPILETIME,
+   F_ENDTIME,
+
+   // size_t fields.
+   // 40
+   F_STARTSIZE,
+   F_SIZEBODY,
+   F_ENDSIZE,
+
+   // No-value fields.
+   F_ARCHIVE,
+   F_ASPECFUNCIMPL,
+   F_CONSTANT,
+   F_DEDFUNCIMPL,
+   F_DIM,
+   F_END,
+   F_ENTRY,
+   // 50
+   F_ENUM,
+   F_EXPR,
+   F_EXTFUNCIMPL,
+   F_FORMATFUNCIMPL,
+   F_FUNC,
+   F_LIB,
+   F_LITERAL,
+   F_NAME,
+   F_NAMEPOS,
+   F_NUMBER,
+
+   // 60
+   F_OBJECT,
+   F_PARAM,
+   F_PATH,
+   F_POS,
+   F_REGION,
+   F_SCRIPT,
+   F_STRUCT,
+   F_STRUCTMEMBER,
+   F_TYPE,
+   F_USERFUNCIMPL,
+
+   // 70
+   F_VAR,
+   F_TYPEPATH,
+
+   F_DEPENDENCY,
+   F_MTIME,
+   F_TIMEMTIME,
+
+   F_TOTAL
+};
+
+#endif
