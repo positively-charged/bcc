@@ -5,8 +5,8 @@
 
 struct multi_value_test {
    struct dim* dim;
-   struct type* type;
-   struct type_member* member;
+   struct structure* type;
+   struct structure_member* member;
    int count;
    bool constant;
    bool nested;
@@ -23,16 +23,16 @@ struct value_index_alloc {
    int index;
 };
 
-static void test_struct_name( struct semantic* semantic, struct type* type );
-static bool test_struct_body( struct semantic* semantic, struct type* type );
+static void test_struct_name( struct semantic* semantic, struct structure* type );
+static bool test_struct_body( struct semantic* semantic, struct structure* type );
 static void test_member( struct semantic* semantic,
-   struct type_member* member );
+   struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
-   struct type_member* member );
+   struct structure_member* member );
 static void test_member_name( struct semantic* semantic,
-   struct type_member* member );
+   struct structure_member* member );
 static bool test_member_dim( struct semantic* semantic,
-   struct type_member* member );
+   struct structure_member* member );
 static bool test_spec( struct semantic* semantic, struct var* var );
 static void test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* semantic, struct var* var );
@@ -41,23 +41,23 @@ static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void test_init( struct semantic* semantic, struct var*, bool, bool* );
 static void init_multi_value_test( struct multi_value_test*, struct dim*,
-   struct type*, bool constant, bool nested );
+   struct structure*, bool constant, bool nested );
 static bool test_multi_value( struct semantic* semantic, struct multi_value_test*,
    struct multi_value* multi_value );
 static bool test_multi_value_child( struct semantic* semantic,
    struct multi_value_test* test, struct multi_value* multi_value,
    struct initial* initial );
 static bool test_value( struct semantic* semantic, struct multi_value_test* test,
-   struct dim* dim, struct type* type, struct value* value );
-static void calc_dim_size( struct dim*, struct type* );
+   struct dim* dim, struct structure* type, struct value* value );
+static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_paramlist( struct semantic* semantic, struct func* func );
 static bool test_func_param( struct semantic* semantic, struct param* param );
-static void calc_type_size( struct type* );
+static void calc_type_size( struct structure* );
 static void make_value_list( struct value_list*, struct multi_value* );
 static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
-   struct type*, struct dim* );
+   struct structure*, struct dim* );
 static void alloc_value_index_struct( struct value_index_alloc*,
-   struct multi_value*, struct type* );
+   struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
 
@@ -123,20 +123,20 @@ void s_test_constant_set( struct semantic* semantic,
    set->object.resolved = true;
 }
 
-void s_test_struct( struct semantic* semantic, struct type* type ) {
+void s_test_struct( struct semantic* semantic, struct structure* type ) {
    test_struct_name( semantic, type );
    bool resolved = test_struct_body( semantic, type );
    type->object.resolved = resolved;
 }
 
-void test_struct_name( struct semantic* semantic, struct type* type ) {
+void test_struct_name( struct semantic* semantic, struct structure* type ) {
    if ( type->name->object != &type->object ) {
       s_bind_name( semantic, type->name, &type->object );
    }
 }
 
-bool test_struct_body( struct semantic* semantic, struct type* type ) {
-   struct type_member* member = type->member;
+bool test_struct_body( struct semantic* semantic, struct structure* type ) {
+   struct structure_member* member = type->member;
    while ( member ) {
       if ( ! member->object.resolved ) {
          test_member( semantic, member );
@@ -149,7 +149,7 @@ bool test_struct_body( struct semantic* semantic, struct type* type ) {
    return true;
 }
 
-void test_member( struct semantic* semantic, struct type_member* member ) {
+void test_member( struct semantic* semantic, struct structure_member* member ) {
    if ( test_member_spec( semantic, member ) ) {
       test_member_name( semantic, member );
       bool resolved = test_member_dim( semantic, member );
@@ -158,15 +158,15 @@ void test_member( struct semantic* semantic, struct type_member* member ) {
 }
 
 bool test_member_spec( struct semantic* semantic,
-   struct type_member* member ) {
+   struct structure_member* member ) {
    if ( member->type_path ) {
-      if ( ! member->type ) {
+      if ( ! member->structure ) {
          struct object_search search;
          s_init_object_search( &search, member->type_path, true );
          s_find_object( semantic, &search );
-         member->type = search.struct_object;
+         member->structure = search.struct_object;
       }
-      if ( ! member->type->object.resolved ) {
+      if ( ! member->structure->object.resolved ) {
          if ( semantic->trigger_err ) {
             struct path* path = member->type_path;
             while ( path->next ) {
@@ -183,14 +183,14 @@ bool test_member_spec( struct semantic* semantic,
 }
 
 void test_member_name( struct semantic* semantic,
-   struct type_member* member ) {
+   struct structure_member* member ) {
    if ( member->name->object != &member->object ) {
      s_bind_name( semantic, member->name, &member->object );
    }
 }
 
 bool test_member_dim( struct semantic* semantic,
-   struct type_member* member ) {
+   struct structure_member* member ) {
    if ( ! member->dim ) {
       return true;
    }
@@ -239,13 +239,13 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
 bool test_spec( struct semantic* semantic, struct var* var ) {
    bool resolved = false;
    if ( var->type_path ) {
-      if ( ! var->type ) {
+      if ( ! var->structure ) {
          struct object_search search;
          s_init_object_search( &search, var->type_path, true );
          s_find_object( semantic, &search );
-         var->type = search.struct_object;
+         var->structure = search.struct_object;
       }
-      if ( ! var->type->object.resolved ) {
+      if ( ! var->structure->object.resolved ) {
          return false;
       }
       // An array or a variable with a structure type cannot appear in local
@@ -332,10 +332,10 @@ bool test_initz( struct semantic* semantic, struct var* var ) {
 
 bool test_object_initz( struct semantic* semantic, struct var* var ) {
    struct multi_value_test test;
-   init_multi_value_test( &test, var->dim, var->type, var->is_constant_init,
+   init_multi_value_test( &test, var->dim, var->structure, var->is_constant_init,
       false );
    if ( var->initial->multi ) {
-      if ( ! ( var->dim || ! var->type->primitive ) ) {
+      if ( ! ( var->dim || ! var->structure->primitive ) ) {
          struct multi_value* multi_value =
             ( struct multi_value* ) var->initial;
          s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
@@ -353,7 +353,7 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    else {
-      bool resolved = test_value( semantic, &test, var->dim, var->type,
+      bool resolved = test_value( semantic, &test, var->dim, var->structure,
          ( struct value* ) var->initial );
       if ( ! resolved ) {
          return false;
@@ -380,7 +380,7 @@ bool test_imported_object_initz( struct var* var ) {
 }
 
 void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
-   struct type* type, bool constant, bool nested ) {
+   struct structure* type, bool constant, bool nested ) {
    test->dim = dim;
    test->type = type;
    test->member = ( ! dim ? type->member : NULL ); 
@@ -422,7 +422,7 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
       // There needs to be an element or member to initialize.
       bool deeper = ( ( test->dim && ( test->dim->next ||
          ! test->type->primitive ) ) || ( test->member &&
-         ( test->member->dim || ! test->member->type->primitive ) ) );
+         ( test->member->dim || ! test->member->structure->primitive ) ) );
       if ( ! deeper ) {
          s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
             "too many brace initializers" );
@@ -431,7 +431,7 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
       struct multi_value_test nested;
       init_multi_value_test( &nested,
          ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->type : test->member->type ),
+         ( test->dim ? test->type : test->member->structure ),
          test->constant, true );
       bool resolved = test_multi_value( semantic, &nested,
          ( struct multi_value* ) initial );
@@ -443,13 +443,13 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
    else {
       return test_value( semantic, test,
          ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->type : test->member->type ),
+         ( test->dim ? test->type : test->member->structure ),
          ( struct value* ) initial );
    }
 }
 
 bool test_value( struct semantic* semantic, struct multi_value_test* test,
-   struct dim* dim, struct type* type, struct value* value ) {
+   struct dim* dim, struct structure* type, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( semantic, &expr, value->expr );
@@ -618,7 +618,7 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             "script number not a constant expression" );
          s_bail( semantic );
       }
-      script->named_script = ( script->number->type ==
+      script->named_script = ( script->number->structure ==
          semantic->task->type_str );
       if ( ! script->named_script ) {
          if ( script->number->value < SCRIPT_MIN_NUM ||
@@ -664,12 +664,12 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
 void s_calc_var_size( struct var* var ) {
    // Calculate the size of the variable elements.
    if ( var->dim ) {
-      calc_dim_size( var->dim, var->type );
+      calc_dim_size( var->dim, var->structure );
    }
    else {
       // Only calculate the size of the type if it hasn't been already.
-      if ( ! var->type->size ) {
-         calc_type_size( var->type );
+      if ( ! var->structure->size ) {
+         calc_type_size( var->structure );
       }
    }
    // Calculate the size of the variable.
@@ -677,11 +677,11 @@ void s_calc_var_size( struct var* var ) {
       var->size = var->dim->size * var->dim->element_size;
    }
    else {
-      var->size = var->type->size;
+      var->size = var->structure->size;
    }
 }
 
-void calc_dim_size( struct dim* dim, struct type* type ) {
+void calc_dim_size( struct dim* dim, struct structure* type ) {
    if ( dim->next ) {
       calc_dim_size( dim->next, type );
       dim->element_size = dim->next->size * dim->next->element_size;
@@ -695,12 +695,12 @@ void calc_dim_size( struct dim* dim, struct type* type ) {
    }
 }
 
-void calc_type_size( struct type* type ) {
+void calc_type_size( struct structure* type ) {
    int offset = 0;
-   struct type_member* member = type->member;
+   struct structure_member* member = type->member;
    while ( member ) {
       if ( member->dim ) {
-         calc_dim_size( member->dim, member->type );
+         calc_dim_size( member->dim, member->structure );
          if ( member->dim->element_size ) {
             int size = member->dim->size * member->dim->element_size;
             type->size += size;
@@ -708,21 +708,21 @@ void calc_type_size( struct type* type ) {
             offset += size;
          }
       }
-      else if ( ! member->type->primitive ) {
+      else if ( ! member->structure->primitive ) {
          // Calculate the size of the type if it hasn't been already.
-         if ( ! member->type->size ) {
-            calc_type_size( member->type );
+         if ( ! member->structure->size ) {
+            calc_type_size( member->structure );
          }
-         if ( member->type->size ) {
-            type->size += member->type->size;
+         if ( member->structure->size ) {
+            type->size += member->structure->size;
             member->offset = offset;
-            offset += member->type->size;
+            offset += member->structure->size;
          }
       }
       else {
-         member->size = member->type->size;
+         member->size = member->structure->size;
          member->offset = offset;
-         offset += member->type->size;
+         offset += member->structure->size;
          type->size += member->size;
       }
       member = member->next;
@@ -744,11 +744,11 @@ void s_calc_var_value_index( struct var* var ) {
       if ( var->dim ) {
          alloc_value_index( &alloc,
             ( struct multi_value* ) var->initial,
-            var->type, var->dim );
+            var->structure, var->dim );
       }
       else {
          alloc_value_index_struct( &alloc,
-            ( struct multi_value* ) var->initial, var->type );
+            ( struct multi_value* ) var->initial, var->structure );
       }
    }
    else {
@@ -778,7 +778,7 @@ void make_value_list( struct value_list* list,
 }
 
 void alloc_value_index( struct value_index_alloc* alloc,
-   struct multi_value* multi_value, struct type* type, struct dim* dim ) {
+   struct multi_value* multi_value, struct structure* type, struct dim* dim ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( initial->multi ) {
@@ -815,8 +815,8 @@ void alloc_value_index( struct value_index_alloc* alloc,
 }
 
 void alloc_value_index_struct( struct value_index_alloc* alloc,
-   struct multi_value* multi_value, struct type* type ) {
-   struct type_member* member = type->member;
+   struct multi_value* multi_value, struct structure* type ) {
+   struct structure_member* member = type->member;
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( initial->multi ) {
@@ -824,7 +824,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
             int index = alloc->index;
             alloc_value_index( alloc,
                ( struct multi_value* ) initial,
-               member->type, member->dim );
+               member->structure, member->dim );
             // Skip elements not specified.
             int used = alloc->index - index;
             alloc->index += ( member->dim->size *
@@ -833,10 +833,10 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
          else {
             int index = alloc->index;
             alloc_value_index_struct( alloc,
-               ( struct multi_value* ) initial, member->type );
+               ( struct multi_value* ) initial, member->structure );
             // Skip members not specified.
             int used = alloc->index - index;
-            alloc->index += member->type->size - used;
+            alloc->index += member->structure->size - used;
          }
       }
       else {

@@ -14,7 +14,7 @@ enum {
 enum { ALTERN_FILENAME_INITIAL_ID = -1 };
 
 static void init_str_table( struct str_table* table );
-static struct type* get_type( struct task*, int type );
+static struct structure* get_type( struct task*, int type );
 static void open_logfile( struct task* task );
 void show_diag( struct task* task, int flags, va_list* args );
 void log_diag( struct task* task, int flags, va_list* args );
@@ -150,20 +150,20 @@ void t_init_object( struct object* object, int node_type ) {
 }
 
 void t_init_types( struct task* task ) {
-   struct type* type = t_create_type( task,
+   struct structure* type = t_create_structure( task,
       t_extend_name( task->body, "int" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    task->type_int = type;
-   type = t_create_type( task,
+   type = t_create_structure( task,
       t_extend_name( task->body, "str" ) );
    type->object.resolved = true;
    type->size = 1;
    type->primitive = true;
    type->is_str = true;
    task->type_str = type;
-   type = t_create_type( task,
+   type = t_create_structure( task,
       t_extend_name( task->body, "bool" ) );
    type->object.resolved = true;
    type->size = 1;
@@ -171,9 +171,9 @@ void t_init_types( struct task* task ) {
    task->type_bool = type;
 }
 
-struct type* t_create_type( struct task* task, struct name* name ) {
-   struct type* type = mem_alloc( sizeof( *type ) );
-   t_init_object( &type->object, NODE_TYPE );
+struct structure* t_create_structure( struct task* task, struct name* name ) {
+   struct structure* type = mem_alloc( sizeof( *type ) );
+   t_init_object( &type->object, NODE_STRUCTURE );
    type->name = name;
    type->body = t_extend_name( name, "::" );
    type->member = NULL;
@@ -202,7 +202,7 @@ void t_init_type_members( struct task* task ) {
       t_init_object( &func->object, NODE_FUNC );
       func->object.resolved = true;
       func->type = FUNC_INTERNAL;
-      struct type* type = get_type( task, list[ i ].type );
+      struct structure* type = get_type( task, list[ i ].type );
       struct name* name = t_extend_name( type->body, list[ i ].name );
       name->object = &func->object;
       func->name = name;
@@ -217,7 +217,7 @@ void t_init_type_members( struct task* task ) {
    }
 }
 
-struct type* get_type( struct task* task, int id ) {
+struct structure* get_type( struct task* task, int id ) {
    switch ( id ) {
    case TYPE_INT:
       return task->type_int;

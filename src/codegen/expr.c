@@ -4,7 +4,7 @@
 #include "pcode.h"
 
 struct operand {
-   struct type* type;
+   struct structure* type;
    struct dim* dim;
    enum {
       ACTION_PUSH_VALUE,
@@ -924,10 +924,10 @@ void write_binary( struct codegen* codegen, struct operand* operand,
 }
 
 void set_var( struct codegen* codegen, struct operand* operand, struct var* var ) {
-   operand->type = var->type;
+   operand->type = var->structure;
    operand->dim = var->dim;
    operand->storage = var->storage;
-   if ( ! var->type->primitive || var->dim ) {
+   if ( ! var->structure->primitive || var->dim ) {
       operand->method = METHOD_ELEMENT;
       operand->index = var->index;
    }
@@ -1068,8 +1068,8 @@ void visit_access( struct codegen* codegen, struct operand* operand,
       visit_operand( codegen, operand, lside );
    }
    // Right side:
-   if ( rside && rside->type == NODE_TYPE_MEMBER ) {
-      struct type_member* member = ( struct type_member* ) rside;
+   if ( rside && rside->type == NODE_STRUCTURE_MEMBER ) {
+      struct structure_member* member = ( struct structure_member* ) rside;
       c_add_opc( codegen, PCD_PUSHNUMBER );
       c_add_arg( codegen, member->offset );
       if ( operand->pushed_element ) {
@@ -1078,7 +1078,7 @@ void visit_access( struct codegen* codegen, struct operand* operand,
       else {
          operand->pushed_element = true;
       }
-      operand->type = member->type;
+      operand->type = member->structure;
       operand->dim = member->dim;
    }
 }

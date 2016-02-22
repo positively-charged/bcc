@@ -234,8 +234,8 @@ struct dec {
    struct pos type_pos;
    struct pos name_pos;
    struct pos static_qual_pos;
-   struct type* type;
-   struct type* type_make;
+   struct structure* type;
+   struct structure* type_make;
    struct path* type_path;
    struct name* name;
    struct name* name_offset;

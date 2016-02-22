@@ -29,12 +29,12 @@ static void serialize_format_impl( struct serial* serial,
    struct func_format* impl );
 static void serialize_user_impl( struct serial* serial,
    struct func_user* impl );
-static void serialize_struct( struct serial* serial, struct type* struct_ );
+static void serialize_struct( struct serial* serial, struct structure* struct_ );
 static void serialize_structmember_list( struct serial* serial,
-   struct type* struct_ );
+   struct structure* struct_ );
 static void serialize_structmember( struct serial* serial,
-   struct type_member* member );
-static void serialize_type( struct serial* serial, struct type* type,
+   struct structure_member* member );
+static void serialize_type( struct serial* serial, struct structure* type,
    struct path* path );
 static void serialize_enum( struct serial* serial, struct constant_set* set );
 static void serialize_constant( struct serial* serial,
@@ -124,7 +124,7 @@ void serialize_var( struct serial* serial, struct var* var ) {
    srlw_f( serial->w, F_VAR );
    serialize_object( serial, &var->object );
    srlw_s( serial->w, F_STRNAME, name_s( serial, var->name ) );
-   serialize_type( serial, var->type, var->type_path );
+   serialize_type( serial, var->structure, var->type_path );
    serialize_dim( serial, var->dim );
    srlw_i( serial->w, F_INTSTORAGE, var->storage );
    srlw_i( serial->w, F_INTINDEX, var->index );
@@ -167,7 +167,7 @@ void serialize_spec( struct serial* serial, struct var* var ) {
       serialize_path( serial, var->type_path );
    }
    else {
-      srlw_s( serial->w, F_STRTYPE, name_s( serial, var->type->name ) );
+      srlw_s( serial->w, F_STRTYPE, name_s( serial, var->structure->name ) );
    }
 }
 
@@ -224,7 +224,7 @@ void serialize_param_list( struct serial* serial, struct param* param ) {
 void serialize_param( struct serial* serial, struct param* param ) {
    srlw_f( serial->w, F_PARAM );
    serialize_object( serial, &param->object );
-   srlw_s( serial->w, F_STRTYPE, name_s( serial, param->type->name ) );
+   srlw_s( serial->w, F_STRTYPE, name_s( serial, param->structure->name ) );
    if ( param->default_value ) {
       serialize_expr( serial, param->default_value );
    }
@@ -284,7 +284,7 @@ void serialize_user_impl( struct serial* serial, struct func_user* impl ) {
    srlw_f( serial->w, F_END );
 }
 
-void serialize_struct( struct serial* serial, struct type* struct_ ) {
+void serialize_struct( struct serial* serial, struct structure* struct_ ) {
    srlw_f( serial->w, F_STRUCT );
    if ( ! struct_->anon ) {
       srlw_s( serial->w, F_STRNAME, name_s( serial, struct_->name ) );
@@ -295,8 +295,8 @@ void serialize_struct( struct serial* serial, struct type* struct_ ) {
 }
 
 void serialize_structmember_list( struct serial* serial,
-   struct type* struct_ ) {
-   struct type_member* member = struct_->member;
+   struct structure* struct_ ) {
+   struct structure_member* member = struct_->member;
    while ( member ) {
       serialize_structmember( serial, member );
       member = member->next;
@@ -304,18 +304,18 @@ void serialize_structmember_list( struct serial* serial,
 }
 
 void serialize_structmember( struct serial* serial,
-   struct type_member* member ) {
+   struct structure_member* member ) {
    srlw_f( serial->w, F_STRUCTMEMBER );
    serialize_object( serial, &member->object );
    srlw_s( serial->w, F_STRNAME, name_s( serial, member->name ) );
-   serialize_type( serial, member->type, member->type_path );
+   serialize_type( serial, member->structure, member->type_path );
    serialize_dim( serial, member->dim );
    srlw_i( serial->w, F_INTOFFSET, member->offset );
    srlw_i( serial->w, F_INTSIZE, member->size );
    srlw_f( serial->w, F_END );
 }
 
-void serialize_type( struct serial* serial, struct type* type,
+void serialize_type( struct serial* serial, struct structure* type,
    struct path* path ) {
    if ( path ) {
       srlw_f( serial->w, F_TYPEPATH );

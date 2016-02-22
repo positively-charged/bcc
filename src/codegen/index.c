@@ -70,7 +70,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && ! var->hidden ) {
+         ( var->dim || ! var->structure->primitive ) && ! var->hidden ) {
          var->index = index;
          ++index;
       }
@@ -81,7 +81,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden &&
+         var->structure->primitive && ! var->hidden &&
          ( ! var->value || ! var->value->expr->value ) ) {
          var->index = index;
          ++index;
@@ -93,7 +93,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && ! var->hidden && var->value &&
+         var->structure->primitive && ! var->hidden && var->value &&
          var->value->expr->value ) {
          var->index = index;
          ++index;
@@ -105,7 +105,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && var->hidden && var->value &&
+         var->structure->primitive && var->hidden && var->value &&
          var->value->expr->value ) {
          var->index = index;
          ++index;
@@ -117,7 +117,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->dim &&
-         var->type->primitive && var->hidden &&
+         var->structure->primitive && var->hidden &&
          ( ! var->value || ! var->value->expr->value ) ) {
          var->index = index;
          ++index;
@@ -129,7 +129,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->type->primitive ) && var->hidden ) {
+         ( var->dim || ! var->structure->primitive ) && var->hidden ) {
          var->index = index;
          ++index;
       }

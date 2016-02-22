@@ -376,7 +376,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       name = t_create_name();
       anon = true;
    }
-   struct type* type = t_create_type( parse->task, name );
+   struct structure* type = t_create_structure( parse->task, name );
    type->object.pos = dec->type_pos;
    type->anon = anon;
    // Members:
@@ -669,11 +669,11 @@ void test_struct_member( struct parse* parse, struct dec* dec ) {
 } 
 
 void add_struct_member( struct parse* parse, struct dec* dec ) {
-   struct type_member* member = mem_alloc( sizeof( *member ) );
-   t_init_object( &member->object, NODE_TYPE_MEMBER );
+   struct structure_member* member = mem_alloc( sizeof( *member ) );
+   t_init_object( &member->object, NODE_STRUCTURE_MEMBER );
    member->object.pos = dec->name_pos;
    member->name = dec->name;
-   member->type = dec->type;
+   member->structure = dec->type;
    member->type_path = dec->type_path;
    member->dim = dec->dim;
    member->next = NULL;
@@ -740,7 +740,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
    var->name = dec->name;
-   var->type = dec->type;
+   var->structure = dec->type;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
@@ -986,7 +986,7 @@ void read_params( struct parse* parse, struct params* params ) {
    }
    struct param* tail = NULL;
    while ( true ) {
-      struct type* type = parse->task->type_int;
+      struct structure* type = parse->task->type_int;
       if ( parse->tk == TK_STR ) {
          type = parse->task->type_str;
       }
@@ -1004,7 +1004,7 @@ void read_params( struct parse* parse, struct params* params ) {
       struct pos pos = parse->tk_pos;
       struct param* param = mem_slot_alloc( sizeof( *param ) );
       t_init_object( &param->object, NODE_PARAM );
-      param->type = type;
+      param->structure = type;
       param->next = NULL;
       param->name = NULL;
       param->default_value = NULL;

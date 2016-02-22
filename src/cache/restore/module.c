@@ -15,7 +15,7 @@ static void deserialize_var( struct serial* serial );
 static void deserialize_object( struct serial* serial,
    struct object* object, int node );
 static void deserialize_spec( struct serial* serial, struct var* var );
-static struct type* deserialize_primitive_type( struct serial* serial,
+static struct structure* deserialize_primitive_type( struct serial* serial,
    enum field field );
 static struct path* deserialize_path( struct serial* serial );
 static void deserialize_pos( struct serial* serial, struct pos* pos );
@@ -30,12 +30,12 @@ static void* deserialize_ext_impl( struct serial* serial );
 static void* deserialize_ded_impl( struct serial* serial );
 static void* deserialize_format_impl( struct serial* serial );
 static void* deserialize_user_impl( struct serial* serial );
-static struct type* deserialize_struct( struct serial* serial );
+static struct structure* deserialize_struct( struct serial* serial );
 static void deserialize_structmember_list( struct serial* serial,
-   struct type* struct_ );
-static struct type_member* deserialize_structmember( struct serial* serial,
-   struct type* struct_ );
-static struct type* deserialize_type( struct serial* serial );
+   struct structure* struct_ );
+static struct structure_member* deserialize_structmember( struct serial* serial,
+   struct structure* struct_ );
+static struct structure* deserialize_type( struct serial* serial );
 static struct path* deserialize_type_path( struct serial* serial );
 static struct constant_set* deserialize_enum( struct serial* serial );
 static struct constant* deserialize_constant( struct serial* serial );
@@ -110,7 +110,7 @@ void deserialize_var( struct serial* serial ) {
    deserialize_object( serial, &var->object, NODE_VAR );
    var->name = t_extend_name( serial->task->root_name,
       srl_rs( serial->r, F_STRNAME ) );
-   var->type = deserialize_type( serial );
+   var->structure = deserialize_type( serial );
    var->type_path = deserialize_type_path( serial );
    var->dim = deserialize_dim( serial );
    var->storage = srl_ri( serial->r, F_INTSTORAGE );
@@ -135,12 +135,12 @@ void deserialize_object( struct serial* serial,
    srl_rf( serial->r, F_END );
 }
 
-struct type* deserialize_primitive_type( struct serial* serial,
+struct structure* deserialize_primitive_type( struct serial* serial,
    enum field field ) {
    struct name* name = t_extend_name( serial->task->root_name,
       srl_rs( serial->r, field ) );
-   if ( name->object && name->object->node.type == NODE_TYPE ) {
-      return ( struct type* ) name->object;
+   if ( name->object && name->object->node.type == NODE_STRUCTURE ) {
+      return ( struct structure* ) name->object;
    }
    else {
       return NULL;
@@ -231,7 +231,7 @@ struct param* deserialize_param( struct serial* serial ) {
    srl_rf( serial->r, F_PARAM );
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    deserialize_object( serial, &param->object, NODE_PARAM );
-   param->type = deserialize_primitive_type( serial, F_STRTYPE );
+   param->structure = deserialize_primitive_type( serial, F_STRTYPE );
    param->default_value = deserialize_param_defaultvalue( serial );
    param->next = NULL;
    param->used = false;
@@ -307,7 +307,7 @@ void* deserialize_user_impl( struct serial* serial ) {
 return NULL;
 }
 
-struct type* deserialize_struct( struct serial* serial ) {
+struct structure* deserialize_struct( struct serial* serial ) {
    srl_rf( serial->r, F_STRUCT );
    struct name* name;
    bool anon = false;
@@ -319,7 +319,7 @@ struct type* deserialize_struct( struct serial* serial ) {
       name = t_create_name();
       anon = true;
    }
-   struct type* struct_ = t_create_type( serial->task, name );
+   struct structure* struct_ = t_create_structure( serial->task, name );
    struct_->anon = anon;
    deserialize_structmember_list( serial, struct_ );
    struct_->size = srl_ri( serial->r, F_INTSIZE );
@@ -328,11 +328,11 @@ struct type* deserialize_struct( struct serial* serial ) {
 }
 
 void deserialize_structmember_list( struct serial* serial,
-   struct type* struct_ ) {
-   struct type_member* head = NULL;
-   struct type_member* tail = NULL;
+   struct structure* struct_ ) {
+   struct structure_member* head = NULL;
+   struct structure_member* tail = NULL;
    while ( srl_peekf( serial->r ) == F_STRUCTMEMBER ) {
-      struct type_member* member = deserialize_structmember( serial, struct_ );
+      struct structure_member* member = deserialize_structmember( serial, struct_ );
       if ( head ) {
          tail->next = member;
       }
@@ -345,15 +345,15 @@ void deserialize_structmember_list( struct serial* serial,
    struct_->member_tail = tail;
 }
 
-struct type_member* deserialize_structmember( struct serial* serial,
-   struct type* struct_ ) {
+struct structure_member* deserialize_structmember( struct serial* serial,
+   struct structure* struct_ ) {
    srl_rf( serial->r, F_STRUCTMEMBER );
-   struct type_member* member = mem_alloc( sizeof( *member ) );
-   deserialize_object( serial, &member->object, NODE_TYPE_MEMBER );
+   struct structure_member* member = mem_alloc( sizeof( *member ) );
+   deserialize_object( serial, &member->object, NODE_STRUCTURE_MEMBER );
    member->next = NULL;
    member->name = t_extend_name( struct_->body,
       srl_rs( serial->r, F_STRNAME ) );
-   member->type = deserialize_type( serial );
+   member->structure = deserialize_type( serial );
    member->type_path = deserialize_type_path( serial );
    member->dim = deserialize_dim( serial );
    member->offset = srl_ri( serial->r, F_INTOFFSET );
@@ -362,7 +362,7 @@ struct type_member* deserialize_structmember( struct serial* serial,
    return member;
 }
 
-struct type* deserialize_type( struct serial* serial ) {
+struct structure* deserialize_type( struct serial* serial ) {
    if ( srl_peekf( serial->r ) == F_TYPE ) {
       srl_rf( serial->r, F_TYPE );
       if ( srl_peekf( serial->r ) == F_STRUCT ) {

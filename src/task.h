@@ -64,8 +64,8 @@ struct node {
       NODE_GOTO_LABEL,
       NODE_VAR,
       NODE_ASSIGN,
-      NODE_TYPE,
-      NODE_TYPE_MEMBER,
+      NODE_STRUCTURE,
+      NODE_STRUCTURE_MEMBER,
       NODE_CONSTANT,
       NODE_CONSTANT_SET,
       // 30
@@ -114,25 +114,25 @@ struct path {
    struct pos pos;
 };
 
-struct type {
+struct structure {
    struct object object;
    struct name* name;
    struct name* body;
-   struct type_member* member;
-   struct type_member* member_tail;
+   struct structure_member* member;
+   struct structure_member* member_tail;
    int size;
    bool primitive;
    bool is_str;
    bool anon;
 };
 
-struct type_member {
+struct structure_member {
    struct object object;
    struct name* name;
-   struct type* type;
+   struct structure* structure;
    struct path* type_path;
    struct dim* dim;
-   struct type_member* next;
+   struct structure_member* next;
    int offset;
    int size;
 };
@@ -274,7 +274,7 @@ struct strcpy_call {
 struct expr {
    struct node node;
    struct node* root;
-   struct type* type;
+   struct structure* structure;
    struct pos pos;
    // The value is handled based on the expression type. For numeric types,
    // it'll contain the numeric result of the expression. For the string type,
@@ -418,7 +418,7 @@ enum {
 struct var {
    struct object object;
    struct name* name;
-   struct type* type;
+   struct structure* structure;
    struct path* type_path;
    struct dim* dim;
    struct initial* initial;
@@ -438,7 +438,7 @@ struct var {
 
 struct param {
    struct object object;
-   struct type* type;
+   struct structure* structure;
    struct param* next;
    struct name* name;
    struct expr* default_value;
@@ -459,7 +459,7 @@ struct func {
    } type;
    struct name* name;
    struct param* params;
-   struct type* return_type;
+   struct structure* return_type;
    void* impl;
    int min_param;
    int max_param;
@@ -736,9 +736,9 @@ struct task {
    struct name* root_name;
    struct name* body;
    struct name* body_struct;
-   struct type* type_int;
-   struct type* type_str;
-   struct type* type_bool;
+   struct structure* type_int;
+   struct structure* type_str;
+   struct structure* type_bool;
    struct library* library;
    struct library* library_main;
    struct list libraries;
@@ -778,7 +778,7 @@ void t_decode_pos( struct task* task, struct pos* pos, const char** file,
 void t_init_object( struct object* object, int node_type );
 void t_init_types( struct task* task );
 void t_init_type_members( struct task* );
-struct type* t_create_type( struct task* task, struct name* name );
+struct structure* t_create_structure( struct task* task, struct name* name );
 void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );
 void t_find_file( struct task* task, struct file_query* query );

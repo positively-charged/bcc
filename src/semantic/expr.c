@@ -3,7 +3,7 @@
 struct operand {
    struct func* func;
    struct dim* dim;
-   struct type* type;
+   struct structure* type;
    int value;
    bool complete;
    bool usable;
@@ -106,7 +106,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
          "expression does not produce a value" );
       s_bail( semantic );
    }
-   expr->type = operand->type;
+   expr->structure = operand->type;
    expr->folded = operand->folded;
    expr->value = operand->value;
    test->pos = expr->pos;
@@ -283,7 +283,7 @@ void use_object( struct semantic* semantic, struct expr_test* test,
       struct constant* constant = ( struct constant* ) object;
       // TODO: Add type as a field.
       operand->type = constant->value_node ?
-         constant->value_node->type :
+         constant->value_node->structure :
          semantic->task->type_int;
       operand->value = constant->value;
       operand->folded = true;
@@ -292,7 +292,7 @@ void use_object( struct semantic* semantic, struct expr_test* test,
    }
    else if ( object->node.type == NODE_VAR ) {
       struct var* var = ( struct var* ) object;
-      operand->type = var->type;
+      operand->type = var->structure;
       if ( var->dim ) {
          operand->dim = var->dim;
          // NOTE: I'm not too happy with the idea of this field. It is
@@ -301,23 +301,23 @@ void use_object( struct semantic* semantic, struct expr_test* test,
             operand->complete = true;
          }
       }
-      else if ( var->type->primitive ) {
+      else if ( var->structure->primitive ) {
          operand->complete = true;
          operand->usable = true;
          operand->assignable = true;
       }
       var->used = true;
    }
-   else if ( object->node.type == NODE_TYPE_MEMBER ) {
-      struct type_member* member = ( struct type_member* ) object;
-      operand->type = member->type;
+   else if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
+      struct structure_member* member = ( struct structure_member* ) object;
+      operand->type = member->structure;
       if ( member->dim ) {
          operand->dim = member->dim;
          if ( test->accept_array ) {
             operand->complete = true;
          }
       }
-      else if ( member->type->primitive ) {
+      else if ( member->structure->primitive ) {
          operand->complete = true;
          operand->usable = true;
          operand->assignable = true;
@@ -342,7 +342,7 @@ void use_object( struct semantic* semantic, struct expr_test* test,
    else if ( object->node.type == NODE_PARAM ) {
       struct param* param = ( struct param* ) object;
       param->used = true;
-      operand->type = param->type;
+      operand->type = param->structure;
       operand->complete = true;
       operand->usable = true;
       operand->assignable = true;

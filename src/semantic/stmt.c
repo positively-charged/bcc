@@ -79,8 +79,8 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
    case NODE_VAR:
       s_test_local_var( semantic, ( struct var* ) node );
       break;
-   case NODE_TYPE:
-      s_test_struct( semantic, ( struct type* ) node );
+   case NODE_STRUCTURE:
+      s_test_struct( semantic, ( struct structure* ) node );
       break;
    case NODE_FUNC:
       s_test_func( semantic, ( struct func* ) node );

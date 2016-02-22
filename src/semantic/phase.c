@@ -45,7 +45,7 @@ static void unbind_all( struct semantic* semantic );
 static void unbind_lib( struct library* lib );
 static void unbind_object( struct object* object );
 static void unbind_enum( struct constant_set* enum_ );
-static void unbind_struct( struct type* struct_ );
+static void unbind_struct( struct structure* struct_ );
 
 void s_init( struct semantic* semantic, struct task* task,
    struct library* lib ) {
@@ -162,8 +162,8 @@ void bind_object( struct semantic* semantic, struct object* object,
          s_bind_name( semantic, func->name, &func->object );
       }
       break; }
-   case NODE_TYPE: {
-      struct type* type = ( struct type* ) object;
+   case NODE_STRUCTURE: {
+      struct structure* type = ( struct structure* ) object;
       s_bind_name( semantic, type->name, &type->object );
       break; }
    default:
@@ -227,8 +227,8 @@ void test_object( struct semantic* semantic, struct object* object ) {
    case NODE_CONSTANT_SET:
       s_test_constant_set( semantic, ( struct constant_set* ) object );
       break;
-   case NODE_TYPE:
-      s_test_struct( semantic, ( struct type* ) object );
+   case NODE_STRUCTURE:
+      s_test_struct( semantic, ( struct structure* ) object );
       break;
    case NODE_VAR:
       s_test_var( semantic, ( struct var* ) object );
@@ -422,13 +422,13 @@ void dupname_err( struct semantic* semantic, struct name* name,
    struct str str;
    str_init( &str );
    t_copy_name( name, false, &str );
-   if ( object->node.type == NODE_TYPE ) {
+   if ( object->node.type == NODE_STRUCTURE ) {
       s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &object->pos, "duplicate struct `%s`", str.value );
       s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &name->object->pos, "struct already found here" );
    }
-   else if ( object->node.type == NODE_TYPE_MEMBER ) {
+   else if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
       s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &object->pos, "duplicate struct-member `%s`", str.value );
       s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
@@ -499,7 +499,7 @@ void find_next_object( struct semantic* semantic,
       s_bail( semantic );
    }
    else if ( search->get_struct &&
-      search->object->node.type != NODE_TYPE ) {
+      search->object->node.type != NODE_STRUCTURE ) {
       s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
          "object not a struct" );
       s_bail( semantic );
@@ -552,9 +552,9 @@ struct regobjget s_get_regionobject( struct semantic* semantic,
    result.struct_object = NULL;
    if ( object ) {
       if ( get_struct ) {
-         if ( object->node.type == NODE_TYPE ) {
+         if ( object->node.type == NODE_STRUCTURE ) {
             result.object = object;
-            result.struct_object = ( struct type* ) object;
+            result.struct_object = ( struct structure* ) object;
          }
       }
       else {
@@ -600,7 +600,7 @@ bool is_compiletime_object( struct object* object ) {
       switch ( object->node.type ) {
       case NODE_CONSTANT:
       case NODE_CONSTANT_SET:
-      case NODE_TYPE:
+      case NODE_STRUCTURE:
          return true;
       default:
          return false;
@@ -639,8 +639,8 @@ void unbind_object( struct object* object ) {
       unbind_enum(
          ( struct constant_set* ) object );
       break;
-   case NODE_TYPE:
-      unbind_struct( ( struct type* ) object );
+   case NODE_STRUCTURE:
+      unbind_struct( ( struct structure* ) object );
       break;
    case NODE_VAR: {
       struct var* var = ( struct var* ) object;
@@ -663,9 +663,9 @@ void unbind_enum( struct constant_set* enum_ ) {
    }
 }
 
-void unbind_struct( struct type* struct_ ) {
+void unbind_struct( struct structure* struct_ ) {
    struct_->name->object = NULL;
-   struct type_member* member = struct_->member;
+   struct structure_member* member = struct_->member;
    while ( member ) {
       member->name->object = NULL;
       member = member->next;
