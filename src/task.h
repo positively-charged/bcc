@@ -67,7 +67,7 @@ struct node {
       NODE_STRUCTURE,
       NODE_STRUCTURE_MEMBER,
       NODE_CONSTANT,
-      NODE_CONSTANT_SET,
+      NODE_ENUMERATION,
       // 30
       NODE_RETURN,
       NODE_PARAM,
@@ -654,7 +654,7 @@ struct constant {
    bool hidden;
 };
 
-struct constant_set {
+struct enumeration {
    struct object object;
    struct constant* head;
 };

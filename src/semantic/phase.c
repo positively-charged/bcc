@@ -44,7 +44,7 @@ static bool is_compiletime_object( struct object* object );
 static void unbind_all( struct semantic* semantic );
 static void unbind_lib( struct library* lib );
 static void unbind_object( struct object* object );
-static void unbind_enum( struct constant_set* enum_ );
+static void unbind_enum( struct enumeration* enum_ );
 static void unbind_struct( struct structure* struct_ );
 
 void s_init( struct semantic* semantic, struct task* task,
@@ -135,8 +135,8 @@ void bind_object( struct semantic* semantic, struct object* object,
       struct constant* constant = ( struct constant* ) object;
       s_bind_name( semantic, constant->name, &constant->object );
       break; }
-   case NODE_CONSTANT_SET: {
-      struct constant_set* set = ( struct constant_set* ) object;
+   case NODE_ENUMERATION: {
+      struct enumeration* set = ( struct enumeration* ) object;
       struct constant* constant = set->head;
       while ( constant ) {
          s_bind_name( semantic, constant->name, &constant->object );
@@ -224,8 +224,8 @@ void test_object( struct semantic* semantic, struct object* object ) {
    case NODE_CONSTANT:
       s_test_constant( semantic, ( struct constant* ) object );
       break;
-   case NODE_CONSTANT_SET:
-      s_test_constant_set( semantic, ( struct constant_set* ) object );
+   case NODE_ENUMERATION:
+      s_test_constant_set( semantic, ( struct enumeration* ) object );
       break;
    case NODE_STRUCTURE:
       s_test_struct( semantic, ( struct structure* ) object );
@@ -599,7 +599,7 @@ bool is_compiletime_object( struct object* object ) {
    else {
       switch ( object->node.type ) {
       case NODE_CONSTANT:
-      case NODE_CONSTANT_SET:
+      case NODE_ENUMERATION:
       case NODE_STRUCTURE:
          return true;
       default:
@@ -635,9 +635,9 @@ void unbind_object( struct object* object ) {
       struct constant* constant = ( struct constant* ) object;
       constant->name->object = NULL;
       break; }
-   case NODE_CONSTANT_SET:
+   case NODE_ENUMERATION:
       unbind_enum(
-         ( struct constant_set* ) object );
+         ( struct enumeration* ) object );
       break;
    case NODE_STRUCTURE:
       unbind_struct( ( struct structure* ) object );
@@ -655,7 +655,7 @@ void unbind_object( struct object* object ) {
    }
 }
 
-void unbind_enum( struct constant_set* enum_ ) {
+void unbind_enum( struct enumeration* enum_ ) {
    struct constant* enumerator = enum_->head;
    while ( enumerator ) {
       enumerator->name->object = NULL;

@@ -273,8 +273,8 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       }
    }
    read_rbrace( parse, dec );
-   struct constant_set* set = mem_alloc( sizeof( *set ) );
-   t_init_object( &set->object, NODE_CONSTANT_SET );
+   struct enumeration* set = mem_alloc( sizeof( *set ) );
+   t_init_object( &set->object, NODE_ENUMERATION );
    set->head = head;
    if ( dec->vars ) {
       list_append( dec->vars, set );

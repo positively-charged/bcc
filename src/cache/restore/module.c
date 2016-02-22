@@ -37,7 +37,7 @@ static struct structure_member* deserialize_structmember( struct serial* serial,
    struct structure* struct_ );
 static struct structure* deserialize_type( struct serial* serial );
 static struct path* deserialize_type_path( struct serial* serial );
-static struct constant_set* deserialize_enum( struct serial* serial );
+static struct enumeration* deserialize_enum( struct serial* serial );
 static struct constant* deserialize_constant( struct serial* serial );
 static struct expr* deserialize_expr( struct serial* serial );
 static struct node* deserialize_expr_node( struct serial* serial );
@@ -383,7 +383,7 @@ struct path* deserialize_type_path( struct serial* serial ) {
    return NULL;
 }
 
-struct constant_set* deserialize_enum( struct serial* serial ) {
+struct enumeration* deserialize_enum( struct serial* serial ) {
    srl_rf( serial->r, F_ENUM );
    struct constant* head = NULL;
    struct constant* tail;
@@ -398,8 +398,8 @@ struct constant_set* deserialize_enum( struct serial* serial ) {
       tail = constant;
    }
    srl_rf( serial->r, F_END );
-   struct constant_set* enum_ = mem_alloc( sizeof( *enum_ ) );
-   t_init_object( &enum_->object, NODE_CONSTANT_SET );
+   struct enumeration* enum_ = mem_alloc( sizeof( *enum_ ) );
+   t_init_object( &enum_->object, NODE_ENUMERATION );
    enum_->head = head;
    return enum_;
 }

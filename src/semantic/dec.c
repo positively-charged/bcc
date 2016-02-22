@@ -86,7 +86,7 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
 }
 
 void s_test_constant_set( struct semantic* semantic,
-   struct constant_set* set ) {
+   struct enumeration* set ) {
    int value = 0;
    // Find the next unresolved enumerator.
    struct constant* enumerator = set->head;

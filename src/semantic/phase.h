@@ -62,7 +62,7 @@ void s_init( struct semantic* semantic, struct task* task,
    struct library* lib );
 void s_test( struct semantic* semantic );
 void s_test_constant( struct semantic* semantic, struct constant* );
-void s_test_constant_set( struct semantic* semantic, struct constant_set* );
+void s_test_constant_set( struct semantic* semantic, struct enumeration* );
 void s_test_struct( struct semantic* semantic, struct structure* type );
 void s_test_var( struct semantic* semantic, struct var* var );
 void s_test_func( struct semantic* semantic, struct func* func );
