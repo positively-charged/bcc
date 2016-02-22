@@ -22,9 +22,12 @@ static void read_operand( struct parse* parse, struct expr_reading* reading );
 static struct binary* alloc_binary( int op, struct pos* pos );
 static struct logical* alloc_logical( int op, struct pos* pos );
 static struct unary* alloc_unary( int op, struct pos* pos );
+static void read_inc( struct parse* parse, struct expr_reading* reading );
+static struct inc* alloc_inc( struct pos pos, bool dec );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_postfix( struct parse* parse, struct expr_reading* reading );
 static struct access* alloc_access( char* name, struct pos pos );
+static void read_post_inc( struct parse* parse, struct expr_reading* reading );
 static void read_call( struct parse* parse, struct expr_reading* reading );
 static void read_call_args( struct parse* parse, struct expr_reading* reading,
    struct list* args );
@@ -368,11 +371,9 @@ void read_operand( struct parse* parse, struct expr_reading* reading ) {
    int op = UOP_NONE;
    switch ( parse->tk ) {
    case TK_INC:
-      op = UOP_PRE_INC;
-      break;
    case TK_DEC:
-      op = UOP_PRE_DEC;
-      break;
+      read_inc( parse, reading );
+      return;
    case TK_MINUS:
       op = UOP_MINUS;
       break;
@@ -409,6 +410,24 @@ struct unary* alloc_unary( int op, struct pos* pos ) {
    unary->operand = NULL;
    unary->pos = *pos;
    return unary;
+}
+
+void read_inc( struct parse* parse, struct expr_reading* reading ) {
+   struct inc* inc = alloc_inc( parse->tk_pos, ( parse->tk == TK_DEC ) );
+   p_read_tk( parse );
+   read_operand( parse, reading );
+   inc->operand = reading->node;
+   reading->node = &inc->node;
+}
+
+struct inc* alloc_inc( struct pos pos, bool dec ) {
+   struct inc* inc = mem_alloc( sizeof( *inc ) );
+   inc->node.type = NODE_INC;
+   inc->operand = NULL;
+   inc->pos = pos;
+   inc->post = false;
+   inc->dec = dec;
+   return inc;
 }
 
 void read_primary( struct parse* parse, struct expr_reading* reading ) {
@@ -675,17 +694,8 @@ void read_postfix( struct parse* parse, struct expr_reading* reading ) {
             break;
          }
       }
-      else if ( parse->tk == TK_INC ) {
-         struct unary* inc = alloc_unary( UOP_POST_INC, &parse->tk_pos );
-         inc->operand = reading->node;
-         reading->node = &inc->node;
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_DEC ) {
-         struct unary* dec = alloc_unary( UOP_POST_DEC, &parse->tk_pos );
-         dec->operand = reading->node;
-         reading->node = &dec->node;
-         p_read_tk( parse );
+      else if ( parse->tk == TK_INC || parse->tk == TK_DEC ) {
+         read_post_inc( parse, reading );
       }
       else {
          break;
@@ -701,6 +711,14 @@ struct access* alloc_access( char* name, struct pos pos ) {
    access->lside = NULL;
    access->rside = NULL;
    return access;
+}
+
+void read_post_inc( struct parse* parse, struct expr_reading* reading ) {
+   struct inc* inc = alloc_inc( parse->tk_pos, ( parse->tk == TK_DEC ) );
+   inc->post = true;
+   inc->operand = reading->node;
+   reading->node = &inc->node;
+   p_read_tk( parse );
 }
 
 void read_call( struct parse* parse, struct expr_reading* reading ) {

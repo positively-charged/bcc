@@ -36,10 +36,16 @@ static void visit_enumerator( struct codegen* codegen,
    struct operand* operand, struct enumerator* enumerator );
 static void visit_unary( struct codegen* codegen, struct operand*,
    struct unary* );
-static void visit_pre_inc( struct codegen* codegen, struct operand*,
-   struct unary* );
-static void visit_post_inc( struct codegen* codegen, struct operand*,
-   struct unary* );
+static void visit_inc( struct codegen* codegen,
+   struct operand* result, struct inc* inc );
+static void inc_array( struct codegen* codegen, struct operand* result,
+   struct inc* inc, struct operand* operand );
+static void inc_element( struct codegen* codegen, int storage, int index,
+   bool do_inc );
+static void inc_var( struct codegen* codegen, struct operand* result,
+   struct inc* inc, struct operand* operand );
+static void inc_indexed( struct codegen* codegen, int storage, int index,
+   bool do_inc );
 static void visit_call( struct codegen* codegen, struct operand*,
    struct call* );
 static void visit_aspec_call( struct codegen* codegen, struct operand*,
@@ -94,10 +100,6 @@ static void visit_access( struct codegen* codegen, struct operand*,
    struct access* );
 static void push_indexed( struct codegen* codegen, int, int );
 static void push_element( struct codegen* codegen, int, int );
-static void inc_indexed( struct codegen* codegen, int, int );
-static void dec_indexed( struct codegen* codegen, int, int );
-static void inc_element( struct codegen* codegen, int, int );
-static void dec_element( struct codegen* codegen, int, int );
 static void write_strcpy( struct codegen* codegen, struct operand* operand,
    struct strcpy_call* call );
 
@@ -252,107 +254,141 @@ void visit_enumerator( struct codegen* codegen, struct operand* operand,
 
 void visit_unary( struct codegen* codegen, struct operand* operand,
    struct unary* unary ) {
+   struct operand object;
+   init_operand( &object );
+   object.push = true;
+   visit_operand( codegen, &object, unary->operand );
+   int code = PCD_NONE;
    switch ( unary->op ) {
-      struct operand object;
-   case UOP_PRE_INC:
-   case UOP_PRE_DEC:
-      visit_pre_inc( codegen, operand, unary );
+   case UOP_MINUS:
+      c_add_opc( codegen, PCD_UNARYMINUS );
       break;
-   case UOP_POST_INC:
-   case UOP_POST_DEC:
-      visit_post_inc( codegen, operand, unary );
+   case UOP_LOG_NOT:
+      c_add_opc( codegen, PCD_NEGATELOGICAL );
       break;
+   case UOP_BIT_NOT:
+      c_add_opc( codegen, PCD_NEGATEBINARY );
+      break;
+   // Unary plus is ignored.
+   case UOP_PLUS:
    default:
-      init_operand( &object );
-      object.push = true;
-      visit_operand( codegen, &object, unary->operand );
-      int code = PCD_NONE;
-      switch ( unary->op ) {
-      case UOP_MINUS:
-         c_add_opc( codegen, PCD_UNARYMINUS );
+      break;
+   }
+   operand->pushed = true;
+}
+
+void visit_inc( struct codegen* codegen, struct operand* result,
+   struct inc* inc ) {
+   struct operand operand;
+   init_operand( &operand );
+   operand.action = ACTION_PUSH_VAR;
+   visit_operand( codegen, &operand, inc->operand );
+   if ( operand.method == METHOD_ELEMENT ) {
+      inc_array( codegen, result, inc, &operand );
+   }
+   else {
+      inc_var( codegen, result, inc, &operand );
+   }
+}
+
+void inc_array( struct codegen* codegen, struct operand* result,
+   struct inc* inc, struct operand* operand ) {
+   if ( result->push ) {
+      c_add_opc( codegen, PCD_DUP );
+      if ( inc->post ) {
+         push_element( codegen, operand->storage, operand->index );
+         c_add_opc( codegen, PCD_SWAP );
+         result->pushed = true;
+      }
+   }
+   inc_element( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   if ( ! inc->post && result->push ) {
+      push_element( codegen, operand->storage, operand->index );
+      result->pushed = true;
+   }
+}
+
+void inc_element( struct codegen* codegen, int storage, int index,
+   bool do_inc ) {
+   int code = PCD_INCMAPARRAY;
+   if ( do_inc ) {
+      switch ( storage ) {
+      case STORAGE_WORLD:
+         code = PCD_INCWORLDARRAY;
          break;
-      case UOP_LOG_NOT:
-         c_add_opc( codegen, PCD_NEGATELOGICAL );
+      case STORAGE_GLOBAL:
+         code = PCD_INCGLOBALARRAY;
          break;
-      case UOP_BIT_NOT:
-         c_add_opc( codegen, PCD_NEGATEBINARY );
-         break;
-      // Unary plus is ignored.
-      case UOP_PLUS:
       default:
          break;
       }
-      operand->pushed = true;
+   }
+   else {
+      switch ( storage ) {
+      case STORAGE_WORLD:
+         code = PCD_DECWORLDARRAY;
+         break;
+      case STORAGE_GLOBAL:
+         code = PCD_DECGLOBALARRAY;
+         break;
+      default:
+         code = PCD_DECMAPARRAY;
+         break;
+      }
+   }
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
+}
+
+void inc_var( struct codegen* codegen, struct operand* result,
+   struct inc* inc, struct operand* operand ) {
+   if ( inc->post && result->push ) {
+      push_indexed( codegen, operand->storage, operand->index );
+      result->pushed = true;
+   }
+   inc_indexed( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   if ( ! inc->post && result->push ) {
+      push_indexed( codegen, operand->storage, operand->index );
+      result->pushed = true;
    }
 }
 
-void visit_pre_inc( struct codegen* codegen, struct operand* operand,
-   struct unary* unary ) {
-   struct operand object;
-   init_operand( &object );
-   object.action = ACTION_PUSH_VAR;
-   visit_operand( codegen, &object, unary->operand );
-   if ( object.method == METHOD_ELEMENT ) {
-      if ( operand->push ) {
-         c_add_opc( codegen, PCD_DUP );
-      }
-      if ( unary->op == UOP_PRE_INC ) {
-         inc_element( codegen, object.storage, object.index );
-      }
-      else {
-         dec_element( codegen, object.storage, object.index );
-      }
-      if ( operand->push ) {
-         push_element( codegen, object.storage, object.index );
-         operand->pushed = true;
+void inc_indexed( struct codegen* codegen, int storage, int index,
+   bool do_inc ) {
+   int code = PCD_INCSCRIPTVAR;
+   if ( do_inc ) {
+      switch ( storage ) {
+      case STORAGE_MAP:
+         code = PCD_INCMAPVAR;
+         break;
+      case STORAGE_WORLD:
+         code = PCD_INCWORLDVAR;
+         break;
+      case STORAGE_GLOBAL:
+         code = PCD_INCGLOBALVAR;
+         break;
+      default:
+         break;
       }
    }
    else {
-      if ( unary->op == UOP_PRE_INC ) {
-         inc_indexed( codegen, object.storage, object.index );
-      }
-      else {
-         dec_indexed( codegen, object.storage, object.index );
-      }
-      if ( operand->push ) {
-         push_indexed( codegen, object.storage, object.index );
-         operand->pushed = true;
-      }
-   }
-}
-
-void visit_post_inc( struct codegen* codegen, struct operand* operand,
-   struct unary* unary ) {
-   struct operand object;
-   init_operand( &object );
-   object.action = ACTION_PUSH_VAR;
-   visit_operand( codegen, &object, unary->operand );
-   if ( object.method == METHOD_ELEMENT ) {
-      if ( operand->push ) {
-         c_add_opc( codegen, PCD_DUP );
-         push_element( codegen, object.storage, object.index );
-         c_add_opc( codegen, PCD_SWAP );
-         operand->pushed = true;
-      }
-      if ( unary->op == UOP_POST_INC ) {
-         inc_element( codegen, object.storage, object.index );
-      }
-      else {
-         dec_element( codegen, object.storage, object.index );
+      switch ( storage ) {
+      case STORAGE_MAP:
+         code = PCD_DECMAPVAR;
+         break;
+      case STORAGE_WORLD:
+         code = PCD_DECWORLDVAR;
+         break;
+      case STORAGE_GLOBAL:
+         code = PCD_DECGLOBALVAR;
+         break;
+      default:
+         code = PCD_DECSCRIPTVAR;
+         break;
       }
    }
-   else {
-      if ( operand->push ) {
-         push_indexed( codegen, object.storage, object.index );
-         operand->pushed = true;
-      }
-      if ( unary->op == UOP_POST_INC ) {
-         inc_indexed( codegen, object.storage, object.index );
-      }
-      else {
-         dec_indexed( codegen, object.storage, object.index );
-      }
-   }
+   c_add_opc( codegen, code );
+   c_add_arg( codegen, index );
 }
 
 void visit_call( struct codegen* codegen, struct operand* operand,
@@ -1261,76 +1297,6 @@ void c_update_element( struct codegen* codegen, int storage, int index,
    default: break;
    }
    c_add_opc( codegen, code[ op * 3 + pos ] );
-   c_add_arg( codegen, index );
-}
-
-void inc_indexed( struct codegen* codegen, int storage, int index ) {
-   int code = PCD_INCSCRIPTVAR;
-   switch ( storage ) {
-   case STORAGE_MAP:
-      code = PCD_INCMAPVAR;
-      break;
-   case STORAGE_WORLD:
-      code = PCD_INCWORLDVAR;
-      break;
-   case STORAGE_GLOBAL:
-      code = PCD_INCGLOBALVAR;
-      break;
-   default:
-      break;
-   }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
-}
-
-void dec_indexed( struct codegen* codegen, int storage, int index ) {
-   int code = PCD_DECSCRIPTVAR;
-   switch ( storage ) {
-   case STORAGE_MAP:
-      code = PCD_DECMAPVAR;
-      break;
-   case STORAGE_WORLD:
-      code = PCD_DECWORLDVAR;
-      break;
-   case STORAGE_GLOBAL:
-      code = PCD_DECGLOBALVAR;
-      break;
-   default:
-      break;
-   }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
-}
-
-void inc_element( struct codegen* codegen, int storage, int index ) {
-   int code = PCD_INCMAPARRAY;
-   switch ( storage ) {
-   case STORAGE_WORLD:
-      code = PCD_INCWORLDARRAY;
-      break;
-   case STORAGE_GLOBAL:
-      code = PCD_INCGLOBALARRAY;
-      break;
-   default:
-      break;
-   }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
-}
-
-void dec_element( struct codegen* codegen, int storage, int index ) {
-   int code = PCD_DECMAPARRAY;
-   switch ( storage ) {
-   case STORAGE_WORLD:
-      code = PCD_DECWORLDARRAY;
-      break;
-   case STORAGE_GLOBAL:
-      code = PCD_DECGLOBALARRAY;
-      break;
-   default:
-      break;
-   }
-   c_add_opc( codegen, code );
    c_add_arg( codegen, index );
 }
 

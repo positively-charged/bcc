@@ -80,8 +80,9 @@ struct node {
       NODE_PACKED_EXPR,
       NODE_CONDITIONAL,
       NODE_STRCPY,
-      // 40+
-      NODE_LOGICAL
+      // 40
+      NODE_LOGICAL,
+      NODE_INC,
    } type;
 };
 
@@ -161,14 +162,18 @@ struct unary {
       UOP_MINUS,
       UOP_PLUS,
       UOP_LOG_NOT,
-      UOP_BIT_NOT,
-      UOP_PRE_INC,
-      UOP_PRE_DEC,
-      UOP_POST_INC,
-      UOP_POST_DEC
+      UOP_BIT_NOT
    } op;
    struct node* operand;
    struct pos pos;
+};
+
+struct inc {
+   struct node node;
+   struct node* operand;
+   struct pos pos;
+   bool post;
+   bool dec;
 };
 
 struct binary {

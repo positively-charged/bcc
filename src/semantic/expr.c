@@ -41,6 +41,8 @@ static struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* );
 static void test_unary( struct semantic* semantic, struct expr_test*, struct operand*,
    struct unary* );
+static void test_inc( struct semantic* semantic, struct expr_test* test,
+   struct operand* result, struct inc* inc );
 static void test_subscript( struct semantic* semantic, struct expr_test*, struct operand*,
    struct subscript* );
 static void test_call( struct semantic* semantic, struct expr_test*, struct operand*,
@@ -157,6 +159,10 @@ void test_node( struct semantic* semantic, struct expr_test* test,
       break;
    case NODE_UNARY:
       test_unary( semantic, test, operand, ( struct unary* ) node );
+      break;
+   case NODE_INC:
+      test_inc( semantic, test, operand,
+         ( struct inc* ) node );
       break;
    case NODE_SUBSCRIPT:
       test_subscript( semantic, test, operand, ( struct subscript* ) node );
@@ -374,28 +380,12 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct unary* unary ) {
    struct operand target;
    init_operand( &target );
-   if ( unary->op == UOP_PRE_INC || unary->op == UOP_PRE_DEC ||
-      unary->op == UOP_POST_INC || unary->op == UOP_POST_DEC ) {
-      test_node( semantic, test, &target, unary->operand );
-      // Only an l-value can be incremented.
-      if ( ! target.assignable ) {
-         const char* action = "incremented";
-         if ( unary->op == UOP_PRE_DEC || unary->op == UOP_POST_DEC ) {
-            action = "decremented";
-         }
-         s_diag( semantic, DIAG_POS_ERR, &unary->pos, "operand cannot be %s",
-            action );
-         s_bail( semantic );
-      }
-   }
-   else {
-      test_node( semantic, test, &target, unary->operand );
-      // Remaining operations require a value to work on.
-      if ( ! target.usable ) {
-         s_diag( semantic, DIAG_POS_ERR, &unary->pos,
-            "operand of unary operation not a value" );
-         s_bail( semantic );
-      }
+   test_node( semantic, test, &target, unary->operand );
+   // Remaining operations require a value to work on.
+   if ( ! target.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &unary->pos,
+         "operand of unary operation not a value" );
+      s_bail( semantic );
    }
    // Compile-time evaluation.
    if ( target.folded ) {
@@ -426,6 +416,22 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    else {
       operand->type = semantic->task->type_int;
    }
+}
+
+void test_inc( struct semantic* semantic, struct expr_test* test,
+   struct operand* result, struct inc* inc ) {
+   struct operand operand;
+   init_operand( &operand );
+   test_node( semantic, test, &operand, inc->operand );
+   // Only an l-value can be incremented.
+   if ( ! operand.assignable ) {
+      s_diag( semantic, DIAG_POS_ERR, &inc->pos,
+         "operand cannot be %s", inc->dec ? "decremented" : "incremented" );
+      s_bail( semantic );
+   }
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_int;
 }
 
 void test_subscript( struct semantic* semantic, struct expr_test* test,
