@@ -20,6 +20,7 @@ struct array_field {
 static void read_op( struct parse* parse, struct expr_reading* reading );
 static void read_operand( struct parse* parse, struct expr_reading* reading );
 static struct binary* alloc_binary( int op, struct pos* pos );
+static struct logical* alloc_logical( int op, struct pos* pos );
 static struct unary* alloc_unary( int op, struct pos* pos );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_postfix( struct parse* parse, struct expr_reading* reading );
@@ -73,8 +74,8 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
    struct binary* bit_and = NULL;
    struct binary* bit_xor = NULL;
    struct binary* bit_or = NULL;
-   struct binary* log_and = NULL;
-   struct binary* log_or = NULL;
+   struct logical* log_and = NULL;
+   struct logical* log_or = NULL;
 
    top:
    read_operand( parse, reading );
@@ -243,7 +244,7 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
       log_and = NULL;
    }
    if ( parse->tk == TK_LOG_AND ) {
-      log_and = alloc_binary( BOP_LOG_AND, &parse->tk_pos );
+      log_and = alloc_logical( LOP_AND, &parse->tk_pos );
       log_and->lside = reading->node;
       p_read_tk( parse );
       goto top;
@@ -256,7 +257,7 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
       log_or = NULL;
    }
    if ( parse->tk == TK_LOG_OR ) {
-      log_or = alloc_binary( BOP_LOG_OR, &parse->tk_pos );
+      log_or = alloc_logical( LOP_OR, &parse->tk_pos );
       log_or->lside = reading->node;
       p_read_tk( parse );
       goto top;
@@ -349,6 +350,18 @@ struct binary* alloc_binary( int op, struct pos* pos ) {
    binary->value = 0;
    binary->folded = false;
    return binary;
+}
+
+struct logical* alloc_logical( int op, struct pos* pos ) {
+   struct logical* logical = mem_alloc( sizeof( *logical ) );
+   logical->node.type = NODE_LOGICAL;
+   logical->op = op;
+   logical->lside = NULL;
+   logical->rside = NULL;
+   logical->pos = *pos;
+   logical->value = 0;
+   logical->folded = false;
+   return logical;
 }
 
 void read_operand( struct parse* parse, struct expr_reading* reading ) {

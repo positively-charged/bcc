@@ -79,8 +79,9 @@ struct node {
       NODE_SCRIPT,
       NODE_PACKED_EXPR,
       NODE_CONDITIONAL,
-      NODE_STRCPY
-      // 40
+      NODE_STRCPY,
+      // 40+
+      NODE_LOGICAL
    } type;
 };
 
@@ -174,8 +175,6 @@ struct binary {
    struct node node;
    enum {
       BOP_NONE,
-      BOP_LOG_OR,
-      BOP_LOG_AND,
       BOP_BIT_OR,
       BOP_BIT_XOR,
       BOP_BIT_AND,
@@ -192,6 +191,19 @@ struct binary {
       BOP_MUL,
       BOP_DIV,
       BOP_MOD
+   } op;
+   struct node* lside;
+   struct node* rside;
+   struct pos pos;
+   int value;
+   bool folded;
+};
+
+struct logical {
+   struct node node;
+   enum {
+      LOP_OR,
+      LOP_AND
    } op;
    struct node* lside;
    struct node* rside;

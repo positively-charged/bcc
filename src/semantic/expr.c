@@ -59,6 +59,8 @@ static void test_array_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
 static void test_binary( struct semantic* semantic, struct expr_test*, struct operand*,
    struct binary* );
+static void test_logical( struct semantic* semantic, struct expr_test* test,
+   struct operand* result, struct logical* logical );
 static void test_assign( struct semantic* semantic, struct expr_test*, struct operand*,
    struct assign* );
 static void test_access( struct semantic* semantic, struct expr_test*, struct operand*,
@@ -164,6 +166,10 @@ void test_node( struct semantic* semantic, struct expr_test* test,
       break;
    case NODE_BINARY:
       test_binary( semantic, test, operand, ( struct binary* ) node );
+      break;
+   case NODE_LOGICAL:
+      test_logical( semantic, test, operand,
+         ( struct logical* ) node );
       break;
    case NODE_ASSIGN:
       test_assign( semantic, test, operand, ( struct assign* ) node );
@@ -773,8 +779,6 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
       case BOP_BIT_AND: l = l & r; break;
       case BOP_BIT_XOR: l = l ^ r; break;
       case BOP_BIT_OR: l = l | r; break;
-      case BOP_LOG_AND: l = l && r; break;
-      case BOP_LOG_OR: l = l || r; break;
       default: break;
       }
       binary->folded = true;
@@ -805,12 +809,48 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    case BOP_LT:
    case BOP_NEQ:
    case BOP_EQ:
-   case BOP_LOG_AND:
-   case BOP_LOG_OR:
       operand->type = semantic->task->type_bool;
       break;
    }
 }
+
+void test_logical( struct semantic* semantic, struct expr_test* test,
+   struct operand* result, struct logical* logical ) {
+   struct operand lside;
+   init_operand( &lside );
+   test_node( semantic, test, &lside, logical->lside );
+   if ( ! lside.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+         "operand on left side not a value" );
+      s_bail( semantic );
+   }
+   struct operand rside;
+   init_operand( &rside );
+   test_node( semantic, test, &rside, logical->rside );
+   if ( ! rside.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+         "operand on right side not a value" );
+      s_bail( semantic );
+   }
+   // Compile-time evaluation.
+   if ( lside.folded && rside.folded ) {
+      int l = lside.value;
+      int r = rside.value;
+      switch ( logical->op ) {
+      case LOP_AND: l = l && r; break;
+      case LOP_OR: l = l || r; break;
+      default: break;
+      }
+      logical->folded = true;
+      logical->value = l;
+      result->folded = true;
+      result->value = l;
+   }
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_bool;
+}
+
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
    struct operand* operand, struct assign* assign ) {
