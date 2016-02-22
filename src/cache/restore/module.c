@@ -38,6 +38,7 @@ static struct structure_member* deserialize_structmember( struct serial* serial,
 static struct structure* deserialize_type( struct serial* serial );
 static struct path* deserialize_type_path( struct serial* serial );
 static struct enumeration* deserialize_enum( struct serial* serial );
+static struct enumerator* deserialize_enumerator( struct serial* serial );
 static struct constant* deserialize_constant( struct serial* serial );
 static struct expr* deserialize_expr( struct serial* serial );
 static struct node* deserialize_expr_node( struct serial* serial );
@@ -385,23 +386,36 @@ struct path* deserialize_type_path( struct serial* serial ) {
 
 struct enumeration* deserialize_enum( struct serial* serial ) {
    srl_rf( serial->r, F_ENUM );
-   struct constant* head = NULL;
-   struct constant* tail;
+   struct enumerator* head = NULL;
+   struct enumerator* tail;
    while ( srl_peekf( serial->r ) == F_CONSTANT ) {
-      struct constant* constant = deserialize_constant( serial );
+      struct enumerator* enumerator = deserialize_enumerator( serial );
       if ( head ) {
-         tail->next = constant;
+         tail->next = enumerator;
       }
       else {
-         head = constant;
+         head = enumerator;
       }
-      tail = constant;
+      tail = enumerator;
    }
    srl_rf( serial->r, F_END );
    struct enumeration* enum_ = mem_alloc( sizeof( *enum_ ) );
    t_init_object( &enum_->object, NODE_ENUMERATION );
    enum_->head = head;
    return enum_;
+}
+
+struct enumerator* deserialize_enumerator( struct serial* serial ) {
+   srl_rf( serial->r, F_CONSTANT );
+   struct enumerator* enumerator = mem_slot_alloc( sizeof( *enumerator ) );
+   deserialize_object( serial, &enumerator->object, NODE_ENUMERATOR );
+   enumerator->name = t_extend_name( serial->task->root_name,
+      srl_rs( serial->r, F_STRNAME ) );
+   enumerator->next = NULL;
+   enumerator->value = srl_ri( serial->r, F_INTVALUE );
+   enumerator->initz = NULL;
+   srl_rf( serial->r, F_END );
+   return enumerator;
 }
 
 struct constant* deserialize_constant( struct serial* serial ) {

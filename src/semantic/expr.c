@@ -27,6 +27,8 @@ static void test_nested_root( struct semantic* semantic,
 static void init_operand( struct operand* );
 static void use_object( struct semantic* semantic, struct expr_test*, struct operand*,
    struct object* );
+static void select_enumerator( struct semantic* semantic,
+   struct operand* operand, struct enumerator* enumerator );
 static void test_node( struct semantic* semantic, struct expr_test*, struct operand*,
    struct node* );
 static void test_literal( struct semantic* semantic, struct operand*, struct literal* );
@@ -290,6 +292,10 @@ void use_object( struct semantic* semantic, struct expr_test* test,
       operand->complete = true;
       operand->usable = true;
    }
+   else if ( object->node.type == NODE_ENUMERATOR ) {
+      select_enumerator( semantic, operand,
+         ( struct enumerator* ) object );
+   }
    else if ( object->node.type == NODE_VAR ) {
       struct var* var = ( struct var* ) object;
       operand->type = var->structure;
@@ -347,6 +353,15 @@ void use_object( struct semantic* semantic, struct expr_test* test,
       operand->usable = true;
       operand->assignable = true;
    }
+}
+
+void select_enumerator( struct semantic* semantic, struct operand* operand,
+   struct enumerator* enumerator ) {
+   operand->type = semantic->task->type_int;
+   operand->value = enumerator->value;
+   operand->folded = true;
+   operand->complete = true;
+   operand->usable = true;
 }
 
 void test_unary( struct semantic* semantic, struct expr_test* test,

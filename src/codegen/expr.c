@@ -32,6 +32,8 @@ static void visit_operand( struct codegen* codegen, struct operand*,
    struct node* );
 static void visit_constant( struct codegen* codegen, struct operand*,
    struct constant* );
+static void visit_enumerator( struct codegen* codegen,
+   struct operand* operand, struct enumerator* enumerator );
 static void visit_unary( struct codegen* codegen, struct operand*,
    struct unary* );
 static void visit_pre_inc( struct codegen* codegen, struct operand*,
@@ -177,6 +179,10 @@ void visit_operand( struct codegen* codegen, struct operand* operand,
    else if ( node->type == NODE_CONSTANT ) {
       visit_constant( codegen, operand, ( struct constant* ) node );
    }
+   else if ( node->type == NODE_ENUMERATOR ) {
+      visit_enumerator( codegen, operand,
+         ( struct enumerator* ) node );
+   }
    else if ( node->type == NODE_VAR ) {
       do_var_name( codegen, operand, ( struct var* ) node );
    }
@@ -234,6 +240,13 @@ void visit_constant( struct codegen* codegen, struct operand* operand,
       constant->value_node->has_str ) {
       c_add_opc( codegen, PCD_TAGSTRING );
    }
+   operand->pushed = true;
+}
+
+void visit_enumerator( struct codegen* codegen, struct operand* operand,
+   struct enumerator* enumerator ) {
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, enumerator->value );
    operand->pushed = true;
 }
 

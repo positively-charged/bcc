@@ -34,6 +34,7 @@ static void read_type( struct parse* parse, struct dec* dec );
 static void missing_type( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
+static struct enumerator* alloc_enumerator( void );
 static void read_rbrace( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
@@ -229,8 +230,8 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
          "an enum must have at least one enumerator" );
       p_bail( parse );
    }
-   struct constant* head = NULL;
-   struct constant* tail;
+   struct enumerator* head = NULL;
+   struct enumerator* tail;
    while ( true ) {
       if ( parse->tk != TK_ID ) {
          p_unexpect_diag( parse );
@@ -238,24 +239,24 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
          p_unexpect_last( parse, NULL, TK_BRACE_R );
          p_bail( parse );
       }
-      struct constant* constant = alloc_constant();
-      constant->object.pos = parse->tk_pos;
-      constant->name = t_extend_name( parse->task->body, parse->tk_text );
+      struct enumerator* enumerator = alloc_enumerator();
+      enumerator->object.pos = parse->tk_pos;
+      enumerator->name = t_extend_name( parse->task->body, parse->tk_text );
       p_read_tk( parse );
       if ( parse->tk == TK_ASSIGN ) {
          p_read_tk( parse );
          struct expr_reading value;
          p_init_expr_reading( &value, true, false, false, true );
          p_read_expr( parse, &value );
-         constant->value_node = value.output_node;
+         enumerator->initz = value.output_node;
       }
       if ( head ) {
-         tail->next = constant;
+         tail->next = enumerator;
       }
       else {
-         head = constant;
+         head = enumerator;
       }
-      tail = constant;
+      tail = enumerator;
       if ( parse->tk != TK_COMMA && parse->tk != TK_BRACE_R ) {
          p_unexpect_diag( parse );
          p_unexpect_item( parse, NULL, TK_COMMA );
@@ -293,6 +294,16 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
          "enum inside struct" );
       p_bail( parse );
    }
+}
+
+struct enumerator* alloc_enumerator( void ) {
+   struct enumerator* enumerator = mem_alloc( sizeof( *enumerator ) );
+   t_init_object( &enumerator->object, NODE_ENUMERATOR );
+   enumerator->name = NULL;
+   enumerator->next = NULL;
+   enumerator->initz = NULL;
+   enumerator->value = 0;
+   return enumerator;
 }
 
 void read_rbrace( struct parse* parse, struct dec* dec ) {

@@ -89,7 +89,7 @@ void s_test_constant_set( struct semantic* semantic,
    struct enumeration* set ) {
    int value = 0;
    // Find the next unresolved enumerator.
-   struct constant* enumerator = set->head;
+   struct enumerator* enumerator = set->head;
    while ( enumerator && enumerator->object.resolved ) {
       value = enumerator->value;
       enumerator = enumerator->next;
@@ -100,19 +100,19 @@ void s_test_constant_set( struct semantic* semantic,
             s_bind_name( semantic, enumerator->name, &enumerator->object );
          }
       }
-      if ( enumerator->value_node ) {
+      if ( enumerator->initz ) {
          struct expr_test expr;
          s_init_expr_test( &expr, NULL, NULL, true, false );
-         s_test_expr( semantic, &expr, enumerator->value_node );
+         s_test_expr( semantic, &expr, enumerator->initz );
          if ( expr.undef_erred ) {
             return;
          }
-         if ( ! enumerator->value_node->folded ) {
+         if ( ! enumerator->initz->folded ) {
             s_diag( semantic, DIAG_POS_ERR, &expr.pos,
                "enumerator expression not constant" );
             s_bail( semantic );
          }
-         value = enumerator->value_node->value;
+         value = enumerator->initz->value;
       }
       enumerator->value = value;
       ++value;

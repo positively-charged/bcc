@@ -37,6 +37,8 @@ static void serialize_structmember( struct serial* serial,
 static void serialize_type( struct serial* serial, struct structure* type,
    struct path* path );
 static void serialize_enum( struct serial* serial, struct enumeration* set );
+static void serialize_enumerator( struct serial* serial,
+   struct enumerator* enumerator );
 static void serialize_constant( struct serial* serial,
    struct constant* constant );
 static void serialize_expr( struct serial* serial, struct expr* expr );
@@ -334,11 +336,20 @@ void serialize_type( struct serial* serial, struct structure* type,
 
 void serialize_enum( struct serial* serial, struct enumeration* set ) {
    srlw_f( serial->w, F_ENUM );
-   struct constant* enumerator = set->head;
+   struct enumerator* enumerator = set->head;
    while ( enumerator ) {
-      serialize_constant( serial, enumerator );
+      serialize_enumerator( serial, enumerator );
       enumerator = enumerator->next;
    }
+   srlw_f( serial->w, F_END );
+}
+
+void serialize_enumerator( struct serial* serial,
+   struct enumerator* enumerator ) {
+   srlw_f( serial->w, F_CONSTANT );
+   serialize_object( serial, &enumerator->object );
+   srlw_s( serial->w, F_STRNAME, name_s( serial, enumerator->name ) );
+   srlw_i( serial->w, F_INTVALUE, enumerator->value );
    srlw_f( serial->w, F_END );
 }
 

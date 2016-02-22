@@ -137,10 +137,10 @@ void bind_object( struct semantic* semantic, struct object* object,
       break; }
    case NODE_ENUMERATION: {
       struct enumeration* set = ( struct enumeration* ) object;
-      struct constant* constant = set->head;
-      while ( constant ) {
-         s_bind_name( semantic, constant->name, &constant->object );
-         constant = constant->next;
+      struct enumerator* enumerator = set->head;
+      while ( enumerator ) {
+         s_bind_name( semantic, enumerator->name, &enumerator->object );
+         enumerator = enumerator->next;
       }
       break; }
    case NODE_VAR: {
@@ -656,7 +656,7 @@ void unbind_object( struct object* object ) {
 }
 
 void unbind_enum( struct enumeration* enum_ ) {
-   struct constant* enumerator = enum_->head;
+   struct enumerator* enumerator = enum_->head;
    while ( enumerator ) {
       enumerator->name->object = NULL;
       enumerator = enumerator->next;

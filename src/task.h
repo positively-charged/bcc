@@ -66,9 +66,10 @@ struct node {
       NODE_ASSIGN,
       NODE_STRUCTURE,
       NODE_STRUCTURE_MEMBER,
-      NODE_CONSTANT,
       NODE_ENUMERATION,
+      NODE_ENUMERATOR,
       // 30
+      NODE_CONSTANT,
       NODE_RETURN,
       NODE_PARAM,
       NODE_PALTRANS,
@@ -654,9 +655,17 @@ struct constant {
    bool hidden;
 };
 
+struct enumerator {
+   struct object object;
+   struct name* name;
+   struct enumerator* next;
+   struct expr* initz;
+   int value;
+};
+
 struct enumeration {
    struct object object;
-   struct constant* head;
+   struct enumerator* head;
 };
 
 struct indexed_string {
