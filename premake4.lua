@@ -12,6 +12,7 @@ solution 'bcc'
       '-pedantic',
       '-Wstrict-aliasing',
       '-Wstrict-aliasing=2',
+      '-Wmissing-field-initializers',
       '-D_BSD_SOURCE',
    }
    flags {
@@ -32,7 +33,11 @@ solution 'bcc'
          'src_token',
          'src_parse',
          'src_semantic',
-         'src_codegen'
+         'src_codegen',
+         'src_cache',
+         'src_cache_d',
+         'src_cache_r',
+         'src_cache_s',
       }
 
    project 'src_token'
@@ -68,4 +73,36 @@ solution 'bcc'
       kind 'StaticLib'
       files {
          'src/codegen/*.c'
+      }
+
+   project 'src_cache'
+      location 'build/src_cache'
+      targetdir 'build/src_cache'
+      kind 'StaticLib'
+      files {
+         'src/cache/*.c'
+      }
+
+   project 'src_cache_d'
+      location 'build/src_cache_d'
+      targetdir 'build/src_cache_d'
+      kind 'StaticLib'
+      files {
+         'src/cache/dump/*.c'
+      }
+
+   project 'src_cache_r'
+      location 'build/src_cache_r'
+      targetdir 'build/src_cache_r'
+      kind 'StaticLib'
+      files {
+         'src/cache/restore/*.c'
+      }
+
+   project 'src_cache_s'
+      location 'build/src_cache_s'
+      targetdir 'build/src_cache_s'
+      kind 'StaticLib'
+      files {
+         'src/cache/serial/*.c'
       }
