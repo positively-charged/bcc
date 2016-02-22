@@ -1,6 +1,6 @@
 #include "phase.h"
 
-struct operand {
+struct result {
    struct func* func;
    struct dim* dim;
    struct structure* type;
@@ -20,32 +20,32 @@ struct call_test {
 };
 
 static void test_root( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct expr* expr );
+   struct result* result, struct expr* expr );
 static void test_nested_root( struct semantic* semantic,
-   struct expr_test* parent, struct expr_test* test, struct operand* operand,
+   struct expr_test* parent, struct expr_test* test, struct result* result,
    struct expr* expr );
-static void init_operand( struct operand* );
-static void use_object( struct semantic* semantic, struct expr_test*, struct operand*,
+static void init_result( struct result* );
+static void use_object( struct semantic* semantic, struct expr_test*, struct result*,
    struct object* );
 static void select_enumerator( struct semantic* semantic,
-   struct operand* operand, struct enumerator* enumerator );
-static void test_node( struct semantic* semantic, struct expr_test*, struct operand*,
+   struct result* result, struct enumerator* enumerator );
+static void test_node( struct semantic* semantic, struct expr_test*, struct result*,
    struct node* );
-static void test_literal( struct semantic* semantic, struct operand*, struct literal* );
+static void test_literal( struct semantic* semantic, struct result*, struct literal* );
 static void test_string_usage( struct semantic* semantic, struct expr_test*,
-   struct operand*, struct indexed_string_usage* );
-static void test_boolean( struct semantic* semantic, struct operand*, struct boolean* );
+   struct result*, struct indexed_string_usage* );
+static void test_boolean( struct semantic* semantic, struct result*, struct boolean* );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct name_usage* usage );
+   struct result* result, struct name_usage* usage );
 static struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* );
-static void test_unary( struct semantic* semantic, struct expr_test*, struct operand*,
+static void test_unary( struct semantic* semantic, struct expr_test*, struct result*,
    struct unary* );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
-   struct operand* result, struct inc* inc );
-static void test_subscript( struct semantic* semantic, struct expr_test*, struct operand*,
+   struct result* result, struct inc* inc );
+static void test_subscript( struct semantic* semantic, struct expr_test*, struct result*,
    struct subscript* );
-static void test_call( struct semantic* semantic, struct expr_test*, struct operand*,
+static void test_call( struct semantic* semantic, struct expr_test*, struct result*,
    struct call* );
 static void test_call_args( struct semantic* semantic, struct expr_test*,
    struct call_test* );
@@ -59,20 +59,20 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
-static void test_binary( struct semantic* semantic, struct expr_test*, struct operand*,
+static void test_binary( struct semantic* semantic, struct expr_test*, struct result*,
    struct binary* );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
-   struct operand* result, struct logical* logical );
-static void test_assign( struct semantic* semantic, struct expr_test*, struct operand*,
+   struct result* result, struct logical* logical );
+static void test_assign( struct semantic* semantic, struct expr_test*, struct result*,
    struct assign* );
-static void test_access( struct semantic* semantic, struct expr_test*, struct operand*,
+static void test_access( struct semantic* semantic, struct expr_test*, struct result*,
    struct access* );
 static void test_struct_access( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct access* access );
+   struct result* result, struct access* access );
 static void test_conditional( struct semantic* semantic,
-   struct expr_test* test, struct operand* operand, struct conditional* cond );
+   struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct strcpy_call* call );
+   struct result* result, struct strcpy_call* call );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
@@ -90,9 +90,9 @@ void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
 void s_test_expr( struct semantic* semantic, struct expr_test* test,
    struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
-      struct operand operand;
-      init_operand( &operand );
-      test_root( semantic, test, &operand, expr );
+      struct result result;
+      init_result( &result );
+      test_root( semantic, test, &result, expr );
    }
    else {
       test->undef_erred = true;
@@ -100,28 +100,28 @@ void s_test_expr( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_root( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct expr* expr ) {
-   test_node( semantic, test, operand, expr->root );
-   if ( ! operand->complete ) {
+   struct result* result, struct expr* expr ) {
+   test_node( semantic, test, result, expr->root );
+   if ( ! result->complete ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
          "expression incomplete" );
       s_bail( semantic );
    }
-   if ( test->result_required && ! operand->usable ) {
+   if ( test->result_required && ! result->usable ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
          "expression does not produce a value" );
       s_bail( semantic );
    }
-   expr->structure = operand->type;
-   expr->folded = operand->folded;
-   expr->value = operand->value;
+   expr->structure = result->type;
+   expr->folded = result->folded;
+   expr->value = result->value;
    test->pos = expr->pos;
 }
 
 void test_nested_root( struct semantic* semantic, struct expr_test* parent,
-   struct expr_test* test, struct operand* operand, struct expr* expr ) {
+   struct expr_test* test, struct result* result, struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
-      test_root( semantic, test, operand, expr );
+      test_root( semantic, test, result, expr );
       parent->has_string = test->has_string;
    }
    else {
@@ -129,72 +129,72 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
    }
 }
 
-void init_operand( struct operand* operand ) {
-   operand->func = NULL;
-   operand->dim = NULL;
-   operand->type = NULL;
-   operand->value = 0;
-   operand->complete = false;
-   operand->usable = false;
-   operand->assignable = false;
-   operand->folded = false;
-   operand->in_paren = false;
+void init_result( struct result* result ) {
+   result->func = NULL;
+   result->dim = NULL;
+   result->type = NULL;
+   result->value = 0;
+   result->complete = false;
+   result->usable = false;
+   result->assignable = false;
+   result->folded = false;
+   result->in_paren = false;
 }
 
 void test_node( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct node* node ) {
+   struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_LITERAL:
-      test_literal( semantic, operand, ( struct literal* ) node );
+      test_literal( semantic, result, ( struct literal* ) node );
       break;
    case NODE_INDEXED_STRING_USAGE:
-      test_string_usage( semantic, test, operand,
+      test_string_usage( semantic, test, result,
          ( struct indexed_string_usage* ) node );
       break;
    case NODE_BOOLEAN:
-      test_boolean( semantic, operand, ( struct boolean* ) node );
+      test_boolean( semantic, result, ( struct boolean* ) node );
       break;
    case NODE_NAME_USAGE:
-      test_name_usage( semantic, test, operand, ( struct name_usage* ) node );
+      test_name_usage( semantic, test, result, ( struct name_usage* ) node );
       break;
    case NODE_UNARY:
-      test_unary( semantic, test, operand, ( struct unary* ) node );
+      test_unary( semantic, test, result, ( struct unary* ) node );
       break;
    case NODE_INC:
-      test_inc( semantic, test, operand,
+      test_inc( semantic, test, result,
          ( struct inc* ) node );
       break;
    case NODE_SUBSCRIPT:
-      test_subscript( semantic, test, operand, ( struct subscript* ) node );
+      test_subscript( semantic, test, result, ( struct subscript* ) node );
       break;
    case NODE_CALL:
-      test_call( semantic, test, operand, ( struct call* ) node );
+      test_call( semantic, test, result, ( struct call* ) node );
       break;
    case NODE_BINARY:
-      test_binary( semantic, test, operand, ( struct binary* ) node );
+      test_binary( semantic, test, result, ( struct binary* ) node );
       break;
    case NODE_LOGICAL:
-      test_logical( semantic, test, operand,
+      test_logical( semantic, test, result,
          ( struct logical* ) node );
       break;
    case NODE_ASSIGN:
-      test_assign( semantic, test, operand, ( struct assign* ) node );
+      test_assign( semantic, test, result, ( struct assign* ) node );
       break;
    case NODE_CONDITIONAL:
-      test_conditional( semantic, test, operand, ( struct conditional* ) node );
+      test_conditional( semantic, test, result, ( struct conditional* ) node );
       break;
    case NODE_ACCESS:
-      test_access( semantic, test, operand, ( struct access* ) node );
+      test_access( semantic, test, result, ( struct access* ) node );
       break;
    case NODE_STRCPY:
-      test_strcpy( semantic, test, operand, ( struct strcpy_call* ) node );
+      test_strcpy( semantic, test, result, ( struct strcpy_call* ) node );
       break;
    case NODE_PAREN:
       {
-         operand->in_paren = true;
+         result->in_paren = true;
          struct paren* paren = ( struct paren* ) node;
-         test_node( semantic, test, operand, paren->inside );
-         operand->in_paren = false;
+         test_node( semantic, test, result, paren->inside );
+         result->in_paren = false;
       }
       break;
    default:
@@ -202,39 +202,39 @@ void test_node( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_literal( struct semantic* semantic, struct operand* operand,
+void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal ) {
-   operand->value = literal->value;
-   operand->folded = true;
-   operand->complete = true;
-   operand->usable = true;
-   operand->type = semantic->task->type_int;
+   result->value = literal->value;
+   result->folded = true;
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_int;
 }
 
 void test_string_usage( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct indexed_string_usage* usage ) {
-   operand->value = usage->string->index;
-   operand->folded = true;
-   operand->complete = true;
-   operand->usable = true;
-   operand->type = semantic->task->type_str;
+   struct result* result, struct indexed_string_usage* usage ) {
+   result->value = usage->string->index;
+   result->folded = true;
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_str;
    test->has_string = true;
 }
 
-void test_boolean( struct semantic* semantic, struct operand* operand,
+void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean ) {
-   operand->value = boolean->value;
-   operand->folded = true;
-   operand->complete = true;
-   operand->usable = true;
-   operand->type = semantic->task->type_bool;
+   result->value = boolean->value;
+   result->folded = true;
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_bool;
 }
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct name_usage* usage ) {
+   struct result* result, struct name_usage* usage ) {
    struct object* object = find_referenced_object( semantic, usage );
    if ( object && object->resolved ) {
-      use_object( semantic, test, operand, object );
+      use_object( semantic, test, result, object );
       usage->object = &object->node;
    }
    // Object not found or isn't valid.
@@ -292,94 +292,94 @@ struct object* find_referenced_object( struct semantic* semantic,
 }
 
 void use_object( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct object* object ) {
+   struct result* result, struct object* object ) {
    if ( object->node.type == NODE_CONSTANT ) {
       struct constant* constant = ( struct constant* ) object;
       // TODO: Add type as a field.
-      operand->type = constant->value_node ?
+      result->type = constant->value_node ?
          constant->value_node->structure :
          semantic->task->type_int;
-      operand->value = constant->value;
-      operand->folded = true;
-      operand->complete = true;
-      operand->usable = true;
+      result->value = constant->value;
+      result->folded = true;
+      result->complete = true;
+      result->usable = true;
    }
    else if ( object->node.type == NODE_ENUMERATOR ) {
-      select_enumerator( semantic, operand,
+      select_enumerator( semantic, result,
          ( struct enumerator* ) object );
    }
    else if ( object->node.type == NODE_VAR ) {
       struct var* var = ( struct var* ) object;
-      operand->type = var->structure;
+      result->type = var->structure;
       if ( var->dim ) {
-         operand->dim = var->dim;
+         result->dim = var->dim;
          // NOTE: I'm not too happy with the idea of this field. It is
          // contagious. Blame the Hypnotoad.
          if ( test->accept_array ) {
-            operand->complete = true;
+            result->complete = true;
          }
       }
       else if ( var->structure->primitive ) {
-         operand->complete = true;
-         operand->usable = true;
-         operand->assignable = true;
+         result->complete = true;
+         result->usable = true;
+         result->assignable = true;
       }
       var->used = true;
    }
    else if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
       struct structure_member* member = ( struct structure_member* ) object;
-      operand->type = member->structure;
+      result->type = member->structure;
       if ( member->dim ) {
-         operand->dim = member->dim;
+         result->dim = member->dim;
          if ( test->accept_array ) {
-            operand->complete = true;
+            result->complete = true;
          }
       }
       else if ( member->structure->primitive ) {
-         operand->complete = true;
-         operand->usable = true;
-         operand->assignable = true;
+         result->complete = true;
+         result->usable = true;
+         result->assignable = true;
       }
    }
    else if ( object->node.type == NODE_FUNC ) {
-      operand->func = ( struct func* ) object;
-      if ( operand->func->type == FUNC_USER ) {
-         struct func_user* impl = operand->func->impl;
+      result->func = ( struct func* ) object;
+      if ( result->func->type == FUNC_USER ) {
+         struct func_user* impl = result->func->impl;
          ++impl->usage;
       }
       // When using just the name of an action special, a value is produced,
       // which is the ID of the action special.
-      else if ( operand->func->type == FUNC_ASPEC ) {
-         operand->complete = true;
-         operand->usable = true;
-         struct func_aspec* impl = operand->func->impl;
-         operand->value = impl->id;
-         operand->folded = true;
+      else if ( result->func->type == FUNC_ASPEC ) {
+         result->complete = true;
+         result->usable = true;
+         struct func_aspec* impl = result->func->impl;
+         result->value = impl->id;
+         result->folded = true;
       }
    }
    else if ( object->node.type == NODE_PARAM ) {
       struct param* param = ( struct param* ) object;
       param->used = true;
-      operand->type = param->structure;
-      operand->complete = true;
-      operand->usable = true;
-      operand->assignable = true;
+      result->type = param->structure;
+      result->complete = true;
+      result->usable = true;
+      result->assignable = true;
    }
 }
 
-void select_enumerator( struct semantic* semantic, struct operand* operand,
+void select_enumerator( struct semantic* semantic, struct result* result,
    struct enumerator* enumerator ) {
-   operand->type = semantic->task->type_int;
-   operand->value = enumerator->value;
-   operand->folded = true;
-   operand->complete = true;
-   operand->usable = true;
+   result->type = semantic->task->type_int;
+   result->value = enumerator->value;
+   result->folded = true;
+   result->complete = true;
+   result->usable = true;
 }
 
 void test_unary( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct unary* unary ) {
-   struct operand target;
-   init_operand( &target );
+   struct result* result, struct unary* unary ) {
+   struct result target;
+   init_result( &target );
    test_node( semantic, test, &target, unary->operand );
    // Remaining operations require a value to work on.
    if ( ! target.usable ) {
@@ -391,37 +391,37 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    if ( target.folded ) {
       switch ( unary->op ) {
       case UOP_MINUS:
-         operand->value = ( - target.value );
+         result->value = ( - target.value );
          break;
       case UOP_PLUS:
-         operand->value = target.value;
+         result->value = target.value;
          break;
       case UOP_LOG_NOT:
-         operand->value = ( ! target.value );
+         result->value = ( ! target.value );
          break;
       case UOP_BIT_NOT:
-         operand->value = ( ~ target.value );
+         result->value = ( ~ target.value );
          break;
       default:
          break;
       }
-      operand->folded = true;
+      result->folded = true;
    }
-   operand->complete = true;
-   operand->usable = true;
+   result->complete = true;
+   result->usable = true;
    // Type of the result.
    if ( unary->op == UOP_LOG_NOT ) {
-      operand->type = semantic->task->type_bool;
+      result->type = semantic->task->type_bool;
    }
    else {
-      operand->type = semantic->task->type_int;
+      result->type = semantic->task->type_int;
    }
 }
 
 void test_inc( struct semantic* semantic, struct expr_test* test,
-   struct operand* result, struct inc* inc ) {
-   struct operand operand;
-   init_operand( &operand );
+   struct result* result, struct inc* inc ) {
+   struct result operand;
+   init_result( &operand );
    test_node( semantic, test, &operand, inc->operand );
    // Only an l-value can be incremented.
    if ( ! operand.assignable ) {
@@ -435,9 +435,9 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_subscript( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct subscript* subscript ) {
-   struct operand lside;
-   init_operand( &lside );
+   struct result* result, struct subscript* subscript ) {
+   struct result lside;
+   init_result( &lside );
    test_node( semantic, test, &lside, subscript->lside );
    if ( ! lside.dim ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
@@ -447,8 +447,8 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
       test->suggest_paren_assign );
-   struct operand root;
-   init_operand( &root );
+   struct result root;
+   init_result( &root );
    test_nested_root( semantic, test, &index, &root, subscript->index );
    // Out-of-bounds warning for a constant index.
    if ( lside.dim->size && subscript->index->folded && (
@@ -457,32 +457,32 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
       s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &subscript->index->pos, "array index out-of-bounds" );
    }
-   operand->type = lside.type;
-   operand->dim = lside.dim->next;
-   if ( operand->dim ) {
+   result->type = lside.type;
+   result->dim = lside.dim->next;
+   if ( result->dim ) {
       if ( test->accept_array ) {
-         operand->complete = true;
+         result->complete = true;
       }
    }
    else {
-      if ( operand->type->primitive ) {
-         operand->complete = true;
-         operand->usable = true;
-         operand->assignable = true;
+      if ( result->type->primitive ) {
+         result->complete = true;
+         result->usable = true;
+         result->assignable = true;
       }
    }
 }
 
 void test_call( struct semantic* semantic, struct expr_test* expr_test,
-   struct operand* operand, struct call* call ) {
+   struct result* result, struct call* call ) {
    struct call_test test = {
       .call = call,
       .func = NULL,
       .i = NULL,
       .num_args = 0
    };
-   struct operand callee;
-   init_operand( &callee );
+   struct result callee;
+   init_result( &callee );
    test_node( semantic, expr_test, &callee, call->operand );
    if ( ! callee.func ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
@@ -530,10 +530,10 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       }
    }
    call->func = test.func;
-   operand->type = test.func->return_type;
-   operand->complete = true;
+   result->type = test.func->return_type;
+   result->complete = true;
    if ( test.func->return_type ) {
-      operand->usable = true;
+      result->usable = true;
    }
    if ( call->func->type == FUNC_USER ) {
       struct func_user* impl = call->func->impl;
@@ -563,8 +563,8 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
       s_init_expr_test( &nested,
          expr_test->stmt_test,
          expr_test->format_block, true, false );
-      struct operand root;
-      init_operand( &root );
+      struct result root;
+      init_result( &root );
       test_nested_root( semantic, expr_test, &nested, &root, list_data( &i ) );
       ++test->num_args;
       list_next( &i );
@@ -686,8 +686,8 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    s_init_expr_test( &nested,
       test->stmt_test, test->format_block,
       true, false );
-   struct operand root;
-   init_operand( &root );
+   struct result root;
+   init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
 }
 
@@ -700,8 +700,8 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    // When using the array format-cast, accept an array as the result of the
    // expression.
    nested.accept_array = true;
-   struct operand root;
-   init_operand( &root );
+   struct result root;
+   init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
    if ( ! root.dim ) {
       s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
@@ -719,13 +719,13 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
       s_init_expr_test( &nested,
          test->stmt_test, test->format_block,
          true, false );
-      init_operand( &root );
+      init_result( &root );
       test_nested_root( semantic, test, &nested, &root, extra->offset );
       if ( extra->length ) {
          s_init_expr_test( &nested,
             test->stmt_test, test->format_block,
             true, false );
-         init_operand( &root );
+         init_result( &root );
          test_nested_root( semantic, test, &nested, &root, extra->length );
       }
    }
@@ -741,17 +741,17 @@ void s_test_formatitemlist_stmt( struct semantic* semantic,
 }
 
 void test_binary( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct binary* binary ) {
-   struct operand lside;
-   init_operand( &lside );
+   struct result* result, struct binary* binary ) {
+   struct result lside;
+   init_result( &lside );
    test_node( semantic, test, &lside, binary->lside );
    if ( ! lside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
          "operand on left side not a value" );
       s_bail( semantic );
    }
-   struct operand rside;
-   init_operand( &rside );
+   struct result rside;
+   init_result( &rside );
    test_node( semantic, test, &rside, binary->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
@@ -789,11 +789,11 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
       }
       binary->folded = true;
       binary->value = l;
-      operand->folded = true;
-      operand->value = l;
+      result->folded = true;
+      result->value = l;
    }
-   operand->complete = true;
-   operand->usable = true;
+   result->complete = true;
+   result->usable = true;
    // Type of the result.
    switch ( binary->op ) {
    case BOP_NONE:
@@ -807,7 +807,7 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    case BOP_BIT_AND:
    case BOP_BIT_XOR:
    case BOP_BIT_OR:
-      operand->type = semantic->task->type_int;
+      result->type = semantic->task->type_int;
       break;
    case BOP_GTE:
    case BOP_GT:
@@ -815,23 +815,23 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    case BOP_LT:
    case BOP_NEQ:
    case BOP_EQ:
-      operand->type = semantic->task->type_bool;
+      result->type = semantic->task->type_bool;
       break;
    }
 }
 
 void test_logical( struct semantic* semantic, struct expr_test* test,
-   struct operand* result, struct logical* logical ) {
-   struct operand lside;
-   init_operand( &lside );
+   struct result* result, struct logical* logical ) {
+   struct result lside;
+   init_result( &lside );
    test_node( semantic, test, &lside, logical->lside );
    if ( ! lside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &logical->pos,
          "operand on left side not a value" );
       s_bail( semantic );
    }
-   struct operand rside;
-   init_operand( &rside );
+   struct result rside;
+   init_result( &rside );
    test_node( semantic, test, &rside, logical->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &logical->pos,
@@ -859,44 +859,44 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
 
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct assign* assign ) {
+   struct result* result, struct assign* assign ) {
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
-   if ( test->suggest_paren_assign && ! operand->in_paren ) {
+   if ( test->suggest_paren_assign && ! result->in_paren ) {
       s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &assign->pos, "assignment operation not in parentheses" );
    }
-   struct operand lside;
-   init_operand( &lside );
+   struct result lside;
+   init_result( &lside );
    test_node( semantic, test, &lside, assign->lside );
    if ( ! lside.assignable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "cannot assign to operand on left side" );
       s_bail( semantic );
    }
-   struct operand rside;
-   init_operand( &rside );
+   struct result rside;
+   init_result( &rside );
    test_node( semantic, test, &rside, assign->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "right side of assignment not a value" );
       s_bail( semantic );
    }
-   operand->complete = true;
-   operand->usable = true;
-   operand->type = lside.type;
+   result->complete = true;
+   result->usable = true;
+   result->type = lside.type;
 }
 
 void test_access( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct access* access ) {
-   test_struct_access( semantic, test, operand, access );
+   struct result* result, struct access* access ) {
+   test_struct_access( semantic, test, result, access );
 }
 
 void test_struct_access( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct access* access ) {
-   struct operand lside;
-   init_operand( &lside );
+   struct result* result, struct access* access ) {
+   struct result lside;
+   init_result( &lside );
    test_node( semantic, test, &lside, access->lside );
    if ( ! ( lside.type && ! lside.dim ) ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
@@ -940,14 +940,14 @@ void test_struct_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   use_object( semantic, test, operand, name->object );
+   use_object( semantic, test, result, name->object );
    access->rside = ( struct node* ) name->object;
 }
 
 void test_conditional( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct conditional* cond ) {
-   struct operand left;
-   init_operand( &left );
+   struct result* result, struct conditional* cond ) {
+   struct result left;
+   init_result( &left );
    test_node( semantic, test, &left, cond->left );
    if ( ! left.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
@@ -962,13 +962,13 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          "left operand of `str` type" );
       s_bail( semantic );
    }
-   struct operand middle = left;
+   struct result middle = left;
    if ( cond->middle ) {
-      init_operand( &middle );
+      init_result( &middle );
       test_node( semantic, test, &middle, cond->middle );
    }
-   struct operand right;
-   init_operand( &right );
+   struct result right;
+   init_result( &right );
    test_node( semantic, test, &right, cond->right );
    if ( middle.type != right.type ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
@@ -976,30 +976,30 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          cond->middle ? "middle" : "left" );
       s_bail( semantic );
    }
-   operand->type = left.type;
-   operand->complete = true;
-   if ( operand->type ) {
-      operand->usable = true;
+   result->type = left.type;
+   result->complete = true;
+   if ( result->type ) {
+      result->usable = true;
    }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
       cond->left_value = left.value;
       cond->folded = true;
-      operand->value = left.value ? middle.value : right.value;
-      operand->folded = true;
+      result->value = left.value ? middle.value : right.value;
+      result->folded = true;
    }
 }
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
-   struct operand* operand, struct strcpy_call* call ) {
+   struct result* result, struct strcpy_call* call ) {
    // Array.
    struct expr_test nested;
    s_init_expr_test( &nested,
       test->stmt_test, test->format_block,
       false, false );
    nested.accept_array = true;
-   struct operand root;
-   init_operand( &root );
+   struct result root;
+   init_result( &root );
    test_nested_root( semantic, test, &nested, &root, call->array );
    if ( ! root.dim ) {
       s_diag( semantic, DIAG_POS_ERR, &nested.pos,
@@ -1011,14 +1011,14 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
       s_init_expr_test( &nested,
          test->stmt_test, test->format_block,
          false, false );
-      init_operand( &root );
+      init_result( &root );
       test_nested_root( semantic, test, &nested, &root, call->array_offset );
       // Array-length.
       if ( call->array_length ) {
          s_init_expr_test( &nested,
             test->stmt_test, test->format_block,
             false, false );
-         init_operand( &root );
+         init_result( &root );
          test_nested_root( semantic, test, &nested, &root,
             call->array_length );
       }
@@ -1027,17 +1027,17 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    s_init_expr_test( &nested,
       test->stmt_test, test->format_block,
       false, false );
-   init_operand( &root );
+   init_result( &root );
    test_nested_root( semantic, test, &nested, &root, call->string );
    // String-offset.
    if ( call->offset ) {
       s_init_expr_test( &nested,
          test->stmt_test, test->format_block,
          false, false );
-      init_operand( &root );
+      init_result( &root );
       test_nested_root( semantic, test, &nested, &root, call->offset );
    }
-   operand->complete = true;
-   operand->usable = true;
-   operand->type = semantic->task->type_bool;
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_bool;
 }
