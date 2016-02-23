@@ -88,7 +88,7 @@ static void visit_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond );
 static void write_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond );
-static void do_var_name( struct codegen* codegen, struct result*,
+static void visit_var( struct codegen* codegen, struct result*,
    struct var* );
 static void set_var( struct codegen* codegen, struct result*,
    struct var* );
@@ -102,6 +102,27 @@ static void push_indexed( struct codegen* codegen, int, int );
 static void push_element( struct codegen* codegen, int, int );
 static void write_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
+
+static void visit_prefix( struct codegen* codegen, struct result* result,
+   struct node* node );
+static void visit_suffix( struct codegen* codegen, struct result* result,
+   struct node* node );
+static void visit_primary( struct codegen* codegen, struct result* result,
+   struct node* node );
+static void visit_literal( struct codegen* codegen, struct result* result,
+   struct literal* literal );
+static void visit_indexed_string_usage( struct codegen* codegen,
+   struct result* result, struct indexed_string_usage* usage );
+static void visit_boolean( struct codegen* codegen, struct result* result,
+   struct boolean* boolean );
+static void visit_name_usage( struct codegen* codegen, struct result* result,
+   struct name_usage* usage );
+static void visit_paren( struct codegen* codegen, struct result* result,
+   struct paren* paren );
+static void visit_param( struct codegen* codegen, struct result* result,
+   struct param* param );
+static void visit_func( struct codegen* codegen, struct result* result,
+   struct func* func );
 
 static const int g_aspec_code[] = {
    PCD_LSPEC1,
@@ -143,6 +164,33 @@ void init_result( struct result* result ) {
    result->pushed_element = false;
 }
 
+void visit_operand( struct codegen* codegen, struct result* result,
+   struct node* node ) {
+   switch ( node->type ) {
+   case NODE_BINARY:
+      visit_binary( codegen, result,
+         ( struct binary* ) node );
+      break;
+   case NODE_LOGICAL:
+      visit_logical( codegen, result,
+         ( struct logical* ) node );
+      break;
+   case NODE_ASSIGN:
+      visit_assign( codegen, result,
+         ( struct assign* ) node );
+      break;
+   case NODE_CONDITIONAL:
+      visit_conditional( codegen, result,
+         ( struct conditional* ) node );
+      break;
+   default:
+      visit_prefix( codegen, result,
+         node );
+      break;
+   }
+}
+
+/*
 void visit_operand( struct codegen* codegen, struct result* result,
    struct node* node ) {
    // Select object referenced by the name.
@@ -232,6 +280,91 @@ void visit_operand( struct codegen* codegen, struct result* result,
    else if ( node->type == NODE_STRCPY ) {
       write_strcpy( codegen, result, ( struct strcpy_call* ) node );
    }
+} */
+
+void visit_primary( struct codegen* codegen, struct result* result,
+   struct node* node ) {
+   switch ( node->type ) {
+   case NODE_LITERAL:
+      visit_literal( codegen, result,
+         ( struct literal* ) node );
+      break;
+   case NODE_INDEXED_STRING_USAGE:
+      visit_indexed_string_usage( codegen, result,
+         ( struct indexed_string_usage* ) node );
+      break;
+   case NODE_BOOLEAN:
+      visit_boolean( codegen, result,
+         ( struct boolean* ) node );
+      break;
+   case NODE_NAME_USAGE:
+      visit_name_usage( codegen, result,
+         ( struct name_usage* ) node );
+      break;
+   case NODE_STRCPY:
+      write_strcpy( codegen, result,
+         ( struct strcpy_call* ) node );
+      break;
+   case NODE_PAREN:
+      visit_paren( codegen, result,
+         ( struct paren* ) node );
+      break;
+   default:
+      break;
+   }
+}
+
+void visit_literal( struct codegen* codegen, struct result* result,
+   struct literal* literal ) {
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, literal->value );
+   result->pushed = true;
+}
+
+void visit_indexed_string_usage( struct codegen* codegen,
+   struct result* result, struct indexed_string_usage* usage ) {
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, usage->string->index );
+   // Strings in a library need to be tagged.
+   if ( codegen->task->library_main->importable ) {
+      c_add_opc( codegen, PCD_TAGSTRING );
+   }
+   result->pushed = true;
+}
+
+void visit_boolean( struct codegen* codegen, struct result* result,
+   struct boolean* boolean ) {
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, boolean->value );
+   result->pushed = true;
+}
+
+void visit_name_usage( struct codegen* codegen, struct result* result,
+   struct name_usage* usage ) {
+   switch ( usage->object->type ) {
+   case NODE_CONSTANT:
+      visit_constant( codegen, result,
+         ( struct constant* ) usage->object );
+      break;
+   case NODE_ENUMERATOR:
+      visit_enumerator( codegen, result,
+         ( struct enumerator* ) usage->object );
+      break;
+   case NODE_VAR:
+      visit_var( codegen, result,
+         ( struct var* ) usage->object );
+      break;
+   case NODE_PARAM:
+      visit_param( codegen, result,
+         ( struct param* ) usage->object );
+      break;
+   case NODE_FUNC:
+      visit_func( codegen, result,
+         ( struct func* ) usage->object );
+      break;
+   default:
+      break;
+   }
 }
 
 void visit_constant( struct codegen* codegen, struct result* result,
@@ -250,6 +383,49 @@ void visit_enumerator( struct codegen* codegen, struct result* result,
    c_add_opc( codegen, PCD_PUSHNUMBER );
    c_add_arg( codegen, enumerator->value );
    result->pushed = true;
+}
+
+void visit_param( struct codegen* codegen, struct result* result,
+   struct param* param ) {
+   if ( result->action == ACTION_PUSH_VALUE ) {
+      push_indexed( codegen, STORAGE_LOCAL, param->index );
+      result->pushed = true;
+   }
+   else {
+      result->storage = STORAGE_LOCAL;
+      result->index = param->index;
+   }
+}
+
+void visit_func( struct codegen* codegen, struct result* result,
+   struct func* func ) {
+   if ( func->type == FUNC_ASPEC ) {
+      struct func_aspec* impl = func->impl;
+      c_add_opc( codegen, PCD_PUSHNUMBER );
+      c_add_arg( codegen, impl->id );
+   }
+}
+
+void visit_paren( struct codegen* codegen, struct result* result,
+   struct paren* paren ) {
+   visit_operand( codegen, result, paren->inside );
+}
+
+void visit_prefix( struct codegen* codegen, struct result* result,
+   struct node* node ) {
+   switch ( node->type ) {
+   case NODE_UNARY:
+      visit_unary( codegen, result,
+         ( struct unary* ) node );
+      break;
+   case NODE_INC:
+      visit_inc( codegen, result,
+         ( struct inc* ) node );
+      break;
+   default:
+      visit_suffix( codegen, result, node );
+      break;
+   }
 }
 
 void visit_unary( struct codegen* codegen, struct result* result,
@@ -968,7 +1144,7 @@ void set_var( struct codegen* codegen, struct result* result, struct var* var ) 
    }
 }
 
-void do_var_name( struct codegen* codegen, struct result* result,
+void visit_var( struct codegen* codegen, struct result* result,
    struct var* var ) {
    set_var( codegen, result, var );
    // For element-based variables, an index marking the start of the variable
@@ -982,6 +1158,25 @@ void do_var_name( struct codegen* codegen, struct result* result,
          push_indexed( codegen, result->storage, result->index );
          result->pushed = true;
       }
+   }
+}
+
+void visit_suffix( struct codegen* codegen, struct result* result,
+   struct node* node ) {
+   switch ( node->type ) {
+   case NODE_SUBSCRIPT:
+   case NODE_ACCESS:
+      visit_object( codegen, result,
+         node );
+      break;
+   case NODE_CALL:
+      visit_call( codegen, result,
+         ( struct call* ) node );
+      break;
+   default:
+      visit_primary( codegen, result,
+         node );
+      break;
    }
 }
 
