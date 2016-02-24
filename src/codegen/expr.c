@@ -82,7 +82,9 @@ static void visit_format_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage );
-static void write_formatblock_arg( struct codegen* codegen,
+static void write_format_block( struct codegen* codegen,
+   struct format_block_usage* usage );
+static void write_jumpable_format_block( struct codegen* codegen,
    struct format_block_usage* usage );
 static void visit_array_format_item( struct codegen* codegen,
    struct format_item* item );
@@ -935,59 +937,74 @@ void visit_format_call( struct codegen* codegen, struct result* result,
 
 void visit_formatblock_arg( struct codegen* codegen,
    struct format_block_usage* usage ) {
-   // When a format block is used more than once in the same expression,
-   // instead of duplicating the code, use a goto instruction to enter the
-   // format block. At each usage except the last, before the format block
-   // is used, a unique number is pushed. This number is used to determine
-   // the return location. 
    if ( usage->next ) {
-      usage->obj_pos = c_tell( codegen );
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_GOTO, 0 );
+      struct c_point* point = c_create_point( codegen );
+      c_append_node( codegen, &point->node );
+      usage->point = point;
       if ( ! codegen->block_visit->format_block_usage ) {
          codegen->block_visit->format_block_usage = usage;
       }
    }
    else {
-      write_formatblock_arg( codegen, usage );
+      if ( codegen->block_visit->format_block_usage ) {
+         write_jumpable_format_block( codegen, usage );
+         codegen->block_visit->format_block_usage = NULL;
+      }
+      else {
+         write_format_block( codegen, usage );
+      }
    }
 }
 
-void write_formatblock_arg( struct codegen* codegen,
+void write_format_block( struct codegen* codegen,
    struct format_block_usage* usage ) {
-   // Return address of the last usage. Only needed when the format-block is
-   // used more than once.
-   if ( codegen->block_visit->format_block_usage ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   }
-   int block_pos = c_tell( codegen );
    c_write_block( codegen, usage->block, true );
+}
+
+// When a format block is used more than once in the same expression, instead
+// of duplicating the code, use a goto instruction to enter the format block.
+// At each usage except the last, before the format block is used, a unique
+// number is pushed. This number is used to determine the return location.
+void write_jumpable_format_block( struct codegen* codegen,
+   struct format_block_usage* usage ) {
+   enum { LAST_USAGE_ID = 0 };
+   enum { STARTING_ID = LAST_USAGE_ID + 1 };
+   c_pcd( codegen, PCD_PUSHNUMBER, LAST_USAGE_ID );
+   struct c_point* enter_point = c_create_point( codegen );
+   c_append_node( codegen, &enter_point->node );
+   c_write_block( codegen, usage->block, true );
+   // Update jumps.
    usage = codegen->block_visit->format_block_usage;
-   if ( ! usage ) {
-      return;
-   }
-   // Update block jumps.
-   int count = 1;
+   int entry_id = STARTING_ID;
    while ( usage->next ) {
-      c_seek( codegen, usage->obj_pos );
-      c_pcd( codegen, PCD_PUSHNUMBER, count );
-      c_pcd( codegen, PCD_GOTO, block_pos );
-      usage->obj_pos = c_tell( codegen );
+      c_seek_node( codegen, &usage->point->node );
+      c_pcd( codegen, PCD_PUSHNUMBER, entry_id );
+      struct c_jump* jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &jump->node );
+      jump->point = enter_point;
+      struct c_point* return_point = c_create_point( codegen );
+      c_append_node( codegen, &return_point->node );
+      usage->point = return_point;
+      ++entry_id;
       usage = usage->next;
-      ++count;
    }
-   // Publish return jumps. A sorted-case-goto can be used here, but a
-   // case-goto will suffice for now.
-   c_seek_end( codegen );
+   c_seek_node( codegen, codegen->node_tail );
+   // Publish return-table.
+   struct c_sortedcasejump* return_table = c_create_sortedcasejump( codegen );
+   c_append_node( codegen, &return_table->node );
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   struct c_casejump* entry = c_create_casejump( codegen,
+      LAST_USAGE_ID, exit_point );
+   c_append_casejump( return_table, entry );
    usage = codegen->block_visit->format_block_usage;
-   count = 1;
+   entry_id = STARTING_ID;
    while ( usage->next ) {
-      c_pcd( codegen, PCD_CASEGOTO, count, usage->obj_pos );
+      entry = c_create_casejump( codegen, entry_id, usage->point );
+      c_append_casejump( return_table, entry );
+      ++entry_id;
       usage = usage->next;
-      ++count;
    }
-   c_pcd( codegen, PCD_DROP );
-   codegen->block_visit->format_block_usage = NULL;
 }
 
 void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {

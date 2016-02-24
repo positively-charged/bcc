@@ -36,14 +36,23 @@ void* alloc_node( struct codegen* codegen, int type ) {
    }
 }
 
+void c_seek_node( struct codegen* codegen, struct c_node* node ) {
+   codegen->node = node;
+}
+
 void c_append_node( struct codegen* codegen, struct c_node* node ) {
-   if ( codegen->node_tail ) {
-      codegen->node_tail->next = node;
+   if ( codegen->node ) {
+      node->next = codegen->node->next;
+      codegen->node->next = node;
+      if ( ! node->next ) {
+         codegen->node_tail = node;
+      }
    }
    else {
       codegen->node_head = node;
+      codegen->node_tail = node;
    }
-   codegen->node_tail = node;
+   codegen->node = node;
 }
 
 void free_node( struct codegen* codegen, struct c_node* node ) {

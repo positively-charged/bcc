@@ -741,8 +741,8 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
       usage->node.type = NODE_FORMAT_BLOCK_USAGE;
       usage->block = NULL;
       usage->next = NULL;
+      usage->point = NULL;
       usage->pos = parse->tk_pos;
-      usage->obj_pos = 0;
       list_append( &args, usage );
       p_read_tk( parse );
       p_test_tk( parse, TK_BRACE_R );

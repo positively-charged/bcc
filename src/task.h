@@ -533,8 +533,8 @@ struct format_block_usage {
    struct node node;
    struct block* block;
    struct format_block_usage* next;
+   struct c_point* point;
    struct pos pos;
-   int obj_pos;
 };
 
 // Format functions are dedicated functions and have their first parameter

@@ -12,6 +12,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->block_visit_free = NULL;
    codegen->func_visit = NULL;
    c_init_obj( codegen );
+   codegen->node = NULL;
    codegen->node_head = NULL;
    codegen->node_tail = NULL;
    for ( int i = 0; i < C_NODE_TOTAL; ++i ) {

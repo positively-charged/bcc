@@ -39,6 +39,7 @@ struct codegen {
    struct block_visit* block_visit;
    struct block_visit* block_visit_free;
    struct block_visit* func_visit;
+   struct c_node* node;
    struct c_node* node_head;
    struct c_node* node_tail;
    struct c_node* free_nodes[ C_NODE_TOTAL ];
@@ -81,6 +82,7 @@ struct pcode* c_get_pcode_info( int code );
 void c_opc( struct codegen* codegen, int code );
 void c_arg( struct codegen* codegen, int value );
 void c_pcd( struct codegen* codegen, int code, ... );
+void c_seek_node( struct codegen* codegen, struct c_node* node );
 void c_append_node( struct codegen* codegen, struct c_node* node );
 struct c_point* c_create_point( struct codegen* codegen );
 struct c_jump* c_create_jump( struct codegen* codegen, int opcode );
