@@ -44,6 +44,8 @@ static void visit_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond );
 static void write_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond );
+static void write_middleless_conditional( struct codegen* codegen,
+   struct result* result, struct conditional* cond );
 static void visit_prefix( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_unary( struct codegen* codegen, struct result* result,
@@ -136,7 +138,7 @@ void c_visit_expr( struct codegen* codegen, struct expr* expr ) {
    init_result( &result );
    visit_operand( codegen, &result, expr->root );
    if ( result.pushed ) {
-      c_add_opc( codegen, PCD_DROP );
+      c_pcd( codegen, PCD_DROP );
    }
 }
 
@@ -219,15 +221,14 @@ void visit_binary( struct codegen* codegen, struct result* result,
    case BOP_MOD: code = PCD_MODULUS; break;
    default: break;
    }
-   c_add_opc( codegen, code );
+   c_pcd( codegen, code );
    result->pushed = true;
 }
 
 void visit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical ) {
    if ( logical->folded ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, logical->value );
+      c_pcd( codegen, PCD_PUSHNUMBER, logical->value );
       result->pushed = true;
    }
    else {
@@ -252,34 +253,28 @@ void write_logicalor( struct codegen* codegen, struct result* result,
    lside.push = true;
    lside.push_temp = true;
    visit_operand( codegen, &lside, logical->lside );
-   int test = c_tell( codegen );
-   c_add_opc( codegen, PCD_IFNOTGOTO );
-   c_add_arg( codegen, 0 );
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, 1 );
-   int jump = c_tell( codegen );
-   c_add_opc( codegen, PCD_GOTO );
-   c_add_arg( codegen, 0 );
+   struct c_jump* rside_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
+   c_append_node( codegen, &rside_jump->node );
+   c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &exit_jump->node );
+   struct c_point* rside_point = c_create_point( codegen );
+   c_append_node( codegen, &rside_point->node );
+   rside_jump->point = rside_point;
    struct result rside;
    init_result( &rside );
    rside.push = true;
    rside.push_temp = true;
-   int next = c_tell( codegen );
    visit_operand( codegen, &rside, logical->rside );
    // Optimization: When doing a calculation temporarily, there's no need to
    // convert the second operand to a 0 or 1. Just use the operand directly.
    if ( ! result->push_temp ) {
-      c_add_opc( codegen, PCD_NEGATELOGICAL );
-      c_add_opc( codegen, PCD_NEGATELOGICAL );
+      c_pcd( codegen, PCD_NEGATELOGICAL );
+      c_pcd( codegen, PCD_NEGATELOGICAL );
    }
-   int done = c_tell( codegen );
-   c_seek( codegen, test );
-   c_add_opc( codegen, PCD_IFNOTGOTO );
-   c_add_arg( codegen, next );
-   c_seek( codegen, jump );
-   c_add_opc( codegen, PCD_GOTO );
-   c_add_arg( codegen, done );
-   c_seek_end( codegen );
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
    result->pushed = true;
 }
 
@@ -290,32 +285,28 @@ void write_logicaland( struct codegen* codegen, struct result* result,
    lside.push = true;
    lside.push_temp = true;
    visit_operand( codegen, &lside, logical->lside );
-   int test = c_tell( codegen );
-   c_add_opc( codegen, PCD_IFGOTO );
-   c_add_arg( codegen, 0 );
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, 0 );
-   int jump = c_tell( codegen );
-   c_add_opc( codegen, PCD_GOTO );
-   c_add_arg( codegen, 0 );
+   struct c_jump* rside_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &rside_jump->node );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &exit_jump->node );
+   struct c_point* rside_point = c_create_point( codegen );
+   c_append_node( codegen, &rside_point->node );
+   rside_jump->point = rside_point;
    struct result rside;
    init_result( &rside );
    rside.push = true;
    rside.push_temp = true;
-   int next = c_tell( codegen );
    visit_operand( codegen, &rside, logical->rside );
+   // Optimization: When doing a calculation temporarily, there's no need to
+   // convert the second operand to a 0 or 1. Just use the operand directly.
    if ( ! result->push_temp ) {
-      c_add_opc( codegen, PCD_NEGATELOGICAL );
-      c_add_opc( codegen, PCD_NEGATELOGICAL );
+      c_pcd( codegen, PCD_NEGATELOGICAL );
+      c_pcd( codegen, PCD_NEGATELOGICAL );
    }
-   int done = c_tell( codegen );
-   c_seek( codegen, test );
-   c_add_opc( codegen, PCD_IFGOTO );
-   c_add_arg( codegen, next );
-   c_seek( codegen, jump );
-   c_add_opc( codegen, PCD_GOTO );
-   c_add_arg( codegen, done );
-   c_seek_end( codegen );
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
    result->pushed = true;
 }
 
@@ -327,7 +318,7 @@ void visit_assign( struct codegen* codegen, struct result* result,
    visit_operand( codegen, &lside, assign->lside );
    if ( lside.method == METHOD_ELEMENT ) {
       if ( result->push ) {
-         c_add_opc( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_DUP );
       }
       struct result rside;
       init_result( &rside );
@@ -345,7 +336,7 @@ void visit_assign( struct codegen* codegen, struct result* result,
       rside.push = true;
       visit_operand( codegen, &rside, assign->rside );
       if ( assign->op == AOP_NONE && result->push ) {
-         c_add_opc( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_DUP );
          result->pushed = true;
       }
       c_update_indexed( codegen, lside.storage, lside.index, assign->op );
@@ -367,7 +358,12 @@ void visit_conditional( struct codegen* codegen, struct result* result,
       result->pushed = true;
    }
    else {
-      write_conditional( codegen, result, cond );
+      if ( cond->middle ) {
+         write_conditional( codegen, result, cond );
+      }
+      else {
+         write_middleless_conditional( codegen, result, cond );
+      }
    }
 }
 
@@ -377,47 +373,42 @@ void write_conditional( struct codegen* codegen, struct result* result,
    init_result( &value );
    value.push = true;
    visit_operand( codegen, &value, cond->left );
-   int left_done = 0;
-   int middle_done = 0;
-   if ( cond->middle ) {
-      left_done = c_tell( codegen );
-      c_add_opc( codegen, PCD_IFNOTGOTO );
-      c_add_arg( codegen, 0 );
-      init_result( &value );
-      value.push = true;
-      visit_operand( codegen, &value, cond->middle );
-      middle_done = c_tell( codegen );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, 0 );
-   }
-   else {
-      c_add_opc( codegen, PCD_DUP );
-      left_done = c_tell( codegen );
-      c_add_opc( codegen, PCD_IFGOTO );
-      c_add_arg( codegen, 0 );
-      c_add_opc( codegen, PCD_DROP );
-   }
+   struct c_jump* right_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
+   c_append_node( codegen, &right_jump->node );
+   init_result( &value );
+   value.push = true;
+   visit_operand( codegen, &value, cond->middle );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &exit_jump->node );
+   struct c_point* right_point = c_create_point( codegen );
+   c_append_node( codegen, &right_point->node );
+   right_jump->point = right_point;
    init_result( &value );
    value.push = true;
    visit_operand( codegen, &value, cond->right );
-   int done = c_tell( codegen );
-   if ( cond->middle ) {
-      c_seek( codegen, middle_done );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, done );
-      int right = c_tell( codegen );
-      c_seek( codegen, left_done );
-      c_add_opc( codegen, PCD_IFNOTGOTO );
-      c_add_arg( codegen, right );
-      c_seek_end( codegen );
-   }
-   else {
-      c_seek( codegen, left_done );
-      c_add_opc( codegen, PCD_IFGOTO );
-      c_add_arg( codegen, done );
-      c_seek_end( codegen );
-   }
-   result->pushed = value.pushed;
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
+   result->pushed = true;
+}
+
+void write_middleless_conditional( struct codegen* codegen,
+   struct result* result, struct conditional* cond ) {
+   struct result value;
+   init_result( &value );
+   value.push = true;
+   visit_operand( codegen, &value, cond->left );
+   c_pcd( codegen, PCD_DUP );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &exit_jump->node );
+   c_pcd( codegen, PCD_DROP );
+   init_result( &value );
+   value.push = true;
+   visit_operand( codegen, &value, cond->right );
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
+   result->pushed = true;
 }
 
 void visit_prefix( struct codegen* codegen, struct result* result,
@@ -446,13 +437,13 @@ void visit_unary( struct codegen* codegen, struct result* result,
    int code = PCD_NONE;
    switch ( unary->op ) {
    case UOP_MINUS:
-      c_add_opc( codegen, PCD_UNARYMINUS );
+      c_pcd( codegen, PCD_UNARYMINUS );
       break;
    case UOP_LOG_NOT:
-      c_add_opc( codegen, PCD_NEGATELOGICAL );
+      c_pcd( codegen, PCD_NEGATELOGICAL );
       break;
    case UOP_BIT_NOT:
-      c_add_opc( codegen, PCD_NEGATEBINARY );
+      c_pcd( codegen, PCD_NEGATEBINARY );
       break;
    // Unary plus is ignored.
    case UOP_PLUS:
@@ -479,10 +470,10 @@ void visit_inc( struct codegen* codegen, struct result* result,
 void inc_array( struct codegen* codegen, struct result* result,
    struct inc* inc, struct result* operand ) {
    if ( result->push ) {
-      c_add_opc( codegen, PCD_DUP );
+      c_pcd( codegen, PCD_DUP );
       if ( inc->post ) {
          push_element( codegen, operand->storage, operand->index );
-         c_add_opc( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_SWAP );
          result->pushed = true;
       }
    }
@@ -521,8 +512,7 @@ void inc_element( struct codegen* codegen, int storage, int index,
          break;
       }
    }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code, index );
 }
 
 void inc_var( struct codegen* codegen, struct result* result,
@@ -572,8 +562,7 @@ void inc_indexed( struct codegen* codegen, int storage, int index,
          break;
       }
    }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code, index );
 }
 
 void visit_suffix( struct codegen* codegen, struct result* result,
@@ -606,14 +595,12 @@ void visit_object( struct codegen* codegen, struct result* result,
    if ( result->method == METHOD_ELEMENT ) {
       if ( result->pushed_element ) {
          if ( result->base ) {
-            c_add_opc( codegen, PCD_PUSHNUMBER );
-            c_add_arg( codegen, result->base );
-            c_add_opc( codegen, PCD_ADD );
+            c_pcd( codegen, PCD_PUSHNUMBER, result->base );
+            c_pcd( codegen, PCD_ADD );
          }
       }
       else {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, result->base );
+         c_pcd( codegen, PCD_PUSHNUMBER, result->base );
       }
    }
    if ( result->action == ACTION_PUSH_VALUE &&
@@ -656,17 +643,15 @@ void visit_subscript( struct codegen* codegen, struct result* result,
    index.push_temp = true;
    visit_operand( codegen, &index, subscript->index->root );
    if ( result->dim->next ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, result->dim->element_size );
-      c_add_opc( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_PUSHNUMBER, result->dim->element_size );
+      c_pcd( codegen, PCD_MULIPLY );
    }
    else if ( ! result->type->primitive ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, result->type->size );
-      c_add_opc( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_PUSHNUMBER, result->type->size );
+      c_pcd( codegen, PCD_MULIPLY );
    }
    if ( result->pushed_element ) {
-      c_add_opc( codegen, PCD_ADD );
+      c_pcd( codegen, PCD_ADD );
    }
    else {
       result->pushed_element = true;
@@ -711,10 +696,9 @@ void visit_access( struct codegen* codegen, struct result* result,
    // Right side:
    if ( rside && rside->type == NODE_STRUCTURE_MEMBER ) {
       struct structure_member* member = ( struct structure_member* ) rside;
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, member->offset );
+      c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
       if ( result->pushed_element ) {
-         c_add_opc( codegen, PCD_ADD );
+         c_pcd( codegen, PCD_ADD );
       }
       else {
          result->pushed_element = true;
@@ -755,23 +739,18 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct func_aspec* aspec = call->func->impl;
    if ( result->push ) {
       while ( count < 5 ) {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, 0 );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          ++count;
       }
-      c_add_opc( codegen, PCD_LSPEC5RESULT );
-      c_add_arg( codegen, aspec->id );
+      c_pcd( codegen, PCD_LSPEC5RESULT, aspec->id );
       result->pushed = true;
    }
    else if ( count ) {
-      c_add_opc( codegen, g_aspec_code[ count - 1 ] );
-      c_add_arg( codegen, aspec->id );
+      c_pcd( codegen, g_aspec_code[ count - 1 ], aspec->id );
    }
    else {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
-      c_add_opc( codegen, PCD_LSPEC1 );
-      c_add_arg( codegen, aspec->id );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_LSPEC1, aspec->id );
    }
 }
 
@@ -780,9 +759,7 @@ void visit_ext_call( struct codegen* codegen, struct result* result,
    int count = push_nonzero_args( codegen, call->func->params, &call->args,
       call->func->min_param );
    struct func_ext* impl = call->func->impl;
-   c_add_opc( codegen, PCD_CALLFUNC );
-   c_add_arg( codegen, count );
-   c_add_arg( codegen, impl->id );
+   c_pcd( codegen, PCD_CALLFUNC, count, impl->id );
    result->pushed = true;
 }
 
@@ -831,9 +808,8 @@ int push_nonzero_args( struct codegen* codegen, struct param* params,
       }
       c_push_expr( codegen, arg, false );
       if ( param->used ) {
-         c_add_opc( codegen, PCD_DUP );
-         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-         c_add_arg( codegen, param->index );
+         c_pcd( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       }
       param = param->next;
       ++i;
@@ -854,14 +830,13 @@ void visit_ded_call( struct codegen* codegen, struct result* result,
       }
       c_push_expr( codegen, arg, false );
       if ( param->used ) {
-         c_add_opc( codegen, PCD_DUP );
-         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-         c_add_arg( codegen, param->index );
+         c_pcd( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       }
       param = param->next;
    }
    struct func_ded* ded = call->func->impl;
-   c_add_opc( codegen, ded->opcode );
+   c_pcd( codegen, ded->opcode );
    if ( call->func->return_type ) {
       result->pushed = true;
    }
@@ -876,13 +851,11 @@ void visit_user_call( struct codegen* codegen, struct result* result,
    else {
       write_call_args( codegen, result, call );
       if ( call->func->return_type ) {
-         c_add_opc( codegen, PCD_CALL );
-         c_add_arg( codegen, impl->index );
+         c_pcd( codegen, PCD_CALL, impl->index );
          result->pushed = true;
       }
       else {
-         c_add_opc( codegen, PCD_CALLDISCARD );
-         c_add_arg( codegen, impl->index );
+         c_pcd( codegen, PCD_CALLDISCARD, impl->index );
       }
    }
 }
@@ -899,27 +872,23 @@ void write_call_args( struct codegen* codegen, struct result* result,
    }
    // Default arguments.
    while ( param ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       param = param->next;
    }
    // Number of real arguments passed, for a function with default
    // parameters.
    if ( call->func->min_param != call->func->max_param ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, list_size( &call->args ) );
+      c_pcd( codegen, PCD_PUSHNUMBER, list_size( &call->args ) );
    }
 }
 
 void visit_nested_userfunc_call( struct codegen* codegen,
    struct result* result, struct call* call ) {
    // Push ID of entry to identify return address. 
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, call->nested_call->id );
+   c_pcd( codegen, PCD_PUSHNUMBER, call->nested_call->id );
    write_call_args( codegen, result, call );
    call->nested_call->enter_pos = c_tell( codegen );
-   c_add_opc( codegen, PCD_GOTO );
-   c_add_arg( codegen, 0 );
+   c_pcd( codegen, PCD_GOTO, 0 );
    call->nested_call->leave_pos = c_tell( codegen );
    if ( call->func->return_type ) {
       result->pushed = true;
@@ -928,7 +897,7 @@ void visit_nested_userfunc_call( struct codegen* codegen,
 
 void visit_format_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   c_add_opc( codegen, PCD_BEGINPRINT );
+   c_pcd( codegen, PCD_BEGINPRINT );
    list_iter_t i;
    list_iter_init( &i, &call->args );
    struct node* node = list_data( &i );
@@ -943,11 +912,11 @@ void visit_format_call( struct codegen* codegen, struct result* result,
    list_next( &i );
    // Other arguments.
    if ( call->func->max_param > 1 ) {
-      c_add_opc( codegen, PCD_MOREHUDMESSAGE );
+      c_pcd( codegen, PCD_MOREHUDMESSAGE );
       int param = 1;
       while ( ! list_end( &i ) ) {
          if ( param == call->func->min_param ) {
-            c_add_opc( codegen, PCD_OPTHUDMESSAGE );
+            c_pcd( codegen, PCD_OPTHUDMESSAGE );
          }
          c_push_expr( codegen, list_data( &i ), false );
          ++param;
@@ -955,7 +924,7 @@ void visit_format_call( struct codegen* codegen, struct result* result,
       }
    }
    struct func_format* format = call->func->impl;
-   c_add_opc( codegen, format->opcode );
+   c_pcd( codegen, format->opcode );
    if ( call->func->return_type ) {
       result->pushed = true;
    }
@@ -970,10 +939,8 @@ void visit_formatblock_arg( struct codegen* codegen,
    // the return location. 
    if ( usage->next ) {
       usage->obj_pos = c_tell( codegen );
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_GOTO, 0 );
       if ( ! codegen->block_visit->format_block_usage ) {
          codegen->block_visit->format_block_usage = usage;
       }
@@ -988,8 +955,7 @@ void write_formatblock_arg( struct codegen* codegen,
    // Return address of the last usage. Only needed when the format-block is
    // used more than once.
    if ( codegen->block_visit->format_block_usage ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    int block_pos = c_tell( codegen );
    c_write_block( codegen, usage->block, true );
@@ -1001,10 +967,8 @@ void write_formatblock_arg( struct codegen* codegen,
    int count = 1;
    while ( usage->next ) {
       c_seek( codegen, usage->obj_pos );
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, count );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, block_pos );
+      c_pcd( codegen, PCD_PUSHNUMBER, count );
+      c_pcd( codegen, PCD_GOTO, block_pos );
       usage->obj_pos = c_tell( codegen );
       usage = usage->next;
       ++count;
@@ -1015,13 +979,11 @@ void write_formatblock_arg( struct codegen* codegen,
    usage = codegen->block_visit->format_block_usage;
    count = 1;
    while ( usage->next ) {
-      c_add_opc( codegen, PCD_CASEGOTO );
-      c_add_arg( codegen, count );
-      c_add_arg( codegen, usage->obj_pos );
+      c_pcd( codegen, PCD_CASEGOTO, count, usage->obj_pos );
       usage = usage->next;
       ++count;
    }
-   c_add_opc( codegen, PCD_DROP );
+   c_pcd( codegen, PCD_DROP );
    codegen->block_visit->format_block_usage = NULL;
 }
 
@@ -1044,7 +1006,7 @@ void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
             PCD_PRINTHEX };
          STATIC_ASSERT( FCAST_TOTAL == 10 );
          c_push_expr( codegen, item->value, false );
-         c_add_opc( codegen, casts[ item->cast - 1 ] );
+         c_pcd( codegen, casts[ item->cast - 1 ] );
       }
       item = item->next;
    }
@@ -1056,8 +1018,7 @@ void visit_array_format_item( struct codegen* codegen,
    init_result( &object );
    object.action = ACTION_PUSH_VAR;
    visit_operand( codegen, &object, item->value->root );
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, object.index );
+   c_pcd( codegen, PCD_PUSHNUMBER, object.index );
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
       c_push_expr( codegen, extra->offset, false );
@@ -1066,8 +1027,7 @@ void visit_array_format_item( struct codegen* codegen,
       }
       else {
          enum { MAX_LENGTH = INT_MAX };
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, MAX_LENGTH );
+         c_pcd( codegen, PCD_PUSHNUMBER, MAX_LENGTH );
       }
    }
    int code = PCD_NONE;
@@ -1101,7 +1061,7 @@ void visit_array_format_item( struct codegen* codegen,
          break;
       }
    }
-   c_add_opc( codegen, code );
+   c_pcd( codegen, code );
 }
 
 void visit_internal_call( struct codegen* codegen, struct result* result,
@@ -1114,14 +1074,12 @@ void visit_internal_call( struct codegen* codegen, struct result* result,
    }
    else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
       visit_operand( codegen, result, call->operand );
-      c_add_opc( codegen, PCD_STRLEN );
+      c_pcd( codegen, PCD_STRLEN );
    }
    else if ( impl->id == INTERN_FUNC_STR_AT ) {
       visit_operand( codegen, result, call->operand );
       c_push_expr( codegen, list_head( &call->args ), true );
-      c_add_opc( codegen, PCD_CALLFUNC );
-      c_add_arg( codegen, 2 );
-      c_add_arg( codegen, 15 );
+      c_pcd( codegen, PCD_CALLFUNC, 2, 15 );
    }
 }
 
@@ -1130,13 +1088,12 @@ void write_executewait( struct codegen* codegen, struct call* call,
    list_iter_t i;
    list_iter_init( &i, &call->args );
    c_push_expr( codegen, list_data( &i ), false );
-   c_add_opc( codegen, PCD_DUP );
+   c_pcd( codegen, PCD_DUP );
    list_next( &i );
    if ( ! list_end( &i ) ) {
       // Second argument to Acs_Execute is 0--the current map. Ignore what the
       // user specified.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       list_next( &i );
       while ( ! list_end( &i ) ) {
          c_push_expr( codegen, list_data( &i ), true );
@@ -1144,16 +1101,13 @@ void write_executewait( struct codegen* codegen, struct call* call,
       }
    }
    if ( named_impl ) {
-      c_add_opc( codegen, PCD_CALLFUNC );
-      c_add_arg( codegen, list_size( &call->args ) );
-      c_add_arg( codegen, 39 );
-      c_add_opc( codegen, PCD_DROP );
-      c_add_opc( codegen, PCD_SCRIPTWAITNAMED );
+      c_pcd( codegen, PCD_CALLFUNC, list_size( &call->args ), 39 );
+      c_pcd( codegen, PCD_DROP );
+      c_pcd( codegen, PCD_SCRIPTWAITNAMED );
    }
    else {
-      c_add_opc( codegen, g_aspec_code[ list_size( &call->args ) - 1 ] );
-      c_add_arg( codegen, 80 );
-      c_add_opc( codegen, PCD_SCRIPTWAIT );
+      c_pcd( codegen, g_aspec_code[ list_size( &call->args ) - 1 ], 80 );
+      c_pcd( codegen, PCD_SCRIPTWAIT );
    }
 }
 
@@ -1192,26 +1146,23 @@ void visit_primary( struct codegen* codegen, struct result* result,
 
 void visit_literal( struct codegen* codegen, struct result* result,
    struct literal* literal ) {
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, literal->value );
+   c_pcd( codegen, PCD_PUSHNUMBER, literal->value );
    result->pushed = true;
 }
 
 void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage ) {
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, usage->string->index );
+   c_pcd( codegen, PCD_PUSHNUMBER, usage->string->index );
    // Strings in a library need to be tagged.
    if ( codegen->task->library_main->importable ) {
-      c_add_opc( codegen, PCD_TAGSTRING );
+      c_pcd( codegen, PCD_TAGSTRING );
    }
    result->pushed = true;
 }
 
 void visit_boolean( struct codegen* codegen, struct result* result,
    struct boolean* boolean ) {
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, boolean->value );
+   c_pcd( codegen, PCD_PUSHNUMBER, boolean->value );
    result->pushed = true;
 }
 
@@ -1245,19 +1196,17 @@ void visit_name_usage( struct codegen* codegen, struct result* result,
 
 void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant ) {
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, constant->value );
+   c_pcd( codegen, PCD_PUSHNUMBER, constant->value );
    if ( codegen->task->library_main->importable && constant->value_node &&
       constant->value_node->has_str ) {
-      c_add_opc( codegen, PCD_TAGSTRING );
+      c_pcd( codegen, PCD_TAGSTRING );
    }
    result->pushed = true;
 }
 
 void visit_enumerator( struct codegen* codegen, struct result* result,
    struct enumerator* enumerator ) {
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, enumerator->value );
+   c_pcd( codegen, PCD_PUSHNUMBER, enumerator->value );
    result->pushed = true;
 }
 
@@ -1267,8 +1216,7 @@ void visit_var( struct codegen* codegen, struct result* result,
    // For element-based variables, an index marking the start of the variable
    // data needs to be on the stack.
    if ( result->method == METHOD_ELEMENT ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, result->base );
+      c_pcd( codegen, PCD_PUSHNUMBER, result->base );
    }
    else {
       if ( result->action == ACTION_PUSH_VALUE ) {
@@ -1308,8 +1256,7 @@ void visit_func( struct codegen* codegen, struct result* result,
    struct func* func ) {
    if ( func->type == FUNC_ASPEC ) {
       struct func_aspec* impl = func->impl;
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, impl->id );
+      c_pcd( codegen, PCD_PUSHNUMBER, impl->id );
    }
 }
 
@@ -1319,15 +1266,13 @@ void write_strcpy( struct codegen* codegen, struct result* result,
    init_result( &object );
    object.action = ACTION_PUSH_VAR;
    visit_operand( codegen, &object, call->array->root );
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, object.index );
+   c_pcd( codegen, PCD_PUSHNUMBER, object.index );
    // Offset within the array.
    if ( call->array_offset ) {
       c_push_expr( codegen, call->array_offset, false );
    }
    else {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    // Number of characters to copy from the string.
    if ( call->array_length ) {
@@ -1335,8 +1280,7 @@ void write_strcpy( struct codegen* codegen, struct result* result,
    }
    else {
       enum { MAX_LENGTH = INT_MAX };
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, MAX_LENGTH );
+      c_pcd( codegen, PCD_PUSHNUMBER, MAX_LENGTH );
    }
    // String field.
    c_push_expr( codegen, call->string, false );
@@ -1345,8 +1289,7 @@ void write_strcpy( struct codegen* codegen, struct result* result,
       c_push_expr( codegen, call->offset, false );
    }
    else {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    int code = PCD_STRCPYTOMAPCHRANGE;
    switch ( object.storage ) {
@@ -1359,7 +1302,7 @@ void write_strcpy( struct codegen* codegen, struct result* result,
    default:
       break;
    }
-   c_add_opc( codegen, code );
+   c_pcd( codegen, code );
    result->pushed = true;
 }
 
@@ -1383,8 +1326,7 @@ void push_indexed( struct codegen* codegen, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code, index );
 }
 
 void push_element( struct codegen* codegen, int storage, int index ) {
@@ -1399,8 +1341,7 @@ void push_element( struct codegen* codegen, int storage, int index ) {
    default:
       break;
    }
-   c_add_opc( codegen, code );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code, index );
 }
 
 void c_update_indexed( struct codegen* codegen, int storage, int index,
@@ -1425,8 +1366,7 @@ void c_update_indexed( struct codegen* codegen, int storage, int index,
    case STORAGE_GLOBAL: pos = 3; break;
    default: break;
    }
-   c_add_opc( codegen, code[ op * 4 + pos ] );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code[ op * 4 + pos ], index );
 }
 
 void c_update_element( struct codegen* codegen, int storage, int index,
@@ -1449,6 +1389,5 @@ void c_update_element( struct codegen* codegen, int storage, int index,
    case STORAGE_GLOBAL: pos = 2; break;
    default: break;
    }
-   c_add_opc( codegen, code[ op * 3 + pos ] );
-   c_add_arg( codegen, index );
+   c_pcd( codegen, code[ op * 3 + pos ], index );
 }
