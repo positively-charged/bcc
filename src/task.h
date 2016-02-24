@@ -315,6 +315,7 @@ struct jump {
       JUMP_CONTINUE
    } type;
    struct jump* next;
+   struct c_jump* point_jump;
    struct pos pos;
    int obj_pos;
 };
@@ -356,6 +357,7 @@ struct case_label {
    int offset;
    struct expr* number;
    struct case_label* next;
+   struct c_point* point;
    struct pos pos;
 };
 
@@ -602,7 +604,7 @@ struct paltrans {
 
 struct label {
    struct node node;
-   int obj_pos;
+   struct c_point* point;
    struct pos pos;
    char* name;
    struct goto_stmt* users;

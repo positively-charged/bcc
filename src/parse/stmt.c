@@ -115,6 +115,7 @@ void read_case( struct parse* parse, struct stmt_reading* reading ) {
    label->node.type = NODE_CASE;
    label->offset = 0;
    label->next = NULL;
+   label->point = NULL;
    label->pos = parse->tk_pos;
    p_read_tk( parse );
    struct expr_reading number;
@@ -179,7 +180,7 @@ struct label* alloc_label( char* name, struct pos pos ) {
    label->defined = false;
    label->pos = pos;
    label->users = NULL;
-   label->obj_pos = 0;
+   label->point = NULL;
    label->format_block = NULL;
    return label;
 }
@@ -429,6 +430,7 @@ void read_jump( struct parse* parse, struct stmt_reading* reading ) {
    stmt->node.type = NODE_JUMP;
    stmt->type = JUMP_BREAK;
    stmt->next = NULL;
+   stmt->point_jump = NULL;
    stmt->pos = parse->tk_pos;
    stmt->obj_pos = 0;
    if ( parse->tk == TK_CONTINUE ) {
