@@ -229,6 +229,7 @@ void c_flush_pcode( struct codegen* codegen ) {
       node = next_node;
    }
    c_seek_end( codegen );
+   codegen->node = NULL;
    codegen->node_head = NULL;
    codegen->node_tail = NULL;
 }
