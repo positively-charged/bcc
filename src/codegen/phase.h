@@ -2,6 +2,7 @@
 #define SRC_CODEGEN_PHASE_H
 
 #include "task.h"
+#include "linear.h"
 
 #define BUFFER_SIZE 65536
 
@@ -38,6 +39,12 @@ struct codegen {
    struct block_visit* block_visit;
    struct block_visit* block_visit_free;
    struct block_visit* func_visit;
+   struct c_node* node_head;
+   struct c_node* node_tail;
+   struct c_node* free_nodes[ C_NODE_TOTAL ];
+   struct c_pcode* pcode;
+   struct c_pcode_arg* pcodearg_tail;
+   struct c_pcode_arg* free_pcode_args;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -70,7 +77,18 @@ void c_write_stmt( struct codegen* codegen, struct node* node );
 void c_visit_expr( struct codegen* codegen, struct expr* );
 void c_visit_var( struct codegen* codegen, struct var* var );
 void c_visit_format_item( struct codegen* codegen, struct format_item* item );
-void c_pcd( struct codegen* codegen, int code, ... );
 struct pcode* c_get_pcode_info( int code );
+void c_opc( struct codegen* codegen, int code );
+void c_arg( struct codegen* codegen, int value );
+void c_pcd( struct codegen* codegen, int code, ... );
+void c_append_node( struct codegen* codegen, struct c_node* node );
+struct c_point* c_create_point( struct codegen* codegen );
+struct c_jump* c_create_jump( struct codegen* codegen, int opcode );
+struct c_casejump* c_create_casejump( struct codegen* codegen, int value,
+   struct c_point* point );
+struct c_sortedcasejump* c_create_sortedcasejump( struct codegen* codegen );
+void c_append_casejump( struct c_sortedcasejump* sorted_jump,
+   struct c_casejump* jump );
+void c_flush_pcode( struct codegen* codegen );
 
 #endif
