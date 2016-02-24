@@ -70,5 +70,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node );
 void c_visit_expr( struct codegen* codegen, struct expr* );
 void c_visit_var( struct codegen* codegen, struct var* var );
 void c_visit_format_item( struct codegen* codegen, struct format_item* item );
+void c_pcd( struct codegen* codegen, int code, ... );
+struct pcode* c_get_pcode_info( int code );
 
 #endif

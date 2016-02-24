@@ -369,4 +369,9 @@ enum {
    PCD_TOTAL
 };
 
+struct pcode {
+   int code;
+   int argc;
+};
+
 #endif
