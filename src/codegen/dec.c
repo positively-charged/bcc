@@ -19,8 +19,11 @@ static void write_world_multi_initz( struct codegen* codegen,
    struct var* var );
 static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size );
-static void add_default_params( struct codegen* codegen, struct func*,
-   int count_param, bool reset_count_param );
+static void add_default_params( struct codegen* codegen, struct func* func,
+    int count_param, bool reset_count_param );
+static void write_default_init( struct codegen* codegen, struct func* func,
+   struct param* start, struct param* end, int count_param );
+static bool zero_default_value( struct param* param );
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start );
 static void write_nested_funcs( struct codegen* codegen,
@@ -60,7 +63,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
    script->offset = c_tell( codegen );
    c_add_block_visit( codegen );
    c_write_stmt( codegen, script->body );
-   c_add_opc( codegen, PCD_TERMINATE );
+   c_pcd( codegen, PCD_TERMINATE );
    if ( script->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, script->nested_funcs,
@@ -69,6 +72,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
       script->size += writing.temps_size;
    }
    c_pop_block_visit( codegen );
+   c_flush_pcode( codegen );
 }
 
 void write_userfunc( struct codegen* codegen, struct func* func ) {
@@ -77,7 +81,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
    c_add_block_visit( codegen );
    add_default_params( codegen, func, func->max_param, true );
    c_write_block( codegen, impl->body, false );
-   c_add_opc( codegen, PCD_RETURNVOID );
+   c_pcd( codegen, PCD_RETURNVOID );
    if ( impl->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, impl->nested_funcs,
@@ -174,8 +178,7 @@ void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
          bool lib_string = ( value->expr->has_str &&
             codegen->task->library_main->importable );
          if ( ! zero || lib_string ) {
-            c_add_opc( codegen, PCD_PUSHNUMBER );
-            c_add_arg( codegen, value->index );
+            c_pcd( codegen, PCD_PUSHNUMBER, value->index );
             c_push_expr( codegen, value->expr, false );
             c_update_element( codegen, var->storage, var->index, AOP_NONE );
          }
@@ -198,10 +201,8 @@ void write_stringinitz( struct codegen* codegen, struct var* var,
       }
       int i = 0;
       while ( i < length ) {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, value->index + i );
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, usage->string->value[ i ] );
+         c_pcd( codegen, PCD_PUSHNUMBER, value->index + i );
+         c_pcd( codegen, PCD_PUSHNUMBER, usage->string->value[ i ] );
          ++i;
       }
       while ( i ) {
@@ -211,31 +212,24 @@ void write_stringinitz( struct codegen* codegen, struct var* var,
    }
    else {
       // Element index.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, value->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
       // Variable index.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, var->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, var->index );
       // Element offset. Not used.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       // Number of characters to copy.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, usage->string->length );
+      c_pcd( codegen, PCD_PUSHNUMBER, usage->string->length );
       // String index.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, usage->string->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, usage->string->index );
       // String offset. Not used.
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
-      c_add_opc( codegen, var->storage == STORAGE_WORLD ?
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, var->storage == STORAGE_WORLD ?
          PCD_STRCPYTOWORLDCHRANGE : PCD_STRCPYTOGLOBALCHRANGE );
-      c_add_opc( codegen, PCD_DROP );
+      c_pcd( codegen, PCD_DROP );
       if ( include_nul ) {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, value->index + usage->string->length );
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, 0 );
+         c_pcd( codegen, PCD_PUSHNUMBER,
+            value->index + usage->string->length );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_update_element( codegen, var->storage, var->index, AOP_NONE );
       }
       usage->string->used = true;
@@ -250,39 +244,36 @@ void nullify_array( struct codegen* codegen, int storage, int index,
    if ( size <= UNROLL_LIMIT ) {
       int i = 0;
       while ( i < size ) {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, start + i );
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, 0 );
+         c_pcd( codegen, PCD_PUSHNUMBER, start + i );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_update_element( codegen, storage, index, AOP_NONE );
          ++i;
       }
    }
    else {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, start + size );
-      int loop = c_tell( codegen );
-      c_add_opc( codegen, PCD_CASEGOTO );
-      c_add_arg( codegen, 0 );
-      c_add_arg( codegen, 0 );
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 1 );
-      c_add_opc( codegen, PCD_SUBTRACT );
-      c_add_opc( codegen, PCD_DUP );
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, start + size - 1 );
+      struct c_point* loop_point = c_create_point( codegen );
+      c_append_node( codegen, &loop_point->node );
+      c_pcd( codegen, PCD_DUP );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       c_update_element( codegen, storage, index, AOP_NONE );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, loop );
-      int done = c_tell( codegen );
-      c_seek( codegen, loop );
-      c_add_opc( codegen, PCD_CASEGOTO );
-      c_add_arg( codegen, start );
-      c_add_arg( codegen, done );
-      c_seek_end( codegen );
+      struct c_casejump* exit_jump = c_create_casejump( codegen, 0, NULL );
+      c_append_node( codegen, &exit_jump->node );
+      c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+      c_pcd( codegen, PCD_SUBTRACT );
+      struct c_jump* loop_jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &loop_jump->node );
+      loop_jump->point = loop_point;
+      struct c_point* exit_point = c_create_point( codegen );
+      c_append_node( codegen, &exit_point->node );
+      exit_jump->value = start - 1;
+      exit_jump->point = exit_point;
    }
 }
 
+// Implementation detail: a hidden parameter is used to store the number of
+// arguments passed to the function. This parameter is found after the last
+// visible parameter. The index of the parameter is @count_param.
 void add_default_params( struct codegen* codegen, struct func* func,
    int count_param, bool reset_count_param ) {
    // Find first default parameter.
@@ -290,72 +281,58 @@ void add_default_params( struct codegen* codegen, struct func* func,
    while ( param && ! param->default_value ) {
       param = param->next;
    }
-   int num = 0;
-   int num_cases = 0;
+   if ( ! param ) {
+      return;
+   }
+   // Find the minimum range that contains all non-zero values.
    struct param* start = param;
+   struct param* end = start;
    while ( param ) {
-      ++num;
-      if ( ! param->default_value->folded || param->default_value->value ) {
-         num_cases = num;
+      if ( ! zero_default_value( param ) ) {
+         end = param->next;
       }
       param = param->next;
    }
-   if ( num_cases ) {
-      // A hidden parameter is used to store the number of arguments passed to
-      // the function. This parameter is found after the last visible parameter.
-      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
-      c_add_arg( codegen, count_param );
-      int jump = c_tell( codegen );
-      c_add_opc( codegen, PCD_CASEGOTOSORTED );
-      c_add_arg( codegen, 0 );
-      param = start;
-      int i = 0;
-      while ( param && i < num_cases ) {
-         c_add_arg( codegen, 0 );
-         c_add_arg( codegen, 0 );
-         param = param->next;
-         ++i;
-      }
-      c_add_opc( codegen, PCD_DROP );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, 0 );
-      param = start;
-      while ( param ) {
-         param->obj_pos = c_tell( codegen );
-         if ( ! param->default_value->folded || param->default_value->value ) {
-            c_push_expr( codegen, param->default_value, false );
-            c_update_indexed( codegen, STORAGE_LOCAL, param->index, AOP_NONE );
-         }
-         param = param->next;
-      }
-      int done = c_tell( codegen );
-      // Add case positions.
-      c_seek( codegen, jump );
-      c_add_opc( codegen, PCD_CASEGOTOSORTED );
-      c_add_arg( codegen, num_cases );
-      num = func->min_param;
-      param = start;
-      while ( param && num_cases ) {
-         c_add_arg( codegen, num );
-         c_add_arg( codegen, param->obj_pos );
-         param = param->next;
-         --num_cases;
-         ++num;
-      }
-      c_add_opc( codegen, PCD_DROP );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, done );
-      c_seek( codegen, done );
+   if ( start != end ) {
+      write_default_init( codegen, func, start, end, count_param );
    }
-   if ( start ) {
-      // Reset the parameter-count parameter.
-      if ( reset_count_param ) {
-         c_add_opc( codegen, PCD_PUSHNUMBER );
-         c_add_arg( codegen, 0 );
-         c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-         c_add_arg( codegen, count_param );
-      }
+   // Reset count parameter.
+   if ( reset_count_param ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, count_param );
    }
+}
+
+void write_default_init( struct codegen* codegen, struct func* func,
+   struct param* start, struct param* end, int count_param ) {
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, count_param );
+   struct c_sortedcasejump* table = c_create_sortedcasejump( codegen );
+   c_append_node( codegen, &table->node );
+   c_pcd( codegen, PCD_DROP );
+   struct c_point* exit_point = c_create_point( codegen );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &exit_jump->node );
+   exit_jump->point = exit_point;
+   int args_passed = func->min_param;
+   struct param* param = start;
+   while ( param != end ) {
+      struct c_point* init_point = c_create_point( codegen );
+      c_append_node( codegen, &init_point->node );
+      if ( ! zero_default_value( param ) ) {
+         c_push_expr( codegen, param->default_value, false );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
+      }
+      struct c_casejump* entry = c_create_casejump( codegen,
+         args_passed, init_point );
+      c_append_casejump( table, entry );
+      ++args_passed;
+      param = param->next;
+   }
+   c_append_node( codegen, &exit_point->node );
+}
+
+bool zero_default_value( struct param* param ) {
+   return ( param->default_value->folded && param->default_value->value == 0 );
 }
 
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
