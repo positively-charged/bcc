@@ -95,7 +95,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
 void c_visit_var( struct codegen* codegen, struct var* var ) {
    if ( var->storage == STORAGE_LOCAL ) {
       if ( var->value ) {
-         c_push_expr( codegen, var->value->expr, false );
+         c_push_expr( codegen, var->value->expr );
          c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
       }
    }
@@ -117,7 +117,7 @@ void write_world_initz( struct codegen* codegen, struct var* var ) {
       write_stringinitz( codegen, var, var->value, true );
    }
    else {
-      c_push_expr( codegen, var->value->expr, false );
+      c_push_expr( codegen, var->value->expr );
       c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
    }
 }
@@ -179,7 +179,7 @@ void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
             codegen->task->library_main->importable );
          if ( ! zero || lib_string ) {
             c_pcd( codegen, PCD_PUSHNUMBER, value->index );
-            c_push_expr( codegen, value->expr, false );
+            c_push_expr( codegen, value->expr );
             c_update_element( codegen, var->storage, var->index, AOP_NONE );
          }
       }
@@ -319,7 +319,7 @@ void write_default_init( struct codegen* codegen, struct func* func,
       struct c_point* init_point = c_create_point( codegen );
       c_append_node( codegen, &init_point->node );
       if ( ! zero_default_value( param ) ) {
-         c_push_expr( codegen, param->default_value, false );
+         c_push_expr( codegen, param->default_value );
          c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       }
       struct c_casejump* entry = c_create_casejump( codegen,

@@ -147,7 +147,7 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
 void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Case selection.
-   c_push_expr( codegen, stmt->cond, true );
+   c_push_expr( codegen, stmt->cond );
    struct c_sortedcasejump* sorted_jump = c_create_sortedcasejump( codegen );
    c_append_node( codegen, &sorted_jump->node );
    struct case_label* label = stmt->case_head;
@@ -202,8 +202,7 @@ void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
    // Condition.
    struct c_point* cond_point = c_create_point( codegen );
    c_append_node( codegen, &cond_point->node );
-   // c_push_cond( codegen, stmt->cond );
-   c_push_expr( codegen, stmt->cond, true );
+   c_push_cond( codegen, stmt->cond );
    if ( while_until ) {
       cond_jump->point = cond_point;
    }
@@ -325,8 +324,7 @@ void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    if ( test_cond ) {
       cond_point = c_create_point( codegen );
       c_append_node( codegen, &cond_point->node );
-      c_push_expr( codegen, stmt->cond, true );
-      // c_push_cond( codegen, stmt->cond );
+      c_push_cond( codegen, stmt->cond );
       cond_jump->point = cond_point;
    }
    // Jump to body.
@@ -362,7 +360,7 @@ void set_jumps_point( struct codegen* codegen, struct jump* jump,
 void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    if ( codegen->func_visit->nested_func ) {
       if ( stmt->return_value ) {
-         c_push_expr( codegen, stmt->return_value->expr, false );
+         c_push_expr( codegen, stmt->return_value->expr );
       }
       struct c_jump* epilogue_jump = c_create_jump( codegen, PCD_GOTO );
       c_append_node( codegen, &epilogue_jump->node );
@@ -370,7 +368,7 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    }
    else {
       if ( stmt->return_value ) {
-         c_push_expr( codegen, stmt->return_value->expr, false );
+         c_push_expr( codegen, stmt->return_value->expr );
          c_pcd( codegen, PCD_RETURNVAL );
       }
       else {
@@ -380,24 +378,24 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
 }
 
 void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
-   c_push_expr( codegen, trans->number, true );
+   c_push_expr( codegen, trans->number );
    c_pcd( codegen, PCD_STARTTRANSLATION );
    struct palrange* range = trans->ranges;
    while ( range ) {
-      c_push_expr( codegen, range->begin, true );
-      c_push_expr( codegen, range->end, true );
+      c_push_expr( codegen, range->begin );
+      c_push_expr( codegen, range->end );
       if ( range->rgb ) {
-         c_push_expr( codegen, range->value.rgb.red1, true );
-         c_push_expr( codegen, range->value.rgb.green1, true );
-         c_push_expr( codegen, range->value.rgb.blue1, true );
-         c_push_expr( codegen, range->value.rgb.red2, true );
-         c_push_expr( codegen, range->value.rgb.green2, true );
-         c_push_expr( codegen, range->value.rgb.blue2, true );
+         c_push_expr( codegen, range->value.rgb.red1 );
+         c_push_expr( codegen, range->value.rgb.green1 );
+         c_push_expr( codegen, range->value.rgb.blue1 );
+         c_push_expr( codegen, range->value.rgb.red2 );
+         c_push_expr( codegen, range->value.rgb.green2 );
+         c_push_expr( codegen, range->value.rgb.blue2 );
          c_pcd( codegen, PCD_TRANSLATIONRANGE2 );
       }
       else {
-         c_push_expr( codegen, range->value.ent.begin, true );
-         c_push_expr( codegen, range->value.ent.end, true );
+         c_push_expr( codegen, range->value.ent.begin );
+         c_push_expr( codegen, range->value.ent.end );
          c_pcd( codegen, PCD_TRANSLATIONRANGE1 );
       }
       range = range->next;
