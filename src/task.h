@@ -274,8 +274,8 @@ struct call {
 
 struct nested_call {
    struct call* next;
-   int enter_pos;
-   int leave_pos;
+   struct c_jump* prologue_jump;
+   struct c_point* return_point;
    int id;
 };
 
@@ -335,8 +335,8 @@ struct return_stmt {
    struct node node;
    struct packed_expr* return_value;
    struct return_stmt* next;
+   struct c_jump* epilogue_jump;
    struct pos pos;
-   int obj_pos;
 };
 
 struct block {
@@ -551,11 +551,12 @@ struct func_user {
    struct func* nested_funcs;
    struct call* nested_calls;
    struct return_stmt* returns;
+   struct c_point* prologue_point;
+   struct c_sortedcasejump* return_table;
    int index;
    int size;
    int usage;
    int obj_pos;
-   int return_pos;
    int index_offset;
    bool nested;
    bool publish;

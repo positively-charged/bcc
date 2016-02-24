@@ -884,12 +884,15 @@ void write_call_args( struct codegen* codegen, struct result* result,
 
 void visit_nested_userfunc_call( struct codegen* codegen,
    struct result* result, struct call* call ) {
-   // Push ID of entry to identify return address. 
+   // Push ID of entry to identify return address.
    c_pcd( codegen, PCD_PUSHNUMBER, call->nested_call->id );
    write_call_args( codegen, result, call );
-   call->nested_call->enter_pos = c_tell( codegen );
-   c_pcd( codegen, PCD_GOTO, 0 );
-   call->nested_call->leave_pos = c_tell( codegen );
+   struct c_jump* prologue_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &prologue_jump->node );
+   call->nested_call->prologue_jump = prologue_jump;
+   struct c_point* return_point = c_create_point( codegen );
+   c_append_node( codegen, &return_point->node );
+   call->nested_call->return_point = return_point;
    if ( call->func->return_type ) {
       result->pushed = true;
    }

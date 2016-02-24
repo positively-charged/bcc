@@ -889,11 +889,12 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->nested_funcs = NULL;
       impl->nested_calls = NULL;
       impl->returns = NULL;
+      impl->prologue_point = NULL;
+      impl->return_table = NULL;
       impl->index = 0;
       impl->size = 0;
       impl->usage = 0;
       impl->obj_pos = 0;
-      impl->return_pos = 0;
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;

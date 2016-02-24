@@ -464,7 +464,7 @@ void read_return( struct parse* parse, struct stmt_reading* reading ) {
    stmt->node.type = NODE_RETURN;
    stmt->return_value = NULL;
    stmt->next = NULL;
-   stmt->obj_pos = 0;
+   stmt->epilogue_jump = NULL;
    stmt->pos = parse->tk_pos;
    p_read_tk( parse );
    if ( parse->tk == TK_SEMICOLON ) {

@@ -364,8 +364,9 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
       if ( stmt->return_value ) {
          c_push_expr( codegen, stmt->return_value->expr, false );
       }
-      stmt->obj_pos = c_tell( codegen );
-      c_pcd( codegen, PCD_GOTO, 0 );
+      struct c_jump* epilogue_jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &epilogue_jump->node );
+      stmt->epilogue_jump = epilogue_jump;
    }
    else {
       if ( stmt->return_value ) {

@@ -359,7 +359,6 @@ void write_nested_funcs( struct codegen* codegen,
       patch_nestedfunc_addresses( codegen, func );
       func = impl->next_nested;
    }
-   c_seek_end( codegen );
    codegen->func_visit->nested_func = false;
 }
 
@@ -382,19 +381,19 @@ void write_one_nestedfunc( struct codegen* codegen,
 
    // Prologue:
    // -----------------------------------------------------------------------
-   impl->obj_pos = c_tell( codegen );
+   struct c_point* prologue_point = c_create_point( codegen );
+   c_append_node( codegen, &prologue_point->node );
+   impl->prologue_point = prologue_point;
 
    // Assign arguments to temporary space.
    int temps_index = writing->temps_start;
    if ( func->min_param != func->max_param ) {
-      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( codegen, temps_index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_index );
       ++temps_index;
    }
    struct param* param = func->params;
    while ( param ) {
-      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( codegen, temps_index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_index );
       ++temps_index;
       param = param->next;
    }
@@ -404,8 +403,7 @@ void write_one_nestedfunc( struct codegen* codegen,
    // at epilogue.
    int i = 0;
    while ( i < impl->size ) {
-      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
-      c_add_arg( codegen, impl->index_offset + i );
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, impl->index_offset + i );
       ++i;
    }
 
@@ -414,10 +412,8 @@ void write_one_nestedfunc( struct codegen* codegen,
    param = func->params;
    while ( param ) {
       --temps_index;
-      c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
-      c_add_arg( codegen, temps_index );
-      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( codegen, param->index );
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, temps_index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       param = param->next;
    }
    if ( func->min_param != func->max_param ) {
@@ -427,16 +423,15 @@ void write_one_nestedfunc( struct codegen* codegen,
 
    // Body:
    // -----------------------------------------------------------------------
-   int body_pos = c_tell( codegen );
    c_write_block( codegen, impl->body, true );
    if ( func->return_type ) {
-      c_add_opc( codegen, PCD_PUSHNUMBER );
-      c_add_arg( codegen, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
 
    // Epilogue:
    // -----------------------------------------------------------------------
-   int epilogue_pos = c_tell( codegen );
+   struct c_point* epilogue_point = c_create_point( codegen );
+   c_append_node( codegen, &epilogue_point->node );
 
    // Temporarily save the return-value.
    int temps_return = 0;
@@ -444,50 +439,39 @@ void write_one_nestedfunc( struct codegen* codegen,
       // Use the last temporary variable.
       temps_return = writing->temps_start;
       temps_size += ( ! temps_size ? 1 : 0 );
-      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( codegen, temps_return );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_return );
    }
 
    // Restore previous values of script variables.
    i = 0;
    while ( i < impl->size ) {
       if ( impl->size <= 2 && func->return_type ) {
-         c_add_opc( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_SWAP );
       }
-      c_add_opc( codegen, PCD_ASSIGNSCRIPTVAR );
-      c_add_arg( codegen, impl->index_offset + impl->size - i - 1 );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR,
+         impl->index_offset + impl->size - i - 1 );
       ++i;
    }
 
    // Return-value.
    if ( func->return_type ) {
       if ( impl->size > 2 ) {
-         c_add_opc( codegen, PCD_PUSHSCRIPTVAR );
-         c_add_arg( codegen, temps_return );
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, temps_return );
       }
-      c_add_opc( codegen, PCD_SWAP );
+      c_pcd( codegen, PCD_SWAP );
    }
 
-   // Output return table.
-   impl->return_pos = c_tell( codegen );
-   c_add_opc( codegen, PCD_CASEGOTOSORTED );
-   c_add_arg( codegen, num_entries );
-   call = impl->nested_calls;
-   while ( call ) {
-      c_add_arg( codegen, 0 );
-      c_add_arg( codegen, 0 );
-      call = call->nested_call->next;
-   }
-
+   // Return-table.
+   struct c_sortedcasejump* return_table = c_create_sortedcasejump( codegen );
+   c_append_node( codegen, &return_table->node );
+   impl->return_table = return_table;
+ 
    // Patch address of return-statements.
    struct return_stmt* stmt = impl->returns;
    while ( stmt ) {
-      c_seek( codegen, stmt->obj_pos );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, epilogue_pos );
+      stmt->epilogue_jump->point = epilogue_point;
       stmt = stmt->next;
    }
-   c_seek_end( codegen );
 
    if ( temps_size > writing->temps_size ) {
       writing->temps_size = temps_size;
@@ -495,25 +479,19 @@ void write_one_nestedfunc( struct codegen* codegen,
 }
 
 void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
-   struct func_user* impl = func->impl; 
-   // Correct calls to this function.
-   int num_entries = 0;
+   struct func_user* impl = func->impl;
+   // Correct calls to function.
    struct call* call = impl->nested_calls;
    while ( call ) {
-      c_seek( codegen, call->nested_call->enter_pos );
-      c_add_opc( codegen, PCD_GOTO );
-      c_add_arg( codegen, impl->obj_pos );
+      call->nested_call->prologue_jump->point = impl->prologue_point;
       call = call->nested_call->next;
-      ++num_entries;
    }
-   // Correct return-addresses in return-table.
-   c_seek( codegen, impl->return_pos );
-   c_add_opc( codegen, PCD_CASEGOTOSORTED );
-   c_add_arg( codegen, num_entries );
+   // Populate return-table.
    call = impl->nested_calls;
    while ( call ) {
-      c_add_arg( codegen, call->nested_call->id );
-      c_add_arg( codegen, call->nested_call->leave_pos );
+      struct c_casejump* entry = c_create_casejump( codegen,
+         call->nested_call->id, call->nested_call->return_point );
+      c_append_casejump( impl->return_table, entry );
       call = call->nested_call->next;
    }
 }

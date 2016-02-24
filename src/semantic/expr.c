@@ -644,8 +644,8 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
          struct nested_call* nested = mem_alloc( sizeof( *nested ) );
          nested->next = impl->nested_calls;
          nested->id = 0;
-         nested->enter_pos = 0;
-         nested->leave_pos = 0;
+         nested->prologue_jump = NULL;
+         nested->return_point = NULL;
          impl->nested_calls = call;
          call->nested_call = nested;
       }
