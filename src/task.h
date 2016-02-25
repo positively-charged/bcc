@@ -117,6 +117,18 @@ struct path {
    struct pos pos;
 };
 
+enum {
+   SPEC_NONE,
+   SPEC_ZRAW,
+   SPEC_ZINT,
+   SPEC_ZFIXED,
+   SPEC_ZBOOL,
+   SPEC_ZSTR,
+   SPEC_ENUM,
+   SPEC_STRUCT,
+   SPEC_VOID
+};
+
 struct structure {
    struct object object;
    struct name* name;

@@ -131,6 +131,7 @@ enum tk {
 
    // 110
    TK_PREP_HASHHASH,
+   TK_ZSTR,
 
    TK_TOTAL,
 
@@ -257,6 +258,7 @@ struct dec {
       bool specified;
       bool has_str;
    } initz;
+   int spec;
    bool type_void;
    bool type_struct;
    bool static_qual;

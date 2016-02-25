@@ -80,6 +80,7 @@ bool p_is_dec( struct parse* parse ) {
    case TK_ENUM:
    case TK_STRUCT:
    case TK_FUNCTION:
+   case TK_ZSTR:
       return true;
    default:
       return false;
@@ -102,6 +103,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.initial = NULL;
    dec->initz.specified = false;
    dec->initz.has_str = false;
+   dec->spec = SPEC_ZRAW;
    dec->type_void = false;
    dec->type_struct = false;
    dec->static_qual = false;
@@ -157,6 +159,11 @@ void read_type( struct parse* parse, struct dec* dec ) {
       break;
    case TK_BOOL:
       dec->type = parse->task->type_bool;
+      p_read_tk( parse );
+      break;
+   case TK_ZSTR:
+      dec->type = parse->task->type_int;
+      dec->spec = SPEC_ZSTR;
       p_read_tk( parse );
       break;
    case TK_VOID:

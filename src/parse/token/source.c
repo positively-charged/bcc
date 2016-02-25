@@ -605,6 +605,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },
          { "world", TK_WORLD },
+         { "zstr", TK_ZSTR },
          // Terminator.
          { "\x7F", TK_END } };
       #define RESERVED_MAX ARRAY_SIZE( reserved )

@@ -116,6 +116,7 @@ static const struct {
    { "while", TK_WHILE },
    { "whitereturn", TK_WHITE_RETURN },
    { "world", TK_WORLD },
+   { "zstr", TK_ZSTR },
    { NULL, TK_END }
 };
 
@@ -405,6 +406,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
 
       // 110
       ENTRY( "##", TKF_NONE ),
+      ENTRY( "zstr", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -527,8 +529,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ELLIPSIS, "`...`" },
       { TK_HORZSPACE, "horizontal space" },
       { TK_PREP_HASHHASH, "`##`" },
-      { TK_STRCPY, "`strcpy`" } };
-   STATIC_ASSERT( TK_TOTAL == 111 );
+      { TK_STRCPY, "`strcpy`" },
+      { TK_ZSTR, "`zstr`" } };
+   STATIC_ASSERT( TK_TOTAL == 112 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
