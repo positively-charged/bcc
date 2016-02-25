@@ -456,6 +456,7 @@ struct var {
    struct initial* initial;
    struct value* value;
    struct var* next;
+   int spec;
    int storage;
    int index;
    int size;

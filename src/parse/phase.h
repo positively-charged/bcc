@@ -132,6 +132,9 @@ enum tk {
    // 110
    TK_PREP_HASHHASH,
    TK_ZRAW,
+   TK_ZINT,
+   TK_ZFIXED,
+   TK_ZBOOL,
    TK_ZSTR,
 
    TK_TOTAL,

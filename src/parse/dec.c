@@ -81,6 +81,9 @@ bool p_is_dec( struct parse* parse ) {
    case TK_STRUCT:
    case TK_FUNCTION:
    case TK_ZRAW:
+   case TK_ZINT:
+   case TK_ZFIXED:
+   case TK_ZBOOL:
    case TK_ZSTR:
       return true;
    default:
@@ -104,7 +107,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.initial = NULL;
    dec->initz.specified = false;
    dec->initz.has_str = false;
-   dec->spec = SPEC_ZRAW;
+   dec->spec = SPEC_VOID;
    dec->type_void = false;
    dec->type_struct = false;
    dec->static_qual = false;
@@ -156,6 +159,21 @@ void read_type( struct parse* parse, struct dec* dec ) {
    case TK_ZRAW:
       dec->type = parse->task->type_int;
       dec->spec = SPEC_ZRAW;
+      p_read_tk( parse );
+      break;
+   case TK_ZINT:
+      dec->type = parse->task->type_int;
+      dec->spec = SPEC_ZINT;
+      p_read_tk( parse );
+      break;
+   case TK_ZFIXED:
+      dec->type = parse->task->type_int;
+      dec->spec = SPEC_ZFIXED;
+      p_read_tk( parse );
+      break;
+   case TK_ZBOOL:
+      dec->type = parse->task->type_int;
+      dec->spec = SPEC_ZBOOL;
       p_read_tk( parse );
       break;
    case TK_ZSTR:
@@ -289,6 +307,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->task->library->objects, set );
    }
    dec->type = parse->task->type_int;
+   dec->spec = SPEC_ZINT;
    if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
       dec->leave = true;
@@ -430,6 +449,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->task->library->objects, type );
    }
    dec->type = type;
+   dec->spec = SPEC_STRUCT;
    if ( dec->leave && type->anon ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "useless, unnamed struct" );
@@ -761,6 +781,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->initial = dec->initz.initial;
    var->value = NULL;
    var->next = NULL;
+   var->spec = dec->spec;
    var->storage = dec->storage.type;
    var->index = dec->storage_index.value;
    var->size = 0;
