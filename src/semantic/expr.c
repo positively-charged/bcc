@@ -4,6 +4,7 @@ struct result {
    struct func* func;
    struct dim* dim;
    struct structure* type;
+   int spec;
    int value;
    bool complete;
    bool usable;
@@ -29,6 +30,11 @@ static void test_operand( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_binary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct binary* binary );
+static bool perform_bop( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside, struct result* result );
+static void invalid_bop( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside );
+static void present_spec( struct result* result, struct str* string );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
@@ -154,6 +160,7 @@ void init_result( struct result* result ) {
    result->func = NULL;
    result->dim = NULL;
    result->type = NULL;
+   result->spec = SPEC_VOID;
    result->value = 0;
    result->complete = false;
    result->usable = false;
@@ -206,34 +213,146 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
          "operand on right side not a value" );
       s_bail( semantic );
    }
+   bool performed = perform_bop( semantic, binary, &lside, &rside, result );
+   if ( ! performed ) {
+      invalid_bop( semantic, binary, &lside, &rside );
+      s_bail( semantic );
+   }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
       fold_bop( semantic, binary, &lside, &rside, result );
    }
-   result->complete = true;
-   result->usable = true;
-   // Type of the result.
+}
+
+bool perform_bop( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside, struct result* result ) {
+   // Binary operators must take operands of the same type.
+   if ( lside->spec != rside->spec ) {
+      return false;
+   }
+   int spec = SPEC_NONE;
    switch ( binary->op ) {
-   case BOP_NONE:
-   case BOP_MOD:
-   case BOP_MUL:
-   case BOP_DIV:
-   case BOP_ADD:
-   case BOP_SUB:
+   case BOP_EQ:
+   case BOP_NEQ:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZBOOL:
+      case SPEC_ZSTR:
+         spec = SPEC_ZBOOL;
+         break;
+      default:
+         break;
+      }
+      break;
+   case BOP_BIT_OR:
+   case BOP_BIT_XOR:
+   case BOP_BIT_AND:
    case BOP_SHIFT_L:
    case BOP_SHIFT_R:
-   case BOP_BIT_AND:
-   case BOP_BIT_XOR:
-   case BOP_BIT_OR:
-      result->type = semantic->task->type_int;
+   case BOP_MOD:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+         spec = lside->spec;
+         break;
+      default:
+         break;
+      }
       break;
-   case BOP_GTE:
-   case BOP_GT:
-   case BOP_LTE:
    case BOP_LT:
-   case BOP_NEQ:
-   case BOP_EQ:
-      result->type = semantic->task->type_bool;
+   case BOP_LTE:
+   case BOP_GT:
+   case BOP_GTE:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZSTR:
+         spec = SPEC_ZBOOL;
+         break;
+      default:
+         break;
+      }
+      break;
+   case BOP_ADD:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZSTR:
+         spec = lside->spec;
+         break;
+      default:
+         break;
+      }
+      break;
+   case BOP_SUB:
+   case BOP_MUL:
+   case BOP_DIV:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+         spec = lside->spec;
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   if ( spec == SPEC_NONE ) {
+      return false;
+   }
+   result->spec = spec;
+   result->type = semantic->task->type_int;
+   result->complete = true;
+   result->usable = true;
+   // binary->lside_type = lside->type;
+   return true;
+}
+
+void invalid_bop( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside ) {
+   // TODO: Move to token phase.
+   static const char* op_names[] = {
+      "|", "^", "&", "==", "!=", "<", "<=", ">", ">=",
+      "<<", ">>", "+", "-", "*", "/", "%"
+   };
+   const char* op = ( binary->op - 1 < ARRAY_SIZE( op_names ) ) ?
+      op_names[ binary->op - 1 ] : "?";
+   struct str operand_a;
+   str_init( &operand_a );
+   present_spec( lside, &operand_a );
+   struct str operand_b;
+   str_init( &operand_b );
+   present_spec( rside, &operand_b );
+   s_diag( semantic, DIAG_POS_ERR, &binary->pos,
+      "invalid operation: `%s` %s `%s`", operand_a.value, op,
+      operand_b.value );
+}
+
+void present_spec( struct result* result, struct str* string ) {
+   switch ( result->spec ) {
+   case SPEC_ZRAW:
+      str_append( string, "zraw" );
+      break;
+   case SPEC_ZINT:
+      str_append( string, "zint" );
+      break;
+   case SPEC_ZFIXED:
+      str_append( string, "zfixed" );
+      break;
+   case SPEC_ZBOOL:
+      str_append( string, "zbool" );
+      break;
+   case SPEC_ZSTR:
+      str_append( string, "zstr" );
+      break;
+   default:
       break;
    }
 }
@@ -875,8 +994,6 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-
-
 void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal ) {
    result->value = literal->value;
@@ -884,6 +1001,7 @@ void test_literal( struct semantic* semantic, struct result* result,
    result->complete = true;
    result->usable = true;
    result->type = semantic->task->type_int;
+   result->spec = SPEC_ZINT;
 }
 
 void test_string_usage( struct semantic* semantic, struct expr_test* test,
@@ -893,6 +1011,7 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
    result->complete = true;
    result->usable = true;
    result->type = semantic->task->type_str;
+   result->spec = SPEC_ZSTR;
    test->has_string = true;
 }
 
@@ -903,6 +1022,7 @@ void test_boolean( struct semantic* semantic, struct result* result,
    result->complete = true;
    result->usable = true;
    result->type = semantic->task->type_bool;
+   result->spec = SPEC_ZBOOL;
 }
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
@@ -1004,6 +1124,7 @@ void select_constant( struct semantic* semantic, struct result* result,
    result->type = constant->value_node ?
       constant->value_node->structure :
       semantic->task->type_int;
+   result->spec = SPEC_ZINT;
    result->value = constant->value;
    result->folded = true;
    result->complete = true;
@@ -1013,6 +1134,7 @@ void select_constant( struct semantic* semantic, struct result* result,
 void select_enumerator( struct semantic* semantic, struct result* result,
    struct enumerator* enumerator ) {
    result->type = semantic->task->type_int;
+   result->spec = SPEC_ZINT;
    result->value = enumerator->value;
    result->folded = true;
    result->complete = true;
@@ -1022,6 +1144,7 @@ void select_enumerator( struct semantic* semantic, struct result* result,
 void select_var( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct var* var ) {
    result->type = var->structure;
+   result->spec = var->spec;
    if ( var->dim ) {
       result->dim = var->dim;
       // NOTE: I'm not too happy with the idea of this field. It is
