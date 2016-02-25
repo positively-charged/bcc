@@ -35,7 +35,9 @@ static void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void write_binary_int( struct codegen* codegen, struct result* result,
    struct binary* binary );
-static void binary_zfixed( struct codegen* codegen, struct result* result,
+static void write_binary_zfixed( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void write_binary_zbool( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void write_binary_str( struct codegen* codegen, struct result* result,
    struct binary* binary );
@@ -226,7 +228,10 @@ void visit_binary( struct codegen* codegen, struct result* result,
       write_binary_int( codegen, result, binary );
       break;
    case SPEC_ZFIXED:
-      binary_zfixed( codegen, result, binary );
+      write_binary_zfixed( codegen, result, binary );
+      break;
+   case SPEC_ZBOOL:
+      write_binary_zbool( codegen, result, binary );
       break;
    case SPEC_ZSTR:
       write_binary_str( codegen, result, binary );
@@ -265,7 +270,7 @@ void write_binary_int( struct codegen* codegen, struct result* result,
    result->pushed = true;
 }
 
-void binary_zfixed( struct codegen* codegen, struct result* result,
+void write_binary_zfixed( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    push_operand( codegen, binary->lside );
    push_operand( codegen, binary->rside );
@@ -281,6 +286,21 @@ void binary_zfixed( struct codegen* codegen, struct result* result,
    case BOP_LTE: code = PCD_LE; break;
    case BOP_GT: code = PCD_GT; break;
    case BOP_GTE: code = PCD_GE; break;
+   default:
+      UNREACHABLE()
+   }
+   c_pcd( codegen, code );
+   result->pushed = true;
+}
+
+void write_binary_zbool( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   push_operand( codegen, binary->lside );
+   push_operand( codegen, binary->rside );
+   int code = PCD_NONE;
+   switch ( binary->op ) {
+   case BOP_EQ: code = PCD_EQ; break;
+   case BOP_NEQ: code = PCD_NE; break;
    default:
       UNREACHABLE()
    }
