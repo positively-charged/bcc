@@ -311,7 +311,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
    result->type = semantic->task->type_int;
    result->complete = true;
    result->usable = true;
-   // binary->lside_type = lside->type;
+   binary->lside_spec = lside->spec;
    return true;
 }
 

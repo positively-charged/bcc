@@ -369,6 +369,12 @@ enum {
    PCD_TOTAL
 };
 
+// IDs of extension functions. 
+enum {
+   EXTFUNC_GETCHAR = 15,
+   EXTFUNC_STRCMP = 63
+};
+
 struct pcode {
    int code;
    int argc;

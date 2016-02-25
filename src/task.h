@@ -212,6 +212,7 @@ struct binary {
    struct node* lside;
    struct node* rside;
    struct pos pos;
+   int lside_spec;
    int value;
    bool folded;
 };

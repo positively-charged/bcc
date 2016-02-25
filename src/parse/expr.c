@@ -350,6 +350,7 @@ struct binary* alloc_binary( int op, struct pos* pos ) {
    binary->lside = NULL;
    binary->rside = NULL;
    binary->pos = *pos;
+   binary->lside_spec = SPEC_NONE;
    binary->value = 0;
    binary->folded = false;
    return binary;

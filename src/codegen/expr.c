@@ -33,6 +33,16 @@ static void visit_operand( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary );
+static void write_binary_int( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void write_binary_str( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void eq_str( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void lt_str( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void concat_str( struct codegen* codegen, struct result* result,
+   struct binary* binary );
 static void visit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
 static void write_logicalor( struct codegen* codegen,
@@ -208,6 +218,21 @@ void visit_operand( struct codegen* codegen, struct result* result,
 
 void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
+   switch ( binary->lside_spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+      write_binary_int( codegen, result, binary );
+      break;
+   case SPEC_ZSTR:
+      write_binary_str( codegen, result, binary );
+      break;
+   default:
+      UNREACHABLE()
+   }
+}
+
+void write_binary_int( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
    push_operand( codegen, binary->lside );
    push_operand( codegen, binary->rside );
    int code = PCD_NONE;
@@ -228,9 +253,78 @@ void visit_binary( struct codegen* codegen, struct result* result,
    case BOP_MUL: code = PCD_MULIPLY; break;
    case BOP_DIV: code = PCD_DIVIDE; break;
    case BOP_MOD: code = PCD_MODULUS; break;
-   default: break;
+   default: 
+      UNREACHABLE()
    }
    c_pcd( codegen, code );
+   result->pushed = true;
+}
+
+void write_binary_str( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      eq_str( codegen, result, binary );
+      break;
+   case BOP_LT:
+   case BOP_LTE:
+   case BOP_GT:
+   case BOP_GTE:
+      lt_str( codegen, result, binary );
+      break;
+   case BOP_ADD:
+      concat_str( codegen, result, binary );
+      break;
+   default:
+      UNREACHABLE()
+   }
+}
+
+void eq_str( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   push_operand( codegen, binary->lside );
+   push_operand( codegen, binary->rside );
+   c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_STRCMP );
+   c_pcd( codegen, PCD_NEGATELOGICAL );
+   if ( binary->op == BOP_NEQ ) {
+      c_pcd( codegen, PCD_NEGATELOGICAL );
+   }
+   result->pushed = true;
+}
+
+void lt_str( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   push_operand( codegen, binary->lside );
+   push_operand( codegen, binary->rside );
+   c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_STRCMP );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   int code = PCD_LT;
+   switch ( binary->op ) {
+   case BOP_LTE:
+      code = PCD_LE;
+      break;
+   case BOP_GTE:
+      code = PCD_GE;
+      break;
+   case BOP_GT:
+      code = PCD_GT;
+      break;
+   default:
+      UNREACHABLE()
+   }
+   c_pcd( codegen, code );
+   result->pushed = true;
+}
+
+void concat_str( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   c_pcd( codegen, PCD_BEGINPRINT );
+   push_operand( codegen, binary->lside );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   push_operand( codegen, binary->rside );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   c_pcd( codegen, PCD_SAVESTRING );
    result->pushed = true;
 }
 
