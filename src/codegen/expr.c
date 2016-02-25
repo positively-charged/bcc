@@ -1151,6 +1151,7 @@ void visit_indexed_string_usage( struct codegen* codegen,
    if ( codegen->task->library_main->importable ) {
       c_pcd( codegen, PCD_TAGSTRING );
    }
+   usage->string->used = true;
    result->pushed = true;
 }
 

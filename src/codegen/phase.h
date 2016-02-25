@@ -73,7 +73,6 @@ void c_seek_end( struct codegen* );
 int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
-void c_alloc_indexes( struct codegen* codegen );
 void c_push_expr( struct codegen* codegen, struct expr* expr );
 void c_push_cond( struct codegen* codegen, struct expr* cond );
 void c_update_indexed( struct codegen* codegen, int, int, int );
