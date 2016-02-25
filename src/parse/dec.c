@@ -80,6 +80,7 @@ bool p_is_dec( struct parse* parse ) {
    case TK_ENUM:
    case TK_STRUCT:
    case TK_FUNCTION:
+   case TK_ZRAW:
    case TK_ZSTR:
       return true;
    default:
@@ -150,15 +151,11 @@ void read_type( struct parse* parse, struct dec* dec ) {
    dec->type_pos = parse->tk_pos;
    switch ( parse->tk ) {
    case TK_INT:
-      dec->type = parse->task->type_int;
-      p_read_tk( parse );
-      break;
    case TK_STR:
-      dec->type = parse->task->type_str;
-      p_read_tk( parse );
-      break;
    case TK_BOOL:
-      dec->type = parse->task->type_bool;
+   case TK_ZRAW:
+      dec->type = parse->task->type_int;
+      dec->spec = SPEC_ZRAW;
       p_read_tk( parse );
       break;
    case TK_ZSTR:
