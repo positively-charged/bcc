@@ -18,11 +18,19 @@ struct immediate {
    int value;
 };
 
-struct block_visit {
-   struct block_visit* prev;
+struct local_record {
    struct format_block_usage* format_block_usage;
+   struct local_record* parent;
+   int index;
+   int func_size;
+};
+
+struct func_record {
+   int start_index;
+   int size;
    bool nested_func;
 };
+
 
 struct codegen {
    struct task* task;
@@ -36,9 +44,8 @@ struct codegen {
    struct immediate* free_immediate;
    int immediate_count;
    bool push_immediate;
-   struct block_visit* block_visit;
-   struct block_visit* block_visit_free;
-   struct block_visit* func_visit;
+   struct func_record* func;
+   struct local_record* local_record;
    struct c_node* node;
    struct c_node* node_head;
    struct c_node* node_tail;
@@ -73,8 +80,7 @@ void c_update_indexed( struct codegen* codegen, int, int, int );
 void c_update_element( struct codegen* codegen, int, int, int );
 void c_add_block_visit( struct codegen* codegen );
 void c_pop_block_visit( struct codegen* codegen );
-void c_write_block( struct codegen* codegen, struct block* stmt,
-   bool add_visit );
+void c_write_block( struct codegen* codegen, struct block* stmt );
 void c_write_stmt( struct codegen* codegen, struct node* node );
 void c_visit_expr( struct codegen* codegen, struct expr* );
 void c_visit_var( struct codegen* codegen, struct var* var );
@@ -93,5 +99,6 @@ struct c_sortedcasejump* c_create_sortedcasejump( struct codegen* codegen );
 void c_append_casejump( struct c_sortedcasejump* sorted_jump,
    struct c_casejump* jump );
 void c_flush_pcode( struct codegen* codegen );
+void c_visit_nested_func( struct codegen* codegen, struct func* func );
 
 #endif

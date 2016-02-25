@@ -47,7 +47,7 @@ static void visit_strcpy( struct alloc* alloc, struct strcpy_call* call );
 
 void c_alloc_indexes( struct codegen* codegen ) {
    alloc_mapvars_index( codegen );
-   visit_tree( codegen );
+   //visit_tree( codegen );
 }
 
 void alloc_mapvars_index( struct codegen* codegen ) {

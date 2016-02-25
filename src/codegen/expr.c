@@ -915,14 +915,14 @@ void visit_formatblock_arg( struct codegen* codegen,
       struct c_point* point = c_create_point( codegen );
       c_append_node( codegen, &point->node );
       usage->point = point;
-      if ( ! codegen->block_visit->format_block_usage ) {
-         codegen->block_visit->format_block_usage = usage;
+      if ( ! codegen->local_record->format_block_usage ) {
+         codegen->local_record->format_block_usage = usage;
       }
    }
    else {
-      if ( codegen->block_visit->format_block_usage ) {
+      if ( codegen->local_record->format_block_usage ) {
          write_jumpable_format_block( codegen, usage );
-         codegen->block_visit->format_block_usage = NULL;
+         codegen->local_record->format_block_usage = NULL;
       }
       else {
          write_format_block( codegen, usage );
@@ -932,7 +932,7 @@ void visit_formatblock_arg( struct codegen* codegen,
 
 void write_format_block( struct codegen* codegen,
    struct format_block_usage* usage ) {
-   c_write_block( codegen, usage->block, true );
+   c_write_block( codegen, usage->block );
 }
 
 // When a format block is used more than once in the same expression, instead
@@ -946,9 +946,9 @@ void write_jumpable_format_block( struct codegen* codegen,
    c_pcd( codegen, PCD_PUSHNUMBER, LAST_USAGE_ID );
    struct c_point* enter_point = c_create_point( codegen );
    c_append_node( codegen, &enter_point->node );
-   c_write_block( codegen, usage->block, true );
+   c_write_block( codegen, usage->block );
    // Update jumps.
-   usage = codegen->block_visit->format_block_usage;
+   usage = codegen->local_record->format_block_usage;
    int entry_id = STARTING_ID;
    while ( usage->next ) {
       c_seek_node( codegen, &usage->point->node );
@@ -971,7 +971,7 @@ void write_jumpable_format_block( struct codegen* codegen,
    struct c_casejump* entry = c_create_casejump( codegen,
       LAST_USAGE_ID, exit_point );
    c_append_casejump( return_table, entry );
-   usage = codegen->block_visit->format_block_usage;
+   usage = codegen->local_record->format_block_usage;
    entry_id = STARTING_ID;
    while ( usage->next ) {
       entry = c_create_casejump( codegen, entry_id, usage->point );

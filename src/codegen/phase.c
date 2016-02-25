@@ -8,9 +8,8 @@ void c_init( struct codegen* codegen, struct task* task ) {
    // codegen->str_table = &task->str_table;
    // codegen->compress = ( codegen->main_lib->format == FORMAT_LITTLE_E );
    codegen->compress = false;
-   codegen->block_visit = NULL;
-   codegen->block_visit_free = NULL;
-   codegen->func_visit = NULL;
+   codegen->func = NULL;
+   codegen->local_record = NULL;
    c_init_obj( codegen );
    codegen->node = NULL;
    codegen->node_head = NULL;

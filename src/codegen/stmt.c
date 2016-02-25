@@ -1,6 +1,11 @@
 #include "phase.h"
 #include "pcode.h"
 
+static void init_local_record( struct codegen* codegen,
+   struct local_record* record );
+static void push_local_record( struct codegen* codegen,
+   struct local_record* record );
+static void pop_local_record( struct codegen* codegen );
 static void write_block_item( struct codegen* codegen, struct node* node );
 static void visit_if( struct codegen* codegen, struct if_stmt* );
 static void visit_switch( struct codegen* codegen, struct switch_stmt* );
@@ -21,54 +26,51 @@ static void visit_label( struct codegen* codegen, struct label* );
 static void visit_goto( struct codegen* codegen, struct goto_stmt* );
 static void visit_packed_expr( struct codegen* codegen, struct packed_expr* );
 
-void c_write_block( struct codegen* codegen, struct block* block,
-   bool add_visit ) {
-   if ( add_visit ) {
-      c_add_block_visit( codegen );
-   }
+void c_write_block( struct codegen* codegen, struct block* stmt ) {
+   struct local_record record;
+   init_local_record( codegen, &record );
+   push_local_record( codegen, &record );
    list_iter_t i;
-   list_iter_init( &i, &block->stmts );
+   list_iter_init( &i, &stmt->stmts );
    while ( ! list_end( &i ) ) {
       write_block_item( codegen, list_data( &i ) );
       list_next( &i );
    }
-   if ( add_visit ) {
-      c_pop_block_visit( codegen );
-   }
+   pop_local_record( codegen );
 }
 
-void c_add_block_visit( struct codegen* codegen ) {
-   struct block_visit* visit;
-   if ( codegen->block_visit_free ) {
-      visit = codegen->block_visit_free;
-      codegen->block_visit_free = visit->prev;
+void init_local_record( struct codegen* codegen,
+   struct local_record* record ) {
+   record->format_block_usage = NULL;
+   record->parent = NULL;
+   if ( codegen->local_record ) {
+      record->index = codegen->local_record->index;
+      record->func_size = codegen->local_record->func_size;
    }
    else {
-      visit = mem_alloc( sizeof( *visit ) );
-   }
-   visit->prev = codegen->block_visit;
-   codegen->block_visit = visit;
-   visit->format_block_usage = NULL;
-   visit->nested_func = false;
-   if ( ! visit->prev ) {
-      codegen->func_visit = visit;
+      record->index = codegen->func->start_index;
+      record->func_size = codegen->func->size;
    }
 }
 
-void c_pop_block_visit( struct codegen* codegen ) {
-   struct block_visit* prev = codegen->block_visit->prev;
-   if ( ! prev ) {
-      codegen->func_visit = NULL;
-   }
-   codegen->block_visit->prev = codegen->block_visit_free;
-   codegen->block_visit_free = codegen->block_visit;
-   codegen->block_visit = prev;
+void push_local_record( struct codegen* codegen,
+   struct local_record* record ) {
+   record->parent = codegen->local_record;
+   codegen->local_record = record;
+}
+
+void pop_local_record( struct codegen* codegen ) {
+   codegen->local_record = codegen->local_record->parent;
 }
 
 void write_block_item( struct codegen* codegen, struct node* node ) {
    switch ( node->type ) {
    case NODE_VAR:
       c_visit_var( codegen, ( struct var* ) node );
+      break;
+   case NODE_FUNC:
+      c_visit_nested_func( codegen,
+         ( struct func* ) node );
       break;
    case NODE_CASE:
    case NODE_CASE_DEFAULT:
@@ -86,7 +88,7 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
 void c_write_stmt( struct codegen* codegen, struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
-      c_write_block( codegen, ( struct block* ) node, true );
+      c_write_block( codegen, ( struct block* ) node );
       break;
    case NODE_IF:
       visit_if( codegen, ( struct if_stmt* ) node );
@@ -274,6 +276,9 @@ bool while_stmt( struct while_stmt* stmt ) {
 // <done>
 void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    // Initialization.
+   struct local_record record;
+   init_local_record( codegen, &record );
+   push_local_record( codegen, &record );
    list_iter_t i;
    list_iter_init( &i, &stmt->init );
    while ( ! list_end( &i ) ) {
@@ -340,7 +345,7 @@ void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
       post_point ? post_point :
       cond_point ? cond_point :
       body_point );
-
+   pop_local_record( codegen );
 }
 
 void visit_jump( struct codegen* codegen, struct jump* jump ) {
@@ -358,7 +363,7 @@ void set_jumps_point( struct codegen* codegen, struct jump* jump,
 }
 
 void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
-   if ( codegen->func_visit->nested_func ) {
+   if ( codegen->func->nested_func ) {
       if ( stmt->return_value ) {
          c_push_expr( codegen, stmt->return_value->expr );
       }

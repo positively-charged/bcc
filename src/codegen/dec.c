@@ -8,10 +8,17 @@ struct nestedfunc_writing {
    struct call* nested_calls;
    int temps_start;
    int temps_size;
+   int args_size;
+   int local_size;
 };
 
 static void write_script( struct codegen* codegen, struct script* script );
 static void write_userfunc( struct codegen* codegen, struct func* func );
+static void init_func_record( struct func_record* record );
+static void alloc_param_indexes( struct func_record* func,
+   struct param* param );
+static void visit_local_var( struct codegen* codegen, struct var* var );
+static void visit_world_var( struct codegen* codegen, struct var* var );
 static void write_world_initz( struct codegen* codegen, struct var* var );
 static void write_stringinitz( struct codegen* codegen, struct var* var,
    struct value* value, bool include_nul );
@@ -24,10 +31,14 @@ static void add_default_params( struct codegen* codegen, struct func* func,
 static void write_default_init( struct codegen* codegen, struct func* func,
    struct param* start, struct param* end, int count_param );
 static bool zero_default_value( struct param* param );
+static void assign_nested_call_ids( struct codegen* codegen,
+   struct func* nested_funcs );
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start );
 static void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing );
+static void calc_args_space_size( struct codegen* codegen,
+   struct nestedfunc_writing* writing, struct func* func );
 static void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func );
 static void patch_nestedfunc_addresses( struct codegen* codegen,
@@ -60,10 +71,18 @@ void c_write_user_code( struct codegen* codegen ) {
 }
 
 void write_script( struct codegen* codegen, struct script* script ) {
+   struct func_record record;
+   init_func_record( &record );
+   codegen->func = &record;
    script->offset = c_tell( codegen );
-   c_add_block_visit( codegen );
+   if ( script->nested_funcs ) {
+      assign_nested_call_ids( codegen, script->nested_funcs );
+   }
+   alloc_param_indexes( &record, script->params );
    c_write_stmt( codegen, script->body );
    c_pcd( codegen, PCD_TERMINATE );
+   script->size = record.size;
+   codegen->func = NULL;
    if ( script->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, script->nested_funcs,
@@ -71,17 +90,24 @@ void write_script( struct codegen* codegen, struct script* script ) {
       write_nested_funcs( codegen, &writing );
       script->size += writing.temps_size;
    }
-   c_pop_block_visit( codegen );
    c_flush_pcode( codegen );
 }
 
 void write_userfunc( struct codegen* codegen, struct func* func ) {
+   struct func_record record;
+   init_func_record( &record );
+   codegen->func = &record;
    struct func_user* impl = func->impl;
    impl->obj_pos = c_tell( codegen );
-   c_add_block_visit( codegen );
+   if ( impl->nested_funcs ) {
+      assign_nested_call_ids( codegen, impl->nested_funcs );
+   }
+   alloc_param_indexes( &record, func->params );
    add_default_params( codegen, func, func->max_param, true );
-   c_write_block( codegen, impl->body, false );
+   c_write_block( codegen, impl->body );
    c_pcd( codegen, PCD_RETURNVOID );
+   impl->size = record.size;
+   codegen->func = NULL;
    if ( impl->nested_funcs ) {
       struct nestedfunc_writing writing;
       init_nestedfunc_writing( &writing, impl->nested_funcs,
@@ -89,25 +115,71 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
       write_nested_funcs( codegen, &writing );
       impl->size += writing.temps_size;
    }
-   c_pop_block_visit( codegen );
+   c_flush_pcode( codegen );
+}
+
+void init_func_record( struct func_record* record ) {
+   record->start_index = 0;
+   record->size = 0;
+   record->nested_func = false;
+}
+
+void alloc_param_indexes( struct func_record* func, struct param* param ) {
+   while ( param ) {
+      param->index = func->start_index;
+      ++func->start_index;
+      ++func->size;
+      param = param->next;
+   }
+}
+
+// Increases the space size of local variables by one, returning the index of
+// the space slot.
+int c_alloc_script_var( struct codegen* codegen ) {
+   int index = codegen->local_record->index;
+   ++codegen->local_record->index;
+   ++codegen->local_record->func_size;
+   if ( codegen->local_record->func_size > codegen->func->size ) {
+      codegen->func->size = codegen->local_record->func_size;
+   }
+   return index;
+}
+
+// Decreases the space size of local variables by one.
+void c_dealloc_last_script_var( struct codegen* codegen ) {
+   --codegen->local_record->index;
+   --codegen->local_record->func_size;
 }
 
 void c_visit_var( struct codegen* codegen, struct var* var ) {
-   if ( var->storage == STORAGE_LOCAL ) {
-      if ( var->value ) {
-         c_push_expr( codegen, var->value->expr );
-         c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
-      }
+   switch ( var->storage ) {
+   case STORAGE_LOCAL:
+      visit_local_var( codegen, var );
+      break;
+   case STORAGE_WORLD:
+   case STORAGE_GLOBAL:
+      visit_world_var( codegen, var );
+      break;
+   default:
+      break;
+    }
+}
+
+void visit_local_var( struct codegen* codegen, struct var* var ) {
+   var->index = c_alloc_script_var( codegen );
+   if ( var->value ) {
+      c_push_expr( codegen, var->value->expr );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
    }
-   else if ( var->storage == STORAGE_WORLD ||
-      var->storage == STORAGE_GLOBAL ) {
-      if ( var->initial ) {
-         if ( var->initial->multi ) {
-            write_world_multi_initz( codegen, var );
-         }
-         else {
-            write_world_initz( codegen, var );
-         }
+}
+
+void visit_world_var( struct codegen* codegen, struct var* var ) {
+   if ( var->initial ) {
+      if ( var->initial->multi ) {
+         write_world_multi_initz( codegen, var );
+      }
+      else {
+         write_world_initz( codegen, var );
       }
    }
 }
@@ -335,66 +407,117 @@ bool zero_default_value( struct param* param ) {
    return ( param->default_value->folded && param->default_value->value == 0 );
 }
 
+void assign_nested_call_ids( struct codegen* codegen,
+   struct func* nested_funcs ) {
+   struct func* nested_func = nested_funcs;
+   while ( nested_func ) {
+      struct func_user* nested_impl = nested_func->impl;
+      struct call* call = nested_impl->nested_calls;
+      int id = 0;
+      while ( call ) {
+         call->nested_call->id = id;
+         ++id;
+         call = call->nested_call->next;
+      }
+      nested_func = nested_impl->next_nested;
+   }
+}
+
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start ) {
    writing->nested_funcs = nested_funcs;
    writing->nested_calls = nested_calls;
    writing->temps_start = temps_start;
    writing->temps_size = 0;
+   writing->args_size = 0;
+   writing->local_size = 0;
 }
 
 void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing ) {
-   codegen->func_visit->nested_func = true;
+   // Determine the number of script variables to reserve for the
+   // argument-holding zone.
    struct func* func = writing->nested_funcs;
+   while ( func ) {
+      calc_args_space_size( codegen, writing, func );
+      struct func_user* impl = func->impl;
+      func = impl->next_nested;
+   }
+   // Write the nested functions.
+   func = writing->nested_funcs;
    while ( func ) {
       write_one_nestedfunc( codegen, writing, func );
       struct func_user* impl = func->impl;
       func = impl->next_nested;
    }
+   writing->temps_size = writing->args_size + writing->local_size;
    // Insert address of function into each call.
    func = writing->nested_funcs;
    while ( func ) {
-      struct func_user* impl = func->impl;
       patch_nestedfunc_addresses( codegen, func );
+      struct func_user* impl = func->impl;
       func = impl->next_nested;
    }
-   codegen->func_visit->nested_func = false;
+}
+
+void calc_args_space_size( struct codegen* codegen,
+   struct nestedfunc_writing* writing, struct func* func ) {
+   struct func_record record;
+   init_func_record( &record );
+   record.start_index = writing->temps_start;
+   alloc_param_indexes( &record, func->params );
+   int args_size = record.size +
+      ( func->min_param != func->max_param ? 1 : 0 );
+   if ( args_size > writing->args_size ) {
+      writing->args_size = args_size;
+   }
 }
 
 void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func ) {
    struct func_user* impl = func->impl;
 
-   // Count number of times function is called.
-   int num_entries = 0;
-   struct call* call = impl->nested_calls;
-   while ( call ) {
-      ++num_entries;
-      struct nested_call* nested = call->nested_call;
-      call = nested->next;
-   }
-   // Don't write the function when it isn't used.
-   if ( ! num_entries ) {
-      return;
-   }
-
-   // Prologue:
+   // Prologue (begin):
    // -----------------------------------------------------------------------
    struct c_point* prologue_point = c_create_point( codegen );
    c_append_node( codegen, &prologue_point->node );
    impl->prologue_point = prologue_point;
 
+   int start_index = writing->temps_start + writing->args_size +
+      impl->index_offset;
+   struct func_record record;
+   init_func_record( &record );
+   record.start_index = start_index;
+   record.nested_func = true;
+   codegen->func = &record;
+   alloc_param_indexes( &record, func->params );
+   // At this point, we need to save the script variables used as the workspace
+   // of the function. To do this, we need to know the size of the function.
+   // Write the function body to determine the size. Then return to complete
+   // the task of saving the workspace.
+
+   // Body:
+   // -----------------------------------------------------------------------
+   c_write_block( codegen, impl->body );
+   if ( func->return_type ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   }
+   impl->size = record.size;
+
+   // Prologue (finish):
+   // -----------------------------------------------------------------------
+   c_seek_node( codegen, &prologue_point->node );
+
    // Assign arguments to temporary space.
-   int temps_index = writing->temps_start;
+   int index = writing->temps_start;
    if ( func->min_param != func->max_param ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_index );
-      ++temps_index;
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
+      ++index;
    }
    struct param* param = func->params;
    while ( param ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_index );
-      ++temps_index;
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
+      ++index;
       param = param->next;
    }
 
@@ -407,56 +530,46 @@ void write_one_nestedfunc( struct codegen* codegen,
       ++i;
    }
 
-   // Activate parameters.
-   int temps_size = temps_index - writing->temps_start;
+   // Assign arguments to parameters.
    param = func->params;
    while ( param ) {
-      --temps_index;
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, temps_index );
+      --index;
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, index );
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       param = param->next;
    }
    if ( func->min_param != func->max_param ) {
-      --temps_index;
-      add_default_params( codegen, func, temps_index, false );
+      --index;
+      add_default_params( codegen, func, index, false );
    }
-
-   // Body:
-   // -----------------------------------------------------------------------
-   c_write_block( codegen, impl->body, true );
-   if ( func->return_type ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   }
+   c_seek_node( codegen, codegen->node_tail );
 
    // Epilogue:
    // -----------------------------------------------------------------------
    struct c_point* epilogue_point = c_create_point( codegen );
    c_append_node( codegen, &epilogue_point->node );
 
-   // Temporarily save the return-value.
-   int temps_return = 0;
-   if ( impl->size > 2 && func->return_type ) {
-      // Use the last temporary variable.
-      temps_return = writing->temps_start;
-      temps_size += ( ! temps_size ? 1 : 0 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, temps_return );
+   // Temporarily save the return value.
+   int return_var = start_index;
+   if ( func->return_type && impl->size > 0 ) {
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
    }
 
    // Restore previous values of script variables.
-   i = 0;
+   index = start_index + impl->size - 1;
+   i = ( func->return_type && impl->size > 0 ) ? 1 : 0;
    while ( i < impl->size ) {
-      if ( impl->size <= 2 && func->return_type ) {
-         c_pcd( codegen, PCD_SWAP );
-      }
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR,
-         impl->index_offset + impl->size - i - 1 );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
+      --index;
       ++i;
    }
 
-   // Return-value.
+   // Push return value into stack.
    if ( func->return_type ) {
-      if ( impl->size > 2 ) {
-         c_pcd( codegen, PCD_PUSHSCRIPTVAR, temps_return );
+      if ( impl->size > 0 ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, return_var );
+         c_pcd( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
       }
       c_pcd( codegen, PCD_SWAP );
    }
@@ -473,9 +586,14 @@ void write_one_nestedfunc( struct codegen* codegen,
       stmt = stmt->next;
    }
 
-   if ( temps_size > writing->temps_size ) {
-      writing->temps_size = temps_size;
+   // Keep track of the maximum number of script variables required to execute
+   // the bodies of all the nested functions.
+   int local_size = impl->index_offset + impl->size;
+   if ( local_size > writing->local_size ) {
+      writing->local_size = local_size;
    }
+
+   codegen->func = NULL;
 }
 
 void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
@@ -493,5 +611,15 @@ void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
          call->nested_call->id, call->nested_call->return_point );
       c_append_casejump( impl->return_table, entry );
       call = call->nested_call->next;
+   }
+}
+
+void c_visit_nested_func( struct codegen* codegen, struct func* func ) {
+   if ( func->type == FUNC_USER ) {
+      if ( codegen->func->nested_func ) {
+         struct func_user* impl = func->impl;
+         impl->index_offset = codegen->local_record->index -
+            codegen->func->start_index;
+      }
    }
 }
