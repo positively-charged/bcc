@@ -51,6 +51,10 @@ static void fold_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
+static bool same_types( struct result* a, struct result* b );
+static bool perform_assign( struct assign* assign, struct result* lside );
+static void invalid_assign( struct semantic* semantic, struct assign* assign,
+   struct result* lside );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_prefix( struct semantic* semantic, struct expr_test* test,
@@ -558,9 +562,108 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "right side of assignment not a value" );
       s_bail( semantic );
    }
+   // Types must match.
+   if ( ! same_types( &lside, &rside ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+         "assignment operands are of different type" );
+      s_bail( semantic );
+   }
+   bool performed = perform_assign( assign, &lside );
+   if ( ! performed ) {
+      invalid_assign( semantic, assign, &lside );
+      s_bail( semantic );
+   }
    result->complete = true;
    result->usable = true;
    result->type = lside.type;
+   result->spec = lside.spec;
+}
+
+bool same_types( struct result* a, struct result* b ) {
+   switch ( a->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+   case SPEC_ZSTR:
+      return ( a->spec == b->spec );
+   default:
+      UNREACHABLE();
+      return false;
+   }
+}
+
+bool perform_assign( struct assign* assign, struct result* lside ) {
+   switch ( assign->op ) {
+   case AOP_NONE:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZBOOL:
+      case SPEC_ZSTR:
+         return true;
+      default:
+         break;
+      }
+      break;
+   case AOP_ADD:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZSTR:
+         return true;
+         break;
+      default:
+         break;
+      }
+      break;
+   case AOP_SUB:
+   case AOP_MUL:
+   case AOP_DIV:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+         return true;
+      default:
+         break;
+      }
+      break;
+   case AOP_MOD:
+   case AOP_SHIFT_L:
+   case AOP_SHIFT_R:
+   case AOP_BIT_AND:
+   case AOP_BIT_XOR:
+   case AOP_BIT_OR:
+      switch ( lside->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+         return true;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   return false;
+}
+
+void invalid_assign( struct semantic* semantic, struct assign* assign,
+   struct result* lside ) {
+   // TODO: Move to token phase.
+   static const char* op_names[] = {
+      "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=" };
+   const char* op = ( assign->op < ARRAY_SIZE( op_names ) ) ?
+      op_names[ assign->op ] : "";
+   struct str type;
+   str_init( &type );
+   present_spec( lside, &type );
+   s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+      "invalid operation: `%s` with `%s` operands",
+      op, type.value );
 }
 
 void test_conditional( struct semantic* semantic, struct expr_test* test,
