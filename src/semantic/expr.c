@@ -97,6 +97,10 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
+static void test_remaining_args( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test );
+static void arg_mismatch( struct semantic* semantic, struct pos* pos,
+   struct result* result, struct result* required_result, int number );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_literal( struct semantic* semantic, struct result* result,
@@ -1116,18 +1120,7 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
    list_iter_init( &i, &call->args );
    test->i = &i;
    test_call_first_arg( semantic, expr_test, test );
-   // Test remaining arguments.
-   while ( ! list_end( &i ) ) {
-      struct expr_test nested;
-      s_init_expr_test( &nested,
-         expr_test->stmt_test,
-         expr_test->format_block, true, false );
-      struct result root;
-      init_result( &root );
-      test_nested_root( semantic, expr_test, &nested, &root, list_data( &i ) );
-      ++test->num_args;
-      list_next( &i );
-   }
+   test_remaining_args( semantic, expr_test, test );
    // Number of arguments must be correct.
    if ( test->num_args < func->min_param ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
@@ -1297,6 +1290,49 @@ void s_test_formatitemlist_stmt( struct semantic* semantic,
    if ( setjmp( test.bail ) == 0 ) {
       test_format_item_list( semantic, &test, item );
    }
+}
+
+void test_remaining_args( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test ) {
+   struct param* param = test->func->params;
+   while ( ! list_end( test->i ) && param ) {
+      struct expr* expr = list_data( test->i );
+      struct expr_test nested;
+      s_init_expr_test( &nested,
+         expr_test->stmt_test,
+         expr_test->format_block, true, false );
+      struct result result;
+      init_result( &result );
+      test_nested_root( semantic, expr_test, &nested, &result, expr );
+      struct result required_result;
+      init_result( &required_result );
+      required_result.spec = param->spec;
+      if ( ! same_types( &result, &required_result ) ) {
+         arg_mismatch( semantic, &expr->pos, &result, &required_result,
+            test->num_args + 1 );
+         s_bail( semantic );
+      }
+      ++test->num_args;
+      param = param->next;
+      list_next( test->i );
+   }
+}
+
+void arg_mismatch( struct semantic* semantic, struct pos* pos,
+   struct result* result, struct result* required_result, int number ) {
+   struct str type;
+   str_init( &type );
+   present_spec( result, &type );
+   struct str param_type;
+   str_init( &param_type );
+   present_spec( required_result, &param_type );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "argument/parameter type mismatch (in argument %d)", number );
+   s_diag( semantic, DIAG_POS, pos,
+      "`%s` argument, but `%s` parameter",
+      type.value, param_type.value );
+   str_deinit( &param_type );
+   str_deinit( &type );
 }
 
 void test_primary( struct semantic* semantic, struct expr_test* test,
