@@ -69,6 +69,10 @@ static void invalid_unary( struct semantic* semantic,
    struct unary* unary, struct result* operand );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
+static bool perform_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand, struct result* result );
+static void invalid_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_subscript( struct semantic* semantic, struct expr_test* test,
@@ -767,15 +771,47 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result operand;
    init_result( &operand );
    test_operand( semantic, test, &operand, inc->operand );
-   // Only an l-value can be incremented.
-   if ( ! operand.assignable ) {
-      s_diag( semantic, DIAG_POS_ERR, &inc->pos,
-         "operand cannot be %s", inc->dec ? "decremented" : "incremented" );
+   bool performed = perform_inc( semantic, inc, &operand, result );
+   if ( ! performed ) {
+      invalid_inc( semantic, inc, &operand );
       s_bail( semantic );
    }
+}
+
+bool perform_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand, struct result* result ) {
+   // Only an l-value can be incremented.
+   if ( ! operand->assignable ) {
+      s_diag( semantic, DIAG_POS_ERR, &inc->pos,
+         "operand cannot be %s", inc->dec ?
+            "decremented" : "incremented" );
+      s_bail( semantic );
+   }
+   switch ( operand->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+      break;
+   default:
+      return false;
+   }
+   result->spec = operand->spec;
+   result->type = operand->type;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_int;
+   inc->zfixed = ( operand->spec == SPEC_ZFIXED );
+   return true;
+}
+
+void invalid_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand ) {
+   struct str type;
+   str_init( &type );
+   present_spec( operand, &type );
+   s_diag( semantic, DIAG_POS_ERR, &inc->pos,
+      "invalid operation: %s `%s`",
+      inc->dec ? "++" : "--", type.value );
+   str_deinit( &type );
 }
 
 void test_suffix( struct semantic* semantic, struct expr_test* test,

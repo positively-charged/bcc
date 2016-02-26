@@ -79,6 +79,8 @@ static void inc_var( struct codegen* codegen, struct result* result,
    struct inc* inc, struct result* operand );
 static void inc_indexed( struct codegen* codegen, int storage, int index,
    bool do_inc );
+static void inc_zfixed( struct codegen* codegen, struct inc* inc,
+   struct result* operand );
 static void visit_suffix( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_object( struct codegen* codegen, struct result* result,
@@ -587,7 +589,12 @@ void inc_array( struct codegen* codegen, struct result* result,
          result->pushed = true;
       }
    }
-   inc_element( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   if ( inc->zfixed ) {
+      inc_zfixed( codegen, inc, operand );
+   }
+   else {
+      inc_element( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   }
    if ( ! inc->post && result->push ) {
       push_element( codegen, operand->storage, operand->index );
       result->pushed = true;
@@ -631,7 +638,12 @@ void inc_var( struct codegen* codegen, struct result* result,
       push_indexed( codegen, operand->storage, operand->index );
       result->pushed = true;
    }
-   inc_indexed( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   if ( inc->zfixed ) {
+      inc_zfixed( codegen, inc, operand );
+   }
+   else {
+      inc_indexed( codegen, operand->storage, operand->index, ( ! inc->dec ) );
+   }
    if ( ! inc->post && result->push ) {
       push_indexed( codegen, operand->storage, operand->index );
       result->pushed = true;
@@ -673,6 +685,20 @@ void inc_indexed( struct codegen* codegen, int storage, int index,
       }
    }
    c_pcd( codegen, code, index );
+}
+
+void inc_zfixed( struct codegen* codegen, struct inc* inc,
+   struct result* operand ) {
+   enum { ZFIXED_WHOLE = 65536 };
+   c_pcd( codegen, PCD_PUSHNUMBER, ZFIXED_WHOLE );
+   if ( operand->method == METHOD_ELEMENT ) {
+      c_update_element( codegen, operand->storage, operand->index,
+         ( inc->dec ? AOP_SUB : AOP_ADD ) );
+   }
+   else {
+      c_update_indexed( codegen, operand->storage, operand->index,
+         ( inc->dec ? AOP_SUB : AOP_ADD ) );
+   }
 }
 
 void visit_suffix( struct codegen* codegen, struct result* result,

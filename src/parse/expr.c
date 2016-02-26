@@ -431,6 +431,7 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    inc->pos = pos;
    inc->post = false;
    inc->dec = dec;
+   inc->zfixed = false;
    return inc;
 }
 

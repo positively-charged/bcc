@@ -187,6 +187,7 @@ struct inc {
    struct pos pos;
    bool post;
    bool dec;
+   bool zfixed;
 };
 
 struct binary {
