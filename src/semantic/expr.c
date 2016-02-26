@@ -39,6 +39,16 @@ static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct logical* logical );
+static bool perform_logical( struct semantic* semantic,
+   struct logical* logical, struct result* lside, struct result* rside,
+   struct result* result );
+static bool can_convert_to_boolean( struct result* result );
+static void fold_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result );
+static void invalid_logical( struct semantic* semantic,
+   struct logical* logical, struct result* lside, struct result* rside );
+static void fold_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
 static void test_conditional( struct semantic* semantic,
@@ -398,38 +408,113 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, logical->lside );
-   if ( ! lside.usable ) {
-      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
-         "operand on left side not a value" );
-      s_bail( semantic );
-   }
    struct result rside;
    init_result( &rside );
    test_operand( semantic, test, &rside, logical->rside );
-   if ( ! rside.usable ) {
-      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
-         "operand on right side not a value" );
+   bool performed = perform_logical( semantic,
+      logical, &lside, &rside, result );
+   if ( ! performed ) {
+      invalid_logical( semantic, logical, &lside, &rside );
       s_bail( semantic );
    }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
-      int l = lside.value;
-      int r = rside.value;
-      switch ( logical->op ) {
-      case LOP_AND: l = l && r; break;
-      case LOP_OR: l = l || r; break;
-      default: break;
-      }
-      logical->folded = true;
-      logical->value = l;
-      result->folded = true;
-      result->value = l;
+      fold_logical( semantic, logical, &lside, &rside, result );
    }
-   result->complete = true;
-   result->usable = true;
-   result->type = semantic->task->type_bool;
 }
 
+bool perform_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result ) {
+   if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
+      result->type = semantic->task->type_bool;
+      result->spec = SPEC_ZBOOL;
+      result->complete = true;
+      result->usable = true;
+      //logical->lside_type = lside->type;
+      //logical->rside_type = rside->type;
+      return true;
+   }
+   return false;
+}
+
+bool can_convert_to_boolean( struct result* result ) {
+   switch ( result->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+   case SPEC_ZSTR:
+      return true;
+   default:
+      return false;
+   }
+}
+
+void invalid_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside ) {
+   // TODO: Move to token phase.
+   const char* op = "";
+   switch ( logical->op ) {
+   case LOP_OR: op = "||"; break;
+   case LOP_AND: op = "&&"; break;
+   default:
+      UNREACHABLE()
+   }
+   struct str operand_a;
+   str_init( &operand_a );
+   present_spec( lside, &operand_a );
+   struct str operand_b;
+   str_init( &operand_b );
+   present_spec( rside, &operand_b );
+   s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+      "invalid operation: `%s` %s `%s`", operand_a.value, op,
+      operand_b.value );
+}
+
+void fold_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result ) {
+   // Get value of left side.
+   int l = 0;
+   switch ( lside->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+      l = lside->value;
+      break;
+   case SPEC_ZSTR:
+      // TODO: Implement.
+      return;
+   default:
+      UNREACHABLE()
+   }
+   // Get value of right side.
+   int r = 0;
+   switch ( lside->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+      r = lside->value;
+      break;
+   case SPEC_ZSTR:
+      // TODO: Implement.
+      return;
+   default:
+      UNREACHABLE()
+   }
+   int value = 0;
+   switch ( logical->op ) {
+   case LOP_OR: value = ( l || r ); break;
+   case LOP_AND: value = ( l && r ); break;
+   default:
+      UNREACHABLE()
+   }
+   result->folded = true;
+   result->value = value;
+   logical->folded = true;
+   logical->value = value;
+}
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct assign* assign ) {
