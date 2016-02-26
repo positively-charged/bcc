@@ -149,6 +149,7 @@ struct structure_member {
    struct path* type_path;
    struct dim* dim;
    struct structure_member* next;
+   int spec;
    int offset;
    int size;
 };
@@ -317,6 +318,7 @@ struct expr {
    struct node* root;
    struct structure* structure;
    struct pos pos;
+   int spec;
    // The value is handled based on the expression type. For numeric types,
    // it'll contain the numeric result of the expression. For the string type,
    // it'll contain the string index, that can be used to lookup the string.
@@ -506,6 +508,7 @@ struct func {
    struct param* params;
    struct structure* return_type;
    void* impl;
+   int return_spec;
    int min_param;
    int max_param;
    bool hidden;

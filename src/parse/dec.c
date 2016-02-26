@@ -111,7 +111,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.initial = NULL;
    dec->initz.specified = false;
    dec->initz.has_str = false;
-   dec->spec = SPEC_VOID;
+   dec->spec = SPEC_NONE;
    dec->type_void = false;
    dec->type_struct = false;
    dec->static_qual = false;
@@ -187,6 +187,7 @@ void read_type( struct parse* parse, struct dec* dec ) {
       break;
    case TK_VOID:
       dec->type_void = true;
+      dec->spec = SPEC_VOID;
       p_read_tk( parse );
       break;
    case TK_ENUM:
@@ -716,6 +717,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    member->type_path = dec->type_path;
    member->dim = dec->dim;
    member->next = NULL;
+   member->spec = dec->spec;
    member->offset = 0;
    member->size = 0;
    if ( dec->type_make->member ) {
@@ -891,6 +893,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->params = NULL;
    func->return_type = dec->type;
    func->impl = NULL;
+   func->return_spec = dec->spec;
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;

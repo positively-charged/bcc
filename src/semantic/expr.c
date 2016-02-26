@@ -166,6 +166,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    expr->structure = result->type;
+   expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;
    test->pos = expr->pos;

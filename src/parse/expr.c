@@ -64,6 +64,7 @@ void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
    expr->root = reading->node;
    expr->structure = NULL;
    expr->pos = reading->pos;
+   expr->spec = SPEC_NONE;
    expr->value = 0;
    expr->folded = false;
    expr->has_str = reading->has_str;
