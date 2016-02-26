@@ -412,6 +412,7 @@ struct unary* alloc_unary( int op, struct pos* pos ) {
    unary->op = op;
    unary->operand = NULL;
    unary->pos = *pos;
+   unary->operand_spec = SPEC_NONE;
    return unary;
 }
 

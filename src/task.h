@@ -178,6 +178,7 @@ struct unary {
    } op;
    struct node* operand;
    struct pos pos;
+   int operand_spec;
 };
 
 struct inc {

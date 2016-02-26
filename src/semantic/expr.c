@@ -686,6 +686,7 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    result->type = semantic->task->type_int;
    result->complete = true;
    result->usable = true;
+   unary->operand_spec = operand->spec;
    return true;
 }
 

@@ -65,6 +65,10 @@ static void visit_prefix( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_unary( struct codegen* codegen, struct result* result,
    struct unary* unary );
+static void write_logical_not( struct codegen* codegen, struct result* result,
+   struct unary* unary );
+static void write_unary( struct codegen* codegen, struct result* result,
+   struct unary* unary );
 static void visit_inc( struct codegen* codegen,
    struct result* result, struct inc* inc );
 static void inc_array( struct codegen* codegen, struct result* result,
@@ -525,25 +529,36 @@ void visit_prefix( struct codegen* codegen, struct result* result,
 
 void visit_unary( struct codegen* codegen, struct result* result,
    struct unary* unary ) {
-   struct result object;
-   init_result( &object );
-   object.push = true;
-   visit_operand( codegen, &object, unary->operand );
-   int code = PCD_NONE;
+   if ( unary->op == UOP_LOG_NOT ) {
+      write_logical_not( codegen, result, unary );
+   }
+   else {
+      write_unary( codegen, result, unary );
+   }
+}
+
+void write_logical_not( struct codegen* codegen, struct result* result,
+   struct unary* unary ) {
+   push_logical_operand( codegen, unary->operand, unary->operand_spec );
+   c_pcd( codegen, PCD_NEGATELOGICAL );
+   result->pushed = true;
+}
+
+void write_unary( struct codegen* codegen, struct result* result,
+   struct unary* unary ) {
+   push_operand( codegen, unary->operand );
    switch ( unary->op ) {
    case UOP_MINUS:
       c_pcd( codegen, PCD_UNARYMINUS );
       break;
-   case UOP_LOG_NOT:
-      c_pcd( codegen, PCD_NEGATELOGICAL );
-      break;
    case UOP_BIT_NOT:
       c_pcd( codegen, PCD_NEGATEBINARY );
       break;
-   // Unary plus is ignored.
    case UOP_PLUS:
-   default:
+      // Unary plus is ignored.
       break;
+   default:
+      UNREACHABLE()
    }
    result->pushed = true;
 }
