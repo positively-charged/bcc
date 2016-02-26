@@ -3,7 +3,7 @@
 struct result {
    struct func* func;
    struct dim* dim;
-   struct structure* type;
+   struct structure* structure;
    int spec;
    int value;
    bool complete;
@@ -173,7 +173,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
          "expression does not produce a value" );
       s_bail( semantic );
    }
-   expr->structure = result->type;
+   expr->structure = result->structure;
    expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;
@@ -194,7 +194,7 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
 void init_result( struct result* result ) {
    result->func = NULL;
    result->dim = NULL;
-   result->type = NULL;
+   result->structure = NULL;
    result->spec = SPEC_VOID;
    result->value = 0;
    result->complete = false;
@@ -343,7 +343,6 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       return false;
    }
    result->spec = spec;
-   result->type = semantic->task->type_int;
    result->complete = true;
    result->usable = true;
    binary->lside_spec = lside->spec;
@@ -451,7 +450,6 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
 bool perform_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
    if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
-      result->type = semantic->task->type_bool;
       result->spec = SPEC_ZBOOL;
       result->complete = true;
       result->usable = true;
@@ -577,10 +575,9 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
       invalid_assign( semantic, assign, &lside );
       s_bail( semantic );
    }
+   result->spec = lside.spec;
    result->complete = true;
    result->usable = true;
-   result->type = lside.type;
-   result->spec = lside.spec;
 }
 
 bool same_types( struct result* a, struct result* b ) {
@@ -683,7 +680,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    // A string has an index. This index could be 0. The problem is that the
    // value 0 indicates a failed condition, but the string surely is a valid
    // value. So for now, disallow the usage of a string as the left operand.
-   if ( left.type == semantic->task->type_str ) {
+   if ( left.spec == SPEC_ZSTR ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
          "left operand of `str` type" );
       s_bail( semantic );
@@ -696,17 +693,15 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    struct result right;
    init_result( &right );
    test_operand( semantic, test, &right, cond->right );
-   if ( middle.type != right.type ) {
+   if ( ! same_types( &middle, &right ) ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
          "%s and right operands of different type",
          cond->middle ? "middle" : "left" );
       s_bail( semantic );
    }
-   result->type = left.type;
+   result->spec = left.spec;
    result->complete = true;
-   if ( result->type ) {
-      result->usable = true;
-   }
+   result->usable = ( result->spec != SPEC_VOID );
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
       cond->left_value = left.value;
@@ -797,7 +792,6 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
       return false;
    }
    result->spec = spec;
-   result->type = semantic->task->type_int;
    result->complete = true;
    result->usable = true;
    unary->operand_spec = operand->spec;
@@ -906,7 +900,6 @@ bool perform_inc( struct semantic* semantic, struct inc* inc,
       return false;
    }
    result->spec = operand->spec;
-   result->type = operand->type;
    result->complete = true;
    result->usable = true;
    inc->zfixed = ( operand->spec == SPEC_ZFIXED );
@@ -969,7 +962,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
       s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &subscript->index->pos, "array index out-of-bounds" );
    }
-   result->type = lside.type;
+   result->spec = lside.spec;
    result->dim = lside.dim->next;
    if ( result->dim ) {
       if ( test->accept_array ) {
@@ -977,7 +970,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
       }
    }
    else {
-      if ( result->type->primitive ) {
+      if ( result->spec != SPEC_STRUCT ) {
          result->complete = true;
          result->usable = true;
          result->assignable = true;
@@ -990,12 +983,12 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, access->lside );
-   if ( ! ( lside.type && ! lside.dim ) ) {
+   if ( ! ( lside.spec == SPEC_STRUCT && ! lside.dim ) ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand not of struct type" );
       s_bail( semantic );
    }
-   struct name* name = t_extend_name( lside.type->body, access->name );
+   struct name* name = t_extend_name( lside.structure->body, access->name );
    if ( ! name->object ) {
       // The right operand might be a member of a structure that hasn't been
       // processed yet because the structure appears later in the source code.
@@ -1006,7 +999,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          test->undef_erred = true;
          longjmp( test->bail, 1 );
       }
-      if ( lside.type->anon ) {
+      if ( lside.structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not member of anonymous struct", access->name );
          s_bail( semantic );
@@ -1014,7 +1007,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
       else {
          struct str str;
          str_init( &str );
-         t_copy_name( lside.type->name, false, &str );
+         t_copy_name( lside.structure->name, false, &str );
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not member of struct `%s`", access->name,
             str.value );
@@ -1093,11 +1086,9 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       }
    }
    call->func = test.func;
-   result->type = test.func->return_type;
+   result->spec = test.func->return_spec;
    result->complete = true;
-   if ( test.func->return_type ) {
-      result->usable = true;
-   }
+   result->usable = ( test.func->return_spec != SPEC_VOID );
    if ( call->func->type == FUNC_USER ) {
       struct func_user* impl = call->func->impl;
       if ( impl->nested ) {
@@ -1377,7 +1368,6 @@ void test_literal( struct semantic* semantic, struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_int;
    result->spec = SPEC_ZINT;
 }
 
@@ -1387,7 +1377,6 @@ void test_fixed_literal( struct semantic* semantic, struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_int;
    result->spec = SPEC_ZFIXED;
 }
 
@@ -1397,7 +1386,6 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_str;
    result->spec = SPEC_ZSTR;
    test->has_string = true;
 }
@@ -1408,7 +1396,6 @@ void test_boolean( struct semantic* semantic, struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_bool;
    result->spec = SPEC_ZBOOL;
 }
 
@@ -1507,10 +1494,6 @@ void select_object( struct semantic* semantic, struct expr_test* test,
 
 void select_constant( struct semantic* semantic, struct result* result,
    struct constant* constant ) {
-   // TODO: Add type as a field.
-   result->type = constant->value_node ?
-      constant->value_node->structure :
-      semantic->task->type_int;
    result->spec = SPEC_ZINT;
    result->value = constant->value;
    result->folded = true;
@@ -1520,7 +1503,6 @@ void select_constant( struct semantic* semantic, struct result* result,
 
 void select_enumerator( struct semantic* semantic, struct result* result,
    struct enumerator* enumerator ) {
-   result->type = semantic->task->type_int;
    result->spec = SPEC_ZINT;
    result->value = enumerator->value;
    result->folded = true;
@@ -1530,7 +1512,7 @@ void select_enumerator( struct semantic* semantic, struct result* result,
 
 void select_var( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct var* var ) {
-   result->type = var->structure;
+   result->structure = var->structure;
    result->spec = var->spec;
    if ( var->dim ) {
       result->dim = var->dim;
@@ -1550,16 +1532,17 @@ void select_var( struct semantic* semantic, struct expr_test* test,
 
 void select_param( struct semantic* semantic, struct result* result,
    struct param* param ) {
-   param->used = true;
-   result->type = param->structure;
+   result->spec = param->spec;
    result->complete = true;
    result->usable = true;
    result->assignable = true;
+   param->used = true;
 }
 
 void select_member( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct structure_member* member ) {
-   result->type = member->structure;
+   result->structure = member->structure;
+   result->spec = member->spec;
    if ( member->dim ) {
       result->dim = member->dim;
       if ( test->accept_array ) {
@@ -1638,9 +1621,9 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
       init_result( &root );
       test_nested_root( semantic, test, &nested, &root, call->offset );
    }
+   result->spec = SPEC_ZBOOL;
    result->complete = true;
    result->usable = true;
-   result->type = semantic->task->type_bool;
 }
 
 void test_paren( struct semantic* semantic, struct expr_test* test,
