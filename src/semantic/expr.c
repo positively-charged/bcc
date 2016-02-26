@@ -1435,19 +1435,20 @@ void select_member( struct semantic* semantic, struct expr_test* test,
 
 void select_func( struct semantic* semantic, struct result* result,
    struct func* func ) {
-   if ( result->func->type == FUNC_USER ) {
-      struct func_user* impl = result->func->impl;
+   if ( func->type == FUNC_USER ) {
+      struct func_user* impl = func->impl;
       ++impl->usage;
    }
    // When using just the name of an action special, a value is produced,
    // which is the ID of the action special.
-   else if ( result->func->type == FUNC_ASPEC ) {
+   else if ( func->type == FUNC_ASPEC ) {
       result->complete = true;
       result->usable = true;
       struct func_aspec* impl = result->func->impl;
       result->value = impl->id;
       result->folded = true;
    }
+   result->func = func;
 }
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
