@@ -57,6 +57,16 @@ static void test_prefix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_unary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct unary* unary );
+static bool perform_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand, struct result* result );
+static void fold_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand, struct result* result );
+static void fold_unary_minus( struct semantic* semantic,
+   struct result* operand, struct result* result );
+static void fold_logical_not( struct semantic* semantic,
+   struct result* operand, struct result* result );
+static void invalid_unary( struct semantic* semantic,
+   struct unary* unary, struct result* operand );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
@@ -612,44 +622,143 @@ void test_prefix( struct semantic* semantic, struct expr_test* test,
 
 void test_unary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct unary* unary ) {
-   struct result target;
-   init_result( &target );
-   test_operand( semantic, test, &target, unary->operand );
+   struct result operand;
+   init_result( &operand );
+   test_operand( semantic, test, &operand, unary->operand );
    // Remaining operations require a value to work on.
-   if ( ! target.usable ) {
+   if ( ! operand.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &unary->pos,
          "operand of unary operation not a value" );
       s_bail( semantic );
    }
+   bool performed = perform_unary( semantic, unary, &operand, result );
+   if ( ! performed ) {
+      invalid_unary( semantic, unary, &operand );
+      s_bail( semantic );
+   }
    // Compile-time evaluation.
-   if ( target.folded ) {
-      switch ( unary->op ) {
-      case UOP_MINUS:
-         result->value = ( - target.value );
-         break;
-      case UOP_PLUS:
-         result->value = target.value;
-         break;
-      case UOP_LOG_NOT:
-         result->value = ( ! target.value );
-         break;
-      case UOP_BIT_NOT:
-         result->value = ( ~ target.value );
-         break;
+   if ( operand.folded ) {
+      fold_unary( semantic, unary, &operand, result );
+   }
+}
+
+bool perform_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand, struct result* result ) {
+   int spec = SPEC_NONE;
+   switch ( unary->op ) {
+   case UOP_MINUS:
+   case UOP_PLUS:
+      switch ( operand->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+         spec = operand->spec;
       default:
          break;
       }
-      result->folded = true;
+      break;
+   case UOP_BIT_NOT:
+      switch ( operand->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+         spec = operand->spec;
+      default:
+         break;
+      }
+      break;
+   case UOP_LOG_NOT:
+      switch ( operand->spec ) {
+      case SPEC_ZRAW:
+         spec = operand->spec;
+         break;
+      default:
+         spec = SPEC_ZBOOL;
+         break;
+      }
+      break;
+   default:
+      UNREACHABLE()
    }
+   if ( spec == SPEC_NONE ) {
+      return false;
+   }
+   result->spec = spec;
+   result->type = semantic->task->type_int;
    result->complete = true;
    result->usable = true;
-   // Type of the result.
-   if ( unary->op == UOP_LOG_NOT ) {
-      result->type = semantic->task->type_bool;
+   return true;
+}
+
+void fold_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand, struct result* result ) {
+   switch ( unary->op ) {
+   case UOP_MINUS:
+      fold_unary_minus( semantic, operand, result );
+      break;
+   case UOP_PLUS:
+      result->value = operand->value;
+      result->folded = true;
+      break;
+   case UOP_LOG_NOT:
+      fold_logical_not( semantic, operand, result );
+      break;
+   case UOP_BIT_NOT:
+      result->value = ( ~ operand->value );
+      result->folded = true;
+      break;
+   default:
+      UNREACHABLE()
    }
-   else {
-      result->type = semantic->task->type_int;
+}
+
+void fold_unary_minus( struct semantic* semantic, struct result* operand,
+   struct result* result ) {
+   switch ( operand->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+      // TODO: Warn on overflow and underflow.
+      result->value = ( - operand->value );
+      result->folded = true;
+      break;
+   default:
+      UNREACHABLE()
    }
+}
+
+void fold_logical_not( struct semantic* semantic, struct result* operand,
+   struct result* result ) {
+   switch ( operand->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+      result->value = ( ! operand->value );
+      result->folded = true;
+      break;
+   case SPEC_ZSTR: {
+      struct indexed_string* string = t_lookup_string( semantic->task,
+         operand->value );
+      result->value = ( string->length == 0 );
+      result->folded = true;
+      break; } 
+   default:
+      break;
+   }
+}
+
+void invalid_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand ) {
+   // TODO: Move to token phase.
+   static const char* op_names[] = { "-", "+", "!", "~" };
+   const char* op = ( unary->op - 1 < ARRAY_SIZE( op_names ) ) ?
+      op_names[ unary->op - 1 ] : "";
+   struct str type;
+   str_init( &type );
+   present_spec( operand, &type );
+   s_diag( semantic, DIAG_POS_ERR, &unary->pos,
+      "invalid operation: %s `%s`", op, type.value );
+   str_deinit( &type );
 }
 
 void test_inc( struct semantic* semantic, struct expr_test* test,
