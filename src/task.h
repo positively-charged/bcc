@@ -226,6 +226,8 @@ struct logical {
    struct node* lside;
    struct node* rside;
    struct pos pos;
+   int lside_spec;
+   int rside_spec;
    int value;
    bool folded;
 };

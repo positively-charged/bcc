@@ -430,8 +430,8 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
       result->spec = SPEC_ZBOOL;
       result->complete = true;
       result->usable = true;
-      //logical->lside_type = lside->type;
-      //logical->rside_type = rside->type;
+      logical->lside_spec = lside->spec;
+      logical->rside_spec = rside->spec;
       return true;
    }
    return false;

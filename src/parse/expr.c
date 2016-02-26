@@ -363,6 +363,8 @@ struct logical* alloc_logical( int op, struct pos* pos ) {
    logical->lside = NULL;
    logical->rside = NULL;
    logical->pos = *pos;
+   logical->lside_spec = SPEC_NONE;
+   logical->rside_spec = SPEC_NONE;
    logical->value = 0;
    logical->folded = false;
    return logical;

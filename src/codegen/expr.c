@@ -49,11 +49,10 @@ static void concat_str( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void visit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
-static void write_logicalor( struct codegen* codegen,
+static void write_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
-static void write_logicaland( struct codegen* codegen,
-   struct result* result, struct logical* logical );
-static void push_boolean_operand( struct codegen* codegen, struct node* node );
+static void push_logical_operand( struct codegen* codegen,
+   struct node* node, int spec );
 static void visit_assign( struct codegen* codegen, struct result* result,
    struct assign* assign );
 static void visit_conditional( struct codegen* codegen,
@@ -383,32 +382,25 @@ void visit_logical( struct codegen* codegen,
       result->pushed = true;
    }
    else {
-      switch ( logical->op ) {
-      case LOP_OR:
-         write_logicalor( codegen, result, logical );
-         break;
-      case LOP_AND:
-         write_logicaland( codegen, result, logical );
-         break;
-      default:
-         UNREACHABLE();
-      }
+      write_logical( codegen, result, logical );
    }
 }
 
 // Logical-or and logical-and both perform shortcircuit evaluation.
-void write_logicalor( struct codegen* codegen, struct result* result,
+void write_logical( struct codegen* codegen, struct result* result,
    struct logical* logical ) {
-   push_boolean_operand( codegen, logical->lside );
-   struct c_jump* rside_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
+   push_logical_operand( codegen, logical->lside, logical->lside_spec );
+   struct c_jump* rside_jump = c_create_jump( codegen,
+      ( logical->op == LOP_OR ? PCD_IFNOTGOTO : PCD_IFGOTO ) );
    c_append_node( codegen, &rside_jump->node );
-   c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+   c_pcd( codegen, PCD_PUSHNUMBER,
+      ( logical->op == LOP_OR ? 1 : 0 ) );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
    struct c_point* rside_point = c_create_point( codegen );
    c_append_node( codegen, &rside_point->node );
    rside_jump->point = rside_point;
-   push_boolean_operand( codegen, logical->rside );
+   push_logical_operand( codegen, logical->rside, logical->rside_spec );
    // Optimization: When doing a calculation temporarily, there's no need to
    // convert the second operand to a 0 or 1. Just use the operand directly.
    if ( ! result->push_temp ) {
@@ -421,36 +413,17 @@ void write_logicalor( struct codegen* codegen, struct result* result,
    result->pushed = true;
 }
 
-void write_logicaland( struct codegen* codegen, struct result* result,
-   struct logical* logical ) {
-   push_boolean_operand( codegen, logical->lside );
-   struct c_jump* rside_jump = c_create_jump( codegen, PCD_IFGOTO );
-   c_append_node( codegen, &rside_jump->node );
-   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
-   c_append_node( codegen, &exit_jump->node );
-   struct c_point* rside_point = c_create_point( codegen );
-   c_append_node( codegen, &rside_point->node );
-   rside_jump->point = rside_point;
-   push_boolean_operand( codegen, logical->rside );
-   // Optimization: When doing a calculation temporarily, there's no need to
-   // convert the second operand to a 0 or 1. Just use the operand directly.
-   if ( ! result->push_temp ) {
-      c_pcd( codegen, PCD_NEGATELOGICAL );
-      c_pcd( codegen, PCD_NEGATELOGICAL );
-   }
-   struct c_point* exit_point = c_create_point( codegen );
-   c_append_node( codegen, &exit_point->node );
-   exit_jump->point = exit_point;
-   result->pushed = true;
-}
-
-void push_boolean_operand( struct codegen* codegen, struct node* node ) {
+void push_logical_operand( struct codegen* codegen,
+   struct node* node, int spec ) {
    struct result result;
    init_result( &result );
    result.push = true;
    result.push_temp = true;
    visit_operand( codegen, &result, node );
+   if ( spec == SPEC_ZSTR ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+   }
 }
 
 void visit_assign( struct codegen* codegen, struct result* result,
