@@ -486,6 +486,7 @@ struct param {
    struct param* next;
    struct name* name;
    struct expr* default_value;
+   int spec;
    int index;
    int obj_pos;
    bool used;
