@@ -97,6 +97,8 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal );
+static void test_fixed_literal( struct semantic* semantic,
+   struct result* result, struct fixed_literal* literal );
 static void test_string_usage( struct semantic* semantic,
    struct expr_test* test, struct result* result,
    struct indexed_string_usage* usage );
@@ -1200,6 +1202,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_literal( semantic, result,
          ( struct literal* ) node );
       break;
+   case NODE_FIXED_LITERAL:
+      test_fixed_literal( semantic, result,
+         ( struct fixed_literal* ) node );
+      break;
    case NODE_INDEXED_STRING_USAGE:
       test_string_usage( semantic, test, result,
          ( struct indexed_string_usage* ) node );
@@ -1233,6 +1239,16 @@ void test_literal( struct semantic* semantic, struct result* result,
    result->usable = true;
    result->type = semantic->task->type_int;
    result->spec = SPEC_ZINT;
+}
+
+void test_fixed_literal( struct semantic* semantic, struct result* result,
+   struct fixed_literal* literal ) {
+   result->value = literal->value;
+   result->folded = true;
+   result->complete = true;
+   result->usable = true;
+   result->type = semantic->task->type_int;
+   result->spec = SPEC_ZFIXED;
 }
 
 void test_string_usage( struct semantic* semantic, struct expr_test* test,

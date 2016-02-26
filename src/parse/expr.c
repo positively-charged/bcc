@@ -25,6 +25,9 @@ static struct unary* alloc_unary( int op, struct pos* pos );
 static void read_inc( struct parse* parse, struct expr_reading* reading );
 static struct inc* alloc_inc( struct pos pos, bool dec );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
+static void read_fixed_literal( struct parse* parse,
+   struct expr_reading* reading );
+static int extract_fixed_literal_value( const char* text );
 static void read_postfix( struct parse* parse, struct expr_reading* reading );
 static struct access* alloc_access( char* name, struct pos pos );
 static void read_post_inc( struct parse* parse, struct expr_reading* reading );
@@ -472,13 +475,15 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       paren->inside = reading->node;
       reading->node = &paren->node;
    }
+   else if ( parse->tk == TK_LIT_FIXED ) {
+      read_fixed_literal( parse, reading );
+   }
    else {
       switch ( parse->tk ) {
       case TK_LIT_DECIMAL:
       case TK_LIT_OCTAL:
       case TK_LIT_HEX:
       case TK_LIT_BINARY:
-      case TK_LIT_FIXED:
       case TK_LIT_CHAR:
          break;
       default:
@@ -619,14 +624,6 @@ int p_extract_literal_value( struct parse* parse ) {
       memcpy( &value, &temp, sizeof( value ) );
       return value;
    }
-   else if ( parse->tk == TK_LIT_FIXED ) {
-      double value = atof( parse->tk_text );
-      return
-         // Whole.
-         ( ( int ) value << 16 ) +
-         // Fraction.
-         ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
-   }
    else if ( parse->tk == TK_LIT_CHAR ) {
       return parse->tk_text[ 0 ];
    }
@@ -663,6 +660,23 @@ int convert_numerictoken_to_int( struct parse* parse, int base ) {
       p_bail( parse );
    }
    return ( int ) value;
+}
+
+void read_fixed_literal( struct parse* parse, struct expr_reading* reading ) {
+   struct fixed_literal* literal = mem_slot_alloc( sizeof( *literal ) );
+   literal->node.type = NODE_FIXED_LITERAL;
+   literal->value = extract_fixed_literal_value( parse->tk_text );
+   reading->node = &literal->node;
+   p_read_tk( parse );
+}
+
+int extract_fixed_literal_value( const char* text ) {
+   double value = atof( text );
+   return
+      // Whole.
+      ( ( int ) value << 16 ) +
+      // Fraction.
+      ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
 }
 
 void read_postfix( struct parse* parse, struct expr_reading* reading ) {

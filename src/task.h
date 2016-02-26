@@ -83,6 +83,7 @@ struct node {
       // 40
       NODE_LOGICAL,
       NODE_INC,
+      NODE_FIXED_LITERAL,
    } type;
 };
 
@@ -158,6 +159,11 @@ struct paren {
 };
 
 struct literal {
+   struct node node;
+   int value;
+};
+
+struct fixed_literal {
    struct node node;
    int value;
 };

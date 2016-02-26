@@ -123,6 +123,8 @@ static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_literal( struct codegen* codegen, struct result* result,
    struct literal* literal );
+static void visit_fixed_literal( struct codegen* codegen,
+   struct result* result, struct fixed_literal* literal );
 static void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage );
 static void visit_boolean( struct codegen* codegen, struct result* result,
@@ -1269,6 +1271,10 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_literal( codegen, result,
          ( struct literal* ) node );
       break;
+   case NODE_FIXED_LITERAL:
+      visit_fixed_literal( codegen, result,
+         ( struct fixed_literal* ) node );
+      break;
    case NODE_INDEXED_STRING_USAGE:
       visit_indexed_string_usage( codegen, result,
          ( struct indexed_string_usage* ) node );
@@ -1296,6 +1302,12 @@ void visit_primary( struct codegen* codegen, struct result* result,
 
 void visit_literal( struct codegen* codegen, struct result* result,
    struct literal* literal ) {
+   c_pcd( codegen, PCD_PUSHNUMBER, literal->value );
+   result->pushed = true;
+}
+
+void visit_fixed_literal( struct codegen* codegen, struct result* result,
+   struct fixed_literal* literal ) {
    c_pcd( codegen, PCD_PUSHNUMBER, literal->value );
    result->pushed = true;
 }
