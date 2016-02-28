@@ -1,3 +1,5 @@
+#include <limits.h>
+
 #include "phase.h"
 
 #define SCRIPT_MIN_NUM 0
@@ -136,8 +138,20 @@ void test_enumerator( struct semantic* semantic,
       }
       test->value = enumerator->initz->value;
    }
+   else {
+      // Check for integer overflow.
+      if ( test->value == INT_MAX ) {
+         s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
+            "enumerator value growing beyond the maximum" );
+         s_diag( semantic, DIAG_POS, &enumerator->object.pos,
+            "maximum automatically-generated value is %d", INT_MAX );
+         s_bail( semantic );
+      }
+      else {
+         ++test->value;
+      }
+   }
    enumerator->value = test->value;
-   ++test->value;
    enumerator->object.resolved = true;
 }
 
