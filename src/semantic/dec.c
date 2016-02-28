@@ -51,7 +51,11 @@ static bool test_value( struct semantic* semantic, struct multi_value_test* test
    struct dim* dim, struct structure* type, struct value* value );
 static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_paramlist( struct semantic* semantic, struct func* func );
-static bool test_func_param( struct semantic* semantic, struct param* param );
+static bool test_func_param( struct semantic* semantic,
+   struct func* func, struct param* param );
+static void default_value_mismatch( struct semantic* semantic,
+   struct func* func, struct param* param, struct expr_test* expr );
+static int get_param_number( struct func* func, struct param* target );
 static void calc_type_size( struct structure* );
 static void make_value_list( struct value_list*, struct multi_value* );
 static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
@@ -536,7 +540,7 @@ bool test_func_paramlist( struct semantic* semantic, struct func* func ) {
       param = param->next;
    }
    while ( param ) {
-      if ( ! test_func_param( semantic, param ) ) {
+      if ( ! test_func_param( semantic, func, param ) ) {
          return false;
       }
       param->object.resolved = true;
@@ -552,13 +556,21 @@ bool test_func_paramlist( struct semantic* semantic, struct func* func ) {
    return true;
 }
 
-bool test_func_param( struct semantic* semantic, struct param* param ) {
+bool test_func_param( struct semantic* semantic,
+   struct func* func, struct param* param ) {
    if ( param->default_value ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, false );
       s_test_expr( semantic, &expr, param->default_value );
       if ( expr.undef_erred ) {
          return false;
+      }
+      if ( param->spec != SPEC_ZRAW &&
+         param->default_value->spec != SPEC_ZRAW ) {
+         if ( param->default_value->spec != param->spec ) {
+            default_value_mismatch( semantic, func, param, &expr );
+            s_bail( semantic );
+         }
       }
    }
    // Any previous parameter is visible inside the expression of a default
@@ -567,6 +579,35 @@ bool test_func_param( struct semantic* semantic, struct param* param ) {
       s_bind_name( semantic, param->name, &param->object );
    }
    return true;
+}
+
+void default_value_mismatch( struct semantic* semantic, struct func* func,
+   struct param* param, struct expr_test* expr ) {
+   struct str type;
+   str_init( &type );
+   s_present_spec( param->default_value->spec, &type );
+   struct str param_type;
+   str_init( &param_type );
+   s_present_spec( param->spec, &param_type );
+   s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
+      "default-value/parameter type mismatch (in parameter %d)",
+      get_param_number( func, param ) );
+   s_diag( semantic, DIAG_POS, &param->default_value->pos,
+      "`%s` default-value, but `%s` parameter", type.value,
+      param_type.value );
+   str_deinit( &type );
+   str_deinit( &param_type );
+}
+
+int get_param_number( struct func* func, struct param* target ) {
+   // Start at the second parameter when in a format-function.
+   int number = ( func->type == FUNC_FORMAT ) ? 2 : 1;
+   struct param* param = func->params;
+   while ( param != target ) {
+      param = param->next;
+      ++number;
+   }
+   return number;
 }
 
 void s_test_func_body( struct semantic* semantic, struct func* func ) {
