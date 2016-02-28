@@ -20,6 +20,8 @@ static void test_script_jump( struct semantic* semantic, struct stmt_test*,
    struct script_jump* );
 static void test_return( struct semantic* semantic, struct stmt_test*,
    struct return_stmt* );
+static void return_value_mismatch( struct semantic* semantic,
+   struct func* func, struct return_stmt* stmt, struct pos* pos );
 static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
@@ -417,6 +419,22 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
             "returning value in void function" );
          s_bail( semantic );
       }
+
+/*
+      struct type_attr type;
+      s_init_expr_test( test, &type );
+      s_test_type_expr( semantic );
+      struct type_attr required_type;
+      s_init_type_attr( &type,
+         stmt->return_value->spec,
+         stmt->return_value->structure );
+*/
+      //if ( ! s_same_types( &type ) ) {
+      // Return value must be of the same type as the return type.
+      if ( stmt->return_value->expr->spec != target->func->return_spec ) {
+         return_value_mismatch( semantic, target->func, stmt, &pos );
+         s_bail( semantic );
+      }
    }
    else {
       if ( target->func->return_type ) {
@@ -437,6 +455,23 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    }
    stmt->next = semantic->func_test->returns;
    semantic->func_test->returns = stmt;
+}
+
+void return_value_mismatch( struct semantic* semantic,
+   struct func* func, struct return_stmt* stmt, struct pos* pos ) {
+   struct str return_type;
+   str_init( &return_type );
+   s_present_spec( func->return_spec, &return_type );
+   struct str value_type;
+   str_init( &value_type );
+   s_present_spec( stmt->return_value->expr->spec, &value_type );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "return-value/return-type type mismatch" );
+   s_diag( semantic, DIAG_POS, pos,
+      "`%s` return-value, but `%s` return-type", value_type.value,
+      return_type.value );
+   str_deinit( &return_type );
+   str_deinit( &value_type );
 }
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,

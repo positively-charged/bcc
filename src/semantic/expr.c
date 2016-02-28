@@ -391,6 +391,12 @@ void present_spec( struct result* result, struct str* string ) {
    }
 }
 
+void s_present_spec( int spec, struct str* string ) {
+   struct result result;
+   result.spec = spec;
+   present_spec( &result, string );
+}
+
 void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result ) {
    int l = lside->value;

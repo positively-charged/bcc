@@ -90,5 +90,6 @@ void s_bail( struct semantic* semantic );
 void s_init_object_search( struct object_search* search, struct path* path,
    bool get_struct );
 void s_find_object( struct semantic* semantic, struct object_search* search );
+void s_present_spec( int spec, struct str* string );
 
 #endif
