@@ -76,7 +76,8 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
       s_test_constant( semantic, ( struct constant* ) node );
       break;
    case NODE_ENUMERATION:
-      s_test_constant_set( semantic, ( struct enumeration* ) node );
+      s_test_enumeration( semantic,
+         ( struct enumeration* ) node );
       break;
    case NODE_VAR:
       s_test_local_var( semantic, ( struct var* ) node );

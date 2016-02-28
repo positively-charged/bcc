@@ -225,7 +225,8 @@ void test_object( struct semantic* semantic, struct object* object ) {
       s_test_constant( semantic, ( struct constant* ) object );
       break;
    case NODE_ENUMERATION:
-      s_test_constant_set( semantic, ( struct enumeration* ) object );
+      s_test_enumeration( semantic,
+         ( struct enumeration* ) object );
       break;
    case NODE_STRUCTURE:
       s_test_struct( semantic, ( struct structure* ) object );

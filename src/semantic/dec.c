@@ -3,6 +3,10 @@
 #define SCRIPT_MIN_NUM 0
 #define SCRIPT_MAX_NUM 32767
 
+struct enumeration_test {
+   int value;
+};
+
 struct multi_value_test {
    struct dim* dim;
    struct structure* type;
@@ -23,6 +27,8 @@ struct value_index_alloc {
    int index;
 };
 
+static void test_enumerator( struct semantic* semantic,
+   struct enumeration_test* test, struct enumerator* enumerator );
 static void test_struct_name( struct semantic* semantic, struct structure* type );
 static bool test_struct_body( struct semantic* semantic, struct structure* type );
 static void test_member( struct semantic* semantic,
@@ -89,42 +95,50 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    }
 }
 
-void s_test_constant_set( struct semantic* semantic,
-   struct enumeration* set ) {
-   int value = 0;
-   // Find the next unresolved enumerator.
-   struct enumerator* enumerator = set->head;
+void s_test_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration ) {
+   struct enumeration_test test = { 0 };
+   // Skip previously resolved enumerators.
+   struct enumerator* enumerator = enumeration->head;
    while ( enumerator && enumerator->object.resolved ) {
-      value = enumerator->value;
+      test.value = enumerator->value;
       enumerator = enumerator->next;
    }
+   // Test unresolved enumerators.
    while ( enumerator ) {
-      if ( semantic->in_localscope ) {
-         if ( enumerator->name->object != &enumerator->object ) {
-            s_bind_name( semantic, enumerator->name, &enumerator->object );
-         }
+      test_enumerator( semantic, &test, enumerator );
+      if ( ! enumerator->object.resolved ) {
+         return;
       }
-      if ( enumerator->initz ) {
-         struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, false );
-         s_test_expr( semantic, &expr, enumerator->initz );
-         if ( expr.undef_erred ) {
-            return;
-         }
-         if ( ! enumerator->initz->folded ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
-               "enumerator expression not constant" );
-            s_bail( semantic );
-         }
-         value = enumerator->initz->value;
-      }
-      enumerator->value = value;
-      ++value;
-      enumerator->object.resolved = true;
       enumerator = enumerator->next;
    }
-   // Set is resolved when all of the constants in it are resolved.
-   set->object.resolved = true;
+   enumeration->object.resolved = true;
+}
+
+void test_enumerator( struct semantic* semantic,
+   struct enumeration_test* test, struct enumerator* enumerator ) {
+   // Test name.
+   if ( semantic->in_localscope ) {
+      s_bind_name( semantic, enumerator->name, &enumerator->object );
+   }
+   // Test initializer.
+   if ( enumerator->initz ) {
+      struct expr_test expr;
+      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_test_expr( semantic, &expr, enumerator->initz );
+      if ( expr.undef_erred ) {
+         return;
+      }
+      if ( ! enumerator->initz->folded ) {
+         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            "enumerator expression not constant" );
+         s_bail( semantic );
+      }
+      test->value = enumerator->initz->value;
+   }
+   enumerator->value = test->value;
+   ++test->value;
+   enumerator->object.resolved = true;
 }
 
 void s_test_struct( struct semantic* semantic, struct structure* type ) {
