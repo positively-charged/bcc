@@ -31,6 +31,8 @@ struct value_index_alloc {
 
 static void test_enumerator( struct semantic* semantic,
    struct enumeration_test* test, struct enumerator* enumerator );
+static void enumerator_mismatch( struct semantic* semantic,
+   struct enumerator* enumerator );
 static void test_struct_name( struct semantic* semantic, struct structure* type );
 static bool test_struct_body( struct semantic* semantic, struct structure* type );
 static void test_member( struct semantic* semantic,
@@ -136,6 +138,12 @@ void test_enumerator( struct semantic* semantic,
             "enumerator expression not constant" );
          s_bail( semantic );
       }
+      // The type of an enumerator is `zint`. Maybe, sometime later, we'll
+      // allow the user to specify the type of an enumerator value.
+      if ( enumerator->initz->spec != SPEC_ZINT ) {
+         enumerator_mismatch( semantic, enumerator );
+         s_bail( semantic );
+      }
       test->value = enumerator->initz->value;
    }
    else {
@@ -153,6 +161,23 @@ void test_enumerator( struct semantic* semantic,
    }
    enumerator->value = test->value;
    enumerator->object.resolved = true;
+}
+
+void enumerator_mismatch( struct semantic* semantic,
+   struct enumerator* enumerator ) {
+   struct str type;
+   str_init( &type );
+   s_present_spec( enumerator->initz->spec, &type );
+   struct str required_type;
+   str_init( &required_type );
+   s_present_spec( SPEC_ZINT, &required_type );
+   s_diag( semantic, DIAG_POS_ERR, &enumerator->initz->pos,
+      "enumerator-initializer type mismatch" );
+   s_diag( semantic, DIAG_POS, &enumerator->initz->pos,
+      "`%s` enumerator-initializer, but needs to be `%s`", type.value,
+      required_type.value );
+   str_deinit( &type );
+   str_deinit( &required_type );
 }
 
 void s_test_struct( struct semantic* semantic, struct structure* type ) {
