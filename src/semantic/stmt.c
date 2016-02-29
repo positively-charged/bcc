@@ -8,6 +8,10 @@ static void test_label( struct semantic* semantic, struct stmt_test*, struct lab
 static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
 static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
+static void test_switch_case_type( struct semantic* semantic,
+   struct switch_stmt* stmt );
+static void invalid_case_type( struct semantic* semantic,
+   struct switch_stmt* stmt, struct case_label* label );
 static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* );
@@ -245,6 +249,36 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    stmt->case_head = body.case_head;
    stmt->case_default = body.case_default;
    stmt->jump_break = body.jump_break;
+   test_switch_case_type( semantic, stmt );
+}
+
+void test_switch_case_type( struct semantic* semantic,
+   struct switch_stmt* stmt ) {
+   struct case_label* label = stmt->case_head;
+   while ( label ) {
+      if ( label->number->spec != stmt->cond->spec ) {
+         invalid_case_type( semantic, stmt, label );
+         s_bail( semantic );
+      }
+      label = label->next;
+   }
+}
+
+void invalid_case_type( struct semantic* semantic,
+   struct switch_stmt* stmt, struct case_label* label ) {
+   struct str type;
+   str_init( &type );
+   s_present_spec( stmt->cond->spec, &type );
+   struct str label_type;
+   str_init( &label_type );
+   s_present_spec( label->number->spec, &label_type );
+   s_diag( semantic, DIAG_POS_ERR, &label->pos,
+      "case-value/switch-condition type mismatch" );
+   s_diag( semantic, DIAG_POS, &label->pos,
+      "`%s` case-value, but `%s` switch-condition",
+      label_type.value, type.value );
+   str_deinit( &type );
+   str_deinit( &label_type );
 }
 
 void test_while( struct semantic* semantic, struct stmt_test* test,
