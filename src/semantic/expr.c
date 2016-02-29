@@ -160,6 +160,19 @@ void s_test_expr( struct semantic* semantic, struct expr_test* test,
    }
 }
 
+void s_test_cond( struct semantic* semantic, struct expr* expr ) {
+   struct expr_test test;
+   s_init_expr_test( &test, NULL, NULL, true, true );
+   struct result result;
+   init_result( &result );
+   test_root( semantic, &test, &result, expr );
+   if ( ! can_convert_to_boolean( &result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+         "expression cannot be converted to a boolean value" );
+      s_bail( semantic );
+   }
+}
+
 void test_root( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct expr* expr ) {
    test_operand( semantic, test, result, expr->root );

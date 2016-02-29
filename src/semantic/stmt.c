@@ -223,9 +223,7 @@ void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
 
 void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt ) {
-   struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, true );
-   s_test_expr( semantic, &expr, stmt->cond );
+   s_test_cond( semantic, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    s_test_stmt( semantic, &body, stmt->body );
@@ -252,9 +250,7 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
 void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
-      struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( semantic, &expr, stmt->cond );
+      s_test_cond( semantic, stmt->cond );
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
@@ -263,9 +259,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
-      struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( semantic, &expr, stmt->cond );
+      s_test_cond( semantic, stmt->cond );
    }
 }
 
@@ -289,9 +283,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    }
    // Condition.
    if ( stmt->cond ) {
-      struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, true );
-      s_test_expr( semantic, &expr, stmt->cond );
+      s_test_cond( semantic, stmt->cond );
    }
    // Post expressions.
    list_iter_init( &i, &stmt->post );
