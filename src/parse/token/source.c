@@ -559,6 +559,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "bool", TK_BOOL },
          { "break", TK_BREAK },
          { "case", TK_CASE },
+         { "cast", TK_CAST },
          { "clientside", TK_CLIENTSIDE },
          { "const", TK_CONST },
          { "continue", TK_CONTINUE },

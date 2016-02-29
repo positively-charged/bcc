@@ -70,6 +70,7 @@ static const struct {
    { "bool", TK_BOOL },
    { "break", TK_BREAK },
    { "case", TK_CASE },
+   { "cast", TK_CAST },
    { "clientside", TK_CLIENTSIDE },
    { "const", TK_CONST },
    { "continue", TK_CONTINUE },
@@ -415,6 +416,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "zfixed", TKF_KEYWORD ),
       ENTRY( "zbool", TKF_KEYWORD ),
       ENTRY( "zstr", TKF_KEYWORD ),
+      ENTRY( "cast", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -542,8 +544,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ZINT, "`zint`" },
       { TK_ZFIXED, "`zfixed`" },
       { TK_ZBOOL, "`zbool`" },
-      { TK_ZSTR, "`zstr`" } };
-   STATIC_ASSERT( TK_TOTAL == 116 );
+      { TK_ZSTR, "`zstr`" },
+      { TK_CAST, "`cast`" } };
+   STATIC_ASSERT( TK_TOTAL == 117 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

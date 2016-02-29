@@ -81,6 +81,8 @@ static void inc_indexed( struct codegen* codegen, int storage, int index,
    bool do_inc );
 static void inc_zfixed( struct codegen* codegen, struct inc* inc,
    struct result* operand );
+static void visit_cast( struct codegen* codegen, struct result* result,
+   struct cast* cast );
 static void visit_suffix( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_object( struct codegen* codegen, struct result* result,
@@ -525,6 +527,10 @@ void visit_prefix( struct codegen* codegen, struct result* result,
       visit_inc( codegen, result,
          ( struct inc* ) node );
       break;
+   case NODE_CAST:
+      visit_cast( codegen, result,
+         ( struct cast* ) node );
+      break;
    default:
       visit_suffix( codegen, result, node );
       break;
@@ -701,6 +707,11 @@ void inc_zfixed( struct codegen* codegen, struct inc* inc,
       c_update_indexed( codegen, operand->storage, operand->index,
          ( inc->dec ? AOP_SUB : AOP_ADD ) );
    }
+}
+
+void visit_cast( struct codegen* codegen, struct result* result,
+   struct cast* cast ) {
+   visit_operand( codegen, result, cast->operand );
 }
 
 void visit_suffix( struct codegen* codegen, struct result* result,

@@ -77,6 +77,11 @@ static bool perform_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result );
 static void invalid_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand );
+static void test_cast( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct cast* cast );
+static bool valid_cast( struct cast* cast, struct result* result );
+static void invalid_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_subscript( struct semantic* semantic, struct expr_test* test,
@@ -741,6 +746,10 @@ void test_prefix( struct semantic* semantic, struct expr_test* test,
       test_inc( semantic, test, result,
          ( struct inc* ) node );
       break;
+   case NODE_CAST:
+      test_cast( semantic, test, result,
+         ( struct cast* ) node );
+      break;
    default:
       test_suffix( semantic, test, result,
          node );
@@ -933,6 +942,69 @@ void invalid_inc( struct semantic* semantic, struct inc* inc,
    s_diag( semantic, DIAG_POS_ERR, &inc->pos,
       "invalid operation: %s `%s`",
       inc->dec ? "++" : "--", type.value );
+   str_deinit( &type );
+}
+
+void test_cast( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct cast* cast ) {
+   test_operand( semantic, test, result, cast->operand );
+   if ( valid_cast( cast, result ) ) {
+      result->spec = cast->spec;
+   }
+   else {
+      invalid_cast( semantic, cast, result );
+      s_bail( semantic );
+   }
+}
+
+bool valid_cast( struct cast* cast, struct result* result ) {
+   bool valid = false;
+   switch ( cast->spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+      switch ( result->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZBOOL:
+      case SPEC_ZSTR:
+         valid = true;
+         break;
+      default:
+         break;
+      }
+      break;
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+   case SPEC_ZSTR:
+      switch ( result->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+         valid = true;
+         break;
+      default:
+         valid = ( cast->spec == result->spec );
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   return valid;
+}
+
+// TODO: Change error message.
+void invalid_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand ) {
+   struct str type;
+   str_init( &type );
+   s_present_spec( cast->spec, &type );
+   struct str operand_type;
+   str_init( &operand_type );
+   present_spec( operand, &operand_type );
+   s_diag( semantic, DIAG_POS_ERR, &cast->pos,
+      "invalid cast: `%s` to `%s`",
+       operand_type.value, type.value );
    str_deinit( &type );
 }
 
@@ -1377,7 +1449,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
          ( struct paren* ) node );
       break;
    default:
-      break;
+      UNREACHABLE();
    }
 }
 

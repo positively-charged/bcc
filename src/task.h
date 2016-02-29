@@ -84,6 +84,7 @@ struct node {
       NODE_LOGICAL,
       NODE_INC,
       NODE_FIXED_LITERAL,
+      NODE_CAST,
    } type;
 };
 
@@ -195,6 +196,13 @@ struct inc {
    bool post;
    bool dec;
    bool zfixed;
+};
+
+struct cast {
+   struct node node;
+   struct node* operand;
+   struct pos pos;
+   int spec;
 };
 
 struct binary {

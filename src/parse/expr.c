@@ -24,6 +24,7 @@ static struct logical* alloc_logical( int op, struct pos* pos );
 static struct unary* alloc_unary( int op, struct pos* pos );
 static void read_inc( struct parse* parse, struct expr_reading* reading );
 static struct inc* alloc_inc( struct pos pos, bool dec );
+static void read_cast( struct parse* parse, struct expr_reading* reading );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading );
@@ -393,6 +394,9 @@ void read_operand( struct parse* parse, struct expr_reading* reading ) {
    case TK_BIT_NOT:
       op = UOP_BIT_NOT;
       break;
+   case TK_CAST:
+      read_cast( parse, reading );
+      return;
    default:
       break;
    }
@@ -437,6 +441,49 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    inc->dec = dec;
    inc->zfixed = false;
    return inc;
+}
+
+// TODO: Read type information from dec.c.
+void read_cast( struct parse* parse, struct expr_reading* reading ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_CAST );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   int spec = SPEC_NONE;
+   switch ( parse->tk ) {
+   case TK_ZRAW:
+      spec = SPEC_ZRAW;
+      p_read_tk( parse );
+      break;
+   case TK_ZINT:
+      spec = SPEC_ZINT;
+      p_read_tk( parse );
+      break;
+   case TK_ZFIXED:
+      spec = SPEC_ZFIXED;
+      p_read_tk( parse );
+      break;
+   case TK_ZBOOL:
+      spec = SPEC_ZBOOL;
+      p_read_tk( parse );
+      break;
+   case TK_ZSTR:
+      spec = SPEC_ZSTR;
+      p_read_tk( parse );
+      break;
+   default:
+      UNREACHABLE();
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_operand( parse, reading );
+   struct cast* cast = mem_alloc( sizeof( *cast ) );
+   cast->node.type = NODE_CAST;
+   cast->operand = reading->node;
+   cast->pos = pos;
+   cast->spec = spec;
+   reading->node = &cast->node;
 }
 
 void read_primary( struct parse* parse, struct expr_reading* reading ) {
