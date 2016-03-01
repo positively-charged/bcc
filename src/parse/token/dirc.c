@@ -100,11 +100,10 @@ bool p_read_dirc( struct parse* parse ) {
 enum dirc identify_dirc( struct parse* parse ) {
    enum dirc dirc = DIRC_NONE;
    if ( parse->token->type == TK_HASH ) {
-      struct stream_iter iter;
-      p_init_stream_iter( parse, &iter );
-      p_next_token( parse, &iter );
+      struct tkque_iter iter;
+      p_examine_token_queue( parse, &iter );
       if ( iter.token->type == TK_HORZSPACE ) {
-         p_next_token( parse, &iter );
+         p_next_preptk( parse, &iter );
       }
       if ( iter.token->is_id ) {
          dirc = identify_named_dirc( iter.token->text );

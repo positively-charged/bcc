@@ -196,9 +196,9 @@ struct macro_param {
    struct macro_param* next;
 };
 
-struct stream_iter {
+struct tkque_iter {
+   struct queue_entry* entry;
    struct token* token;
-   struct token* next_token;
 };
 
 enum { SOURCE_BUFFER_SIZE = 1024 };
@@ -292,14 +292,12 @@ struct expr_reading {
 
 struct parse {
    struct task* task;
-   struct token* queue[ TK_BUFFER_SIZE ];
-   struct token queue_source[ TK_BUFFER_SIZE ];
+   //struct token* queue[ TK_BUFFER_SIZE ];
+   //struct token queue_source[ TK_BUFFER_SIZE ];
    struct token* token;
-   struct token* token_peeked;
-   struct token* token_peeked_tail;
-   struct token* source_token;
    struct token* token_free;
-   int peeked;
+   struct token token_source;
+   struct token token_peeked;
    enum tk tk;
    struct pos tk_pos;
    char* tk_text;
@@ -340,9 +338,17 @@ struct parse {
       PREPCONTEXT_DEFINEBODY
    } prep_context;
    struct cache* cache;
+
+   struct token* source_token;
+   struct queue_entry* tkque_head;
+   struct queue_entry* tkque_tail;
+   struct queue_entry* tkque_free_entry;
+   struct queue_entry* tkque_prev_entry;
+   int tkque_size;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
+void p_init_stream( struct parse* parse );
 void p_read( struct parse* parse );
 void p_preprocess( struct parse* parse );
 void p_diag( struct parse* parse, int flags, ... );
@@ -371,7 +377,6 @@ void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
 struct token* p_peek_tk( struct parse* parse );
 struct token* p_peek_stream( struct parse* parse, bool nonwhitespace );
-struct token* p_peek_stream_2nd( struct parse* parse );
 const char* p_get_token_name( enum tk type );
 int p_extract_literal_value( struct parse* parse );
 struct source* p_load_included_source( struct parse* parse );
@@ -401,8 +406,11 @@ enum tk p_identify_token_type( const char* text );
 int p_eval_prep_expr( struct parse* parse );
 void p_read_sourcepos_token( struct parse* parse, struct pos* pos );
 int p_identify_predef_macro( const char* text );
-void p_init_stream_iter( struct parse* parse, struct stream_iter* iter );
-void p_next_token( struct parse* parse, struct stream_iter* iter );
 const struct token_info* p_get_token_info( enum tk tk );
+struct token* p_alloc_token( struct parse* parse );
+void p_free_token( struct parse* parse, struct token* token );
+void p_examine_token_queue( struct parse* parse, struct tkque_iter* iter );
+void p_next_tk( struct parse* parse, struct tkque_iter* iter );
+void p_next_preptk( struct parse* parse, struct tkque_iter* iter );
 
 #endif

@@ -25,13 +25,6 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
    parse->token = NULL;
-   parse->token_peeked = NULL;
-   parse->source_token = NULL;
-   parse->token_free = NULL;
-   parse->peeked = 0;
-   parse->tk = TK_END;
-   parse->tk_text = "";
-   parse->tk_length = 0;
    parse->source = NULL;
    parse->main_source = NULL;
    parse->free_source = NULL;
@@ -52,8 +45,8 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->column = 0;
    parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
    parse->prep_context = PREPCONTEXT_NONE;
-   parse->source_token = &parse->queue_source[ 0 ];
    parse->cache = cache;
+   p_init_stream( parse );
 }
 
 void p_read( struct parse* parse ) {
@@ -62,7 +55,6 @@ void p_read( struct parse* parse ) {
    parse->task->library->file_pos.id = parse->source->file->id;
    parse->task->library->file = parse->main_source->file;
    p_read_tk( parse );
-
 /*
    while ( parse->tk != TK_END ) {
       printf( "a %s %d\n", parse->tk_text, parse->tk_length );
@@ -70,6 +62,28 @@ void p_read( struct parse* parse ) {
    }
    p_bail( parse );
 */
+/*
+   struct tkque_iter iter;
+   p_examine_token_queue( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   printf( "%s\n", parse->token->text );
+   printf( "%s == %d\n", iter.token->text, iter.token->type );
+   while ( parse->tk != TK_END ) {
+      printf( "a %s %d\n", parse->tk_text, parse->tk_length );
+      p_read_tk( parse );
+   }
+   p_bail( parse );
+return;
+*/
+   //printf( "%s\n", iter.token->text );
+   //p_next_tk( parse, &iter );
+
    p_read_lib( parse );
    link_usable_strings( parse );
    alloc_string_indexes( parse );
