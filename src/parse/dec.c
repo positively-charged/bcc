@@ -1078,7 +1078,6 @@ void read_param( struct parse* parse, struct params* params ) {
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    t_init_object( &param->object, NODE_PARAM );
    param->object.pos = pos;
-   param->structure = parse->task->type_int;
    param->spec = SPEC_NONE;
    param->next = NULL;
    param->name = NULL;

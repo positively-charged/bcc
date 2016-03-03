@@ -232,7 +232,7 @@ struct param* deserialize_param( struct serial* serial ) {
    srl_rf( serial->r, F_PARAM );
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    deserialize_object( serial, &param->object, NODE_PARAM );
-   param->structure = deserialize_primitive_type( serial, F_STRTYPE );
+   // param->structure = deserialize_primitive_type( serial, F_STRTYPE );
    param->default_value = deserialize_param_defaultvalue( serial );
    param->next = NULL;
    param->used = false;

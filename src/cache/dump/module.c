@@ -226,7 +226,7 @@ void serialize_param_list( struct serial* serial, struct param* param ) {
 void serialize_param( struct serial* serial, struct param* param ) {
    srlw_f( serial->w, F_PARAM );
    serialize_object( serial, &param->object );
-   srlw_s( serial->w, F_STRTYPE, name_s( serial, param->structure->name ) );
+   // srlw_s( serial->w, F_STRTYPE, name_s( serial, param->structure->name ) );
    if ( param->default_value ) {
       serialize_expr( serial, param->default_value );
    }

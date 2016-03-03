@@ -492,7 +492,6 @@ struct var {
 
 struct param {
    struct object object;
-   struct structure* structure;
    struct param* next;
    struct name* name;
    struct expr* default_value;
