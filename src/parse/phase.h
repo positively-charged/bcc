@@ -259,7 +259,7 @@ struct dec {
    struct pos type_pos;
    struct pos name_pos;
    struct pos static_qual_pos;
-   struct structure* type;
+   struct structure* structure;
    struct structure* type_make;
    struct path* type_path;
    struct name* name;

@@ -120,7 +120,7 @@ bool p_is_dec( struct parse* parse ) {
 
 void p_init_dec( struct dec* dec ) {
    dec->area = DEC_TOP;
-   dec->type = NULL;
+   dec->structure = NULL;
    dec->type_make = NULL;
    dec->type_path = NULL;
    dec->name = NULL;
@@ -182,27 +182,27 @@ void read_type( struct parse* parse, struct dec* dec ) {
    case TK_STR:
    case TK_BOOL:
    case TK_ZRAW:
-      dec->type = parse->task->type_int;
+      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZRAW;
       p_read_tk( parse );
       break;
    case TK_ZINT:
-      dec->type = parse->task->type_int;
+      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZINT;
       p_read_tk( parse );
       break;
    case TK_ZFIXED:
-      dec->type = parse->task->type_int;
+      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZFIXED;
       p_read_tk( parse );
       break;
    case TK_ZBOOL:
-      dec->type = parse->task->type_int;
+      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZBOOL;
       p_read_tk( parse );
       break;
    case TK_ZSTR:
-      dec->type = parse->task->type_int;
+      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZSTR;
       p_read_tk( parse );
       break;
@@ -334,7 +334,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->task->library, &set->object );
       list_append( &parse->task->library->objects, set );
    }
-   dec->type = parse->task->type_int;
+   dec->structure = parse->task->type_int;
    dec->spec = SPEC_ZINT;
    if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
@@ -428,7 +428,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->task->library, &structure->object );
       list_append( &parse->task->library->objects, structure );
    }
-   dec->type = structure;
+   dec->structure = structure;
    dec->spec = SPEC_STRUCT;
    if ( dec->leave && structure->anon ) {
       p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
@@ -744,7 +744,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    t_init_object( &member->object, NODE_STRUCTURE_MEMBER );
    member->object.pos = dec->name_pos;
    member->name = dec->name;
-   member->structure = dec->type;
+   member->structure = dec->structure;
    member->type_path = dec->type_path;
    member->dim = dec->dim;
    member->next = NULL;
@@ -812,7 +812,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
    var->name = dec->name;
-   var->structure = dec->type;
+   var->structure = dec->structure;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
