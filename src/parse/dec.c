@@ -43,6 +43,11 @@ static void read_rbrace( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* parse, struct dec* );
+static struct structure* alloc_structure( struct pos* pos );
+static void read_struct_name( struct parse* parse,
+   struct structure* structure );
+static void read_struct_body( struct parse* parse, struct dec* dec,
+   struct structure* structure );
 static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_named_type( struct parse* parse, struct dec* dec );
 static void read_objects( struct parse* parse, struct dec* dec );
@@ -409,31 +414,85 @@ struct constant* alloc_constant( void ) {
 }
 
 void read_struct( struct parse* parse, struct dec* dec ) {
+   struct structure* structure = alloc_structure( &parse->tk_pos );
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
+   read_struct_name( parse, structure );
+   read_struct_body( parse, dec, structure );
+   if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+      dec->leave = true;
+   }
+   // Nested struct is in the same scope as the parent struct.
+   if ( dec->vars ) {
+      list_append( dec->vars, structure );
+   }
+   else {
+      p_add_unresolved( parse->task->library, &structure->object );
+      list_append( &parse->task->library->objects, structure );
+   }
+   dec->type = structure;
+   dec->spec = SPEC_STRUCT;
    dec->type_struct = true;
-   read_struct_def( parse, dec );
+   if ( dec->leave && structure->anon ) {
+      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
+         "unnamed and unused struct" );
+      p_diag( parse, DIAG_POS, &structure->object.pos,
+         "a struct must have a name or be used as an object type" );
+      p_bail( parse );
+   }
+   // NOTE: This comment is outdated. [04/06/2015]
+   // Don't allow nesting of named structs for now. Maybe later, nested
+   // struct support like in C++ will be added. Here is potential syntax
+   // for specifying a nested struct, when creating a variable:
+   // struct region.struct.my_struct var1;
+   // struct upmost.struct.my_struct var2;
+   if ( ! structure->anon && dec->area == DEC_MEMBER ) {
+      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
+         "named, nested struct" );
+      p_diag( parse, DIAG_POS, &structure->object.pos,
+         "a nested struct must not have a name specified" );
+      p_bail( parse );
+   }
+   STATIC_ASSERT( DEC_TOTAL == 4 );
+   if ( dec->area == DEC_FOR ) {
+      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
+         "struct in for-loop initialization" );
+      p_bail( parse );
+   }
 }
 
-void read_struct_def( struct parse* parse, struct dec* dec ) {
-   struct name* name = NULL;
-   struct pos name_pos = parse->tk_pos;
-   bool name_specified = false;
-   bool anon = false;
+struct structure* alloc_structure( struct pos* pos ) {
+   struct structure* structure = mem_alloc( sizeof( *structure ) );
+   t_init_object( &structure->object, NODE_STRUCTURE );
+   structure->object.pos = *pos;
+   structure->name = NULL;
+   structure->body = NULL;
+   structure->member = NULL;
+   structure->member_tail = NULL;
+   structure->size = 0;
+   structure->primitive = false;
+   structure->is_str = false;
+   structure->anon = false;
+   return structure;
+}
+
+void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
-      name = t_extend_name( parse->task->body_struct, parse->tk_text );
-      name_specified = true;
+      structure->name = t_extend_name( parse->task->body_struct,
+         parse->tk_text );
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
    else {
-      name = t_create_name();
-      anon = true;
+      structure->name = t_create_name();
+      structure->anon = true;
    }
-   struct structure* type = t_create_structure( parse->task, name );
-   type->object.pos = dec->type_pos;
-   type->anon = anon;
-   // Members:
+}
+
+void read_struct_body( struct parse* parse, struct dec* dec,
+   struct structure* structure ) {
+   structure->body = t_extend_name( structure->name, "." );
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    if ( parse->tk == TK_BRACE_R ) {
@@ -443,59 +502,16 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
          "a struct must have at least one member" );
       p_bail( parse );
    }
-   while ( true ) {
+   while ( parse->tk != TK_BRACE_R ) {
       struct dec member;
       p_init_dec( &member );
       member.area = DEC_MEMBER;
-      member.type_make = type;
-      member.name_offset = type->body;
+      member.type_make = structure;
+      member.name_offset = structure->body;
       member.vars = dec->vars;
       p_read_dec( parse, &member );
-      if ( parse->tk == TK_BRACE_R ) {
-         break;
-      }
    }
    read_rbrace( parse, dec );
-   if ( parse->tk == TK_SEMICOLON ) {
-      p_read_tk( parse );
-      dec->leave = true;
-   }
-   // Nested struct is in the same scope as the parent struct.
-   if ( dec->vars ) {
-      list_append( dec->vars, type );
-   }
-   else {
-      p_add_unresolved( parse->task->library, &type->object );
-      list_append( &parse->task->library->objects, type );
-   }
-   dec->type = type;
-   dec->spec = SPEC_STRUCT;
-   if ( dec->leave && type->anon ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "useless, unnamed struct" );
-      p_diag( parse, DIAG_POS, &dec->type_pos,
-         "an unnamed struct must be used as a part of an object" );
-      p_bail( parse );
-   }
-   // NOTE: This comment is outdated. [04/06/2015]
-   // Don't allow nesting of named structs for now. Maybe later, nested
-   // struct support like in C++ will be added. Here is potential syntax
-   // for specifying a nested struct, when creating a variable:
-   // struct region.struct.my_struct var1;
-   // struct upmost.struct.my_struct var2;
-   if ( name_specified && dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->pos,
-         "named, nested struct" );
-      p_diag( parse, DIAG_POS, &dec->pos,
-         "a nested struct must not have a name specified" );
-      p_bail( parse );
-   }
-   STATIC_ASSERT( DEC_TOTAL == 4 );
-   if ( dec->area == DEC_FOR ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "struct in for-loop initialization" );
-      p_bail( parse );
-   }
 }
 
 void read_named_type( struct parse* parse, struct dec* dec ) {
