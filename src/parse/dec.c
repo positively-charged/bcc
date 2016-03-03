@@ -412,13 +412,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
    dec->type_struct = true;
-   if ( parse->tk == TK_BRACE_L ||
-      ( parse->tk == TK_ID && p_peek( parse ) == TK_BRACE_L ) ) {
-      read_struct_def( parse, dec );
-   }
-   else {
-      dec->type_path = p_read_path( parse );
-   }
+   read_struct_def( parse, dec );
 }
 
 void read_struct_def( struct parse* parse, struct dec* dec ) {
