@@ -66,7 +66,8 @@ static bool test_func_param( struct semantic* semantic,
 static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct expr_test* expr );
 static int get_param_number( struct func* func, struct param* target );
-static void calc_type_size( struct structure* );
+static int calc_size( struct dim* dim, struct structure* structure );
+static void calc_struct_size( struct structure* structure );
 static void make_value_list( struct value_list*, struct multi_value* );
 static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
    struct structure*, struct dim* );
@@ -756,69 +757,37 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
 }
 
 void s_calc_var_size( struct var* var ) {
-   // Calculate the size of the variable elements.
-   if ( var->dim ) {
-      calc_dim_size( var->dim, var->structure );
-   }
-   else {
-      // Only calculate the size of the type if it hasn't been already.
-      if ( ! var->structure->size ) {
-         calc_type_size( var->structure );
-      }
-   }
-   // Calculate the size of the variable.
-   if ( var->dim ) {
-      var->size = var->dim->size * var->dim->element_size;
-   }
-   else {
-      var->size = var->structure->size;
-   }
+   var->size = calc_size( var->dim, var->structure );
 }
 
-void calc_dim_size( struct dim* dim, struct structure* type ) {
-   if ( dim->next ) {
-      calc_dim_size( dim->next, type );
-      dim->element_size = dim->next->size * dim->next->element_size;
+int calc_size( struct dim* dim, struct structure* structure ) {
+   // Array.
+   if ( dim ) {
+      dim->element_size = calc_size( dim->next, structure );
+      return ( dim->size * dim->element_size );
    }
+   // Array element.
    else {
-      // Calculate the size of the element type.
-      if ( ! type->size ) {
-         calc_type_size( type );
-      }
-      dim->element_size = type->size;
-   }
-}
-
-void calc_type_size( struct structure* type ) {
-   int offset = 0;
-   struct structure_member* member = type->member;
-   while ( member ) {
-      if ( member->dim ) {
-         calc_dim_size( member->dim, member->structure );
-         if ( member->dim->element_size ) {
-            int size = member->dim->size * member->dim->element_size;
-            type->size += size;
-            member->offset = offset;
-            offset += size;
+      if ( structure ) {
+         if ( structure->size == 0 ) {
+            calc_struct_size( structure );
          }
-      }
-      else if ( ! member->structure->primitive ) {
-         // Calculate the size of the type if it hasn't been already.
-         if ( ! member->structure->size ) {
-            calc_type_size( member->structure );
-         }
-         if ( member->structure->size ) {
-            type->size += member->structure->size;
-            member->offset = offset;
-            offset += member->structure->size;
-         }
+         return structure->size;
       }
       else {
-         member->size = member->structure->size;
-         member->offset = offset;
-         offset += member->structure->size;
-         type->size += member->size;
+         // TODO: Calculate size of references.
+         enum { PRIMITIVE_SIZE = 1 };
+         return PRIMITIVE_SIZE;
       }
+   }
+}
+
+void calc_struct_size( struct structure* structure ) {
+   struct structure_member* member = structure->member;
+   while ( member ) {
+      member->offset = structure->size;
+      member->size = calc_size( member->dim, member->structure );
+      structure->size += member->size;
       member = member->next;
    }
 }
