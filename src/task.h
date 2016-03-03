@@ -513,7 +513,6 @@ struct func {
    } type;
    struct name* name;
    struct param* params;
-   struct structure* return_type;
    void* impl;
    int return_spec;
    int min_param;

@@ -206,7 +206,7 @@ void t_init_type_members( struct task* task ) {
       name->object = &func->object;
       func->name = name;
       func->params = NULL;
-      func->return_type = get_type( task, list[ i ].value );
+      func->return_spec = SPEC_ZINT;
       struct func_intern* impl = mem_alloc( sizeof( *impl ) );
       impl->id = list[ i ].id;
       func->impl = impl;

@@ -206,10 +206,12 @@ void serialize_func( struct serial* serial, struct func* func ) {
    if ( func->params ) {
       serialize_param_list( serial, func->params );
    }
+/*
    if ( func->return_type ) {
       srlw_s( serial->w, F_STRRETURNTYPE,
          name_s( serial, func->return_type->name ) );
    }
+*/
    serialize_funcimpl( serial, func );
    srlw_i( serial->w, F_INTMINPARAM, func->min_param );
    srlw_i( serial->w, F_INTMAXPARAM, func->max_param );

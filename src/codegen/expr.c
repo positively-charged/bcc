@@ -981,7 +981,7 @@ void visit_ded_call( struct codegen* codegen, struct result* result,
    }
    struct func_ded* ded = call->func->impl;
    c_pcd( codegen, ded->opcode );
-   if ( call->func->return_type ) {
+   if ( call->func->return_spec != SPEC_VOID ) {
       result->pushed = true;
    }
 }
@@ -994,7 +994,7 @@ void visit_user_call( struct codegen* codegen, struct result* result,
    }
    else {
       write_call_args( codegen, result, call );
-      if ( call->func->return_type ) {
+      if ( call->func->return_spec != SPEC_VOID ) {
          c_pcd( codegen, PCD_CALL, impl->index );
          result->pushed = true;
       }
@@ -1037,7 +1037,7 @@ void visit_nested_userfunc_call( struct codegen* codegen,
    struct c_point* return_point = c_create_point( codegen );
    c_append_node( codegen, &return_point->node );
    call->nested_call->return_point = return_point;
-   if ( call->func->return_type ) {
+   if ( call->func->return_spec != SPEC_VOID ) {
       result->pushed = true;
    }
 }
@@ -1072,7 +1072,7 @@ void visit_format_call( struct codegen* codegen, struct result* result,
    }
    struct func_format* format = call->func->impl;
    c_pcd( codegen, format->opcode );
-   if ( call->func->return_type ) {
+   if ( call->func->return_spec != SPEC_VOID ) {
       result->pushed = true;
    }
 }

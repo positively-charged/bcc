@@ -284,7 +284,7 @@ void do_func( struct codegen* codegen ) {
             if ( func->min_param != func->max_param ) {
                ++entry.params;
             }
-            entry.value = ( char ) ( func->return_type != NULL );
+            entry.value = ( char ) ( func->return_spec != SPEC_VOID );
             c_add_sized( codegen, &entry, sizeof( entry ) );
          }
          list_next( &k );
@@ -301,7 +301,7 @@ void do_func( struct codegen* codegen ) {
          ++entry.params;
       }
       entry.size = ( char ) ( impl->size - func->max_param );
-      entry.value = ( char ) ( func->return_type != NULL );
+      entry.value = ( char ) ( func->return_spec != SPEC_VOID );
       entry.offset = impl->obj_pos;
       c_add_sized( codegen, &entry, sizeof( entry ) );
       list_next( &i );

@@ -499,7 +499,7 @@ void write_one_nestedfunc( struct codegen* codegen,
    // Body:
    // -----------------------------------------------------------------------
    c_write_block( codegen, impl->body );
-   if ( func->return_type ) {
+   if ( func->return_spec != SPEC_VOID ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    impl->size = record.size;
@@ -551,13 +551,13 @@ void write_one_nestedfunc( struct codegen* codegen,
 
    // Temporarily save the return value.
    int return_var = start_index;
-   if ( func->return_type && impl->size > 0 ) {
+   if ( func->return_spec != SPEC_VOID && impl->size > 0 ) {
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
    }
 
    // Restore previous values of script variables.
    index = start_index + impl->size - 1;
-   i = ( func->return_type && impl->size > 0 ) ? 1 : 0;
+   i = ( func->return_spec != SPEC_VOID && impl->size > 0 ) ? 1 : 0;
    while ( i < impl->size ) {
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
       --index;
@@ -565,7 +565,7 @@ void write_one_nestedfunc( struct codegen* codegen,
    }
 
    // Push return value into stack.
-   if ( func->return_type ) {
+   if ( func->return_spec != SPEC_VOID ) {
       if ( impl->size > 0 ) {
          c_pcd( codegen, PCD_PUSHSCRIPTVAR, return_var );
          c_pcd( codegen, PCD_SWAP );

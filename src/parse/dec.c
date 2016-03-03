@@ -922,7 +922,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->type = FUNC_ASPEC;
    func->name = dec->name;
    func->params = NULL;
-   func->return_type = dec->type;
    func->impl = NULL;
    func->return_spec = dec->spec;
    func->min_param = 0;

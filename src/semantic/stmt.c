@@ -441,7 +441,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    if ( stmt->return_value ) {
       struct pos pos;
       test_packed_expr( semantic, test, stmt->return_value, &pos );
-      if ( ! target->func->return_type ) {
+      if ( target->func->return_spec == SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &pos,
             "returning value in void function" );
          s_bail( semantic );
@@ -464,7 +464,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       }
    }
    else {
-      if ( target->func->return_type ) {
+      if ( target->func->return_spec != SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "missing return value" );
          s_bail( semantic );

@@ -194,6 +194,7 @@ void deserialize_func( struct serial* serial ) {
    func->name = t_extend_name( serial->task->root_name,
       srl_rs( serial->r, F_STRNAME ) );
    func->params = deserialize_param_list( serial );
+/*
    if ( srl_peekf( serial->r ) == F_STRRETURNTYPE ) {
       func->return_type = deserialize_primitive_type( serial,
          F_STRRETURNTYPE );
@@ -201,6 +202,7 @@ void deserialize_func( struct serial* serial ) {
    else {
       func->return_type = NULL;
    }
+*/
    func->impl = deserialize_funcimpl( serial );
    func->min_param = srl_ri( serial->r, F_INTMINPARAM );
    func->max_param = srl_ri( serial->r, F_INTMAXPARAM );
