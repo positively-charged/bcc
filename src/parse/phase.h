@@ -284,7 +284,6 @@ struct dec {
    } initz;
    int spec;
    bool type_void;
-   bool type_struct;
    bool static_qual;
    bool leave;
    bool read_func;

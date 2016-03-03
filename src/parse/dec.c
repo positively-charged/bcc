@@ -136,7 +136,6 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
    dec->type_void = false;
-   dec->type_struct = false;
    dec->static_qual = false;
    dec->leave = false;
    dec->read_func = false;
@@ -433,7 +432,6 @@ void read_struct( struct parse* parse, struct dec* dec ) {
    }
    dec->type = structure;
    dec->spec = SPEC_STRUCT;
-   dec->type_struct = true;
    if ( dec->leave && structure->anon ) {
       p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
          "unnamed and unused struct" );
@@ -777,7 +775,7 @@ void test_var( struct parse* parse, struct dec* dec ) {
    // TODO: Come up with syntax to navigate the array portion of storage,
    // the struct being the map. This way, you can access the storage data
    // using a struct member instead of an array index.
-   if ( dec->type_struct && ! dec->dim && (
+   if ( dec->spec == SPEC_STRUCT && ! dec->dim && (
       dec->storage.type == STORAGE_WORLD ||
       dec->storage.type == STORAGE_GLOBAL ) ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
@@ -1003,7 +1001,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    // At this time, returning a struct is not possible. Maybe later, this can
    // be added as part of variable assignment.
-   if ( dec->type_struct ) {
+   if ( dec->spec == SPEC_STRUCT ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "function return-type of struct type" );
       p_bail( parse );
