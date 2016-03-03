@@ -44,6 +44,7 @@ static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* parse, struct dec* );
 static void read_struct_def( struct parse* parse, struct dec* dec );
+static void read_named_type( struct parse* parse, struct dec* dec );
 static void read_objects( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
@@ -73,25 +74,42 @@ static void test_storage( struct parse* parse, struct dec* dec );
 static const char* get_storage_name( int type );
 
 bool p_is_dec( struct parse* parse ) {
-   switch ( parse->tk ) {
-   case TK_INT:
-   case TK_STR:
-   case TK_BOOL:
-   case TK_VOID:
-   case TK_WORLD:
-   case TK_GLOBAL:
-   case TK_STATIC:
-   case TK_ENUM:
-   case TK_STRUCT:
-   case TK_FUNCTION:
-   case TK_ZRAW:
-   case TK_ZINT:
-   case TK_ZFIXED:
-   case TK_ZBOOL:
-   case TK_ZSTR:
-      return true;
-   default:
-      return false;
+   if ( parse->tk == TK_ID ) {
+      // When an identifier is allowed to start a declaration, the situation
+      // becomes ambiguous because an identifier can also start an expression.
+      // To disambiguate the situation, we look ahead of the variable type.
+      struct parsertk_iter iter;
+      p_init_parsertk_iter( parse, &iter );
+      p_next_tk( parse, &iter );
+      return (
+         // The object type should be followed by one of these:
+         // - declaration name
+         // - storage number
+         iter.token->type == TK_ID ||
+         iter.token->type == TK_LIT_DECIMAL
+      );
+   }
+   else {
+      switch ( parse->tk ) {
+      case TK_INT:
+      case TK_STR:
+      case TK_BOOL:
+      case TK_VOID:
+      case TK_WORLD:
+      case TK_GLOBAL:
+      case TK_STATIC:
+      case TK_ENUM:
+      case TK_STRUCT:
+      case TK_FUNCTION:
+      case TK_ZRAW:
+      case TK_ZINT:
+      case TK_ZFIXED:
+      case TK_ZBOOL:
+      case TK_ZSTR:
+         return true;
+      default:
+         return false;
+      }
    }
 }
 
@@ -195,6 +213,9 @@ void read_type( struct parse* parse, struct dec* dec ) {
       break;
    case TK_STRUCT:
       read_struct( parse, dec );
+      break;
+   case TK_ID:
+      read_named_type( parse, dec );
       break;
    default:
       missing_type( parse, dec );
@@ -481,6 +502,10 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
          "struct in for-loop initialization" );
       p_bail( parse );
    }
+}
+
+void read_named_type( struct parse* parse, struct dec* dec ) {
+   dec->type_path = p_read_path( parse );
 }
 
 void read_objects( struct parse* parse, struct dec* dec ) {
