@@ -1662,9 +1662,10 @@ void select_func( struct semantic* semantic, struct result* result,
    // When using just the name of an action special, a value is produced,
    // which is the ID of the action special.
    else if ( func->type == FUNC_ASPEC ) {
+      result->spec = SPEC_ZINT;
       result->complete = true;
       result->usable = true;
-      struct func_aspec* impl = result->func->impl;
+      struct func_aspec* impl = func->impl;
       result->value = impl->id;
       result->folded = true;
    }
