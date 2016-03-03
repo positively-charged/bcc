@@ -1046,6 +1046,12 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result root;
    init_result( &root );
    test_nested_root( semantic, test, &index, &root, subscript->index );
+   // Index must be an integer value.
+   if ( root.spec != SPEC_ZRAW && root.spec != SPEC_ZINT ) {
+      s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
+         "subscript index of non-integer type" );
+      s_bail( semantic );
+   }
    // Out-of-bounds warning for a constant index.
    if ( lside.dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
