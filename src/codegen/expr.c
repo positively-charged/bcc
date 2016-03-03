@@ -22,7 +22,7 @@ struct result {
    int index;
    int base;
    bool push;
-   bool push_temp;
+   bool skip_negate;
    bool pushed;
    bool pushed_element;
 };
@@ -173,7 +173,6 @@ void c_push_expr( struct codegen* codegen, struct expr* expr ) {
    struct result result;
    init_result( &result );
    result.push = true;
-   result.push_temp = false;
    visit_operand( codegen, &result, expr->root );
 }
 
@@ -191,7 +190,7 @@ void init_result( struct result* result ) {
    result->index = 0;
    result->base = 0;
    result->push = false;
-   result->push_temp = false;
+   result->skip_negate = false;
    result->pushed = false;
    result->pushed_element = false;
 }
@@ -413,7 +412,7 @@ void write_logical( struct codegen* codegen, struct result* result,
    push_logical_operand( codegen, logical->rside, logical->rside_spec );
    // Optimization: When doing a calculation temporarily, there's no need to
    // convert the second operand to a 0 or 1. Just use the operand directly.
-   if ( ! result->push_temp ) {
+   if ( ! result->skip_negate ) {
       c_pcd( codegen, PCD_NEGATELOGICAL );
       c_pcd( codegen, PCD_NEGATELOGICAL );
    }
@@ -428,7 +427,7 @@ void push_logical_operand( struct codegen* codegen,
    struct result result;
    init_result( &result );
    result.push = true;
-   result.push_temp = true;
+   result.skip_negate = true;
    visit_operand( codegen, &result, node );
    if ( spec == SPEC_ZSTR ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
