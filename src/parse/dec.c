@@ -999,9 +999,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
          "storage-number specified for function" );
       p_bail( parse );
    }
+   // TODO: Move to semantic phase.
    // At this time, returning a struct is not possible. Maybe later, this can
    // be added as part of variable assignment.
-   if ( dec->spec == SPEC_STRUCT ) {
+   if ( dec->spec == SPEC_STRUCT || dec->type_path ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "function return-type of struct type" );
       p_bail( parse );
