@@ -283,7 +283,6 @@ struct dec {
       bool has_str;
    } initz;
    int spec;
-   bool type_void;
    bool static_qual;
    bool leave;
    bool read_func;

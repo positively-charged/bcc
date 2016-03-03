@@ -135,7 +135,6 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.specified = false;
    dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
-   dec->type_void = false;
    dec->static_qual = false;
    dec->leave = false;
    dec->read_func = false;
@@ -208,7 +207,6 @@ void read_type( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
       break;
    case TK_VOID:
-      dec->type_void = true;
       dec->spec = SPEC_VOID;
       p_read_tk( parse );
       break;
@@ -729,7 +727,7 @@ void test_struct_member( struct parse* parse, struct dec* dec ) {
       p_bail( parse );
    }
    test_storage( parse, dec );
-   if ( dec->type_void ) {
+   if ( dec->spec == SPEC_VOID ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "struct-member of void type" );
       p_bail( parse );
@@ -765,7 +763,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
 void test_var( struct parse* parse, struct dec* dec ) {
    test_storage( parse, dec );
    // Variable must have a type.
-   if ( dec->type_void ) {
+   if ( dec->spec == SPEC_VOID ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
          "variable of void type" );
       p_bail( parse );
