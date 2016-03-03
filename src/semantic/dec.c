@@ -393,7 +393,7 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    init_multi_value_test( &test, var->dim, var->structure, var->is_constant_init,
       false );
    if ( var->initial->multi ) {
-      if ( ! ( var->dim || ! var->structure->primitive ) ) {
+      if ( ! ( var->dim || var->structure ) ) {
          struct multi_value* multi_value =
             ( struct multi_value* ) var->initial;
          s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
@@ -479,8 +479,8 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
    if ( initial->multi ) {
       // There needs to be an element or member to initialize.
       bool deeper = ( ( test->dim && ( test->dim->next ||
-         ! test->type->primitive ) ) || ( test->member &&
-         ( test->member->dim || ! test->member->structure->primitive ) ) );
+         test->type ) ) || ( test->member &&
+         ( test->member->dim || test->member->structure ) ) );
       if ( ! deeper ) {
          s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
             "too many brace initializers" );
@@ -521,9 +521,8 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
    }
    // Only initialize a primitive element or an array of a single dimension--
    // using the string initializer.
-   if ( ! ( ! dim && type->primitive ) && ! ( dim && ! dim->next &&
-      value->expr->root->type == NODE_INDEXED_STRING_USAGE &&
-      type->primitive ) ) {
+   if ( ! ( ! dim && ! type ) && ! ( dim && ! dim->next &&
+      value->expr->root->type == NODE_INDEXED_STRING_USAGE && ! type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "missing %sbrace initializer", test->nested ? "another " : "" );
       s_bail( semantic );

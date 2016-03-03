@@ -1618,10 +1618,12 @@ void select_var( struct semantic* semantic, struct expr_test* test,
          result->complete = true;
       }
    }
-   else if ( var->structure->primitive ) {
-      result->complete = true;
-      result->usable = true;
-      result->assignable = true;
+   else {
+      if ( ! var->structure ) {
+         result->complete = true;
+         result->usable = true;
+         result->assignable = true;
+      }
    }
    var->used = true;
 }
@@ -1645,10 +1647,12 @@ void select_member( struct semantic* semantic, struct expr_test* test,
          result->complete = true;
       }
    }
-   else if ( member->structure->primitive ) {
-      result->complete = true;
-      result->usable = true;
-      result->assignable = true;
+   else {
+      if ( ! member->structure ) {
+         result->complete = true;
+         result->usable = true;
+         result->assignable = true;
+      }
    }
 }
 

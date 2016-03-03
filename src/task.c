@@ -154,20 +154,17 @@ void t_init_types( struct task* task ) {
       t_extend_name( task->body, "int" ) );
    type->object.resolved = true;
    type->size = 1;
-   type->primitive = true;
    task->type_int = type;
    type = t_create_structure( task,
       t_extend_name( task->body, "str" ) );
    type->object.resolved = true;
    type->size = 1;
-   type->primitive = true;
    type->is_str = true;
    task->type_str = type;
    type = t_create_structure( task,
       t_extend_name( task->body, "bool" ) );
    type->object.resolved = true;
    type->size = 1;
-   type->primitive = true;
    task->type_bool = type;
 }
 
@@ -179,7 +176,6 @@ struct structure* t_create_structure( struct task* task, struct name* name ) {
    type->member = NULL;
    type->member_tail = NULL;
    type->size = 0;
-   type->primitive = false;
    type->is_str = false;
    type->anon = false;
    return type;

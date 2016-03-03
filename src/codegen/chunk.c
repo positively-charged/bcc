@@ -529,7 +529,7 @@ void do_mini( struct codegen* codegen ) {
 
 inline bool mini_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP && ! var->dim &&
-      var->structure->primitive && var->value && var->value->expr->value );
+      ! var->structure && var->value && var->value->expr->value );
 }
 
 void do_aray( struct codegen* codegen ) {
@@ -539,7 +539,7 @@ void do_aray( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->structure->primitive ) ) {
+         ( var->dim || var->structure ) ) {
          ++count;
       }
       list_next( &i );
@@ -579,12 +579,12 @@ void do_aray( struct codegen* codegen ) {
 
 inline bool aray_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP &&
-      ( var->dim || ! var->structure->primitive ) && ! var->hidden );
+      ( var->dim || var->structure ) && ! var->hidden );
 }
 
 inline bool aray_hidden_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP &&
-      ( var->dim || ! var->structure->primitive ) && var->hidden );
+      ( var->dim || var->structure ) && var->hidden );
 }
 
 void do_aini( struct codegen* codegen ) {
@@ -593,7 +593,7 @@ void do_aini( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || ! var->structure->primitive ) && var->value ) {
+         ( var->dim || var->structure ) && var->value ) {
          do_aini_single( codegen, var );
       }
       list_next( &i );
@@ -725,7 +725,7 @@ void do_mimp( struct codegen* codegen ) {
 
 inline bool mimp_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
-      var->structure->primitive );
+      ! var->structure );
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
@@ -786,7 +786,7 @@ void do_aimp( struct codegen* codegen ) {
 
 inline bool aimp_array( struct var* var ) {
    return ( var->storage == STORAGE_MAP && var->used &&
-      ( ! var->structure->primitive || var->dim ) );
+      ( var->structure || var->dim ) );
 }
 
 void do_mexp( struct codegen* codegen ) {
@@ -889,18 +889,18 @@ void do_mexp( struct codegen* codegen ) {
 
 inline bool mexp_array( struct var* var ) {
    return ( var->storage == STORAGE_MAP &&
-      ( var->dim || ! var->structure->primitive ) && ! var->hidden );
+      ( var->dim || var->structure ) && ! var->hidden );
 }
 
 inline bool mexp_zeroinit_scalar( struct var* var ) {
    return ( var->storage == STORAGE_MAP && ! var->dim &&
-      var->structure->primitive && ! var->hidden &&
+      ! var->structure && ! var->hidden &&
       ( ! var->value || ! var->value->expr->value ) );
 }
 
 inline bool mexp_nonzeroinit_scalar( struct var* var ) {
    return ( var->storage == STORAGE_MAP && ! var->dim &&
-      var->structure->primitive && ! var->hidden && var->value &&
+      ! var->structure && ! var->hidden && var->value &&
       var->value->expr->value );
 }
 
@@ -930,7 +930,7 @@ void do_mstr( struct codegen* codegen ) {
 
 inline bool mstr_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP && ! var->dim &&
-      var->structure->primitive && var->initial_has_str );
+      ! var->structure && var->initial_has_str );
 } 
 
 void do_astr( struct codegen* codegen ) {
@@ -960,7 +960,7 @@ void do_astr( struct codegen* codegen ) {
 
 inline bool astr_var( struct var* var ) {
    return ( var->storage == STORAGE_MAP && var->dim &&
-      var->structure->primitive && var->initial_has_str );
+      ! var->structure && var->initial_has_str );
 }
 
 void do_atag( struct codegen* codegen ) {
@@ -987,7 +987,7 @@ void do_atag( struct codegen* codegen ) {
 }
 
 bool atag_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ! var->structure->primitive &&
+   return ( var->storage == STORAGE_MAP && var->structure &&
       var->initial_has_str );
 }
 

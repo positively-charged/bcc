@@ -326,6 +326,7 @@ void serialize_type( struct serial* serial, struct structure* type,
       serialize_path( serial, path );
    }
    else {
+/*
       srlw_f( serial->w, F_TYPE );
       if ( type->primitive ) {
          srlw_s( serial->w, F_STRTYPE, name_s( serial, type->name ) );
@@ -333,6 +334,7 @@ void serialize_type( struct serial* serial, struct structure* type,
       else {
          serialize_struct( serial, type );
       }
+*/
    }
 }
 

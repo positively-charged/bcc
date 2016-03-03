@@ -790,7 +790,7 @@ void visit_subscript( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_PUSHNUMBER, result->dim->element_size );
       c_pcd( codegen, PCD_MULIPLY );
    }
-   else if ( ! result->type->primitive ) {
+   else if ( result->type ) {
       c_pcd( codegen, PCD_PUSHNUMBER, result->type->size );
       c_pcd( codegen, PCD_MULIPLY );
    }
@@ -1403,7 +1403,7 @@ void set_var( struct codegen* codegen, struct result* result, struct var* var ) 
    result->type = var->structure;
    result->dim = var->dim;
    result->storage = var->storage;
-   if ( ! var->structure->primitive || var->dim ) {
+   if ( var->structure || var->dim ) {
       result->method = METHOD_ELEMENT;
       result->index = var->index;
    }
