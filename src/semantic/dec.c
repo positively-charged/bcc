@@ -712,8 +712,7 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             "script number not a constant expression" );
          s_bail( semantic );
       }
-      script->named_script = ( script->number->structure ==
-         semantic->task->type_str );
+      script->named_script = ( script->number->spec == SPEC_ZSTR );
       if ( ! script->named_script ) {
          if ( script->number->value < SCRIPT_MIN_NUM ||
             script->number->value > SCRIPT_MAX_NUM ) {

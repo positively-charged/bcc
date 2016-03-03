@@ -191,7 +191,6 @@ void test_root( struct semantic* semantic, struct expr_test* test,
          "expression does not produce a value" );
       s_bail( semantic );
    }
-   expr->structure = result->structure;
    expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;

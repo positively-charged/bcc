@@ -322,7 +322,6 @@ struct strcpy_call {
 struct expr {
    struct node node;
    struct node* root;
-   struct structure* structure;
    struct pos pos;
    int spec;
    // The value is handled based on the expression type. For numeric types,

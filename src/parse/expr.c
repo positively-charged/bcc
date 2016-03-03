@@ -63,7 +63,6 @@ void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
    struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
    expr->node.type = NODE_EXPR;
    expr->root = reading->node;
-   expr->structure = NULL;
    expr->pos = reading->pos;
    expr->spec = SPEC_NONE;
    expr->value = 0;
