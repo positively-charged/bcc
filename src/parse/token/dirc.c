@@ -98,19 +98,18 @@ bool p_read_dirc( struct parse* parse ) {
 }
 
 enum dirc identify_dirc( struct parse* parse ) {
+   struct streamtk_iter iter;
+   p_init_streamtk_iter( parse, &iter );
+   p_next_stream( parse, &iter ); 
+   if ( iter.token->type == TK_HORZSPACE ) {
+      p_next_stream( parse, &iter );
+   }
    enum dirc dirc = DIRC_NONE;
-   if ( parse->token->type == TK_HASH ) {
-      struct tkque_iter iter;
-      p_examine_token_queue( parse, &iter );
-      if ( iter.token->type == TK_HORZSPACE ) {
-         p_next_preptk( parse, &iter );
-      }
-      if ( iter.token->is_id ) {
-         dirc = identify_named_dirc( iter.token->text );
-      }
-      else if ( iter.token->type == TK_NL ) {
-         dirc = DIRC_NULL;
-      }
+   if ( iter.token->is_id ) {
+      dirc = identify_named_dirc( iter.token->text );
+   }
+   else if ( iter.token->type == TK_NL ) {
+      dirc = DIRC_NULL;
    }
    return dirc;
 }
@@ -205,13 +204,10 @@ void read_include( struct parse* parse ) {
 }
 
 void read_error( struct parse* parse, struct pos* pos ) {
-   p_test_stream( parse, TK_ID );
-   p_read_stream( parse );
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
    struct str message;
    str_init( &message );
-   if ( parse->token->type == TK_HORZSPACE ) {
-      p_read_stream( parse );
-   }
    while ( parse->token->type != TK_NL ) {
 //      output_token( parse, &message );
       p_read_stream( parse );
@@ -221,11 +217,9 @@ void read_error( struct parse* parse, struct pos* pos ) {
 }
 
 void read_line( struct parse* parse ) {
-   p_test_stream( parse, TK_ID );
-   p_read_stream( parse );
-   p_test_stream( parse, TK_HORZSPACE );
-   p_read_stream( parse );
-   p_test_stream( parse, TK_LIT_DECIMAL );
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
+   p_test_preptk( parse, TK_LIT_DECIMAL );
    int line = strtol( parse->token->text, NULL, 10 );
    if ( line == 0 ) {
       p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
@@ -443,8 +437,10 @@ else {
       }
    }
    else if ( parse->token->type == TK_HORZSPACE ) {
-      struct token* token = p_peek_stream( parse, false );
-      if ( token->type == TK_NL ) {
+      struct streamtk_iter iter;
+      p_init_streamtk_iter( parse, &iter );
+      p_next_stream( parse, &iter );
+      if ( iter.token->type == TK_NL ) {
          p_read_stream( parse );
          return;
       }

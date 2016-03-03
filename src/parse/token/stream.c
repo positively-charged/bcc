@@ -2,20 +2,6 @@
 
 #include "phase.h"
 
-enum {
-   READTK_NONE = 0x0,
-   READTK_ACCEPTHORZSPACE = 0x1,
-   READTK_ACCEPTNL = 0x2,
-   READTK_EXPANDMACROS = 0x4,
-   READTK_EXECUTEDIRCS = 0x8,
-};
-
-struct queue_entry {
-   struct queue_entry* next;
-   struct token* token;
-   bool token_allocated;
-};
-
 struct macro_expan {
    struct macro* macro;
    struct macro_arg* args;
@@ -43,12 +29,8 @@ struct arg_reading {
    bool surpassed_param_count;
 };
 
-static void readtk_peeked( struct parse* parse, int option );
-static struct queue_entry* push_entry( struct parse* parse );
-static struct token* shift_entry( struct parse* parse );
-static void fill_queue( struct parse* parse, int required_size, int options );
-static void readtk( struct parse* parse, int options );
-static void read_token_raw( struct parse* parse );
+static void read_peeked_token( struct parse* parse );
+static void read_token( struct parse* parse );
 static void read_token_seq( struct parse* parse );
 static void expand_macro_param( struct parse* parse );
 static void read_token_expan( struct parse* parse );
@@ -56,269 +38,46 @@ static void readtk_macro( struct parse* parse );
 static bool can_concat( struct parse* parse );
 static void concat( struct parse* parse );
 static void stringize( struct parse* parse );
-static bool expand_macro( struct parse* parse );
 static bool expand_predef_macro( struct parse* parse );
 static void read_macro_arg_list( struct parse* parse,
    struct macro_expan* expan );
 static void read_macro_arg( struct parse* parse, struct arg_reading* reading );
 static void read_seq_token( struct parse* parse, struct arg_reading* reading );
 static void add_seq_token( struct parse* parse, struct arg_reading* reading );
+static struct token* push_token( struct parse* parse );
 
 void p_init_stream( struct parse* parse ) {
    parse->tk = TK_END;
+   parse->prev_tk = TK_NL;
    parse->tk_text = "";
    parse->tk_length = 0;
    parse->token_free = NULL;
-   parse->tkque_head = NULL;
-   parse->tkque_tail = NULL;
    parse->tkque_free_entry = NULL;
-   parse->tkque_prev_entry = NULL;
-   parse->tkque_size = 0;
    parse->source_token = &parse->token_source;
-}
-
-// Read functions
-// ==========================================================================
-
-// Reads a token. Is used by parser.
-// Needs to:
-//  - Skip whitespace, both horizontal space and newlines.
-//  - Expand macros.
-//  - Execute directives.
-void p_read_tk( struct parse* parse ) {
-   readtk_peeked( parse, READTK_EXPANDMACROS | READTK_EXECUTEDIRCS );
-/*
-   // Concatenate adjacent strings.
-   if ( parse->token->type == TK_LIT_STRING ) {
-      struct str string;
-      str_init( &string );
-      str_append( &string, parse->token->text );
-      while ( p_peek_tk( parse )->type == TK_LIT_STRING ) {
-         readtk_peeked( parse );
-         str_append( &string, parse->token->text );
-printf( "t %d\n", parse->token->type );
-         
-      }
-      if ( string.length ) {
-   printf( "string: %s\n", string.value );
-      }
-   }*/
-   struct token* token = parse->token;
-   parse->tk = token->type;
-   parse->tk_text = token->text;
-   parse->tk_pos = token->pos;
-   parse->tk_length = token->length;
-}
-
-// Reads a token. Is used by preprocessor.
-void p_read_preptk( struct parse* parse ) {
-   readtk_peeked( parse, READTK_ACCEPTNL );
-}
-
-void p_read_expanpreptk( struct parse* parse ) {
-   readtk_peeked( parse, READTK_ACCEPTNL | READTK_EXPANDMACROS );
-}
-
-void p_read_eoptiontk( struct parse* parse ) {
-   readtk_peeked( parse, READTK_ACCEPTHORZSPACE | READTK_ACCEPTNL |
-      READTK_EXPANDMACROS | READTK_EXECUTEDIRCS );
+   p_init_token_queue( &parse->tkque, true );
+   p_init_token_queue( &parse->parser_tkque, false );
 }
 
 void p_read_stream( struct parse* parse ) {
-   readtk_peeked( parse, READTK_ACCEPTHORZSPACE | READTK_ACCEPTNL );
+   read_peeked_token( parse );
+   parse->line_beginning = ( parse->prev_tk == TK_NL ) ||
+      ( parse->prev_tk == TK_HORZSPACE && parse->line_beginning );
+   parse->prev_tk = parse->token->type;
 }
 
-// Peek functions
-// ==========================================================================
-
-enum tk p_peek( struct parse* parse ) {
-   return p_peek_tk( parse )->type;
-}
-
-struct token* p_peek_tk( struct parse* parse ) {
-   fill_queue( parse, 1, READTK_EXPANDMACROS | READTK_EXECUTEDIRCS );
-   return parse->tkque_head->token;
-}
-
-struct token* p_peek_stream( struct parse* parse, bool nonwhitespace ) {
-   int size = 1;
-   while ( true ) {
-      fill_queue( parse, size, READTK_ACCEPTHORZSPACE | READTK_ACCEPTNL );
-      switch ( parse->tkque_tail->token->type ) {
-      case TK_HORZSPACE:
-      case TK_NL:
-         ++size;
-         break;
-      default:
-         return parse->tkque_tail->token;
-      }
-   }
-}
-
-void p_examine_token_queue( struct parse* parse, struct tkque_iter* iter ) {
-   iter->entry = parse->tkque_head;
-   iter->token = NULL;
-   p_next_tk( parse, iter );
-}
-
-void p_next_tk( struct parse* parse, struct tkque_iter* iter ) {
-   if ( iter->entry ) {
-      struct queue_entry* entry = iter->entry;
-      iter->token = entry->token;
-      iter->entry = entry->next;
+void read_peeked_token( struct parse* parse ) {
+   if ( parse->tkque.size > 0 ) {
+      parse->token = p_shift_entry( parse, &parse->tkque );
    }
    else {
-      fill_queue( parse, parse->tkque_size + 1,
-READTK_EXPANDMACROS | READTK_EXECUTEDIRCS );
-      iter->token = parse->tkque_tail->token;
-   }
-}
-
-void p_next_preptk( struct parse* parse, struct tkque_iter* iter ) {
-   if ( iter->entry ) {
-      struct queue_entry* entry = iter->entry;
-      iter->token = entry->token;
-      iter->entry = entry->next;
-   }
-   else {
-      fill_queue( parse, parse->tkque_size + 1, READTK_ACCEPTNL );
-      iter->token = parse->tkque_tail->token;
-   }
-}
-
-// ==========================================================================
-
-void readtk_peeked( struct parse* parse, int options ) {
-   if ( parse->tkque_size > 0 ) {
-      parse->token = shift_entry( parse );
-   }
-   else {
-      readtk( parse, options );
-   }
-}
-
-struct queue_entry* push_entry( struct parse* parse ) {
-   // Allocate an entry.
-   struct queue_entry* entry;
-   if ( parse->tkque_free_entry ) {
-      entry = parse->tkque_free_entry;
-      parse->tkque_free_entry = entry->next;
-   }
-   else {
-      entry = mem_alloc( sizeof( *entry ) );
-   }
-   // Initialize necessary fields of the entry.
-   entry->next = NULL;
-   // Append the entry.
-   if ( parse->tkque_head ) {
-      parse->tkque_tail->next = entry;
-   }
-   else {
-      parse->tkque_head = entry;
-   }
-   parse->tkque_tail = entry;
-   ++parse->tkque_size;
-   return entry;
-}
-
-struct token* shift_entry( struct parse* parse ) {
-   // Free previous entry.
-   if ( parse->tkque_prev_entry ) {
-      struct queue_entry* entry = parse->tkque_prev_entry;
-      entry->next = parse->tkque_free_entry;
-      parse->tkque_free_entry = entry;
-      if ( entry->token_allocated ) {
-         p_free_token( parse, entry->token );
-      }
-   }
-   struct queue_entry* entry = parse->tkque_head;
-   parse->tkque_head = entry->next;
-   parse->tkque_prev_entry = entry;
-   --parse->tkque_size;
-   return entry->token;
-}
-
-void fill_queue( struct parse* parse, int required_size, int options ) {
-   struct token* token = parse->token;
-   struct token* source_token = parse->source_token;
-   parse->source_token = &parse->token_peeked;
-   while ( parse->tkque_size < required_size ) {
-      readtk( parse, options );
-      struct queue_entry* entry = push_entry( parse );
-      entry->token_allocated = ( parse->token == &parse->token_peeked );
-      if ( entry->token_allocated ) {
-         entry->token = p_alloc_token( parse );
-         *entry->token = *parse->token;
-      }
-      else {
-         entry->token = parse->token;
-      }
-   }
-   parse->source_token = source_token;
-   parse->token = token;
-}
-
-void readtk( struct parse* parse, int options ) {
-   top:
-   read_token_raw( parse );
-
-   // -----------------------------------------------------------------------
-   if ( parse->token->is_id ) {
-      if ( options & READTK_EXPANDMACROS ) {
-         bool expanded = expand_macro( parse );
-         if ( expanded ) {
-            goto top;
-         }
-      }
-      goto done;
-   }
-
-   // -----------------------------------------------------------------------
-   switch ( parse->token->type ) {
-   case TK_HASH:
-      if ( options & READTK_EXECUTEDIRCS ) {
-         if ( parse->line_beginning ) {
-            bool read = p_read_dirc( parse );
-            if ( read ) {
-               goto nl;
-            }
-         }
-      }
-      break;
-   case TK_HORZSPACE:
-      if ( ! ( options & READTK_ACCEPTHORZSPACE ) ) {
-         goto top;
-      }
-      break;
-   nl:
-   case TK_NL:
-      parse->line_beginning = true;
-      if ( ! ( options & READTK_ACCEPTNL ) ) {
-         goto top;
-      }
-      break;
-   default:
-      parse->line_beginning = false;
-      break;
-   }
-
-   // -----------------------------------------------------------------------
-   done:
-   // Certain identifiers can appear only in a specific context.
-   if ( parse->token->is_id &&
-      strcmp( parse->token->text, "__va_args__" ) == 0 &&
-      ! parse->prep_context != PREPCONTEXT_DEFINEBODY ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-         "`%s` outside function-like macro expansion",
-         parse->token->text );
-      p_bail( parse );
+      read_token( parse );
    }
 }
 
 // Begins by reading tokens from a macro expansion. When a macro expansion is
 // not present, or there are no more tokens available in the macro expansion,
 // reads a token from the source file.
-void read_token_raw( struct parse* parse ) {
+void read_token( struct parse* parse ) {
    // Read from a predefined-macro expansion.
    if ( parse->predef_macro_expan != PREDEFMACROEXPAN_NONE ) {
       p_read_sourcepos_token( parse, parse->macro_expan ?
@@ -473,7 +232,7 @@ void stringize( struct parse* parse ) {
    parse->token = &token;
 }
 
-bool expand_macro( struct parse* parse ) {
+bool p_expand_macro( struct parse* parse ) {
    if ( ! parse->token->is_id ) {
       return false;
    }
@@ -498,8 +257,15 @@ bool expand_macro( struct parse* parse ) {
    // A function-like macro is expanded only when a list of arguments is
    // provided.
    if ( macro->func_like ) {
-      struct token* token = p_peek_stream( parse, true );
-      if ( token->type != TK_PAREN_L ) {
+      struct streamtk_iter iter;
+      p_init_streamtk_iter( parse, &iter );
+      p_next_stream( parse, &iter );
+      while (
+         iter.token->type == TK_HORZSPACE ||
+         iter.token->type == TK_NL ) {
+         p_next_stream( parse, &iter );
+      }
+      if ( iter.token->type != TK_PAREN_L ) {
          return false;
       }
    }
@@ -636,7 +402,10 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
    case TK_HORZSPACE:
    case TK_NL:
       if ( reading->token_tail && reading->token_tail->type != TK_HORZSPACE ) {
-         if ( p_peek_stream( parse, false )->type != TK_PAREN_R ) {
+         struct streamtk_iter iter;
+         p_init_streamtk_iter( parse, &iter );
+         p_next_stream( parse, &iter );
+         if ( iter.token->type != TK_PAREN_R ) {
             add_seq_token( parse, reading );
             reading->token_tail->type = TK_HORZSPACE;
             reading->token_tail->text = " ";
@@ -676,7 +445,7 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
       }
       break;
    case TK_ID:
-      if ( ! expand_macro( parse ) ) {
+      if ( ! p_expand_macro( parse ) ) {
          add_seq_token( parse, reading );
       }
       break;
@@ -704,6 +473,43 @@ void add_seq_token( struct parse* parse, struct arg_reading* reading ) {
    reading->token_tail = token;
 }
 
+void p_init_streamtk_iter( struct parse* parse, struct streamtk_iter* iter ) {
+   iter->entry = parse->tkque.head;
+   iter->token = NULL;
+}
+
+void p_next_stream( struct parse* parse, struct streamtk_iter* iter ) {
+   if ( iter->entry ) {
+      struct queue_entry* entry = iter->entry;
+      iter->token = entry->token;
+      iter->entry = entry->next;
+   }
+   else {
+      iter->token = push_token( parse );
+   }
+}
+
+struct token* push_token( struct parse* parse ) {
+   struct token* token = parse->token;
+   struct token* source_token = parse->source_token;
+   struct token peeked_token;
+   parse->source_token = &peeked_token;
+   read_token( parse );
+   struct queue_entry* entry = p_push_entry( parse, &parse->tkque );
+   entry->token_allocated = ( parse->token == &peeked_token );
+   if ( entry->token_allocated ) {
+      struct token* fresh_token = p_alloc_token( parse );
+      *fresh_token = peeked_token;
+      entry->token = fresh_token;
+   }
+   else {
+      entry->token = parse->token;
+   }
+   parse->source_token = source_token;
+   parse->token = token;
+   return entry->token;
+}
+
 // NOTE: Does not initialize fields.
 struct token* alloc_token( struct parse* parse ) {
    struct token* token;
@@ -728,38 +534,10 @@ void p_free_token( struct parse* parse, struct token* token ) {
    parse->token_free = token;
 }
 
-void p_test_tk( struct parse* parse, enum tk expected ) {
-   if ( parse->token->type != expected ) {
-      if ( parse->token->type == TK_RESERVED ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-            "`%s` is a reserved identifier that is not currently used",
-            parse->token->text );
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos, 
-            "unexpected %s", p_get_token_name( parse->token->type ) );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &parse->token->pos,
-            "expecting %s here", p_get_token_name( expected ),
-            p_get_token_name( parse->token->type ) );
-      }
-      p_bail( parse );
+void fill_stream( struct parse* parse, int required_size ) {
+   while ( parse->tkque.size < required_size ) {
+      
    }
-}
-
-void p_test_preptk( struct parse* parse, enum tk expected ) {
-   if ( expected == TK_ID ) {
-      if ( ! parse->token->is_id ) {
-         p_test_tk( parse, TK_ID );
-      }
-   }
-   else {
-      p_test_tk( parse, expected );
-   }
-}
-
-void p_test_stream( struct parse* parse, enum tk expected ) {
-   p_test_tk( parse, expected );
 }
 
 static void macro_trace_diag( struct parse* parse, struct macro_expan* expan );
@@ -774,39 +552,4 @@ void macro_trace_diag( struct parse* parse, struct macro_expan* expan ) {
    }
    t_diag( parse->task, DIAG_POS, &expan->pos,
       "from expansion of macro `%s`", expan->macro->name );
-}
-
-void p_skip_block( struct parse* parse ) {
-   while ( parse->tk != TK_END && parse->tk != TK_BRACE_L ) {
-      p_read_tk( parse );
-   }
-   p_test_tk( parse, TK_BRACE_L );
-   p_read_tk( parse );
-   int depth = 0;
-   while ( true ) {
-      if ( parse->tk == TK_BRACE_L ) {
-         ++depth;
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_BRACE_R ) {
-         if ( depth ) {
-            --depth;
-            p_read_tk( parse );
-         }
-         else {
-            break;
-         }
-      }
-      else if ( parse->tk == TK_LIB_END ) {
-         break;
-      }
-      else if ( parse->tk == TK_END ) {
-         break;
-      }
-      else {
-         p_read_tk( parse );
-      }
-   }
-   p_test_tk( parse, TK_BRACE_R );
-   p_read_tk( parse );
 }

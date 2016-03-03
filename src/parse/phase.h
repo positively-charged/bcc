@@ -196,7 +196,26 @@ struct macro_param {
    struct macro_param* next;
 };
 
-struct tkque_iter {
+struct queue_entry {
+   struct queue_entry* next;
+   struct token* token;
+   bool token_allocated;
+};
+
+struct token_queue {
+   struct queue_entry* head;
+   struct queue_entry* tail;
+   struct queue_entry* prev_entry;
+   int size;
+   bool stream;
+};
+
+struct parsertk_iter {
+   struct queue_entry* entry;
+   struct token* token;
+};
+
+struct streamtk_iter {
    struct queue_entry* entry;
    struct token* token;
 };
@@ -299,6 +318,7 @@ struct parse {
    struct token token_source;
    struct token token_peeked;
    enum tk tk;
+   enum tk prev_tk;
    struct pos tk_pos;
    char* tk_text;
    int tk_length;
@@ -340,11 +360,9 @@ struct parse {
    struct cache* cache;
 
    struct token* source_token;
-   struct queue_entry* tkque_head;
-   struct queue_entry* tkque_tail;
    struct queue_entry* tkque_free_entry;
-   struct queue_entry* tkque_prev_entry;
-   int tkque_size;
+   struct token_queue tkque;
+   struct token_queue parser_tkque;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -409,8 +427,16 @@ int p_identify_predef_macro( const char* text );
 const struct token_info* p_get_token_info( enum tk tk );
 struct token* p_alloc_token( struct parse* parse );
 void p_free_token( struct parse* parse, struct token* token );
-void p_examine_token_queue( struct parse* parse, struct tkque_iter* iter );
-void p_next_tk( struct parse* parse, struct tkque_iter* iter );
-void p_next_preptk( struct parse* parse, struct tkque_iter* iter );
+void p_init_parsertk_iter( struct parse* parse, struct parsertk_iter* iter );
+void p_next_tk( struct parse* parse, struct parsertk_iter* iter );
+void p_init_streamtk_iter( struct parse* parse, struct streamtk_iter* iter );
+void p_next_stream( struct parse* parse, struct streamtk_iter* iter );
+bool p_expand_macro( struct parse* parse );
+void p_init_token_queue( struct token_queue* queue, bool stream );
+struct queue_entry* p_push_entry( struct parse* parse,
+   struct token_queue* queue );
+struct token* p_shift_entry( struct parse* parse, struct token_queue* queue );
+void p_fill_queue( struct parse* parse, struct token_queue* queue,
+   int required_size );
 
 #endif
