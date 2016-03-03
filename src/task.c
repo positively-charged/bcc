@@ -182,7 +182,6 @@ struct structure* t_create_structure( struct task* task, struct name* name ) {
    type->primitive = false;
    type->is_str = false;
    type->anon = false;
-   name->object = &type->object;
    return type;
 }
 
