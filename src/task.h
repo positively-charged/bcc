@@ -837,7 +837,7 @@ void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 void t_init_object( struct object* object, int node_type );
 void t_init_types( struct task* task );
-void t_init_type_members( struct task* );
+// void t_init_type_members( struct task* );
 struct structure* t_create_structure( struct task* task, struct name* name );
 void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );

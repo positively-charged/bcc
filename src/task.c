@@ -37,7 +37,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->body = task->root_name;
    task->body_struct = t_extend_name( task->body, "!struct." );
    t_init_types( task );
-   t_init_type_members( task );
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
@@ -179,6 +178,7 @@ struct structure* t_create_structure( struct task* task, struct name* name ) {
    return type;
 }
 
+/*
 void t_init_type_members( struct task* task ) {
    static struct {
       const char* name;
@@ -208,7 +208,7 @@ void t_init_type_members( struct task* task ) {
       func->max_param = list[ i ].param;
       func->hidden = false;
    }
-}
+} */
 
 struct structure* get_type( struct task* task, int id ) {
    switch ( id ) {
