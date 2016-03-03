@@ -182,27 +182,22 @@ void read_type( struct parse* parse, struct dec* dec ) {
    case TK_STR:
    case TK_BOOL:
    case TK_ZRAW:
-      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZRAW;
       p_read_tk( parse );
       break;
    case TK_ZINT:
-      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZINT;
       p_read_tk( parse );
       break;
    case TK_ZFIXED:
-      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZFIXED;
       p_read_tk( parse );
       break;
    case TK_ZBOOL:
-      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZBOOL;
       p_read_tk( parse );
       break;
    case TK_ZSTR:
-      dec->structure = parse->task->type_int;
       dec->spec = SPEC_ZSTR;
       p_read_tk( parse );
       break;
@@ -334,7 +329,6 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->task->library, &set->object );
       list_append( &parse->task->library->objects, set );
    }
-   dec->structure = parse->task->type_int;
    dec->spec = SPEC_ZINT;
    if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
@@ -813,6 +807,9 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->object.pos = dec->name_pos;
    var->name = dec->name;
    var->structure = dec->structure;
+   if ( ! var->structure ) {
+      var->structure = parse->task->type_int;
+   }
    var->type_path = dec->type_path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
