@@ -121,7 +121,7 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( semantic, &expr, label->number );
    if ( ! label->number->folded ) {
-      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &label->number->pos,
          "case value not constant" );
       s_bail( semantic );
    }
@@ -563,7 +563,7 @@ void test_packed_expr( struct semantic* semantic, struct stmt_test* test,
    s_init_expr_test( &expr_test, test, packed->block, false, false );
    s_test_expr( semantic, &expr_test, packed->expr );
    if ( expr_pos ) {
-      *expr_pos = expr_test.pos;
+      *expr_pos = packed->expr->pos;
    }
    // Test format block.
    if ( packed->block ) {

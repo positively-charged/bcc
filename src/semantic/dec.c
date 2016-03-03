@@ -134,7 +134,7 @@ void test_enumerator( struct semantic* semantic,
          return;
       }
       if ( ! enumerator->initz->folded ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &enumerator->initz->pos,
             "enumerator expression not constant" );
          s_bail( semantic );
       }
@@ -269,12 +269,12 @@ bool test_member_dim( struct semantic* semantic,
          return false;
       }
       if ( ! dim->size_node->folded ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
          "array size not a constant expression" );
          s_bail( semantic );
       }
       if ( dim->size_node->value <= 0 ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
             "array size must be greater than 0" );
          s_bail( semantic );
       }
@@ -346,12 +346,12 @@ bool test_dim( struct semantic* semantic, struct var* var ) {
             return false;
          }
          if ( ! dim->size_node->folded ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
                "dimension size not a constant expression" );
             s_bail( semantic );
          }
          if ( dim->size_node->value <= 0 ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
                "dimension size less than or equal to 0" );
             s_bail( semantic );
          }
@@ -514,7 +514,7 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
       return false;
    }
    if ( test->constant && ! value->expr->folded ) {
-      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "non-constant initializer" );
       s_bail( semantic );
    }
@@ -523,7 +523,7 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
    if ( ! ( ! dim && type->primitive ) && ! ( dim && ! dim->next &&
       value->expr->root->type == NODE_INDEXED_STRING_USAGE &&
       type->primitive ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "missing %sbrace initializer", test->nested ? "another " : "" );
       s_bail( semantic );
    }
@@ -533,7 +533,7 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
       // readability purposes, restrict the string initializer to an array of
       // `int` type.
       if ( type != semantic->task->type_int ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
             "string initializer specified for a non-int array" );
          s_bail( semantic );
       }
@@ -541,7 +541,7 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
          ( struct indexed_string_usage* ) value->expr->root;
       if ( dim->size_node ) {
          if ( usage->string->length >= dim->size ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
                "string initializer too long" );
             s_bail( semantic );
          }
@@ -708,7 +708,7 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
       s_init_expr_test( &expr, NULL, NULL, true, false );
       s_test_expr( semantic, &expr, script->number );
       if ( ! script->number->folded ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+         s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
             "script number not a constant expression" );
          s_bail( semantic );
       }
@@ -717,13 +717,13 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
       if ( ! script->named_script ) {
          if ( script->number->value < SCRIPT_MIN_NUM ||
             script->number->value > SCRIPT_MAX_NUM ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
                "script number not between %d and %d", SCRIPT_MIN_NUM,
                SCRIPT_MAX_NUM );
             s_bail( semantic );
          }
          if ( script->number->value == 0 ) {
-            s_diag( semantic, DIAG_POS_ERR, &expr.pos,
+            s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
                "script number 0 not between `<<` and `>>`" );
             s_bail( semantic );
          }

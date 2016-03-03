@@ -37,7 +37,6 @@ struct expr_test {
    struct stmt_test* stmt_test;
    struct block* format_block;
    struct format_block_usage* format_block_usage;
-   struct pos pos;
    bool result_required;
    bool has_string;
    bool undef_erred;
