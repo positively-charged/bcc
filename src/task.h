@@ -138,7 +138,6 @@ struct structure {
    struct structure_member* member;
    struct structure_member* member_tail;
    int size;
-   bool is_str;
    bool anon;
 };
 

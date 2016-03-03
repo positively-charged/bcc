@@ -461,7 +461,6 @@ struct structure* alloc_structure( struct pos* pos ) {
    structure->member = NULL;
    structure->member_tail = NULL;
    structure->size = 0;
-   structure->is_str = false;
    structure->anon = false;
    return structure;
 }
