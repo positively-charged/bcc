@@ -123,6 +123,10 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
    case NODE_PACKED_EXPR:
       visit_packed_expr( codegen, ( struct packed_expr* ) node );
       break;
+   case NODE_INLINE_ASM:
+      p_visit_inline_asm( codegen,
+         ( struct inline_asm* ) node );
+      break;
    default:
       break;
    }

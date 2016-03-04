@@ -46,10 +46,13 @@ struct c_pcode {
    struct c_node node;
    int code;
    struct c_pcode_arg* args;
+   bool optimize;
+   bool patch;
 };
 
 struct c_pcode_arg {
    struct c_pcode_arg* next;
+   struct c_point* point;
    int value;
 };
 

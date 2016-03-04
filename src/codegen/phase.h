@@ -86,7 +86,9 @@ void c_visit_var( struct codegen* codegen, struct var* var );
 void c_visit_format_item( struct codegen* codegen, struct format_item* item );
 struct pcode* c_get_pcode_info( int code );
 void c_opc( struct codegen* codegen, int code );
+void c_unoptimized_opc( struct codegen* codegen, int code );
 void c_arg( struct codegen* codegen, int value );
+void c_point_arg( struct codegen* codegen, struct c_point* point );
 void c_pcd( struct codegen* codegen, int code, ... );
 void c_seek_node( struct codegen* codegen, struct c_node* node );
 void c_append_node( struct codegen* codegen, struct c_node* node );
@@ -99,5 +101,9 @@ void c_append_casejump( struct c_sortedcasejump* sorted_jump,
    struct c_casejump* jump );
 void c_flush_pcode( struct codegen* codegen );
 void c_visit_nested_func( struct codegen* codegen, struct func* func );
+void p_visit_inline_asm( struct codegen* codegen,
+   struct inline_asm* inline_asm );
+void c_write_opc( struct codegen* codegen, int opcode );
+void c_write_arg( struct codegen* codegen, int arg );
 
 #endif

@@ -729,3 +729,11 @@ void c_flush( struct codegen* codegen ) {
       t_bail( codegen->task );
    }
 }
+
+void c_write_opc( struct codegen* codegen, int opcode ) {
+   write_opc( codegen, opcode );
+}
+
+void c_write_arg( struct codegen* codegen, int arg ) {
+   write_arg( codegen, arg );
+}

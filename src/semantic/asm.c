@@ -49,6 +49,7 @@ void test_name( struct semantic* semantic, struct test* test ) {
       s_bail( semantic );
    }
    test->format = mnemonic->args;
+   test->inline_asm->opcode = mnemonic->opcode;
 }
 
 struct mnemonic* find_mnemonic( struct task* task, const char* name ) {
@@ -136,7 +137,7 @@ void test_arg( struct semantic* semantic, struct test* test,
 void test_label_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    list_iter_t i;
-   list_iter_init( &i, test->stmt_test->labels );
+   list_iter_init( &i, semantic->topfunc_test->labels );
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       if ( strcmp( label->name, arg->value.id ) == 0 ) {
