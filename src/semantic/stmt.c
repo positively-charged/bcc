@@ -219,6 +219,10 @@ void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
    case NODE_PACKED_EXPR:
       test_packed_expr( semantic, test, ( struct packed_expr* ) node, NULL );
       break;
+   case NODE_INLINE_ASM:
+      p_test_inline_asm( semantic, test,
+         ( struct inline_asm* ) node );
+      break;
    default:
       // TODO: Internal compiler error.
       break;

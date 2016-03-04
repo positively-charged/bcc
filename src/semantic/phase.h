@@ -91,5 +91,7 @@ void s_init_object_search( struct object_search* search, struct path* path,
    bool get_struct );
 void s_find_object( struct semantic* semantic, struct object_search* search );
 void s_present_spec( int spec, struct str* string );
+void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
+   struct inline_asm* inline_asm );
 
 #endif
