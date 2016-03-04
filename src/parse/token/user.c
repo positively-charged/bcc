@@ -47,6 +47,10 @@ void read_token( struct parse* parse ) {
          }
          break;
       case TK_NL:
+         if ( ! parse->create_nltk ) {
+            goto top;
+         }
+         break;
       case TK_HORZSPACE:
          goto top;
       default:

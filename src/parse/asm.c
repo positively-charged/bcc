@@ -59,6 +59,7 @@ void append_mnemonic( struct parse* parse, struct task* task,
 }
 
 void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
+   parse->create_nltk = true;
    struct inline_asm* inline_asm = alloc_inline_asm();
    p_test_tk( parse, TK_GT );
    p_read_tk( parse );
@@ -66,7 +67,7 @@ void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
    inline_asm->name = parse->tk_text;
    inline_asm->pos = parse->tk_pos;
    p_read_tk( parse );
-   if ( parse->tk != TK_SEMICOLON ) {
+   if ( parse->tk != TK_NL ) {
       while ( true ) {
          read_arg( parse, inline_asm );
          if ( parse->tk == TK_COMMA ) {
@@ -77,7 +78,8 @@ void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
          }
       }
    }
-   p_test_tk( parse, TK_SEMICOLON );
+   p_test_tk( parse, TK_NL );
+   parse->create_nltk = false;
    p_read_tk( parse );
    reading->node = &inline_asm->node;
 }

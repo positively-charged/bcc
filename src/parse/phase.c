@@ -32,6 +32,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
    parse->prep_context = PREPCONTEXT_NONE;
    parse->cache = cache;
+   parse->create_nltk = false;
    p_init_stream( parse );
 }
 

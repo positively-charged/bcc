@@ -361,6 +361,7 @@ struct parse {
    struct queue_entry* tkque_free_entry;
    struct token_queue tkque;
    struct token_queue parser_tkque;
+   bool create_nltk;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
