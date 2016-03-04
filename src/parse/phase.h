@@ -436,5 +436,6 @@ struct queue_entry* p_push_entry( struct parse* parse,
 struct token* p_shift_entry( struct parse* parse, struct token_queue* queue );
 void p_fill_queue( struct parse* parse, struct token_queue* queue,
    int required_size );
+void p_read_mnemonic( struct parse* parse );
 
 #endif

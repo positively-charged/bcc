@@ -44,6 +44,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
+   task->mnemonics = NULL;
 }
 
 void init_str_table( struct str_table* table ) {

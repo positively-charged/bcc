@@ -760,6 +760,14 @@ struct region {
    struct list items;
 }; */
 
+struct mnemonic {
+   const char* name;
+   const char* args;
+   struct mnemonic* next;
+   struct pos pos;
+   int opcode;
+};
+
 struct library {
    struct str name;
    struct pos name_pos;
@@ -807,6 +815,7 @@ struct task {
    int last_id;
    time_t compile_time;
    struct gbuf growing_buffer;
+   struct mnemonic* mnemonics;
 };
 
 #define DIAG_NONE 0

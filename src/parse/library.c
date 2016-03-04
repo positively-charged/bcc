@@ -78,6 +78,10 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
       parse->task->library->format = FORMAT_BIG_E;
       p_read_tk( parse );
    }
+   else if ( strcmp( parse->tk_text, "mnemonic" ) == 0 ) {
+      p_read_tk( parse );
+      p_read_mnemonic( parse );
+   }
    else if (
       // NOTE: Not sure what these two are.
       strcmp( parse->tk_text, "wadauthor" ) == 0 ||
