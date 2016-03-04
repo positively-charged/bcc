@@ -85,6 +85,7 @@ struct node {
       NODE_INC,
       NODE_FIXED_LITERAL,
       NODE_CAST,
+      NODE_INLINE_ASM,
    } type;
 };
 
@@ -766,6 +767,38 @@ struct mnemonic {
    struct mnemonic* next;
    struct pos pos;
    int opcode;
+};
+
+struct inline_asm {
+   struct node node;
+   struct pos pos;
+   char* name;
+   struct inline_asm* next;
+   struct list args;
+   int opcode;
+   int obj_pos;
+};
+
+struct inline_asm_arg {
+   enum {
+      INLINE_ASM_ARG_NUMBER,
+      INLINE_ASM_ARG_ID,
+      INLINE_ASM_ARG_EXPR,
+      INLINE_ASM_ARG_LABEL,
+      INLINE_ASM_ARG_VAR,
+      INLINE_ASM_ARG_PARAM,
+      INLINE_ASM_ARG_FUNC
+   } type;
+   union {
+      int number;
+      char* id;
+      struct expr* expr;
+      struct label* label;
+      struct var* var;
+      struct param* param;
+      struct func* func;
+   } value;
+   struct pos pos;
 };
 
 struct library {

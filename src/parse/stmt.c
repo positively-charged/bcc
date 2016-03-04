@@ -224,6 +224,9 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading ) {
    case TK_PALTRANS:
       read_paltrans( parse, reading );
       break;
+   case TK_GT:
+      p_read_asm( parse, reading );
+      break;
    case TK_SEMICOLON:
       {
          static struct node node = { NODE_NONE };
