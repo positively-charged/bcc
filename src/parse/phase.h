@@ -154,7 +154,7 @@ struct token {
    // length of the text are applicable only to a token that is an identifier,
    // a string, a character literal, or any of the numbers. For the rest, the
    // text will be NULL and the length will be zero.
-   char* text;
+   const char* text;
    struct pos pos;
    enum tk type;
    int length;
@@ -174,7 +174,7 @@ enum {
 };
 
 struct token_info {
-   char* shared_text;
+   const char* shared_text;
    unsigned int length;
    unsigned int flags;
 };
@@ -319,7 +319,7 @@ struct parse {
    enum tk tk;
    enum tk prev_tk;
    struct pos tk_pos;
-   char* tk_text;
+   const char* tk_text;
    int tk_length;
    struct source* source;
    struct source* main_source;

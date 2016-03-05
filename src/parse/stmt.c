@@ -23,7 +23,7 @@ static void read_format_item( struct parse* parse, struct stmt_reading* );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
 static void read_packed_expr( struct parse* parse, struct stmt_reading* );
-static struct label* alloc_label( char*, struct pos );
+static struct label* alloc_label( const char*, struct pos );
 static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
 static struct import_item* read_import_item( struct parse* parse );
@@ -180,7 +180,7 @@ void read_label( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &label->node;
 }
 
-struct label* alloc_label( char* name, struct pos pos ) {
+struct label* alloc_label( const char* name, struct pos pos ) {
    struct label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_GOTO_LABEL;
    label->name = name;

@@ -109,7 +109,7 @@ struct name {
 
 struct name_usage {
    struct node node;
-   char* text;
+   const char* text;
    struct node* object;
    struct pos pos;
    int lib_id;
@@ -117,7 +117,7 @@ struct name_usage {
 
 struct path {
    struct path* next;
-   char* text;
+   const char* text;
    struct pos pos;
 };
 
@@ -292,7 +292,7 @@ struct access {
    struct pos pos;
    struct node* lside;
    struct node* rside;
-   char* name;
+   const char* name;
 };
 
 struct call {
@@ -640,7 +640,7 @@ struct label {
    struct node node;
    struct c_point* point;
    struct pos pos;
-   char* name;
+   const char* name;
    struct goto_stmt* users;
    struct block* format_block;
    bool defined;
@@ -725,7 +725,7 @@ struct indexed_string {
    struct indexed_string* next;
    struct indexed_string* next_sorted;
    struct indexed_string* next_usable;
-   char* value;
+   const char* value;
    int length;
    int index;
    bool in_constant;
@@ -774,7 +774,7 @@ struct mnemonic {
 struct inline_asm {
    struct node node;
    struct pos pos;
-   char* name;
+   const char* name;
    struct inline_asm* next;
    struct list args;
    int opcode;
@@ -793,7 +793,7 @@ struct inline_asm_arg {
    } type;
    union {
       int number;
-      char* id;
+      const char* id;
       struct expr* expr;
       struct label* label;
       struct var* var;
@@ -808,7 +808,7 @@ struct assert {
    struct assert* next;
    struct expr* cond;
    struct pos pos;
-   char* custom_message;
+   const char* custom_message;
    struct indexed_string* file;
    struct indexed_string* message;
    bool is_static;
@@ -903,7 +903,7 @@ struct library* t_add_library( struct task* task );
 struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
 struct indexed_string* t_intern_string( struct task* task,
-   char* value, int length );
+   const char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );
 

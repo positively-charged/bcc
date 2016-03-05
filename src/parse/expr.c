@@ -30,7 +30,7 @@ static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading );
 static int extract_fixed_literal_value( const char* text );
 static void read_postfix( struct parse* parse, struct expr_reading* reading );
-static struct access* alloc_access( char* name, struct pos pos );
+static struct access* alloc_access( const char* name, struct pos pos );
 static void read_post_inc( struct parse* parse, struct expr_reading* reading );
 static void read_call( struct parse* parse, struct expr_reading* reading );
 static void read_call_args( struct parse* parse, struct expr_reading* reading,
@@ -42,7 +42,7 @@ static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* parse, struct expr_reading* reading );
 static struct indexed_string* intern_indexed_string( struct parse* parse,
-   char* value, int length, bool* first_time );
+   const char* value, int length, bool* first_time );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 
@@ -578,8 +578,8 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-struct indexed_string* intern_indexed_string( struct parse* parse, char* value,
-   int length, bool* first_time ) {
+struct indexed_string* intern_indexed_string( struct parse* parse,
+   const char* value, int length, bool* first_time ) {
    struct indexed_string* prev_string = NULL;
    struct indexed_string* string =  parse->task->str_table.head_sorted;
    while ( string ) {
@@ -770,7 +770,7 @@ void read_postfix( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-struct access* alloc_access( char* name, struct pos pos ) {
+struct access* alloc_access( const char* name, struct pos pos ) {
    struct access* access = mem_alloc( sizeof( *access ) );
    access->node.type = NODE_ACCESS;
    access->name = name;
