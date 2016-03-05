@@ -724,7 +724,6 @@ struct enumeration {
 struct indexed_string {
    struct indexed_string* next;
    struct indexed_string* next_sorted;
-   struct indexed_string* next_usable;
    const char* value;
    int length;
    int index;
@@ -742,7 +741,6 @@ struct indexed_string_usage {
 struct str_table {
    struct indexed_string* head;
    struct indexed_string* head_sorted;
-   struct indexed_string* head_usable;
    struct indexed_string* tail;
    int size;
 };

@@ -2,9 +2,6 @@
 #include "cache/cache.h"
 
 static void make_main_lib( struct parse* parse );
-static void link_usable_strings( struct parse* parse );
-static void add_usable_string( struct indexed_string**,
-   struct indexed_string**, struct indexed_string* );
 static void alloc_string_indexes( struct parse* parse );
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
@@ -72,61 +69,12 @@ return;
    //p_next_tk( parse, &iter );
 
    p_read_lib( parse );
-   link_usable_strings( parse );
    // alloc_string_indexes( parse );
 }
 
 void make_main_lib( struct parse* parse ) {
    parse->task->library = t_add_library( parse->task );
    parse->task->library_main = parse->task->library;
-}
-
-void link_usable_strings( struct parse* parse ) {
-   // Link together the strings that have the potential to be used. To reduce
-   // the number of unused indexes that have to be published, we want used
-   // strings to appear first. This is done to try and prevent the case where
-   // you have a string with index, say, 20 that is used, and all strings
-   // before are not, but you still have to publish the other 20 indexes
-   // because it is required by the format of the STRL chunk.
-   struct indexed_string* head = NULL;
-   struct indexed_string* tail;
-   // Strings in main file of the library appear first.
-   struct indexed_string* string = parse->task->str_table.head;
-   while ( string ) {
-      if ( ! string->imported && string->in_main_file ) {
-         add_usable_string( &head, &tail, string );
-      }
-      string = string->next;
-   }
-   // Strings part of the library but found in a secondary file appear next.
-   string = parse->task->str_table.head;
-   while ( string ) {
-      if ( ! string->imported && ! string->in_main_file ) {
-         add_usable_string( &head, &tail, string );
-      }
-      string = string->next;
-   }
-   // Strings in an imported library follow. Only a string found in a constant
-   // is useful.
-   string = parse->task->str_table.head;
-   while ( string ) {
-      if ( string->imported && string->in_constant ) {
-         add_usable_string( &head, &tail, string );
-      }
-      string = string->next;
-   }
-   parse->task->str_table.head_usable = head;
-}
-
-void add_usable_string( struct indexed_string** head,
-   struct indexed_string** tail, struct indexed_string* string ) {
-   if ( *head ) {
-      ( *tail )->next_usable = string;
-   }
-   else {
-      *head = string;
-   }
-   *tail = string;
 }
 
 void alloc_string_indexes( struct parse* parse ) {

@@ -53,7 +53,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
 void init_str_table( struct str_table* table ) {
    table->head = NULL;
    table->head_sorted = NULL;
-   table->head_usable = NULL;
    table->tail = NULL;
    table->size = 0;
 }
@@ -582,7 +581,6 @@ struct indexed_string* intern_string( struct task* task,
       string->index = task->str_table.size;
       string->next = NULL;
       string->next_sorted = NULL;
-      string->next_usable = NULL;
       string->in_constant = false;
       string->used = false;
       string->imported = false;
