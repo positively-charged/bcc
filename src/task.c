@@ -583,7 +583,6 @@ struct indexed_string* intern_string( struct task* task,
       string->next = NULL;
       string->next_sorted = NULL;
       string->used = false;
-      string->imported = false;
       if ( task->str_table.head ) {
          task->str_table.tail->next = string;
       }

@@ -728,7 +728,6 @@ struct indexed_string {
    int length;
    int index;
    int index_runtime;
-   bool imported;
    bool used;
 };
 

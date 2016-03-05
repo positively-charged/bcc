@@ -556,16 +556,6 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    bool first_time = false;
    struct indexed_string* string = t_intern_string_get_status( parse->task,
       parse->tk_text, parse->tk_length, &first_time );
-   if ( first_time ) {
-      string->imported = parse->task->library->imported;
-   }
-   else {
-      // If an imported string is found in the main library, then the string
-      // should NOT be considered imported.
-      if ( parse->task->library == parse->task->library_main ) {
-         string->imported = false;
-      }
-   }
    struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
    usage->node.type = NODE_INDEXED_STRING_USAGE;
    usage->string = string;
