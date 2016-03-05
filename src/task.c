@@ -549,16 +549,6 @@ struct library* t_add_library( struct task* task ) {
 
 struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length ) {
-   return intern_string( task, value, length, NULL );
-}
-
-struct indexed_string* t_intern_string_get_status( struct task* task,
-   const char* value, int length, bool* first_time ) {
-   return intern_string( task, value, length, first_time );
-}
-
-struct indexed_string* intern_string( struct task* task,
-   const char* value, int length, bool* first_time ) {
    struct indexed_string* prev_string = NULL;
    struct indexed_string* string =  task->str_table.head_sorted;
    while ( string ) {
@@ -598,9 +588,6 @@ struct indexed_string* intern_string( struct task* task,
       else {
          string->next_sorted = task->str_table.head_sorted;
          task->str_table.head_sorted = string;
-      }
-      if ( first_time ) {
-         *first_time = true;
       }
       ++task->str_table.size;
    }

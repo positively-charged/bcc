@@ -553,9 +553,8 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
 
 void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_LIT_STRING );
-   bool first_time = false;
-   struct indexed_string* string = t_intern_string_get_status( parse->task,
-      parse->tk_text, parse->tk_length, &first_time );
+   struct indexed_string* string = t_intern_string( parse->task,
+      parse->tk_text, parse->tk_length );
    struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
    usage->node.type = NODE_INDEXED_STRING_USAGE;
    usage->string = string;
