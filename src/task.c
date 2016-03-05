@@ -585,7 +585,6 @@ struct indexed_string* intern_string( struct task* task,
       string->in_constant = false;
       string->used = false;
       string->imported = false;
-      string->in_main_file = false;
       if ( task->str_table.head ) {
          task->str_table.tail->next = string;
       }

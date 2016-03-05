@@ -557,7 +557,6 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    struct indexed_string* string = t_intern_string_get_status( parse->task,
       parse->tk_text, parse->tk_length, &first_time );
    string->in_constant = reading->in_constant;
-   string->in_main_file = ( parse->source == parse->main_source );
    if ( first_time ) {
       string->imported = parse->task->library->imported;
    }
