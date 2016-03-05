@@ -626,6 +626,7 @@ struct indexed_string* intern_indexed_string( struct parse* parse, char* value,
       if ( first_time ) {
          *first_time = true;
       }
+      ++parse->task->str_table.size;
    }
    return string;
 }

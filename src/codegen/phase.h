@@ -53,6 +53,7 @@ struct codegen {
    struct c_pcode* pcode;
    struct c_pcode_arg* pcodearg_tail;
    struct c_pcode_arg* free_pcode_args;
+   struct indexed_string* assert_prefix;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -105,5 +106,6 @@ void p_visit_inline_asm( struct codegen* codegen,
    struct inline_asm* inline_asm );
 void c_write_opc( struct codegen* codegen, int opcode );
 void c_write_arg( struct codegen* codegen, int arg );
+void c_push_string( struct codegen* codegen, struct indexed_string* string );
 
 #endif

@@ -7,6 +7,9 @@ static void push_local_record( struct codegen* codegen,
    struct local_record* record );
 static void pop_local_record( struct codegen* codegen );
 static void write_block_item( struct codegen* codegen, struct node* node );
+static void write_assert( struct codegen* codegen, struct assert* assert );
+static void write_runtime_assert( struct codegen* codegen,
+   struct assert* assert );
 static void visit_if( struct codegen* codegen, struct if_stmt* );
 static void visit_switch( struct codegen* codegen, struct switch_stmt* );
 static void visit_case( struct codegen* codegen, struct case_label* );
@@ -79,10 +82,69 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
    case NODE_GOTO_LABEL:
       visit_label( codegen, ( struct label* ) node );
       break;
+   case NODE_ASSERT:
+      write_assert( codegen,
+         ( struct assert* ) node );
+      break;
    default:
       c_write_stmt( codegen, node );
       break;
    }
+}
+
+void write_assert( struct codegen* codegen, struct assert* assert ) {
+   if ( ! assert->is_static ) {
+      write_runtime_assert( codegen, assert );
+   }
+}
+
+void write_runtime_assert( struct codegen* codegen, struct assert* assert ) {
+   c_push_cond( codegen, assert->cond );
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &exit_jump->node );
+   c_pcd( codegen, PCD_BEGINPRINT );
+   // Print file.
+   c_push_string( codegen, assert->file );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   // Push line/column characters.
+   c_pcd( codegen, PCD_PUSHNUMBER, ' ' );
+   c_pcd( codegen, PCD_PUSHNUMBER, ':' );
+   c_pcd( codegen, PCD_PUSHNUMBER, assert->pos.column );
+   c_pcd( codegen, PCD_PUSHNUMBER, ':' );
+   c_pcd( codegen, PCD_PUSHNUMBER, assert->pos.line );
+   c_pcd( codegen, PCD_PUSHNUMBER, ':' );
+   // Print line/column.
+   c_pcd( codegen, PCD_PRINTCHARACTER );
+   c_pcd( codegen, PCD_PRINTNUMBER );
+   c_pcd( codegen, PCD_PRINTCHARACTER );
+   c_pcd( codegen, PCD_PRINTNUMBER );
+   c_pcd( codegen, PCD_PRINTCHARACTER );
+   c_pcd( codegen, PCD_PRINTCHARACTER );
+   // Print standard message prefix.
+   c_push_string( codegen, codegen->assert_prefix );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   // Print message.
+   if ( assert->message ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, ' ' );
+      c_pcd( codegen, PCD_PUSHNUMBER, ':' );
+      c_pcd( codegen, PCD_PRINTCHARACTER );
+      c_pcd( codegen, PCD_PRINTCHARACTER );
+      c_push_string( codegen, assert->message );
+      c_pcd( codegen, PCD_PRINTSTRING );
+   }
+   // Message properties, in ACS terms: HUDMSG_LOG, 0, CR_RED, 1.5, 0.5, 0.0
+   c_pcd( codegen, PCD_MOREHUDMESSAGE );
+   c_pcd( codegen, PCD_PUSHNUMBER, ( int ) 0x80000000 );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   c_pcd( codegen, PCD_PUSHNUMBER, 6 );
+   c_pcd( codegen, PCD_PUSHNUMBER, 98304 );
+   c_pcd( codegen, PCD_PUSHNUMBER, 16384 );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   c_pcd( codegen, PCD_ENDHUDMESSAGEBOLD );
+   c_pcd( codegen, PCD_TERMINATE );
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
 }
 
 void c_write_stmt( struct codegen* codegen, struct node* node ) {

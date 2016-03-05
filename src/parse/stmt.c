@@ -671,6 +671,9 @@ void read_assert( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    reading->node = &assert->node;
+   if ( ! assert->is_static ) {
+      list_append( &parse->task->runtime_asserts, assert );
+   }
 }
 
 struct assert* alloc_assert( struct pos* pos ) {

@@ -1,9 +1,12 @@
+#include <string.h>
+
 #include "task.h"
 #include "phase.h"
 
 #define MAX_MAP_LOCATIONS 128
 
 static void alloc_mapvars_index( struct codegen* codegen );
+static void create_assert_strings( struct codegen* codegen );
 
 void c_init( struct codegen* codegen, struct task* task ) {
    codegen->task = task;
@@ -24,10 +27,12 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->pcode = NULL;
    codegen->pcodearg_tail = NULL;
    codegen->free_pcode_args = NULL;
+   codegen->assert_prefix = NULL;
 }
 
 void c_publish( struct codegen* codegen ) {
    alloc_mapvars_index( codegen );
+   create_assert_strings( codegen );
    c_write_chunk_obj( codegen );
    c_flush( codegen );
 }
@@ -194,4 +199,31 @@ void alloc_mapvars_index( struct codegen* codegen ) {
          "to use more functions, try using the #nocompact directive" );
       t_bail( codegen->task );
    }
+}
+
+void create_assert_strings( struct codegen* codegen ) {
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->runtime_asserts );
+   while ( ! list_end( &i ) ) {
+      struct assert* assert = list_data( &i );
+      // Create file string.
+      const char* file = t_decode_pos_file( codegen->task, &assert->pos );
+      struct indexed_string* string = t_intern_string( codegen->task,
+         ( char* ) file, strlen( file ) );
+      string->used = true;
+      assert->file = string;
+      // Create custom message string. 
+      if ( assert->custom_message ) {
+         string = t_intern_string( codegen->task, assert->custom_message,
+            strlen( assert->custom_message ) );
+         string->used = true;
+         assert->message = string;
+      }
+      list_next( &i );
+   }
+   // Create standard message-prefix string.
+   static const char* message_prefix = "assertion failure";
+   codegen->assert_prefix = t_intern_string( codegen->task,
+      ( char* ) message_prefix, strlen( message_prefix ) );
+   codegen->assert_prefix->used = true;
 }

@@ -45,6 +45,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
    task->mnemonics = NULL;
+   list_init( &task->runtime_asserts );
 }
 
 void init_str_table( struct str_table* table ) {
@@ -52,6 +53,7 @@ void init_str_table( struct str_table* table ) {
    table->head_sorted = NULL;
    table->head_usable = NULL;
    table->tail = NULL;
+   table->size = 0;
 }
 
 struct name* t_create_name( void ) {
@@ -565,7 +567,7 @@ struct indexed_string* t_intern_string( struct task* task,
       string = mem_alloc( sizeof( *string ) );
       string->value = value;
       string->length = length;
-      string->index = 0;
+      string->index = task->str_table.size;
       string->next = NULL;
       string->next_sorted = NULL;
       string->next_usable = NULL;
@@ -589,6 +591,7 @@ struct indexed_string* t_intern_string( struct task* task,
          string->next_sorted = task->str_table.head_sorted;
          task->str_table.head_sorted = string;
       }
+      ++task->str_table.size;
    }
    return string;
 }

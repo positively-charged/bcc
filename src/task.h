@@ -744,6 +744,7 @@ struct str_table {
    struct indexed_string* head_sorted;
    struct indexed_string* head_usable;
    struct indexed_string* tail;
+   int size;
 };
 
 /*
@@ -861,6 +862,7 @@ struct task {
    time_t compile_time;
    struct gbuf growing_buffer;
    struct mnemonic* mnemonics;
+   struct list runtime_asserts;
 };
 
 #define DIAG_NONE 0

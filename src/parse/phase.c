@@ -73,7 +73,7 @@ return;
 
    p_read_lib( parse );
    link_usable_strings( parse );
-   alloc_string_indexes( parse );
+   // alloc_string_indexes( parse );
 }
 
 void make_main_lib( struct parse* parse ) {
@@ -131,11 +131,11 @@ void add_usable_string( struct indexed_string** head,
 
 void alloc_string_indexes( struct parse* parse ) {
    int index = 0;
-   struct indexed_string* string = parse->task->str_table.head_usable;
+   struct indexed_string* string = parse->task->str_table.head;
    while ( string ) {
       string->index = index;
       ++index;
-      string = string->next_usable;
+      string = string->next;
    }
 }
 

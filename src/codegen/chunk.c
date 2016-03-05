@@ -423,7 +423,7 @@ void do_strl( struct codegen* codegen ) {
    int i = 0;
    int count = 0;
    int size = 0;
-   struct indexed_string* string = codegen->task->str_table.head_usable;
+   struct indexed_string* string = codegen->task->str_table.head;
    while ( string ) {
       ++i;
       if ( string->used ) {
@@ -431,7 +431,7 @@ void do_strl( struct codegen* codegen ) {
          size += string->length + 1;
          count = i;
       }
-      string = string->next_usable;
+      string = string->next;
    }
    if ( ! count ) {
       return;
@@ -455,7 +455,7 @@ void do_strl( struct codegen* codegen ) {
    c_add_int( codegen, 0 );
    // Offsets.
    i = 0;
-   string = codegen->task->str_table.head_usable;
+   string = codegen->task->str_table.head;
    while ( i < count ) {
       if ( string->used ) {
          c_add_int( codegen, offset );
@@ -465,12 +465,12 @@ void do_strl( struct codegen* codegen ) {
       else {
          c_add_int( codegen, 0 );
       }
-      string = string->next_usable;
+      string = string->next;
       ++i;
    }
    // Strings.
    offset = offset_initial;
-   string = codegen->task->str_table.head_usable;
+   string = codegen->task->str_table.head;
    while ( string ) {
       if ( string->used ) {
          if ( codegen->task->library_main->encrypt_str ) {
@@ -488,7 +488,7 @@ void do_strl( struct codegen* codegen ) {
             c_add_sized( codegen, string->value, string->length + 1 );
          }
       }
-      string = string->next_usable;
+      string = string->next;
    }
    while ( padding ) {
       c_add_byte( codegen, 0 );

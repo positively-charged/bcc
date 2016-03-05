@@ -1324,13 +1324,17 @@ void visit_fixed_literal( struct codegen* codegen, struct result* result,
 
 void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, usage->string->index );
+   c_push_string( codegen, usage->string );
+   usage->string->used = true;
+   result->pushed = true;
+}
+
+void c_push_string( struct codegen* codegen, struct indexed_string* string ) {
+   c_pcd( codegen, PCD_PUSHNUMBER, string->index );
    // Strings in a library need to be tagged.
    if ( codegen->task->library_main->importable ) {
       c_pcd( codegen, PCD_TAGSTRING );
    }
-   usage->string->used = true;
-   result->pushed = true;
 }
 
 void visit_boolean( struct codegen* codegen, struct result* result,
