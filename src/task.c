@@ -397,6 +397,14 @@ void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column ) {
    decode_pos( task, pos, file, line, column );
 }
+
+const char* t_decode_pos_file( struct task* task, struct pos* pos ) {
+   const char* file;
+   int line;
+   int column;
+   decode_pos( task, pos, &file, &line, &column );
+   return file;
+}
  
 void t_bail( struct task* task ) {
    longjmp( *task->bail, 1 );
@@ -534,6 +542,55 @@ struct library* t_add_library( struct task* task ) {
    lib->header = false;
    lib->compiletime = false;
    return lib;
+}
+
+struct indexed_string* t_intern_string( struct task* task,
+   char* value, int length ) {
+   struct indexed_string* prev_string = NULL;
+   struct indexed_string* string =  task->str_table.head_sorted;
+   while ( string ) {
+      int result = strcmp( string->value, value );
+      if ( result == 0 ) {
+         break;
+      }
+      else if ( result > 0 ) {
+         string = NULL;
+         break;
+      }
+      prev_string = string;
+      string = string->next_sorted;
+   }
+   // Allocate a new indexed-string when one isn't interned.
+   if ( ! string ) {
+      string = mem_alloc( sizeof( *string ) );
+      string->value = value;
+      string->length = length;
+      string->index = 0;
+      string->next = NULL;
+      string->next_sorted = NULL;
+      string->next_usable = NULL;
+      string->in_constant = false;
+      string->used = false;
+      string->imported = false;
+      string->in_main_file = false;
+      if ( task->str_table.head ) {
+         task->str_table.tail->next = string;
+      }
+      else {
+         task->str_table.head = string;
+      }
+      task->str_table.tail = string;
+      // List sorted alphabetically.
+      if ( prev_string ) {
+         string->next_sorted = prev_string->next_sorted;
+         prev_string->next_sorted = string;
+      }
+      else {
+         string->next_sorted = task->str_table.head_sorted;
+         task->str_table.head_sorted = string;
+      }
+   }
+   return string;
 }
 
 struct indexed_string* t_lookup_string( struct task* task, int index ) {

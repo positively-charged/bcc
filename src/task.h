@@ -889,6 +889,7 @@ void t_bail( struct task* );
 bool t_same_pos( struct pos*, struct pos* );
 void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
+const char* t_decode_pos_file( struct task* task, struct pos* pos );
 void t_init_object( struct object* object, int node_type );
 void t_init_types( struct task* task );
 // void t_init_type_members( struct task* );
@@ -899,6 +900,8 @@ void t_find_file( struct task* task, struct file_query* query );
 struct library* t_add_library( struct task* task );
 struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
+struct indexed_string* t_intern_string( struct task* task,
+   char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );
 

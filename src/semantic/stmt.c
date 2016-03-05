@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "phase.h"
 
 static void test_block_item( struct semantic* semantic, struct stmt_test*, struct node* );
@@ -5,6 +7,7 @@ static void test_case( struct semantic* semantic, struct stmt_test*, struct case
 static void test_default_case( struct semantic* semantic, struct stmt_test*,
    struct case_label* );
 static void test_label( struct semantic* semantic, struct stmt_test*, struct label* );
+static void test_assert( struct semantic* semantic, struct assert* assert );
 static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
 static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
@@ -101,6 +104,10 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
    case NODE_GOTO_LABEL:
       test_label( semantic, test, ( struct label* ) node );
       break;
+   case NODE_ASSERT:
+      test_assert( semantic,
+         ( struct assert* ) node );
+      break;
    default:
       s_test_stmt( semantic, test, node );
    }
@@ -177,6 +184,24 @@ void test_label( struct semantic* semantic, struct stmt_test* test,
    }
    if ( target ) {
       label->format_block = target->format_block;
+   }
+}
+
+void test_assert( struct semantic* semantic, struct assert* assert ) {
+   s_test_cond( semantic, assert->cond );
+   if ( assert->is_static ) {
+      if ( ! assert->cond->folded ) {
+         s_diag( semantic, DIAG_POS_ERR, &assert->cond->pos,
+            "static-assert condition not constant" );
+         s_bail( semantic );
+      }
+      if ( ! assert->cond->value ) {
+         s_diag( semantic, DIAG_POS, &assert->pos,
+            "assertion failure%s%s",
+            assert->custom_message ? ": " : "",
+            assert->custom_message ? assert->custom_message : "" );
+         s_bail( semantic );
+      }
    }
 }
 
