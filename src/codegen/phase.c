@@ -33,7 +33,9 @@ void c_init( struct codegen* codegen, struct task* task ) {
 
 void c_publish( struct codegen* codegen ) {
    alloc_mapvars_index( codegen );
-   create_assert_strings( codegen );
+   if ( codegen->task->options->write_asserts ) {
+      create_assert_strings( codegen );
+   }
    c_write_chunk_obj( codegen );
    c_flush( codegen );
 }

@@ -107,6 +107,7 @@ void init_options( struct options* options ) {
    options->preprocess = false;
    options->clear_cache = false;
    options->ignore_cache = true;
+   options->write_asserts = true;
 }
 
 bool read_options( struct options* options, char** argv ) {
@@ -182,6 +183,9 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "E" ) == 0 ) {
          options->preprocess = true;
       }
+      else if ( strcmp( option, "no-assert" ) == 0 ) {
+         options->write_asserts = false;
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -231,7 +235,9 @@ void print_usage( char* path ) {
       "  -i <directory>       Add a directory to search in for files\n"
       "  -I <directory>       Same as -i\n"
       "  -one-column          Start column position at 1. Default is 0\n"
-      "  -tab-size <size>     Select the size of the tab character\n",
+      "  -tab-size <size>     Select the size of the tab character\n"
+      "  -no-assert           Do not include asserts in compiled object\n"
+      "                       (asserts will not be executed at run-time)\n",
       path );
 }
 

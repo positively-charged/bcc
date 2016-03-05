@@ -93,7 +93,7 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
 }
 
 void write_assert( struct codegen* codegen, struct assert* assert ) {
-   if ( ! assert->is_static ) {
+   if ( ! assert->is_static && codegen->task->options->write_asserts ) {
       write_runtime_assert( codegen, assert );
    }
 }

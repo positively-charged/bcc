@@ -77,6 +77,7 @@ struct options {
    bool preprocess;
    bool clear_cache;
    bool ignore_cache;
+   bool write_asserts;
 };
 
 #if OS_WINDOWS
