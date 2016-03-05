@@ -54,6 +54,7 @@ struct codegen {
    struct c_pcode_arg* pcodearg_tail;
    struct c_pcode_arg* free_pcode_args;
    struct indexed_string* assert_prefix;
+   int runtime_index;
 };
 
 void c_init( struct codegen*, struct task* );

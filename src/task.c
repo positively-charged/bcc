@@ -579,6 +579,7 @@ struct indexed_string* intern_string( struct task* task,
       string->value = value;
       string->length = length;
       string->index = task->str_table.size;
+      string->index_runtime = -1;
       string->next = NULL;
       string->next_sorted = NULL;
       string->in_constant = false;

@@ -1330,7 +1330,12 @@ void visit_indexed_string_usage( struct codegen* codegen,
 }
 
 void c_push_string( struct codegen* codegen, struct indexed_string* string ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, string->index );
+   // Allocate the index that the game engine will use for finding the string.
+   if ( ! ( string->index_runtime >= 0 ) ) {
+      string->index_runtime = codegen->runtime_index;
+      ++codegen->runtime_index;
+   }
+   c_pcd( codegen, PCD_PUSHNUMBER, string->index_runtime );
    // Strings in a library need to be tagged.
    if ( codegen->task->library_main->importable ) {
       c_pcd( codegen, PCD_TAGSTRING );

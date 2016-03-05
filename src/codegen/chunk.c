@@ -420,16 +420,14 @@ void do_fnam( struct codegen* codegen ) {
 }
 
 void do_strl( struct codegen* codegen ) {
-   int i = 0;
    int count = 0;
    int size = 0;
    struct indexed_string* string = codegen->task->str_table.head;
    while ( string ) {
-      ++i;
       if ( string->used ) {
          // Plus one for the NUL character.
          size += string->length + 1;
-         count = i;
+         ++count;
       }
       string = string->next;
    }
@@ -454,19 +452,14 @@ void do_strl( struct codegen* codegen ) {
    c_add_int( codegen, count );
    c_add_int( codegen, 0 );
    // Offsets.
-   i = 0;
    string = codegen->task->str_table.head;
-   while ( i < count ) {
+   while ( string ) {
       if ( string->used ) {
          c_add_int( codegen, offset );
          // Plus one for the NUL character.
          offset += string->length + 1;
       }
-      else {
-         c_add_int( codegen, 0 );
-      }
       string = string->next;
-      ++i;
    }
    // Strings.
    offset = offset_initial;
