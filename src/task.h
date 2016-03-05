@@ -904,6 +904,8 @@ struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
 struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length );
+struct indexed_string* t_intern_string_get_status( struct task* task,
+   const char* value, int length, bool* first_time );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );
 

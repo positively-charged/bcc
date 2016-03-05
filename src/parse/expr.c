@@ -41,8 +41,6 @@ static void read_format_cast( struct parse* parse, struct format_cast* cast );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* parse, struct expr_reading* reading );
-static struct indexed_string* intern_indexed_string( struct parse* parse,
-   const char* value, int length, bool* first_time );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 
@@ -556,8 +554,8 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
 void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_LIT_STRING );
    bool first_time = false;
-   struct indexed_string* string = intern_indexed_string( parse, parse->tk_text,
-      parse->tk_length, &first_time );
+   struct indexed_string* string = t_intern_string_get_status( parse->task,
+      parse->tk_text, parse->tk_length, &first_time );
    string->in_constant = reading->in_constant;
    string->in_main_file = ( parse->source == parse->main_source );
    if ( first_time ) {
@@ -576,59 +574,6 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &usage->node;
    reading->has_str = true;
    p_read_tk( parse );
-}
-
-struct indexed_string* intern_indexed_string( struct parse* parse,
-   const char* value, int length, bool* first_time ) {
-   struct indexed_string* prev_string = NULL;
-   struct indexed_string* string =  parse->task->str_table.head_sorted;
-   while ( string ) {
-      int result = strcmp( string->value, value );
-      if ( result == 0 ) {
-         break;
-      }
-      else if ( result > 0 ) {
-         string = NULL;
-         break;
-      }
-      prev_string = string;
-      string = string->next_sorted;
-   }
-   // Allocate a new indexed-string when one isn't interned.
-   if ( ! string ) {
-      string = mem_alloc( sizeof( *string ) );
-      string->value = value;
-      string->length = length;
-      string->index = 0;
-      string->next = NULL;
-      string->next_sorted = NULL;
-      string->next_usable = NULL;
-      string->in_constant = false;
-      string->used = false;
-      string->imported = false;
-      string->in_main_file = false;
-      if ( parse->task->str_table.head ) {
-         parse->task->str_table.tail->next = string;
-      }
-      else {
-         parse->task->str_table.head = string;
-      }
-      parse->task->str_table.tail = string;
-      // List sorted alphabetically.
-      if ( prev_string ) {
-         string->next_sorted = prev_string->next_sorted;
-         prev_string->next_sorted = string;
-      }
-      else {
-         string->next_sorted = parse->task->str_table.head_sorted;
-         parse->task->str_table.head_sorted = string;
-      }
-      if ( first_time ) {
-         *first_time = true;
-      }
-      ++parse->task->str_table.size;
-   }
-   return string;
 }
 
 int p_extract_literal_value( struct parse* parse ) {
