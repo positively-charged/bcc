@@ -28,6 +28,8 @@ static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
 static struct import_item* read_import_item( struct parse* parse );
 static struct path* alloc_path( struct pos );
+static void read_assert( struct parse* parse, struct stmt_reading* reading );
+static struct assert* alloc_assert( struct pos* pos );
 
 void t_print_name( struct name* name ) {
    struct str str;
@@ -98,6 +100,11 @@ void read_block( struct parse* parse, struct stmt_reading* reading ) {
       else if ( parse->tk == TK_BRACE_R ) {
          p_read_tk( parse );
          break;
+      }
+      else if ( parse->tk == TK_ASSERT ||
+         ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
+         read_assert( parse, reading );
+         list_append( &block->stmts, reading->node );
       }
       else {
          read_stmt( parse, reading );
@@ -639,4 +646,42 @@ struct path* alloc_path( struct pos pos ) {
    path->text = NULL;
    path->pos = pos;
    return path;
+}
+
+void read_assert( struct parse* parse, struct stmt_reading* reading ) {
+   struct assert* assert = alloc_assert( &parse->tk_pos );
+   if ( parse->tk == TK_STATIC ) {
+      assert->is_static = true;
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_ASSERT );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   struct expr_reading cond;
+   p_init_expr_reading( &cond, false, false, false, true );
+   p_read_expr( parse, &cond );
+   assert->cond = cond.output_node;
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_LIT_STRING );
+      assert->custom_message = parse->tk_text;
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   reading->node = &assert->node;
+}
+
+struct assert* alloc_assert( struct pos* pos ) {
+   struct assert* assert = mem_alloc( sizeof( *assert ) );
+   assert->node.type = NODE_ASSERT;
+   assert->next = NULL;
+   assert->cond = NULL;
+   assert->pos = *pos;
+   assert->custom_message = NULL;
+   assert->file = NULL;
+   assert->message = NULL;
+   assert->is_static = false;
+   return assert;
 }

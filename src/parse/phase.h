@@ -137,6 +137,7 @@ enum tk {
    TK_ZBOOL,
    TK_ZSTR,
    TK_CAST,
+   TK_ASSERT,
 
    TK_TOTAL,
 

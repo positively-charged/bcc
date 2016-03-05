@@ -86,6 +86,7 @@ struct node {
       NODE_FIXED_LITERAL,
       NODE_CAST,
       NODE_INLINE_ASM,
+      NODE_ASSERT,
    } type;
 };
 
@@ -799,6 +800,17 @@ struct inline_asm_arg {
       struct func* func;
    } value;
    struct pos pos;
+};
+
+struct assert {
+   struct node node;
+   struct assert* next;
+   struct expr* cond;
+   struct pos pos;
+   char* custom_message;
+   struct indexed_string* file;
+   struct indexed_string* message;
+   bool is_static;
 };
 
 struct library {

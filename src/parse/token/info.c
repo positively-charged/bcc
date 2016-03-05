@@ -66,6 +66,7 @@ static const struct {
    char* text;
    enum tk type;
 } g_reserved_ids[] = {
+   { "assert", TK_ASSERT },
    { "bluereturn", TK_BLUE_RETURN },
    { "bool", TK_BOOL },
    { "break", TK_BREAK },
@@ -417,6 +418,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "zbool", TKF_KEYWORD ),
       ENTRY( "zstr", TKF_KEYWORD ),
       ENTRY( "cast", TKF_KEYWORD ),
+      ENTRY( "assert", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -545,8 +547,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ZFIXED, "`zfixed`" },
       { TK_ZBOOL, "`zbool`" },
       { TK_ZSTR, "`zstr`" },
-      { TK_CAST, "`cast`" } };
-   STATIC_ASSERT( TK_TOTAL == 117 );
+      { TK_CAST, "`cast`" },
+      { TK_CAST, "`assert`" } };
+   STATIC_ASSERT( TK_TOTAL == 118 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

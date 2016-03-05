@@ -555,6 +555,7 @@ void read_token( struct parse* parse, struct token* token ) {
       // NOTE: Reserved identifiers must be listed in ascending order.
       static const struct { const char* name; enum tk tk; }
       reserved[] = {
+         { "assert", TK_ASSERT },
          { "bluereturn", TK_BLUE_RETURN },
          { "bool", TK_BOOL },
          { "break", TK_BREAK },

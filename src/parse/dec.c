@@ -94,6 +94,10 @@ bool p_is_dec( struct parse* parse ) {
          iter.token->type == TK_LIT_DECIMAL
       );
    }
+   else if ( parse->tk == TK_STATIC ) {
+      // The `static` keyword is also used by static-assert.
+      return ( p_peek( parse ) != TK_ASSERT );
+   }
    else {
       switch ( parse->tk ) {
       case TK_INT:
@@ -102,7 +106,6 @@ bool p_is_dec( struct parse* parse ) {
       case TK_VOID:
       case TK_WORLD:
       case TK_GLOBAL:
-      case TK_STATIC:
       case TK_ENUM:
       case TK_STRUCT:
       case TK_FUNCTION:
