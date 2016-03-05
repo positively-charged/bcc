@@ -236,7 +236,7 @@ void print_usage( char* path ) {
       "  -I <directory>       Same as -i\n"
       "  -one-column          Start column position at 1. Default is 0\n"
       "  -tab-size <size>     Select the size of the tab character\n"
-      "  -no-assert           Do not include asserts in compiled object\n"
+      "  -no-assert           Do not include asserts in object file\n"
       "                       (asserts will not be executed at run-time)\n",
       path );
 }
