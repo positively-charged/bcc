@@ -432,7 +432,7 @@ void init_multi_value_test( struct multi_value_test* test, int spec,
    struct dim* dim, struct structure* structure, bool constant, bool nested ) {
    test->dim = dim;
    test->structure = structure;
-   test->member = ( ! dim ? structure->member : NULL );
+   test->member = ( ! dim && structure ? structure->member : NULL );
    test->spec = spec;
    test->count = 0;
    test->constant = constant;

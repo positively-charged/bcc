@@ -808,9 +808,6 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->object.pos = dec->name_pos;
    var->name = dec->name;
    var->structure = dec->structure;
-   if ( ! var->structure ) {
-      var->structure = parse->task->type_int;
-   }
    var->type_path = dec->type_path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;

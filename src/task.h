@@ -846,9 +846,6 @@ struct task {
    struct name* root_name;
    struct name* body;
    struct name* body_struct;
-   struct structure* type_int;
-   struct structure* type_str;
-   struct structure* type_bool;
    struct library* library;
    struct library* library_main;
    struct list libraries;
@@ -889,9 +886,6 @@ void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 const char* t_decode_pos_file( struct task* task, struct pos* pos );
 void t_init_object( struct object* object, int node_type );
-void t_init_types( struct task* task );
-// void t_init_type_members( struct task* );
-struct structure* t_create_structure( struct task* task, struct name* name );
 void t_init_file_query( struct file_query* query,
    struct file_entry* offset_file, const char* path );
 void t_find_file( struct task* task, struct file_query* query );

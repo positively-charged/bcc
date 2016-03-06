@@ -311,6 +311,7 @@ return NULL;
 }
 
 struct structure* deserialize_struct( struct serial* serial ) {
+/*
    srl_rf( serial->r, F_STRUCT );
    struct name* name;
    bool anon = false;
@@ -328,6 +329,8 @@ struct structure* deserialize_struct( struct serial* serial ) {
    struct_->size = srl_ri( serial->r, F_INTSIZE );
    srl_rf( serial->r, F_END );
    return struct_;
+*/
+   return NULL;
 }
 
 void deserialize_structmember_list( struct serial* serial,

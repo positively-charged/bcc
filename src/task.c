@@ -4,17 +4,9 @@
 
 #include "task.h"
 
-enum {
-   TYPE_INT,
-   TYPE_STR,
-   TYPE_BOOL,
-   TYPE_VOID
-};
-
 enum { ALTERN_FILENAME_INITIAL_ID = -1 };
 
 static void init_str_table( struct str_table* table );
-static struct structure* get_type( struct task*, int type );
 static void open_logfile( struct task* task );
 void show_diag( struct task* task, int flags, va_list* args );
 void log_diag( struct task* task, int flags, va_list* args );
@@ -38,7 +30,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->root_name = t_create_name();
    task->body = task->root_name;
    task->body_struct = t_extend_name( task->body, "!struct." );
-   t_init_types( task );
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
@@ -152,36 +143,6 @@ void t_init_object( struct object* object, int node_type ) {
    object->next_scope = NULL;
 }
 
-void t_init_types( struct task* task ) {
-   struct structure* type = t_create_structure( task,
-      t_extend_name( task->body, "int" ) );
-   type->object.resolved = true;
-   type->size = 1;
-   task->type_int = type;
-   type = t_create_structure( task,
-      t_extend_name( task->body, "str" ) );
-   type->object.resolved = true;
-   type->size = 1;
-   task->type_str = type;
-   type = t_create_structure( task,
-      t_extend_name( task->body, "bool" ) );
-   type->object.resolved = true;
-   type->size = 1;
-   task->type_bool = type;
-}
-
-struct structure* t_create_structure( struct task* task, struct name* name ) {
-   struct structure* type = mem_alloc( sizeof( *type ) );
-   t_init_object( &type->object, NODE_STRUCTURE );
-   type->name = name;
-   type->body = t_extend_name( name, "::" );
-   type->member = NULL;
-   type->member_tail = NULL;
-   type->size = 0;
-   type->anon = false;
-   return type;
-}
-
 /*
 void t_init_type_members( struct task* task ) {
    static struct {
@@ -213,19 +174,6 @@ void t_init_type_members( struct task* task ) {
       func->hidden = false;
    }
 } */
-
-struct structure* get_type( struct task* task, int id ) {
-   switch ( id ) {
-   case TYPE_INT:
-      return task->type_int;
-   case TYPE_STR:
-      return task->type_str;
-   case TYPE_BOOL:
-      return task->type_bool;
-   default:
-      return NULL;
-   }
-}
 
 int t_get_script_number( struct script* script ) {
    if ( script->number ) {
