@@ -11,8 +11,9 @@ struct enumeration_test {
 
 struct multi_value_test {
    struct dim* dim;
-   struct structure* type;
+   struct structure* structure;
    struct structure_member* member;
+   int spec;
    int count;
    bool constant;
    bool nested;
@@ -50,15 +51,20 @@ static bool test_initz( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void test_init( struct semantic* semantic, struct var*, bool, bool* );
-static void init_multi_value_test( struct multi_value_test*, struct dim*,
-   struct structure*, bool constant, bool nested );
+static void init_multi_value_test( struct multi_value_test* test, int spec,
+   struct dim* dim, struct structure* structure, bool constant, bool nested );
 static bool test_multi_value( struct semantic* semantic, struct multi_value_test*,
    struct multi_value* multi_value );
 static bool test_multi_value_child( struct semantic* semantic,
    struct multi_value_test* test, struct multi_value* multi_value,
    struct initial* initial );
-static bool test_value( struct semantic* semantic, struct multi_value_test* test,
-   struct dim* dim, struct structure* type, struct value* value );
+static bool test_value( struct semantic* semantic,
+   struct multi_value_test* test, struct dim* dim, struct structure* structure,
+   struct value* value );
+static bool is_scalar( int spec, struct dim* dim );
+static void value_mismatch_diag( struct semantic* semantic,
+   struct type_info* type, struct type_info* value_type, struct expr* expr,
+   bool array, bool member );
 static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_paramlist( struct semantic* semantic, struct func* func );
 static bool test_func_param( struct semantic* semantic,
@@ -75,6 +81,7 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
+static bool compatible_zraw_spec( int spec );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
@@ -390,8 +397,8 @@ bool test_initz( struct semantic* semantic, struct var* var ) {
 
 bool test_object_initz( struct semantic* semantic, struct var* var ) {
    struct multi_value_test test;
-   init_multi_value_test( &test, var->dim, var->structure, var->is_constant_init,
-      false );
+   init_multi_value_test( &test, var->spec, var->dim, var->structure,
+      var->is_constant_init, false );
    if ( var->initial->multi ) {
       if ( ! ( var->dim || var->structure ) ) {
          struct multi_value* multi_value =
@@ -411,8 +418,8 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    else {
-      bool resolved = test_value( semantic, &test, var->dim, var->structure,
-         ( struct value* ) var->initial );
+      bool resolved = test_value( semantic, &test, var->dim,
+         var->structure, ( struct value* ) var->initial );
       if ( ! resolved ) {
          return false;
       }
@@ -421,27 +428,12 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-bool test_imported_object_initz( struct var* var ) {
-   if ( var->dim ) {
-      // TODO: Add error checking.
-      if ( ! var->dim->size_node && ! var->dim->size ) {
-         struct multi_value* multi_value =
-            ( struct multi_value* ) var->initial;
-         struct initial* initial = multi_value->body;
-         while ( initial ) {
-            initial = initial->next;
-            ++var->dim->size;
-         }
-      }
-   }
-   return true;
-}
-
-void init_multi_value_test( struct multi_value_test* test, struct dim* dim,
-   struct structure* type, bool constant, bool nested ) {
+void init_multi_value_test( struct multi_value_test* test, int spec,
+   struct dim* dim, struct structure* structure, bool constant, bool nested ) {
    test->dim = dim;
-   test->type = type;
-   test->member = ( ! dim ? type->member : NULL ); 
+   test->structure = structure;
+   test->member = ( ! dim ? structure->member : NULL );
+   test->spec = spec;
    test->count = 0;
    test->constant = constant;
    test->nested = nested;
@@ -479,7 +471,7 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
    if ( initial->multi ) {
       // There needs to be an element or member to initialize.
       bool deeper = ( ( test->dim && ( test->dim->next ||
-         test->type ) ) || ( test->member &&
+         test->structure ) ) || ( test->member &&
          ( test->member->dim || test->member->structure ) ) );
       if ( ! deeper ) {
          s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
@@ -487,9 +479,9 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
          s_bail( semantic );
       }
       struct multi_value_test nested;
-      init_multi_value_test( &nested,
+      init_multi_value_test( &nested, test->spec,
          ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->type : test->member->structure ),
+         ( test->dim ? test->structure : test->member->structure ),
          test->constant, true );
       bool resolved = test_multi_value( semantic, &nested,
          ( struct multi_value* ) initial );
@@ -501,13 +493,13 @@ bool test_multi_value_child( struct semantic* semantic, struct multi_value_test*
    else {
       return test_value( semantic, test,
          ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->type : test->member->structure ),
+         ( test->dim ? test->structure : test->member->structure ),
          ( struct value* ) initial );
    }
 }
 
 bool test_value( struct semantic* semantic, struct multi_value_test* test,
-   struct dim* dim, struct structure* type, struct value* value ) {
+   struct dim* dim, struct structure* structure, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( semantic, &expr, value->expr );
@@ -521,38 +513,101 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
    }
    // Only initialize a primitive element or an array of a single dimension--
    // using the string initializer.
-   if ( ! ( ! dim && ! type ) && ! ( dim && ! dim->next &&
-      value->expr->root->type == NODE_INDEXED_STRING_USAGE && ! type ) ) {
+   bool scalar = is_scalar( test->spec, dim );
+   bool string_initz = ( dim && ! dim->next && ! structure &&
+      value->expr->spec == SPEC_ZSTR );
+   if ( ! scalar && ! string_initz ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "missing %sbrace initializer", test->nested ? "another " : "" );
       s_bail( semantic );
    }
    // String initializer.
-   if ( dim ) {
-      // Even though it doesn't matter what primitive type is specified, for
-      // readability purposes, restrict the string initializer to an array of
-      // `int` type.
-      if ( type != semantic->task->type_int ) {
+   if ( string_initz ) {
+      if ( test->spec != SPEC_ZINT ) {
          s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-            "string initializer specified for a non-int array" );
+            "string initializer specified for a non-integer array" );
          s_bail( semantic );
       }
-      struct indexed_string_usage* usage =
-         ( struct indexed_string_usage* ) value->expr->root;
+      struct indexed_string* string = t_lookup_string( semantic->task,
+         value->expr->value );
       if ( dim->size_node ) {
-         if ( usage->string->length >= dim->size ) {
+         if ( string->length >= dim->size ) {
             s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
                "string initializer too long" );
             s_bail( semantic );
          }
       }
       else {
-         dim->size = usage->string->length + 1;
+         dim->size = string->length + 1;
       }
       value->string_initz = true;
    }
+   else {
+      struct type_info type;
+      s_init_type_info( &type, test->spec );
+      struct type_info value_type;
+      s_init_type_info( &value_type, value->expr->spec );
+      if ( ! s_same_type( &type, &value_type ) ) {
+         value_mismatch_diag( semantic, &type, &value_type, value->expr,
+            ( test->dim != NULL ), ( test->member != NULL ) );
+         s_bail( semantic );
+      }
+   }
    if ( expr.has_string ) {
       test->has_string = true;
+   }
+   return true;
+}
+
+bool is_scalar( int spec, struct dim* dim ) {
+   if ( ! dim ) {
+      switch ( spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZBOOL:
+      case SPEC_ZSTR:
+      case SPEC_ENUM:
+         return true;
+      default:
+         break;
+      }
+   }
+   return false;
+}
+
+void value_mismatch_diag( struct semantic* semantic, struct type_info* type,
+   struct type_info* value_type, struct expr* expr, bool array, bool member ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_spec( type->spec, &type_s );
+   struct str value_type_s;
+   str_init( &value_type_s );
+   s_present_spec( value_type->spec, &value_type_s );
+   const char* object =
+      array  ? "element" :
+      member ? "struct-member" : "variable";
+   s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+      "initializer/%s type-mismatch", object );
+   s_diag( semantic, DIAG_POS, &expr->pos,
+      "`%s` initializer, but `%s` %s", value_type_s.value,
+      type_s.value, object );
+   str_deinit( &type_s );
+   str_deinit( &value_type_s );
+}
+
+bool test_imported_object_initz( struct var* var ) {
+   if ( var->dim ) {
+      // TODO: Add error checking.
+      if ( ! var->dim->size_node && ! var->dim->size ) {
+         struct multi_value* multi_value =
+            ( struct multi_value* ) var->initial;
+         struct initial* initial = multi_value->body;
+         while ( initial ) {
+            initial = initial->next;
+            ++var->dim->size;
+         }
+      }
    }
    return true;
 }
@@ -913,4 +968,32 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
       member = member->next;
       initial = initial->next;
    }
+}
+
+void s_init_type_info( struct type_info* type, int spec ) {
+   type->spec = spec;
+}
+
+bool s_same_type( struct type_info* a, struct type_info* b ) {
+   if ( a->spec == SPEC_ZRAW ) {
+      return compatible_zraw_spec( b->spec );
+   }
+   else if ( b->spec == SPEC_ZRAW ) {
+      return compatible_zraw_spec( a->spec );
+   }
+   else {
+      return ( a->spec == b->spec );
+   }
+}
+
+bool compatible_zraw_spec( int spec ) {
+   switch ( spec ) {
+   case SPEC_ZRAW:
+   case SPEC_ZINT:
+   case SPEC_ZFIXED:
+   case SPEC_ZBOOL:
+   case SPEC_ZSTR:
+      return true;
+   }
+   return false;
 }

@@ -44,6 +44,10 @@ struct expr_test {
    bool suggest_paren_assign;
 };
 
+struct type_info {
+   int spec;
+};
+
 struct semantic {
    struct task* task;
    struct library* lib;
@@ -93,5 +97,7 @@ void s_find_object( struct semantic* semantic, struct object_search* search );
 void s_present_spec( int spec, struct str* string );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
+void s_init_type_info( struct type_info* type, int spec );
+bool s_same_type( struct type_info* a, struct type_info* b );
 
 #endif
