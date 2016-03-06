@@ -29,6 +29,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->free_pcode_args = NULL;
    codegen->assert_prefix = NULL;
    codegen->runtime_index = 0;
+   list_init( &codegen->used_strings );
 }
 
 void c_publish( struct codegen* codegen ) {

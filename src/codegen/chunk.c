@@ -420,25 +420,23 @@ void do_fnam( struct codegen* codegen ) {
 }
 
 void do_strl( struct codegen* codegen ) {
-   int count = 0;
-   int size = 0;
-   struct indexed_string* string = codegen->task->str_table.head;
-   while ( string ) {
-      if ( string->used ) {
-         // Plus one for the NUL character.
-         size += string->length + 1;
-         ++count;
-      }
-      string = string->next;
-   }
-   if ( ! count ) {
+   if ( ! list_size( &codegen->used_strings ) ) {
       return;
+   }
+   int size = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->used_strings );
+   while ( ! list_end( &i ) ) {
+      struct indexed_string* string = list_data( &i );
+      // Plus one for the NUL character.
+      size += string->length + 1;
+      list_next( &i );
    }
    int offset = 
       // String count, padded with a zero on each size.
       sizeof( int ) * 3 +
       // String offsets.
-      sizeof( int ) * count;
+      sizeof( int ) * list_size( &codegen->used_strings );
    int padding = alignpad( offset + size, 4 );
    int offset_initial = offset;
    const char* name = "STRL";
@@ -449,39 +447,36 @@ void do_strl( struct codegen* codegen ) {
    c_add_int( codegen, offset + size + padding );
    // String count.
    c_add_int( codegen, 0 );
-   c_add_int( codegen, count );
+   c_add_int( codegen, list_size( &codegen->used_strings ) );
    c_add_int( codegen, 0 );
    // Offsets.
-   string = codegen->task->str_table.head;
-   while ( string ) {
-      if ( string->used ) {
-         c_add_int( codegen, offset );
-         // Plus one for the NUL character.
-         offset += string->length + 1;
-      }
-      string = string->next;
+   list_iter_init( &i, &codegen->used_strings );
+   while ( ! list_end( &i ) ) {
+      struct indexed_string* string = list_data( &i );
+      c_add_int( codegen, offset );
+      offset += string->length + 1;
+      list_next( &i );
    }
    // Strings.
    offset = offset_initial;
-   string = codegen->task->str_table.head;
-   while ( string ) {
-      if ( string->used ) {
-         if ( codegen->task->library_main->encrypt_str ) {
-            int key = offset * STR_ENCRYPTION_CONSTANT;
-            // Each character of the string is encoded, including the NUL
-            // character.
-            for ( int i = 0; i <= string->length; ++i ) {
-               char ch = ( char )
-                  ( ( ( int ) string->value[ i ] ) ^ ( key + i / 2 ) );
-               c_add_byte( codegen, ch );
-            }
-            offset += string->length + 1;
+   list_iter_init( &i, &codegen->used_strings );
+   while ( ! list_end( &i ) ) {
+      struct indexed_string* string = list_data( &i );
+      if ( codegen->task->library_main->encrypt_str ) {
+         int key = offset * STR_ENCRYPTION_CONSTANT;
+         // Each character of the string is encoded, including the NUL
+         // character.
+         for ( int i = 0; i <= string->length; ++i ) {
+            char ch = ( char )
+               ( ( ( int ) string->value[ i ] ) ^ ( key + i / 2 ) );
+            c_add_byte( codegen, ch );
          }
-         else {
-            c_add_sized( codegen, string->value, string->length + 1 );
-         }
+         offset += string->length + 1;
       }
-      string = string->next;
+      else {
+         c_add_sized( codegen, string->value, string->length + 1 );
+      }
+      list_next( &i );
    }
    while ( padding ) {
       c_add_byte( codegen, 0 );

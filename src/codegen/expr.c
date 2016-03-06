@@ -1333,6 +1333,7 @@ void c_push_string( struct codegen* codegen, struct indexed_string* string ) {
    if ( ! ( string->index_runtime >= 0 ) ) {
       string->index_runtime = codegen->runtime_index;
       ++codegen->runtime_index;
+      list_append( &codegen->used_strings, string );
    }
    c_pcd( codegen, PCD_PUSHNUMBER, string->index_runtime );
    // Strings in a library need to be tagged.
