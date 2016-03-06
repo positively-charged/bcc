@@ -12,6 +12,9 @@ static void write_runtime_assert( struct codegen* codegen,
    struct assert* assert );
 static void visit_if( struct codegen* codegen, struct if_stmt* );
 static void visit_switch( struct codegen* codegen, struct switch_stmt* );
+static void write_switch( struct codegen* codegen, struct switch_stmt* stmt );
+static void write_string_switch( struct codegen* codegen,
+   struct switch_stmt* stmt );
 static void visit_case( struct codegen* codegen, struct case_label* );
 static void visit_while( struct codegen* codegen, struct while_stmt* );
 static void write_while( struct codegen* codegen, struct while_stmt* stmt );
@@ -213,6 +216,15 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
 }
 
 void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
+   if ( stmt->cond->spec == SPEC_ZSTR ) {
+      write_string_switch( codegen, stmt );
+   }
+   else {
+      write_switch( codegen, stmt );
+   }
+}
+
+void write_switch ( struct codegen* codegen, struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Case selection.
    c_push_expr( codegen, stmt->cond );
@@ -227,6 +239,40 @@ void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
       label = label->next;
    }
    c_pcd( codegen, PCD_DROP );
+   struct c_point* default_point = exit_point;
+   if ( stmt->case_default ) {
+      default_point = c_create_point( codegen );
+      stmt->case_default->point = default_point;
+   }
+   struct c_jump* default_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &default_jump->node );
+   default_jump->point = default_point;
+   // Body.
+   c_write_stmt( codegen, stmt->body );
+   c_append_node( codegen, &exit_point->node );
+   set_jumps_point( codegen, stmt->jump_break, exit_point );
+}
+
+// NOTE: Right now, the implementation does a linear search when attempting to
+// find the correct case. A binary search might be possible. 
+void write_string_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
+   struct c_point* exit_point = c_create_point( codegen );
+   // Case selection.
+   c_push_expr( codegen, stmt->cond );
+   struct case_label* label = stmt->case_head;
+   while ( label ) {
+      if ( label->next ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+      c_push_string( codegen, t_lookup_string( codegen->task,
+         label->number->value ) );
+      c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_STRCMP );
+      struct c_jump* jump = c_create_jump( codegen, PCD_IFNOTGOTO );
+      c_append_node( codegen, &jump->node );
+      label->point = c_create_point( codegen );
+      jump->point = label->point;
+      label = label->next;
+   }
    struct c_point* default_point = exit_point;
    if ( stmt->case_default ) {
       default_point = c_create_point( codegen );

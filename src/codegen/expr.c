@@ -1325,7 +1325,6 @@ void visit_fixed_literal( struct codegen* codegen, struct result* result,
 void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage ) {
    c_push_string( codegen, usage->string );
-   usage->string->used = true;
    result->pushed = true;
 }
 
@@ -1340,6 +1339,7 @@ void c_push_string( struct codegen* codegen, struct indexed_string* string ) {
    if ( codegen->task->library_main->importable ) {
       c_pcd( codegen, PCD_TAGSTRING );
    }
+   string->used = true;
 }
 
 void visit_boolean( struct codegen* codegen, struct result* result,
