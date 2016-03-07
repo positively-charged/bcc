@@ -3,18 +3,18 @@
 #include "phase.h"
 
 static void test_block_item( struct semantic* semantic, struct stmt_test*, struct node* );
-static void test_case( struct semantic* semantic, struct stmt_test*, struct case_label* );
-static void test_default_case( struct semantic* semantic, struct stmt_test*,
-   struct case_label* );
+static void test_case( struct semantic* semantic, struct stmt_test* test,
+   struct case_label* label );
+static void case_type_mismatch( struct semantic* semantic,
+   struct type_info* cond_type, struct type_info* case_type,
+   struct pos* case_pos );
+static void test_default_case( struct semantic* semantic,
+   struct stmt_test* test, struct case_label* label );
 static void test_label( struct semantic* semantic, struct stmt_test*, struct label* );
 static void test_assert( struct semantic* semantic, struct assert* assert );
 static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
 static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
-static void test_switch_case_type( struct semantic* semantic,
-   struct switch_stmt* stmt );
-static void invalid_case_type( struct semantic* semantic,
-   struct switch_stmt* stmt, struct case_label* label );
 static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* );
@@ -43,14 +43,12 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->func = NULL;
    test->labels = NULL;
    test->format_block = NULL;
-   test->case_head = NULL;
-   test->case_default = NULL;
+   test->switch_stmt = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
    test->nested_funcs = NULL;
    test->returns = NULL;
    test->in_loop = false;
-   test->in_switch = false;
    test->in_script = false;
    test->manual_scope = false;
 }
@@ -115,11 +113,13 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
 
 void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct stmt_test* target = test;
-   while ( target && ! target->in_switch ) {
-      target = target->parent;
+   struct switch_stmt* switch_stmt = NULL;
+   struct stmt_test* search_test = test;
+   while ( search_test && ! switch_stmt ) {
+      switch_stmt = search_test->switch_stmt;
+      search_test = search_test->parent;
    }
-   if ( ! target ) {
+   if ( ! switch_stmt ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
       s_bail( semantic );
@@ -132,47 +132,81 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
          "case value not constant" );
       s_bail( semantic );
    }
+   // Check case type.
+   struct type_info cond_type;
+   s_init_type_info( &cond_type, switch_stmt->cond->spec );
+   struct type_info case_type;
+   s_init_type_info( &case_type, label->number->spec );
+   if ( ! s_same_type( &case_type, &cond_type ) ) {
+      case_type_mismatch( semantic, &cond_type, &case_type,
+         &label->number->pos );
+      s_bail( semantic );
+   }
+   // Check for a duplicate case.
    struct case_label* prev = NULL;
-   struct case_label* curr = target->case_head;
+   struct case_label* curr = switch_stmt->case_head;
    while ( curr && curr->number->value < label->number->value ) {
       prev = curr;
       curr = curr->next;
    }
    if ( curr && curr->number->value == label->number->value ) {
-      s_diag( semantic, DIAG_POS_ERR, &label->pos, "duplicate case" );
-      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &curr->pos,
-         "case with value %d found here", curr->number->value );
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
+         "duplicate case" );
+      s_diag( semantic, DIAG_POS, &curr->pos,
+         "case with same value previously found here" );
       s_bail( semantic );
    }
+   // Append case.
    if ( prev ) {
       label->next = prev->next;
       prev->next = label;
    }
    else {
-      label->next = target->case_head;
-      target->case_head = label;
+      label->next = switch_stmt->case_head;
+      switch_stmt->case_head = label;
    }
+}
+
+void case_type_mismatch( struct semantic* semantic,
+   struct type_info* cond_type, struct type_info* case_type,
+   struct pos* case_pos ) {
+   struct str cond_type_s;
+   str_init( &cond_type_s );
+   s_present_spec( cond_type->spec, &cond_type_s );
+   struct str case_type_s;
+   str_init( &case_type_s );
+   s_present_spec( case_type->spec, &case_type_s );
+   s_diag( semantic, DIAG_POS_ERR, case_pos,
+      "case-value/switch-condition type mismatch" );
+   s_diag( semantic, DIAG_POS, case_pos,
+      "`%s` case-value, but `%s` switch-condition",
+      case_type_s.value, cond_type_s.value );
+   str_deinit( &cond_type_s );
+   str_deinit( &case_type_s );
 }
 
 void test_default_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct stmt_test* target = test;
-   while ( target && ! target->in_switch ) {
-      target = target->parent;
+   struct switch_stmt* switch_stmt = NULL;
+   struct stmt_test* search_test = test;
+   while ( search_test && ! switch_stmt ) {
+      switch_stmt = search_test->switch_stmt;
+      search_test = search_test->parent;
    }
-   if ( ! target ) {
+   if ( ! switch_stmt ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "default outside switch statement" );
       s_bail( semantic );
    }
-   if ( target->case_default ) {
-      s_diag( semantic, DIAG_POS_ERR, &label->pos, "duplicate default case" );
-      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &target->case_default->pos,
+   if ( switch_stmt->case_default ) {
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
+         "duplicate default case" );
+      s_diag( semantic, DIAG_POS,
+         &switch_stmt->case_default->pos,
          "default case found here" );
       s_bail( semantic );
    }
-   target->case_default = label;
+   switch_stmt->case_default = label;
 }
 
 void test_label( struct semantic* semantic, struct stmt_test* test,
@@ -273,41 +307,9 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    s_test_expr( semantic, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   body.in_switch = true;
+   body.switch_stmt = stmt;
    s_test_stmt( semantic, &body, stmt->body );
-   stmt->case_head = body.case_head;
-   stmt->case_default = body.case_default;
    stmt->jump_break = body.jump_break;
-   test_switch_case_type( semantic, stmt );
-}
-
-void test_switch_case_type( struct semantic* semantic,
-   struct switch_stmt* stmt ) {
-   struct case_label* label = stmt->case_head;
-   while ( label ) {
-      if ( label->number->spec != stmt->cond->spec ) {
-         invalid_case_type( semantic, stmt, label );
-         s_bail( semantic );
-      }
-      label = label->next;
-   }
-}
-
-void invalid_case_type( struct semantic* semantic,
-   struct switch_stmt* stmt, struct case_label* label ) {
-   struct str type;
-   str_init( &type );
-   s_present_spec( stmt->cond->spec, &type );
-   struct str label_type;
-   str_init( &label_type );
-   s_present_spec( label->number->spec, &label_type );
-   s_diag( semantic, DIAG_POS_ERR, &label->pos,
-      "case-value/switch-condition type mismatch" );
-   s_diag( semantic, DIAG_POS, &label->pos,
-      "`%s` case-value, but `%s` switch-condition",
-      label_type.value, type.value );
-   str_deinit( &type );
-   str_deinit( &label_type );
 }
 
 void test_while( struct semantic* semantic, struct stmt_test* test,
@@ -383,7 +385,7 @@ void test_jump( struct semantic* semantic, struct stmt_test* test,
 void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    struct stmt_test* target = test;
-   while ( target && ! target->in_loop && ! target->in_switch ) {
+   while ( target && ! target->in_loop && ! target->switch_stmt ) {
       target = target->parent;
    }
    if ( ! target ) {

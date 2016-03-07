@@ -20,14 +20,12 @@ struct stmt_test {
    struct func* func;
    struct list* labels;
    struct block* format_block;
-   struct case_label* case_head;
-   struct case_label* case_default;
+   struct switch_stmt* switch_stmt;
    struct jump* jump_break;
    struct jump* jump_continue;
    struct func* nested_funcs;
    struct return_stmt* returns;
    bool in_loop;
-   bool in_switch;
    bool in_script;
    bool manual_scope;
 };

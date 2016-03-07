@@ -11,6 +11,7 @@ static void read_label( struct parse* parse, struct stmt_reading* );
 static void read_stmt( struct parse* parse, struct stmt_reading* );
 static void read_if( struct parse* parse, struct stmt_reading* );
 static void read_switch( struct parse* parse, struct stmt_reading* );
+static struct switch_stmt* alloc_switch_stmt( void );
 static void read_while( struct parse* parse, struct stmt_reading* );
 static void read_do( struct parse* parse, struct stmt_reading* );
 static void read_for( struct parse* parse, struct stmt_reading* );
@@ -287,8 +288,7 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
 
 void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
-   struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
-   stmt->node.type = NODE_SWITCH;
+   struct switch_stmt* stmt = alloc_switch_stmt();
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    struct expr_reading cond;
@@ -300,6 +300,17 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    read_stmt( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
+}
+
+struct switch_stmt* alloc_switch_stmt( void ) {
+   struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
+   stmt->node.type = NODE_SWITCH;
+   stmt->cond = NULL;
+   stmt->case_head = NULL;
+   stmt->case_default = NULL;
+   stmt->jump_break = NULL;
+   stmt->body = NULL;
+   return stmt;
 }
 
 void read_while( struct parse* parse, struct stmt_reading* reading ) {
