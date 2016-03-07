@@ -99,6 +99,7 @@ static const struct {
    { "open", TK_OPEN },
    { "pickup", TK_PICKUP },
    { "redreturn", TK_RED_RETURN },
+   { "ref", TK_REF },
    { "respawn", TK_RESPAWN },
    { "restart", TK_RESTART },
    { "return", TK_RETURN },
@@ -419,6 +420,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "zstr", TKF_KEYWORD ),
       ENTRY( "cast", TKF_KEYWORD ),
       ENTRY( "assert", TKF_KEYWORD ),
+      ENTRY( "ref", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -548,8 +550,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ZBOOL, "`zbool`" },
       { TK_ZSTR, "`zstr`" },
       { TK_CAST, "`cast`" },
-      { TK_CAST, "`assert`" } };
-   STATIC_ASSERT( TK_TOTAL == 118 );
+      { TK_ASSERT, "`assert`" },
+      { TK_REF, "`ref`" } };
+   STATIC_ASSERT( TK_TOTAL == 119 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

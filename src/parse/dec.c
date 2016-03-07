@@ -7,6 +7,11 @@
 #define MAX_GLOBAL_LOCATIONS 64
 #define SCRIPT_MAX_PARAMS 4
 
+struct ref_reading {
+   struct ref* head;
+   struct ref* tail;
+};
+
 struct params {
    struct param* node;
    struct param* tail;
@@ -50,6 +55,12 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
 static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_named_type( struct parse* parse, struct dec* dec );
+static void init_ref( struct ref* ref, int type );
+static void append_ref( struct ref_reading* reading, struct ref* part );
+static void read_ref( struct parse* parse, struct dec* dec );
+static void read_var_ref( struct parse* parse, struct ref_reading* reading );
+static void read_array_ref( struct parse* parse, struct ref_reading* reading );
+static void read_func_ref( struct parse* parse, struct ref_reading* reading );
 static void read_objects( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
@@ -114,6 +125,7 @@ bool p_is_dec( struct parse* parse ) {
       case TK_ZFIXED:
       case TK_ZBOOL:
       case TK_ZSTR:
+      case TK_REF:
          return true;
       default:
          return false;
@@ -126,6 +138,7 @@ void p_init_dec( struct dec* dec ) {
    dec->structure = NULL;
    dec->type_make = NULL;
    dec->type_path = NULL;
+   dec->ref = NULL;
    dec->name = NULL;
    dec->name_offset = NULL;
    dec->dim = NULL;
@@ -151,6 +164,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    }
    read_qual( parse, dec );
    read_storage( parse, dec );
+   read_ref( parse, dec );
    read_type( parse, dec );
    if ( ! dec->leave ) {
       read_objects( parse, dec );
@@ -510,6 +524,88 @@ void read_named_type( struct parse* parse, struct dec* dec ) {
    // TODO: Later, when adding named enums, move determining of the specifier
    // to the semantic phase.
    dec->spec = SPEC_STRUCT;
+}
+
+void read_ref( struct parse* parse, struct dec* dec ) {
+   struct ref_reading reading = { NULL, NULL };
+   // Read array and function references.
+   while ( parse->tk == TK_REF && (
+      p_peek( parse ) == TK_BRACKET_L ||
+      p_peek( parse ) == TK_PAREN_L ) ) {
+      p_read_tk( parse );
+      switch ( parse->tk ) {
+      case TK_BRACKET_L:
+         read_array_ref( parse, &reading );
+         break;
+      case TK_PAREN_L:
+         read_func_ref( parse, &reading );
+         break;
+      default:
+         UNREACHABLE()
+      }
+   }
+   // Read variable reference.
+   if ( parse->tk == TK_REF ) {
+      read_var_ref( parse, &reading );
+      p_read_tk( parse );
+   }
+   dec->ref = reading.head;
+}
+
+void init_ref( struct ref* ref, int type ) {
+   ref->next = NULL;
+   ref->type = type;
+}
+
+void append_ref( struct ref_reading* reading, struct ref* part ) {
+   if ( reading->head ) {
+      reading->tail->next = part;
+   }
+   else {
+      reading->head = part;
+   }
+   reading->tail = part;
+}
+
+void read_var_ref( struct parse* parse, struct ref_reading* reading ) {
+   struct ref* part = mem_alloc( sizeof( *part ) );
+   init_ref( part, REF_VAR );
+   append_ref( reading, part );
+}
+
+void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
+   int count = 0;
+   while ( parse->tk == TK_BRACKET_L ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_BRACKET_R );
+      p_read_tk( parse );
+      ++count;
+   }
+   struct ref_array* part = mem_alloc( sizeof( *part ) );
+   init_ref( &part->ref, REF_ARRAY );
+   part->dim_count = count;
+   append_ref( reading, &part->ref );
+}
+
+void read_func_ref( struct parse* parse, struct ref_reading* reading ) {
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   struct ref_func* part = mem_alloc( sizeof( *part ) );
+   init_ref( &part->ref, REF_FUNCTION );
+   part->params = NULL;
+   part->min_param = 0;
+   part->max_param = 0;
+   if ( parse->tk != TK_PAREN_R ) {
+      struct params params;
+      init_params( &params );
+      read_params( parse, &params );
+      part->params = params.node;
+      part->min_param = params.min;
+      part->max_param = params.max;
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   append_ref( reading, &part->ref );
 }
 
 void read_objects( struct parse* parse, struct dec* dec ) {

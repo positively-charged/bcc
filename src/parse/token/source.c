@@ -588,6 +588,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },
          { "redreturn", TK_RED_RETURN },
+         { "ref", TK_REF },
          { "respawn", TK_RESPAWN },
          { "restart", TK_RESTART },
          { "return", TK_RETURN },

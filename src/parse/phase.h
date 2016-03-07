@@ -138,6 +138,7 @@ enum tk {
    TK_ZSTR,
    TK_CAST,
    TK_ASSERT,
+   TK_REF,
 
    TK_TOTAL,
 
@@ -263,6 +264,7 @@ struct dec {
    struct structure* structure;
    struct structure* type_make;
    struct path* type_path;
+   struct ref* ref;
    struct name* name;
    struct name* name_offset;
    struct dim* dim;

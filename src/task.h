@@ -155,6 +155,27 @@ struct structure_member {
    int size;
 };
 
+struct ref {
+   struct ref* next;
+   enum {
+      REF_VAR,
+      REF_ARRAY,
+      REF_FUNCTION
+   } type;
+};
+
+struct ref_array {
+   struct ref ref;
+   int dim_count;
+};
+
+struct ref_func {
+   struct ref ref;
+   struct param* params;
+   int min_param;
+   int max_param;
+};
+
 struct paren {
    struct node node;
    struct node* inside;
