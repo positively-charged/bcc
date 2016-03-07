@@ -222,7 +222,7 @@ struct streamtk_iter {
    struct token* token;
 };
 
-enum { SOURCE_BUFFER_SIZE = 1024 };
+enum { SOURCE_BUFFER_SIZE = 16384 };
 
 struct source {
    struct file_entry* file;
