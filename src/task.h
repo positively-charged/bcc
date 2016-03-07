@@ -146,6 +146,7 @@ struct structure {
 struct structure_member {
    struct object object;
    struct name* name;
+   struct ref* ref;
    struct structure* structure;
    struct path* type_path;
    struct dim* dim;
@@ -491,6 +492,7 @@ enum {
 struct var {
    struct object object;
    struct name* name;
+   struct ref* ref;
    struct structure* structure;
    struct path* type_path;
    struct dim* dim;
@@ -531,6 +533,7 @@ struct func {
       FUNC_USER,
       FUNC_INTERNAL
    } type;
+   struct ref* ref;
    struct name* name;
    struct param* params;
    void* impl;

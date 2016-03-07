@@ -43,6 +43,8 @@ struct expr_test {
 };
 
 struct type_info {
+   struct ref* ref;
+   struct dim* dim;
    int spec;
 };
 
@@ -95,7 +97,9 @@ void s_find_object( struct semantic* semantic, struct object_search* search );
 void s_present_spec( int spec, struct str* string );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
-void s_init_type_info( struct type_info* type, int spec );
+void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
+   struct dim* dim );
 bool s_same_type( struct type_info* a, struct type_info* b );
+void s_present_type( struct type_info* type, struct str* string );
 
 #endif

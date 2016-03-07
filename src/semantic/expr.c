@@ -2,8 +2,9 @@
 
 struct result {
    struct func* func;
-   struct dim* dim;
+   struct ref* ref;
    struct structure* structure;
+   struct dim* dim;
    int spec;
    int value;
    bool complete;
@@ -54,7 +55,7 @@ static void test_assign( struct semantic* semantic,
 static bool same_types( struct result* a, struct result* b );
 static bool perform_assign( struct assign* assign, struct result* lside );
 static void invalid_assign( struct semantic* semantic, struct assign* assign,
-   struct result* lside );
+   struct type_info* lside_type );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_prefix( struct semantic* semantic, struct expr_test* test,
@@ -139,6 +140,7 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
+static void init_type_info( struct type_info* type, struct result* result );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
@@ -209,8 +211,9 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
 
 void init_result( struct result* result ) {
    result->func = NULL;
-   result->dim = NULL;
+   result->ref = NULL;
    result->structure = NULL;
+   result->dim = NULL;
    result->spec = SPEC_VOID;
    result->value = 0;
    result->complete = false;
@@ -563,13 +566,6 @@ void fold_logical( struct semantic* semantic, struct logical* logical,
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct assign* assign ) {
-   // To avoid the error where the user wanted equality operator but instead
-   // typed in the assignment operator, suggest that assignment be wrapped in
-   // parentheses.
-   if ( test->suggest_paren_assign && ! result->in_paren ) {
-      s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &assign->pos, "assignment operation not in parentheses" );
-   }
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, assign->lside );
@@ -581,25 +577,30 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result rside;
    init_result( &rside );
    test_operand( semantic, test, &rside, assign->rside );
-   if ( ! rside.usable ) {
-      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-         "right side of assignment not a value" );
-      s_bail( semantic );
-   }
-   // Types must match.
-   if ( ! same_types( &lside, &rside ) ) {
+   struct type_info lside_type;
+   init_type_info( &lside_type, &lside );
+   struct type_info rside_type;
+   init_type_info( &rside_type, &rside );
+   if ( ! s_same_type( &lside_type, &rside_type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "assignment operands are of different type" );
       s_bail( semantic );
    }
-   bool performed = perform_assign( assign, &lside );
-   if ( ! performed ) {
-      invalid_assign( semantic, assign, &lside );
+   if ( ! perform_assign( assign, &lside ) ) {
+      invalid_assign( semantic, assign, &lside_type );
       s_bail( semantic );
    }
+   result->ref = lside.ref;
    result->spec = lside.spec;
    result->complete = true;
    result->usable = true;
+   // To avoid the error where the user wanted equality operator but instead
+   // typed in the assignment operator, suggest that assignment be wrapped in
+   // parentheses.
+   if ( test->suggest_paren_assign && ! result->in_paren ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS,
+         &assign->pos, "assignment operation not in parentheses" );
+   }
 }
 
 bool same_types( struct result* a, struct result* b ) {
@@ -617,6 +618,7 @@ bool same_types( struct result* a, struct result* b ) {
 }
 
 bool perform_assign( struct assign* assign, struct result* lside ) {
+   bool valid = false;
    switch ( assign->op ) {
    case AOP_NONE:
       switch ( lside->spec ) {
@@ -625,7 +627,8 @@ bool perform_assign( struct assign* assign, struct result* lside ) {
       case SPEC_ZFIXED:
       case SPEC_ZBOOL:
       case SPEC_ZSTR:
-         return true;
+         valid = true;
+         break;
       default:
          break;
       }
@@ -636,7 +639,7 @@ bool perform_assign( struct assign* assign, struct result* lside ) {
       case SPEC_ZINT:
       case SPEC_ZFIXED:
       case SPEC_ZSTR:
-         return true;
+         valid = true;
          break;
       default:
          break;
@@ -649,7 +652,8 @@ bool perform_assign( struct assign* assign, struct result* lside ) {
       case SPEC_ZRAW:
       case SPEC_ZINT:
       case SPEC_ZFIXED:
-         return true;
+         valid = true;
+         break;
       default:
          break;
       }
@@ -663,7 +667,8 @@ bool perform_assign( struct assign* assign, struct result* lside ) {
       switch ( lside->spec ) {
       case SPEC_ZRAW:
       case SPEC_ZINT:
-         return true;
+         valid = true;
+         break;
       default:
          break;
       }
@@ -671,22 +676,32 @@ bool perform_assign( struct assign* assign, struct result* lside ) {
    default:
       break;
    }
-   return false;
+   if ( ! valid ) {
+      return false;
+   }
+   if ( lside->ref ) {
+      // Only plain assignment can be performed on a reference type.
+      if ( ! ( assign->op == AOP_NONE ) ) {
+         return false;
+      }
+   }
+   return true;
 }
 
 void invalid_assign( struct semantic* semantic, struct assign* assign,
-   struct result* lside ) {
+   struct type_info* lside_type ) {
    // TODO: Move to token phase.
    static const char* op_names[] = {
       "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=" };
    const char* op = ( assign->op < ARRAY_SIZE( op_names ) ) ?
       op_names[ assign->op ] : "";
-   struct str type;
-   str_init( &type );
-   present_spec( lside, &type );
+   struct str lside_type_s;
+   str_init( &lside_type_s );
+   s_present_type( lside_type, &lside_type_s );
    s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-      "invalid operation: `%s` with `%s` operands",
-      op, type.value );
+      "invalid operation: `%s` with %s operands",
+      op, lside_type_s.value );
+   str_deinit( &lside_type_s );
 }
 
 void test_conditional( struct semantic* semantic, struct expr_test* test,
@@ -1607,6 +1622,7 @@ void select_enumerator( struct semantic* semantic, struct result* result,
 
 void select_var( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct var* var ) {
+   result->ref = var->ref;
    result->structure = var->structure;
    result->spec = var->spec;
    if ( var->dim ) {
@@ -1638,6 +1654,7 @@ void select_param( struct semantic* semantic, struct result* result,
 
 void select_member( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct structure_member* member ) {
+   result->ref = member->ref;
    result->structure = member->structure;
    result->spec = member->spec;
    if ( member->dim ) {
@@ -1731,4 +1748,9 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
    result->in_paren = true;
    test_operand( semantic, test, result, paren->inside );
    result->in_paren = false;
+}
+
+inline static void init_type_info( struct type_info* type,
+   struct result* result ) {
+   s_init_type_info( type, result->spec, result->ref, result->dim );
 }

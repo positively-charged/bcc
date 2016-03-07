@@ -78,7 +78,14 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
+static bool same_ref_type( struct type_info* a, struct type_info* b );
+static bool same_ref( struct ref* a, struct ref* b );
+static bool same_ref_decay( struct ref* a, struct type_info* b );
+static bool same_ref_array( struct ref_array* a, struct ref_array* b );
+static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool compatible_zraw_spec( int spec );
+// static void present_ref( struct type_info* type, struct str* string );
+static void present_spec( struct type_info* type, struct str* string );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
@@ -543,9 +550,9 @@ bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
    // Scalar object.
    else {
       struct type_info type;
-      s_init_type_info( &type, spec );
+      s_init_type_info( &type, spec, NULL, NULL );
       struct type_info value_type;
-      s_init_type_info( &value_type, value->expr->spec );
+      s_init_type_info( &value_type, value->expr->spec, NULL, NULL );
       if ( ! s_same_type( &type, &value_type ) ) {
          value_mismatch_diag( semantic, &type, &value_type, value->expr,
             ( test->dim != NULL ), ( test->member != NULL ) );
@@ -969,11 +976,22 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
    }
 }
 
-void s_init_type_info( struct type_info* type, int spec ) {
+void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
+   struct dim* dim ) {
+   type->ref = ref;
+   type->dim = dim;
    type->spec = spec;
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
+   // Reference.
+   if ( a->ref || b->ref ) {
+      bool same = same_ref_type( a, b );
+      if ( ! same ) {
+         return false;
+      }
+   }
+   // Specifier.
    if ( a->spec == SPEC_ZRAW ) {
       return compatible_zraw_spec( b->spec );
    }
@@ -983,6 +1001,109 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
    else {
       return ( a->spec == b->spec );
    }
+}
+
+bool same_ref_type( struct type_info* a, struct type_info* b ) {
+   if ( a->ref && b->ref ) {
+      return same_ref( a->ref, b->ref );
+   }
+   else if ( a->ref && ! b->ref ) {
+      return same_ref_decay( a->ref, b );
+   }
+   else if ( ! a->ref && b->ref ) {
+      return same_ref_decay( b->ref, a );
+   }
+   else {
+      return false;
+   }
+}
+
+bool same_ref( struct ref* a, struct ref* b ) {
+   while ( a && b ) {
+      if ( a->type != b->type ) {
+         return false;
+      }
+      bool same = false;
+      switch ( a->type ) {
+      case REF_ARRAY:
+         same = same_ref_array(
+            ( struct ref_array* ) a,
+            ( struct ref_array* ) b );
+         break;
+      case REF_FUNCTION:
+         same = same_ref_func(
+            ( struct ref_func* ) a,
+            ( struct ref_func* ) b );
+         break;
+      case REF_VAR:
+         same = true;
+         break;
+      default:
+         break;
+      }
+      if ( ! same ) {
+         return false;
+      }
+      a = a->next;
+      b = b->next;
+   }
+   return ( a == NULL && b == NULL );
+}
+
+// When one of the operands is not a reference value, create a temporary
+// reference value that would then be used for the reference match.
+bool same_ref_decay( struct ref* a, struct type_info* b ) {
+   if ( b->dim ) {
+      struct ref_array part;
+      part.ref.next = NULL;
+      part.ref.type = REF_ARRAY;
+      part.dim_count = 0;
+      struct dim* dim = b->dim;
+      while ( dim ) {
+         ++part.dim_count;
+         dim = dim->next;
+      }
+      return same_ref( a, &part.ref );
+   }
+/*
+   else if ( a->type == REF_FUNCTION ) {
+      if ( b->func ) {
+         struct ref_func func;
+         func.ref.next = NULL;
+         func.ref.type = REF_FUNCTION;
+         func.params = b->func->params;
+         func.min_param = b->func->min_param;
+         func.max_param = b->func->max_param;
+         same = same_ref( a, &func.ref );
+      }
+   }
+*/
+   return false;
+}
+
+bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
+/*
+   struct dim* dim_a = a->dim;
+   struct dim* dim_b = b->dim;
+   while ( dim_a && dim_b &&
+      dim_a->size == dim_b->size ) {
+      dim_a = dim_a->next;
+      dim_b = dim_b->next;
+   }
+   return ( dim_a == NULL && dim_b == NULL );
+*/
+   return ( a->dim_count == b->dim_count );
+}
+
+bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
+   struct param* param_a = a->params;
+   struct param* param_b = b->params;
+   while ( param_a && param_b &&
+      param_a->spec == param_b->spec ) {
+      param_a = param_a->next;
+      param_b = param_b->next;
+   }
+   return ( param_a == NULL && param_b == NULL );
 }
 
 bool compatible_zraw_spec( int spec ) {
@@ -995,4 +1116,53 @@ bool compatible_zraw_spec( int spec ) {
       return true;
    }
    return false;
+}
+
+void s_present_type( struct type_info* type, struct str* string ) {
+   if ( type->ref ) {
+      str_append( string, "reference" );
+   }
+   else {
+      str_append( string, "`" );
+      present_spec( type, string );
+      str_append( string, "`" );
+   }
+}
+
+/*
+void present_ref( struct type_info* type, struct str* string ) {
+   struct ref* ref = type->ref;
+   while ( ref ) {
+      str_append( string, "ref" );
+      if ( ref->type == REF_ARRAY ) {
+         struct ref_array* part = ( struct ref_array* ) ref;
+         for ( int i = 0; i < part->dim_count; ++i ) {
+            str_append( string, "[]" );
+         }
+      }
+      str_append( string, " " );
+      ref = ref->next;
+   }
+} */
+
+void present_spec( struct type_info* type, struct str* string ) {
+   switch ( type->spec ) {
+   case SPEC_ZRAW:
+      str_append( string, "zraw" );
+      break;
+   case SPEC_ZINT:
+      str_append( string, "zint" );
+      break;
+   case SPEC_ZFIXED:
+      str_append( string, "zfixed" );
+      break;
+   case SPEC_ZBOOL:
+      str_append( string, "zbool" );
+      break;
+   case SPEC_ZSTR:
+      str_append( string, "zstr" );
+      break;
+   default:
+      break;
+   }
 }

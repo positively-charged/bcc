@@ -838,6 +838,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    t_init_object( &member->object, NODE_STRUCTURE_MEMBER );
    member->object.pos = dec->name_pos;
    member->name = dec->name;
+   member->ref = dec->ref;
    member->structure = dec->structure;
    member->type_path = dec->type_path;
    member->dim = dec->dim;
@@ -906,6 +907,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
    var->name = dec->name;
+   var->ref = dec->ref;
    var->structure = dec->structure;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
@@ -1014,6 +1016,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    t_init_object( &func->object, NODE_FUNC );
    func->object.pos = dec->name_pos;
    func->type = FUNC_ASPEC;
+   func->ref = dec->ref;
    func->name = dec->name;
    func->params = NULL;
    func->impl = NULL;
