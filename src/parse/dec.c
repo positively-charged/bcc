@@ -507,6 +507,9 @@ void read_struct_body( struct parse* parse, struct dec* dec,
 
 void read_named_type( struct parse* parse, struct dec* dec ) {
    dec->type_path = p_read_path( parse );
+   // TODO: Later, when adding named enums, move determining of the specifier
+   // to the semantic phase.
+   dec->spec = SPEC_STRUCT;
 }
 
 void read_objects( struct parse* parse, struct dec* dec ) {

@@ -9,14 +9,13 @@ struct enumeration_test {
    int value;
 };
 
-struct multi_value_test {
+struct initz_test {
    struct dim* dim;
    struct structure* structure;
    struct structure_member* member;
    int spec;
    int count;
    bool constant;
-   bool nested;
    bool has_string;
 };
 
@@ -50,17 +49,15 @@ static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
-static void test_init( struct semantic* semantic, struct var*, bool, bool* );
-static void init_multi_value_test( struct multi_value_test* test, int spec,
-   struct dim* dim, struct structure* structure, bool constant, bool nested );
-static bool test_multi_value( struct semantic* semantic, struct multi_value_test*,
-   struct multi_value* multi_value );
+static void init_initz_test( struct initz_test* test, int spec,
+   struct dim* dim, struct structure* structure, bool constant );
+static bool test_multi_value( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value );
 static bool test_multi_value_child( struct semantic* semantic,
-   struct multi_value_test* test, struct multi_value* multi_value,
+   struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial );
-static bool test_value( struct semantic* semantic,
-   struct multi_value_test* test, struct dim* dim, struct structure* structure,
-   struct value* value );
+static bool test_value( struct semantic* semantic, struct initz_test* test,
+   int spec, struct dim* dim, struct value* value );
 static bool is_scalar( int spec, struct dim* dim );
 static void value_mismatch_diag( struct semantic* semantic,
    struct type_info* type, struct type_info* value_type, struct expr* expr,
@@ -396,9 +393,9 @@ bool test_initz( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_object_initz( struct semantic* semantic, struct var* var ) {
-   struct multi_value_test test;
-   init_multi_value_test( &test, var->spec, var->dim, var->structure,
-      var->is_constant_init, false );
+   struct initz_test test;
+   init_initz_test( &test, var->spec, var->dim, var->structure,
+      var->is_constant_init );
    if ( var->initial->multi ) {
       if ( ! ( var->dim || var->structure ) ) {
          struct multi_value* multi_value =
@@ -418,8 +415,8 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    else {
-      bool resolved = test_value( semantic, &test, var->dim,
-         var->structure, ( struct value* ) var->initial );
+      bool resolved = test_value( semantic, &test, var->spec, var->dim,
+         ( struct value* ) var->initial );
       if ( ! resolved ) {
          return false;
       }
@@ -428,24 +425,30 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void init_multi_value_test( struct multi_value_test* test, int spec,
-   struct dim* dim, struct structure* structure, bool constant, bool nested ) {
+void init_initz_test( struct initz_test* test, int spec, struct dim* dim,
+   struct structure* structure, bool constant ) {
    test->dim = dim;
    test->structure = structure;
    test->member = ( ! dim && structure ? structure->member : NULL );
    test->spec = spec;
    test->count = 0;
    test->constant = constant;
-   test->nested = nested;
    test->has_string = false;
 }
 
-bool test_multi_value( struct semantic* semantic, struct multi_value_test* test,
+bool test_multi_value( struct semantic* semantic, struct initz_test* test,
    struct multi_value* multi_value ) {
+   if ( ! ( test->dim || test->structure ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
+         "too many brace initializers" );
+      s_bail( semantic );
+   }
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( ! initial->tested ) {
-         if ( ! test_multi_value_child( semantic, test, multi_value, initial ) ) {
+         bool resolved = test_multi_value_child( semantic,
+            test, multi_value, initial );
+         if ( ! resolved ) {
             return false;
          }
          initial->tested = true;
@@ -459,47 +462,42 @@ bool test_multi_value( struct semantic* semantic, struct multi_value_test* test,
    return true;
 }
 
-bool test_multi_value_child( struct semantic* semantic, struct multi_value_test* test,
-   struct multi_value* multi_value, struct initial* initial ) {
-   bool capacity = ( ( test->dim && ( ! test->dim->size_node ||
-      test->count < test->dim->size ) ) || test->member );
-   if ( ! capacity ) {
+bool test_multi_value_child( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value,
+   struct initial* initial ) {
+   // Make sure there is an object to initialize. 
+   bool have_element = ( test->dim &&
+      ( ! test->dim->size_node || test->count < test->dim->size ) );
+   bool have_member = ( test->member != NULL );
+   if ( ! ( have_element || have_member ) ) {
       s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
          "too many values in brace initializer" );
       s_bail( semantic );
    }
    if ( initial->multi ) {
-      // There needs to be an element or member to initialize.
-      bool deeper = ( ( test->dim && ( test->dim->next ||
-         test->structure ) ) || ( test->member &&
-         ( test->member->dim || test->member->structure ) ) );
-      if ( ! deeper ) {
-         s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
-            "too many brace initializers" );
-         s_bail( semantic );
-      }
-      struct multi_value_test nested;
-      init_multi_value_test( &nested, test->spec,
+      struct initz_test nested_test;
+      init_initz_test( &nested_test,
+         ( test->dim ? test->spec : test->member->spec ),
          ( test->dim ? test->dim->next : test->member->dim ),
          ( test->dim ? test->structure : test->member->structure ),
-         test->constant, true );
-      bool resolved = test_multi_value( semantic, &nested,
+         test->constant );
+      bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
-      if ( nested.has_string ) {
+      if ( nested_test.has_string ) {
          test->has_string = true;
       }
       return resolved;
    }
    else {
       return test_value( semantic, test,
+         ( test->dim ? test->spec : test->member->spec ),
          ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->structure : test->member->structure ),
          ( struct value* ) initial );
    }
 }
 
-bool test_value( struct semantic* semantic, struct multi_value_test* test,
-   struct dim* dim, struct structure* structure, struct value* value ) {
+bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
+   struct dim* dim, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
    s_test_expr( semantic, &expr, value->expr );
@@ -511,19 +509,19 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
          "non-constant initializer" );
       s_bail( semantic );
    }
-   // Only initialize a primitive element or an array of a single dimension--
-   // using the string initializer.
-   bool scalar = is_scalar( test->spec, dim );
-   bool string_initz = ( dim && ! dim->next && ! structure &&
+   // Only initialize a scalar object or an array of a single dimension
+   // (using the string initializer).
+   bool scalar = is_scalar( spec, dim );
+   bool string_initz_element = ( dim && ! dim->next &&
       value->expr->spec == SPEC_ZSTR );
-   if ( ! scalar && ! string_initz ) {
+   if ( ! ( scalar || string_initz_element ) ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-         "missing %sbrace initializer", test->nested ? "another " : "" );
+         "missing brace initializer" );
       s_bail( semantic );
    }
    // String initializer.
-   if ( string_initz ) {
-      if ( test->spec != SPEC_ZINT ) {
+   if ( string_initz_element ) {
+      if ( ! ( spec == SPEC_ZINT || spec == SPEC_ZRAW ) ) {
          s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
             "string initializer specified for a non-integer array" );
          s_bail( semantic );
@@ -542,9 +540,10 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
       }
       value->string_initz = true;
    }
+   // Scalar object.
    else {
       struct type_info type;
-      s_init_type_info( &type, test->spec );
+      s_init_type_info( &type, spec );
       struct type_info value_type;
       s_init_type_info( &value_type, value->expr->spec );
       if ( ! s_same_type( &type, &value_type ) ) {
@@ -552,9 +551,9 @@ bool test_value( struct semantic* semantic, struct multi_value_test* test,
             ( test->dim != NULL ), ( test->member != NULL ) );
          s_bail( semantic );
       }
-   }
-   if ( expr.has_string ) {
-      test->has_string = true;
+      if ( expr.has_string ) {
+         test->has_string = true;
+      }
    }
    return true;
 }
