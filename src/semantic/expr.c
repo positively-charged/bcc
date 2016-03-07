@@ -5,6 +5,7 @@ struct result {
    struct ref* ref;
    struct structure* structure;
    struct dim* dim;
+   int ref_dim;
    int spec;
    int value;
    bool complete;
@@ -214,6 +215,7 @@ void init_result( struct result* result ) {
    result->ref = NULL;
    result->structure = NULL;
    result->dim = NULL;
+   result->ref_dim = 0;
    result->spec = SPEC_VOID;
    result->value = 0;
    result->complete = false;
@@ -1048,42 +1050,67 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, subscript->lside );
-   if ( ! lside.dim ) {
+   bool array_ref = ( lside.dim || lside.ref_dim > 0 );
+   if ( ! array_ref ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "operand not an array" );
+         "operand not an array reference" );
       s_bail( semantic );
    }
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
       test->suggest_paren_assign );
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, test, &index, &root, subscript->index );
-   // Index must be an integer value.
-   if ( root.spec != SPEC_ZRAW && root.spec != SPEC_ZINT ) {
+   s_test_expr( semantic, &index, subscript->index );
+   // Index must be of integer type.
+   if ( ! ( subscript->index->spec == SPEC_ZRAW ||
+      subscript->index->spec == SPEC_ZINT ) ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "subscript index of non-integer type" );
+         "index of non-integer type" );
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside.dim->size && subscript->index->folded && (
+   if ( lside.dim && lside.dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
       subscript->index->value >= lside.dim->size ) ) {
-      s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &subscript->index->pos, "array index out-of-bounds" );
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
+         "index out of bounds" );
    }
+   result->ref = lside.ref;
+   result->structure = lside.structure;
+   result->dim = lside.dim;
+   result->ref_dim = lside.ref_dim;
    result->spec = lside.spec;
-   result->dim = lside.dim->next;
+   // Move past the current dimension.
+   bool reached_element = false;
    if ( result->dim ) {
-      if ( test->accept_array ) {
-         result->complete = true;
-      }
+      result->dim = result->dim->next;
+      reached_element = ( result->dim == NULL );
    }
    else {
-      if ( result->spec != SPEC_STRUCT ) {
+      --result->ref_dim;
+      if ( result->ref_dim == 0 ) {
+         result->ref = result->ref->next;
+         reached_element = true;
+      }
+   }
+   // When all dimensions are tested, propogate properties of array element.
+   if ( reached_element ) {
+      // Reference element.
+      if ( result->ref ) {
+         if ( result->ref->type == REF_ARRAY ) {
+            struct ref_array* part = ( struct ref_array* ) result->ref;
+            result->ref_dim = part->dim_count;
+         }
+         result->assignable = true;
          result->complete = true;
          result->usable = true;
-         result->assignable = true;
+      }
+      else {
+         // Scalar element.
+         if ( result->spec != SPEC_STRUCT ) {
+            result->assignable = true;
+            result->complete = true;
+            result->usable = true;
+         }
       }
    }
 }
@@ -1634,6 +1661,12 @@ void select_var( struct semantic* semantic, struct expr_test* test,
       }
    }
    else {
+      if ( result->ref ) {
+         if ( result->ref->type == REF_ARRAY ) {
+            struct ref_array* part = ( struct ref_array* ) result->ref;
+            result->ref_dim = part->dim_count;
+         }
+      }
       if ( ! var->structure ) {
          result->complete = true;
          result->usable = true;
