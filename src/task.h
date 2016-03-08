@@ -870,7 +870,6 @@ struct task {
    struct str_table str_table;
    struct name* root_name;
    struct name* body;
-   struct name* body_struct;
    struct library* library;
    struct library* library_main;
    struct list libraries;

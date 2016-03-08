@@ -29,7 +29,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    init_str_table( &task->str_table );
    task->root_name = t_create_name();
    task->body = task->root_name;
-   task->body_struct = t_extend_name( task->body, "!struct." );
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );

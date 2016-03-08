@@ -487,8 +487,7 @@ struct structure* alloc_structure( struct pos* pos ) {
 
 void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
-      structure->name = t_extend_name( parse->task->body_struct,
-         parse->tk_text );
+      structure->name = t_extend_name( parse->task->body, parse->tk_text );
       p_read_tk( parse );
    }
    // When no name is specified, make random name.

@@ -533,9 +533,7 @@ void find_tail_object( struct semantic* semantic,
 
 struct regobjget s_get_regionobject( struct semantic* semantic,
    const char* lookup, bool get_struct ) {
-   struct name* name = t_extend_name(
-      ( get_struct ? semantic->task->body_struct :
-         semantic->task->body ), lookup );
+   struct name* name = t_extend_name( semantic->task->body, lookup );
    struct object* object = name->object;
    if ( object ) {
       while ( object->next_scope ) {
