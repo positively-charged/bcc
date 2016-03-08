@@ -43,8 +43,11 @@ static void test_member_name( struct semantic* semantic,
    struct structure_member* member );
 static bool test_member_dim( struct semantic* semantic,
    struct structure_member* member );
+static bool test_ref( struct semantic* semantic, struct var* var );
+static void test_ref_part( struct semantic* semantic,
+   struct var* var, struct ref* ref );
 static bool test_spec( struct semantic* semantic, struct var* var );
-static void test_name( struct semantic* semantic, struct var* var );
+static bool test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
@@ -297,10 +300,44 @@ bool test_member_dim( struct semantic* semantic,
 }
 
 void s_test_var( struct semantic* semantic, struct var* var ) {
-   if ( test_spec( semantic, var ) ) {
-      test_name( semantic, var );
-      if ( test_dim( semantic, var ) ) {
-         var->object.resolved = test_initz( semantic, var );
+   var->object.resolved = (
+      test_ref( semantic, var ) &&
+      test_spec( semantic, var ) &&
+      test_name( semantic, var ) &&
+      test_dim( semantic, var ) &&
+      test_initz( semantic, var ) );
+}
+
+bool test_ref( struct semantic* semantic, struct var* var ) {
+   struct ref* ref = var->ref;
+   while ( ref ) {
+      test_ref_part( semantic, var, ref );
+      ref = ref->next;
+   }
+   return true;
+}
+
+// A reference can be made only to an array, a structure, or a function.
+void test_ref_part( struct semantic* semantic,
+   struct var* var, struct ref* ref ) {
+   if ( ref->type == REF_FUNCTION ) {
+      struct type_info return_type;
+      s_init_type_info( &return_type, var->spec, ref->next, NULL );
+      if ( ! s_is_scalar_type( &return_type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &ref->pos,
+            "invalid return-type in function reference" );
+         s_bail( semantic );
+      }
+      struct ref_func* part = ( struct ref_func* ) ref;
+   }
+   else if ( ref->type == REF_VAR ) {
+      if ( var->spec != SPEC_STRUCT ) {
+         s_diag( semantic, DIAG_POS_ERR, &ref->pos,
+            "invalid reference type" );
+         s_diag( semantic, DIAG_POS, &ref->pos,
+            "reference must be made to an array, a structure, "
+            "or a function" );
+         s_bail( semantic );
       }
    }
 }
@@ -320,7 +357,7 @@ bool test_spec( struct semantic* semantic, struct var* var ) {
       // An array or a variable with a structure type cannot appear in local
       // storage because there's no standard or efficient way to allocate such
       // a variable.
-      if ( var->storage == STORAGE_LOCAL ) {
+      if ( var->storage == STORAGE_LOCAL && ! var->ref ) {
          s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
             "variable of struct type in local storage" );
          s_bail( semantic );
@@ -329,13 +366,14 @@ bool test_spec( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void test_name( struct semantic* semantic, struct var* var ) {
+bool test_name( struct semantic* semantic, struct var* var ) {
    // Bind name of local variable.
    if ( semantic->in_localscope ) {
       if ( var->name->object != &var->object ) {
          s_bind_name( semantic, var->name, &var->object );
       }
    }
+   return true;
 }
 
 bool test_dim( struct semantic* semantic, struct var* var ) {
@@ -1165,4 +1203,26 @@ void present_spec( struct type_info* type, struct str* string ) {
    default:
       break;
    }
+}
+
+bool s_is_scalar_type( struct type_info* type ) {
+   if ( ! type->dim ) {
+      if ( type->ref ) {
+         return true;
+      }
+      else {
+         switch ( type->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZBOOL:
+         case SPEC_ZSTR:
+         case SPEC_ENUM:
+            return true;
+         default:
+            break;
+         }
+      }
+   }
+   return false;
 }

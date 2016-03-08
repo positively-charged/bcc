@@ -101,5 +101,6 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
+bool s_is_scalar_type( struct type_info* type );
 
 #endif

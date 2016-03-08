@@ -158,6 +158,7 @@ struct structure_member {
 
 struct ref {
    struct ref* next;
+   struct pos pos;
    enum {
       REF_VAR,
       REF_ARRAY,

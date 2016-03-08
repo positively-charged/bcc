@@ -55,12 +55,15 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
 static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_named_type( struct parse* parse, struct dec* dec );
-static void init_ref( struct ref* ref, int type );
+static void init_ref( struct ref* ref, int type, struct pos* pos );
 static void append_ref( struct ref_reading* reading, struct ref* part );
 static void read_ref( struct parse* parse, struct dec* dec );
-static void read_var_ref( struct parse* parse, struct ref_reading* reading );
-static void read_array_ref( struct parse* parse, struct ref_reading* reading );
-static void read_func_ref( struct parse* parse, struct ref_reading* reading );
+static void read_var_ref( struct parse* parse,
+   struct ref_reading* reading, struct pos* pos );
+static void read_array_ref( struct parse* parse, struct ref_reading* reading,
+   struct pos* pos );
+static void read_func_ref( struct parse* parse, struct ref_reading* reading,
+   struct pos* pos );
 static void read_objects( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
@@ -532,13 +535,14 @@ void read_ref( struct parse* parse, struct dec* dec ) {
    while ( parse->tk == TK_REF && (
       p_peek( parse ) == TK_BRACKET_L ||
       p_peek( parse ) == TK_PAREN_L ) ) {
+      struct pos pos = parse->tk_pos;
       p_read_tk( parse );
       switch ( parse->tk ) {
       case TK_BRACKET_L:
-         read_array_ref( parse, &reading );
+         read_array_ref( parse, &reading, &pos );
          break;
       case TK_PAREN_L:
-         read_func_ref( parse, &reading );
+         read_func_ref( parse, &reading, &pos );
          break;
       default:
          UNREACHABLE()
@@ -546,15 +550,16 @@ void read_ref( struct parse* parse, struct dec* dec ) {
    }
    // Read variable reference.
    if ( parse->tk == TK_REF ) {
-      read_var_ref( parse, &reading );
+      read_var_ref( parse, &reading, &parse->tk_pos );
       p_read_tk( parse );
    }
    dec->ref = reading.head;
 }
 
-void init_ref( struct ref* ref, int type ) {
+void init_ref( struct ref* ref, int type, struct pos* pos ) {
    ref->next = NULL;
    ref->type = type;
+   ref->pos = *pos;
 }
 
 void append_ref( struct ref_reading* reading, struct ref* part ) {
@@ -567,13 +572,15 @@ void append_ref( struct ref_reading* reading, struct ref* part ) {
    reading->tail = part;
 }
 
-void read_var_ref( struct parse* parse, struct ref_reading* reading ) {
+void read_var_ref( struct parse* parse, struct ref_reading* reading,
+   struct pos* pos ) {
    struct ref* part = mem_alloc( sizeof( *part ) );
-   init_ref( part, REF_VAR );
+   init_ref( part, REF_VAR, pos );
    append_ref( reading, part );
 }
 
-void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
+void read_array_ref( struct parse* parse, struct ref_reading* reading,
+   struct pos* pos ) {
    int count = 0;
    while ( parse->tk == TK_BRACKET_L ) {
       p_read_tk( parse );
@@ -582,16 +589,17 @@ void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
       ++count;
    }
    struct ref_array* part = mem_alloc( sizeof( *part ) );
-   init_ref( &part->ref, REF_ARRAY );
+   init_ref( &part->ref, REF_ARRAY, pos );
    part->dim_count = count;
    append_ref( reading, &part->ref );
 }
 
-void read_func_ref( struct parse* parse, struct ref_reading* reading ) {
+void read_func_ref( struct parse* parse, struct ref_reading* reading,
+   struct pos* pos ) {
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    struct ref_func* part = mem_alloc( sizeof( *part ) );
-   init_ref( &part->ref, REF_FUNCTION );
+   init_ref( &part->ref, REF_FUNCTION, pos );
    part->params = NULL;
    part->min_param = 0;
    part->max_param = 0;

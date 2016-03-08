@@ -1697,7 +1697,13 @@ void select_member( struct semantic* semantic, struct expr_test* test,
       }
    }
    else {
-      if ( ! member->structure ) {
+      if ( result->ref ) {
+         if ( result->ref->type == REF_ARRAY ) {
+            struct ref_array* part = ( struct ref_array* ) result->ref;
+            result->ref_dim = part->dim_count;
+         }
+      }
+      if ( ! result->structure ) {
          result->complete = true;
          result->usable = true;
          result->assignable = true;
