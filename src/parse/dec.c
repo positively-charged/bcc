@@ -343,6 +343,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    read_rbrace( parse, dec );
    struct enumeration* set = mem_alloc( sizeof( *set ) );
    t_init_object( &set->object, NODE_ENUMERATION );
+   set->object.pos = name_pos;
    set->head = head;
    set->name = name;
    if ( dec->vars ) {

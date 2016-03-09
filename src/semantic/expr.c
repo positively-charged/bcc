@@ -3,6 +3,7 @@
 struct result {
    struct func* func;
    struct ref* ref;
+   struct enumeration* enumeration;
    struct structure* structure;
    struct dim* dim;
    int ref_dim;
@@ -115,6 +116,8 @@ static void select_constant( struct result* result,
    struct constant* constant );
 static void select_enumerator( struct result* result,
    struct enumerator* enumerator );
+static void select_enumeration( struct result* result,
+   struct enumeration* enumeration );
 static void select_var( struct expr_test* test, struct result* result,
    struct var* var );
 static void select_param( struct result* result, struct param* param );
@@ -202,6 +205,7 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
 void init_result( struct result* result ) {
    result->func = NULL;
    result->ref = NULL;
+   result->enumeration = NULL;
    result->structure = NULL;
    result->dim = NULL;
    result->ref_dim = 0;
@@ -1079,17 +1083,25 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, access->lside );
-   if ( ! is_struct_ref( &lside ) ) {
+   struct name* name = NULL;
+   if ( is_struct_ref( &lside ) ) {
+      name = lside.structure->name;
+   }
+   else if ( ! lside.usable && lside.enumeration ) {
+      name = lside.enumeration->name;
+   }
+   if ( ! name ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "left operand not of struct type" );
+         "left operand does not support member access" );
       s_bail( semantic );
    }
-   struct name* name = t_extend_name( lside.structure->body, access->name );
-   if ( ! name->object ) {
-      unknown_member( semantic, access, &lside.structure->object );
+   struct name* member_name = t_extend_name( name, "." );
+   member_name = t_extend_name( member_name, access->name );
+   if ( ! member_name->object ) {
+      unknown_member( semantic, access, name->object );
       s_bail( semantic );
    }
-   if ( ! name->object->resolved ) {
+   if ( ! member_name->object->resolved ) {
       if ( semantic->trigger_err ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "right operand `%s` undefined", access->name );
@@ -1100,8 +1112,8 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   select_object( test, result, name->object );
-   access->rside = ( struct node* ) name->object;
+   select_object( test, result, member_name->object );
+   access->rside = &member_name->object->node;
 }
 
 bool is_struct_ref( struct result* result ) {
@@ -1131,17 +1143,16 @@ void unknown_member( struct semantic* semantic, struct access* access,
          str_deinit( &str );
       }
    }
-   /*
    else if ( object->node.type == NODE_ENUMERATION ) {
       struct enumeration* enumeration = ( struct enumeration* ) object;
       struct str str;
       str_init( &str );
       t_copy_name( enumeration->name, false, &str );
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "`%s` not an enumerator of `%s` enumeration", access->name,
+         "`%s` not an enumerator of enumeration `%s`", access->name,
          str.value );
       str_deinit( &str );
-   } */
+   }
 }
 
 void test_call( struct semantic* semantic, struct expr_test* expr_test,
@@ -1586,6 +1597,10 @@ void select_object( struct expr_test* test, struct result* result,
       select_enumerator( result,
          ( struct enumerator* ) object );
       break;
+   case NODE_ENUMERATION:
+      select_enumeration( result,
+         ( struct enumeration* ) object );
+      break;
    case NODE_VAR:
       select_var( test, result,
          ( struct var* ) object );
@@ -1622,6 +1637,11 @@ void select_enumerator( struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
+}
+
+void select_enumeration( struct result* result,
+   struct enumeration* enumeration ) {
+   result->enumeration = enumeration;
 }
 
 void select_var( struct expr_test* test, struct result* result,

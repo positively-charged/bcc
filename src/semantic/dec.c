@@ -112,6 +112,11 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
 
 void s_test_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
+   if ( enumeration->name ) {
+      if ( semantic->in_localscope ) {
+         s_bind_name( semantic, enumeration->name, &enumeration->object );
+      }
+   }
    struct enumeration_test test = { 0 };
    // Skip previously resolved enumerators.
    struct enumerator* enumerator = enumeration->head;

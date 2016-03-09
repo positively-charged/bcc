@@ -137,6 +137,9 @@ void bind_object( struct semantic* semantic, struct object* object,
       break; }
    case NODE_ENUMERATION: {
       struct enumeration* set = ( struct enumeration* ) object;
+      if ( set->name ) {
+         s_bind_name( semantic, set->name, &set->object );
+      }
       struct enumerator* enumerator = set->head;
       while ( enumerator ) {
          s_bind_name( semantic, enumerator->name, &enumerator->object );
