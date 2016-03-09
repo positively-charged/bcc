@@ -32,64 +32,53 @@ static void test_operand( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_binary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct binary* binary );
-static bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct result* lside, struct result* rside, struct result* result );
-static void invalid_bop( struct semantic* semantic, struct binary* binary,
-   struct result* lside, struct result* rside );
-static void present_spec( struct result* result, struct str* string );
+static bool perform_bop( struct binary* binary, struct result* operand,
+   struct result* result );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct logical* logical );
-static bool perform_logical( struct semantic* semantic,
-   struct logical* logical, struct result* lside, struct result* rside,
-   struct result* result );
-static bool can_convert_to_boolean( struct result* result );
-static void fold_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside, struct result* result );
-static void invalid_logical( struct semantic* semantic,
-   struct logical* logical, struct result* lside, struct result* rside );
-static void fold_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside, struct result* result );
+static bool perform_logical( struct logical* logical, struct result* lside,
+   struct result* rside, struct result* result );
+static bool can_convert_to_boolean( struct result* operand );
+static void fold_logical( struct logical* logical, struct result* lside,
+   struct result* rside, struct result* result );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
-static bool same_types( struct result* a, struct result* b );
-static bool perform_assign( struct assign* assign, struct result* lside );
-static void invalid_assign( struct semantic* semantic, struct assign* assign,
-   struct type_info* lside_type );
+static bool perform_assign( struct assign* assign, struct result* lside,
+   struct result* result );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_prefix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_unary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct unary* unary );
-static bool perform_unary( struct semantic* semantic, struct unary* unary,
-   struct result* operand, struct result* result );
+static bool perform_unary( struct unary* unary, struct result* operand,
+   struct result* result );
 static void fold_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result );
-static void fold_unary_minus( struct semantic* semantic,
-   struct result* operand, struct result* result );
+static void fold_unary_minus( struct result* operand, struct result* result );
 static void fold_logical_not( struct semantic* semantic,
    struct result* operand, struct result* result );
-static void invalid_unary( struct semantic* semantic,
-   struct unary* unary, struct result* operand );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
-static bool perform_inc( struct semantic* semantic, struct inc* inc,
-   struct result* operand, struct result* result );
-static void invalid_inc( struct semantic* semantic, struct inc* inc,
-   struct result* operand );
+static bool perform_inc( struct inc* inc, struct result* operand,
+   struct result* result );
 static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast );
-static bool valid_cast( struct cast* cast, struct result* result );
+static bool valid_cast( struct cast* cast, struct result* operand );
 static void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct subscript* subscript );
+static bool is_array_ref( struct result* result );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
+static bool is_struct_ref( struct result* result );
+static void unknown_member( struct semantic* semantic, struct access* access,
+   struct object* object );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
 static void test_call_args( struct semantic* semantic,
@@ -110,38 +99,39 @@ static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct result* result, struct result* required_result, int number );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
-static void test_literal( struct semantic* semantic, struct result* result,
-   struct literal* literal );
-static void test_fixed_literal( struct semantic* semantic,
-   struct result* result, struct fixed_literal* literal );
-static void test_string_usage( struct semantic* semantic,
-   struct expr_test* test, struct result* result,
+static void test_literal( struct result* result, struct literal* literal );
+static void test_fixed_literal( struct result* result,
+   struct fixed_literal* literal );
+static void test_string_usage( struct expr_test* test, struct result* result,
    struct indexed_string_usage* usage );
-static void test_boolean( struct semantic* semantic,
-   struct result* result, struct boolean* boolean );
+static void test_boolean( struct result* result, struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
 static struct object* find_referenced_object( struct semantic* semantic,
    struct name_usage* usage );
-static void select_object( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct object* object );
-static void select_constant( struct semantic* semantic, struct result* result,
+static void select_object( struct expr_test* test, struct result* result,
+   struct object* object );
+static void select_constant( struct result* result,
    struct constant* constant );
-static void select_enumerator( struct semantic* semantic,
-   struct result* result, struct enumerator* enumerator );
-static void select_var( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct var* var );
-static void select_param( struct semantic* semantic, struct result* result,
-   struct param* param );
-static void select_member( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct structure_member* member );
-static void select_func( struct semantic* semantic, struct result* result,
-   struct func* func );
+static void select_enumerator( struct result* result,
+   struct enumerator* enumerator );
+static void select_var( struct expr_test* test, struct result* result,
+   struct var* var );
+static void select_param( struct result* result, struct param* param );
+static void select_member( struct expr_test* test, struct result* result,
+   struct structure_member* member );
+static void select_func( struct result* result, struct func* func );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
+static bool is_onedim_intelem_array_ref( struct result* result );
+static bool is_int_value( struct result* result );
+static bool is_str_value( struct result* result );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
 static void init_type_info( struct type_info* type, struct result* result );
+static bool same_type( struct result* a, struct result* b );
+static bool is_value_type( struct result* result );
+static bool is_ref_type( struct result* result );
 
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
@@ -152,7 +142,6 @@ void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
-   test->accept_array = false;
    test->suggest_paren_assign = suggest_paren_assign;
 }
 
@@ -258,7 +247,7 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &lside, binary->lside );
    if ( ! lside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "operand on left side not a value" );
+         "left operand unusable" );
       s_bail( semantic );
    }
    struct result rside;
@@ -266,12 +255,17 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &rside, binary->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "operand on right side not a value" );
+         "right operand unusable" );
       s_bail( semantic );
    }
-   bool performed = perform_bop( semantic, binary, &lside, &rside, result );
-   if ( ! performed ) {
-      invalid_bop( semantic, binary, &lside, &rside );
+   if ( ! same_type( &lside, &rside ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
+         "left operand and right operand of different type" );
+      s_bail( semantic );
+   }
+   if ( ! perform_bop( binary, &lside, result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
+         "invalid binary operation" );
       s_bail( semantic );
    }
    // Compile-time evaluation.
@@ -280,142 +274,106 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct result* lside, struct result* rside, struct result* result ) {
-   // Binary operators must take operands of the same type.
-   if ( lside->spec != rside->spec ) {
-      return false;
+bool perform_bop( struct binary* binary, struct result* operand,
+   struct result* result ) {
+   // Value type.
+   if ( is_value_type( operand ) ) {
+      int spec = SPEC_NONE;
+      switch ( binary->op ) {
+      case BOP_EQ:
+      case BOP_NEQ:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZBOOL:
+         case SPEC_ZSTR:
+            spec = SPEC_ZBOOL;
+            break;
+         default:
+            break;
+         }
+         break;
+      case BOP_BIT_OR:
+      case BOP_BIT_XOR:
+      case BOP_BIT_AND:
+      case BOP_SHIFT_L:
+      case BOP_SHIFT_R:
+      case BOP_MOD:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+            spec = operand->spec;
+            break;
+         default:
+            break;
+         }
+         break;
+      case BOP_LT:
+      case BOP_LTE:
+      case BOP_GT:
+      case BOP_GTE:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZSTR:
+            spec = SPEC_ZBOOL;
+            break;
+         default:
+            break;
+         }
+         break;
+      case BOP_ADD:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZSTR:
+            spec = operand->spec;
+            break;
+         default:
+            break;
+         }
+         break;
+      case BOP_SUB:
+      case BOP_MUL:
+      case BOP_DIV:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+            spec = operand->spec;
+            break;
+         default:
+            break;
+         }
+         break;
+      default:
+         break;
+      }
+      if ( spec == SPEC_NONE ) {
+         return false;
+      }
+      result->spec = spec;
+      result->complete = true;
+      result->usable = true;
+      binary->lside_spec = operand->spec;
+      return true;
    }
-   int spec = SPEC_NONE;
-   switch ( binary->op ) {
-   case BOP_EQ:
-   case BOP_NEQ:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZBOOL:
-      case SPEC_ZSTR:
-         spec = SPEC_ZBOOL;
-         break;
+   // Reference type.
+   else {
+      switch ( binary->op ) {
+      case BOP_EQ:
+      case BOP_NEQ:
+         result->spec = SPEC_ZBOOL;
+         result->complete = true;
+         result->usable = true;
+         return true;
       default:
-         break;
+         return false;
       }
-      break;
-   case BOP_BIT_OR:
-   case BOP_BIT_XOR:
-   case BOP_BIT_AND:
-   case BOP_SHIFT_L:
-   case BOP_SHIFT_R:
-   case BOP_MOD:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-         spec = lside->spec;
-         break;
-      default:
-         break;
-      }
-      break;
-   case BOP_LT:
-   case BOP_LTE:
-   case BOP_GT:
-   case BOP_GTE:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZSTR:
-         spec = SPEC_ZBOOL;
-         break;
-      default:
-         break;
-      }
-      break;
-   case BOP_ADD:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZSTR:
-         spec = lside->spec;
-         break;
-      default:
-         break;
-      }
-      break;
-   case BOP_SUB:
-   case BOP_MUL:
-   case BOP_DIV:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-         spec = lside->spec;
-         break;
-      default:
-         break;
-      }
-      break;
-   default:
-      break;
    }
-   if ( spec == SPEC_NONE ) {
-      return false;
-   }
-   result->spec = spec;
-   result->complete = true;
-   result->usable = true;
-   binary->lside_spec = lside->spec;
-   return true;
-}
-
-void invalid_bop( struct semantic* semantic, struct binary* binary,
-   struct result* lside, struct result* rside ) {
-   // TODO: Move to token phase.
-   static const char* op_names[] = {
-      "|", "^", "&", "==", "!=", "<", "<=", ">", ">=",
-      "<<", ">>", "+", "-", "*", "/", "%"
-   };
-   const char* op = ( binary->op - 1 < ARRAY_SIZE( op_names ) ) ?
-      op_names[ binary->op - 1 ] : "?";
-   struct str operand_a;
-   str_init( &operand_a );
-   present_spec( lside, &operand_a );
-   struct str operand_b;
-   str_init( &operand_b );
-   present_spec( rside, &operand_b );
-   s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-      "invalid operation: `%s` %s `%s`", operand_a.value, op,
-      operand_b.value );
-}
-
-void present_spec( struct result* result, struct str* string ) {
-   switch ( result->spec ) {
-   case SPEC_ZRAW:
-      str_append( string, "zraw" );
-      break;
-   case SPEC_ZINT:
-      str_append( string, "zint" );
-      break;
-   case SPEC_ZFIXED:
-      str_append( string, "zfixed" );
-      break;
-   case SPEC_ZBOOL:
-      str_append( string, "zbool" );
-      break;
-   case SPEC_ZSTR:
-      str_append( string, "zstr" );
-      break;
-   default:
-      break;
-   }
-}
-
-void s_present_spec( int spec, struct str* string ) {
-   struct result result;
-   result.spec = spec;
-   present_spec( &result, string );
 }
 
 void fold_bop( struct semantic* semantic, struct binary* binary,
@@ -459,23 +417,32 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, logical->lside );
+   if ( ! lside.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+         "left operand unusable" );
+      s_bail( semantic );
+   }
    struct result rside;
    init_result( &rside );
    test_operand( semantic, test, &rside, logical->rside );
-   bool performed = perform_logical( semantic,
-      logical, &lside, &rside, result );
-   if ( ! performed ) {
-      invalid_logical( semantic, logical, &lside, &rside );
+   if ( ! rside.usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+         "right operand unusable" );
+      s_bail( semantic );
+   }
+   if ( ! perform_logical( logical, &lside, &rside, result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &logical->pos,
+         "invalid logical operation" );
       s_bail( semantic );
    }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
-      fold_logical( semantic, logical, &lside, &rside, result );
+      fold_logical( logical, &lside, &rside, result );
    }
 }
 
-bool perform_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside, struct result* result ) {
+bool perform_logical( struct logical* logical, struct result* lside,
+   struct result* rside, struct result* result ) {
    if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
       result->spec = SPEC_ZBOOL;
       result->complete = true;
@@ -487,42 +454,29 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
    return false;
 }
 
-bool can_convert_to_boolean( struct result* result ) {
-   switch ( result->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
-   case SPEC_ZSTR:
+// NOTE: Im not sure if this function is necessary, since every usable result
+// can be converted to a boolean.
+bool can_convert_to_boolean( struct result* operand ) {
+   if ( is_ref_type( operand ) ) {
       return true;
-   default:
-      return false;
+   }
+   else {
+      switch ( operand->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+      case SPEC_ZBOOL:
+      case SPEC_ZSTR:
+      case SPEC_ENUM:
+         return true;
+      default:
+         return false;
+      }
    }
 }
 
-void invalid_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside ) {
-   // TODO: Move to token phase.
-   const char* op = "";
-   switch ( logical->op ) {
-   case LOP_OR: op = "||"; break;
-   case LOP_AND: op = "&&"; break;
-   default:
-      UNREACHABLE()
-   }
-   struct str operand_a;
-   str_init( &operand_a );
-   present_spec( lside, &operand_a );
-   struct str operand_b;
-   str_init( &operand_b );
-   present_spec( rside, &operand_b );
-   s_diag( semantic, DIAG_POS_ERR, &logical->pos,
-      "invalid operation: `%s` %s `%s`", operand_a.value, op,
-      operand_b.value );
-}
-
-void fold_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside, struct result* result ) {
+void fold_logical( struct logical* logical, struct result* lside,
+   struct result* rside, struct result* result ) {
    // Get value of left side.
    int l = 0;
    switch ( lside->spec ) {
@@ -573,137 +527,119 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &lside, assign->lside );
    if ( ! lside.assignable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-         "cannot assign to operand on left side" );
+         "cannot assign to left operand" );
       s_bail( semantic );
    }
    struct result rside;
    init_result( &rside );
    test_operand( semantic, test, &rside, assign->rside );
-   struct type_info lside_type;
-   init_type_info( &lside_type, &lside );
-   struct type_info rside_type;
-   init_type_info( &rside_type, &rside );
-   if ( ! s_same_type( &lside_type, &rside_type ) ) {
+   if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-         "assignment operands are of different type" );
+         "right operand unusable" );
       s_bail( semantic );
    }
-   if ( ! perform_assign( assign, &lside ) ) {
-      invalid_assign( semantic, assign, &lside_type );
+   if ( ! same_type( &lside, &rside ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+         "left operand and right operand of different type" );
       s_bail( semantic );
    }
-   result->ref = lside.ref;
-   result->spec = lside.spec;
-   result->complete = true;
-   result->usable = true;
+   if ( ! perform_assign( assign, &lside, result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+         "invalid assignment operation" );
+      s_bail( semantic );
+   }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
    if ( test->suggest_paren_assign && ! result->in_paren ) {
-      s_diag( semantic, DIAG_WARN | DIAG_POS,
-         &assign->pos, "assignment operation not in parentheses" );
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &assign->pos,
+         "assignment operation not in parentheses" );
    }
 }
 
-bool same_types( struct result* a, struct result* b ) {
-   switch ( a->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
-   case SPEC_ZSTR:
-      return ( a->spec == b->spec );
-   default:
-      UNREACHABLE();
-      return false;
-   }
-}
-
-bool perform_assign( struct assign* assign, struct result* lside ) {
-   bool valid = false;
-   switch ( assign->op ) {
-   case AOP_NONE:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZBOOL:
-      case SPEC_ZSTR:
-         valid = true;
+bool perform_assign( struct assign* assign, struct result* lside,
+   struct result* result ) {
+   // Value type.
+   if ( is_value_type( lside ) ) {
+      bool valid = false;
+      switch ( assign->op ) {
+      case AOP_NONE:
+         switch ( lside->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZBOOL:
+         case SPEC_ZSTR:
+            valid = true;
+            break;
+         default:
+            break;
+         }
+         break;
+      case AOP_ADD:
+         switch ( lside->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZSTR:
+            valid = true;
+            break;
+         default:
+            break;
+         }
+         break;
+      case AOP_SUB:
+      case AOP_MUL:
+      case AOP_DIV:
+         switch ( lside->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+            valid = true;
+            break;
+         default:
+            break;
+         }
+         break;
+      case AOP_MOD:
+      case AOP_SHIFT_L:
+      case AOP_SHIFT_R:
+      case AOP_BIT_AND:
+      case AOP_BIT_XOR:
+      case AOP_BIT_OR:
+         switch ( lside->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+            valid = true;
+            break;
+         default:
+            break;
+         }
          break;
       default:
          break;
       }
-      break;
-   case AOP_ADD:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZSTR:
-         valid = true;
-         break;
-      default:
-         break;
-      }
-      break;
-   case AOP_SUB:
-   case AOP_MUL:
-   case AOP_DIV:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-         valid = true;
-         break;
-      default:
-         break;
-      }
-      break;
-   case AOP_MOD:
-   case AOP_SHIFT_L:
-   case AOP_SHIFT_R:
-   case AOP_BIT_AND:
-   case AOP_BIT_XOR:
-   case AOP_BIT_OR:
-      switch ( lside->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-         valid = true;
-         break;
-      default:
-         break;
-      }
-      break;
-   default:
-      break;
-   }
-   if ( ! valid ) {
-      return false;
-   }
-   if ( lside->ref ) {
-      // Only plain assignment can be performed on a reference type.
-      if ( ! ( assign->op == AOP_NONE ) ) {
+      if ( ! valid ) {
          return false;
       }
+      result->spec = lside->spec;
+      result->complete = true;
+      result->usable = true;
+      return true;
    }
-   return true;
-}
-
-void invalid_assign( struct semantic* semantic, struct assign* assign,
-   struct type_info* lside_type ) {
-   // TODO: Move to token phase.
-   static const char* op_names[] = {
-      "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=" };
-   const char* op = ( assign->op < ARRAY_SIZE( op_names ) ) ?
-      op_names[ assign->op ] : "";
-   struct str lside_type_s;
-   str_init( &lside_type_s );
-   s_present_type( lside_type, &lside_type_s );
-   s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-      "invalid operation: `%s` with %s operands",
-      op, lside_type_s.value );
-   str_deinit( &lside_type_s );
+   // Reference type.
+   else {
+      // Only plain assignment can be performed on a reference type.
+      if ( assign->op != AOP_NONE ) {
+         return false;
+      }
+      result->ref = lside->ref;
+      result->structure = lside->structure;
+      result->spec = lside->spec;
+      result->complete = true;
+      result->usable = true;
+      return true;
+   }
 }
 
 void test_conditional( struct semantic* semantic, struct expr_test* test,
@@ -716,14 +652,6 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          "left operand not a value" );
       s_bail( semantic );
    }
-   // A string has an index. This index could be 0. The problem is that the
-   // value 0 indicates a failed condition, but the string surely is a valid
-   // value. So for now, disallow the usage of a string as the left operand.
-   if ( left.spec == SPEC_ZSTR ) {
-      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
-         "left operand of `str` type" );
-      s_bail( semantic );
-   }
    struct result middle = left;
    if ( cond->middle ) {
       init_result( &middle );
@@ -732,21 +660,30 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    struct result right;
    init_result( &right );
    test_operand( semantic, test, &right, cond->right );
-   if ( ! same_types( &middle, &right ) ) {
+   if ( ! same_type( &middle, &right ) ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
-         "%s and right operands of different type",
+         "%s operand and right operand of different type",
          cond->middle ? "middle" : "left" );
       s_bail( semantic );
    }
-   result->spec = left.spec;
+   result->ref = right.ref;
+   result->structure = right.structure;
+   result->dim = right.dim;
+   result->spec = right.spec;
    result->complete = true;
-   result->usable = ( result->spec != SPEC_VOID );
+   result->usable = ( right.spec != SPEC_VOID );
+   if ( ! result->dim && result->ref ) {
+      if ( result->ref->type == REF_ARRAY ) {
+         struct ref_array* part = ( struct ref_array* ) result->ref;
+         result->ref_dim = part->dim_count;
+      }
+   }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
-      cond->left_value = left.value;
-      cond->folded = true;
       result->value = left.value ? middle.value : right.value;
       result->folded = true;
+      cond->left_value = left.value;
+      cond->folded = true;
    }
 }
 
@@ -777,15 +714,14 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    struct result operand;
    init_result( &operand );
    test_operand( semantic, test, &operand, unary->operand );
-   // Remaining operations require a value to work on.
    if ( ! operand.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &unary->pos,
-         "operand of unary operation not a value" );
+         "operand not a value" );
       s_bail( semantic );
    }
-   bool performed = perform_unary( semantic, unary, &operand, result );
-   if ( ! performed ) {
-      invalid_unary( semantic, unary, &operand );
+   if ( ! perform_unary( unary, &operand, result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &unary->pos,
+         "invalid unary operation" );
       s_bail( semantic );
    }
    // Compile-time evaluation.
@@ -794,58 +730,76 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_unary( struct semantic* semantic, struct unary* unary,
-   struct result* operand, struct result* result ) {
-   int spec = SPEC_NONE;
-   switch ( unary->op ) {
-   case UOP_MINUS:
-   case UOP_PLUS:
-      switch ( operand->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-         spec = operand->spec;
+bool perform_unary( struct unary* unary, struct result* operand,
+   struct result* result ) {
+   // Value type.
+   if ( is_value_type( operand ) ) {
+      int spec = SPEC_NONE;
+      switch ( unary->op ) {
+      case UOP_MINUS:
+      case UOP_PLUS:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+            spec = operand->spec;
+         default:
+            break;
+         }
+         break;
+      case UOP_BIT_NOT:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+            spec = operand->spec;
+         default:
+            break;
+         }
+         break;
+      case UOP_LOG_NOT:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+            spec = SPEC_ZRAW;
+            break;
+         default:
+            spec = SPEC_ZBOOL;
+            break;
+         }
+         break;
       default:
-         break;
+         UNREACHABLE()
       }
-      break;
-   case UOP_BIT_NOT:
-      switch ( operand->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-         spec = operand->spec;
-      default:
-         break;
+      if ( spec != SPEC_NONE ) {
+         result->spec = spec;
+         result->complete = true;
+         result->usable = true;
+         unary->operand_spec = operand->spec;
+         return true;
       }
-      break;
-   case UOP_LOG_NOT:
-      switch ( operand->spec ) {
-      case SPEC_ZRAW:
-         spec = operand->spec;
-         break;
-      default:
-         spec = SPEC_ZBOOL;
-         break;
+      else {
+         return false;
       }
-      break;
-   default:
-      UNREACHABLE()
    }
-   if ( spec == SPEC_NONE ) {
-      return false;
+   // Reference type.
+   else {
+      // Only logical-not can be performed on a reference type.
+      if ( unary->op == UOP_LOG_NOT ) {
+         result->spec = SPEC_ZBOOL;
+         result->complete = true;
+         result->usable = true;
+         return true;
+      }
+      else {
+         return false;
+      }
    }
-   result->spec = spec;
-   result->complete = true;
-   result->usable = true;
-   unary->operand_spec = operand->spec;
-   return true;
 }
 
 void fold_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
    switch ( unary->op ) {
    case UOP_MINUS:
-      fold_unary_minus( semantic, operand, result );
+      fold_unary_minus( operand, result );
       break;
    case UOP_PLUS:
       result->value = operand->value;
@@ -863,8 +817,7 @@ void fold_unary( struct semantic* semantic, struct unary* unary,
    }
 }
 
-void fold_unary_minus( struct semantic* semantic, struct result* operand,
-   struct result* result ) {
+void fold_unary_minus( struct result* operand, struct result* result ) {
    switch ( operand->spec ) {
    case SPEC_ZRAW:
    case SPEC_ZINT:
@@ -899,128 +852,131 @@ void fold_logical_not( struct semantic* semantic, struct result* operand,
    }
 }
 
-void invalid_unary( struct semantic* semantic, struct unary* unary,
-   struct result* operand ) {
-   // TODO: Move to token phase.
-   static const char* op_names[] = { "-", "+", "!", "~" };
-   const char* op = ( unary->op - 1 < ARRAY_SIZE( op_names ) ) ?
-      op_names[ unary->op - 1 ] : "";
-   struct str type;
-   str_init( &type );
-   present_spec( operand, &type );
-   s_diag( semantic, DIAG_POS_ERR, &unary->pos,
-      "invalid operation: %s `%s`", op, type.value );
-   str_deinit( &type );
-}
-
 void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc ) {
    struct result operand;
    init_result( &operand );
    test_operand( semantic, test, &operand, inc->operand );
-   bool performed = perform_inc( semantic, inc, &operand, result );
-   if ( ! performed ) {
-      invalid_inc( semantic, inc, &operand );
-      s_bail( semantic );
-   }
-}
-
-bool perform_inc( struct semantic* semantic, struct inc* inc,
-   struct result* operand, struct result* result ) {
-   // Only an l-value can be incremented.
-   if ( ! operand->assignable ) {
+   if ( ! operand.assignable ) {
       s_diag( semantic, DIAG_POS_ERR, &inc->pos,
          "operand cannot be %s", inc->dec ?
             "decremented" : "incremented" );
       s_bail( semantic );
    }
-   switch ( operand->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-      break;
-   default:
-      return false;
+   if ( ! perform_inc( inc, &operand, result ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &inc->pos,
+         "invalid %s operation", inc->dec ?
+            "decrement" : "increment" );
+      s_bail( semantic );
    }
-   result->spec = operand->spec;
-   result->complete = true;
-   result->usable = true;
-   inc->zfixed = ( operand->spec == SPEC_ZFIXED );
-   return true;
 }
 
-void invalid_inc( struct semantic* semantic, struct inc* inc,
-   struct result* operand ) {
-   struct str type;
-   str_init( &type );
-   present_spec( operand, &type );
-   s_diag( semantic, DIAG_POS_ERR, &inc->pos,
-      "invalid operation: %s `%s`",
-      inc->dec ? "++" : "--", type.value );
-   str_deinit( &type );
+bool perform_inc( struct inc* inc, struct result* operand,
+   struct result* result ) {
+   // Value type.
+   if ( is_value_type( operand ) ) {
+      switch ( operand->spec ) {
+      case SPEC_ZRAW:
+      case SPEC_ZINT:
+      case SPEC_ZFIXED:
+         break;
+      default:
+         return false;
+      }
+      result->spec = operand->spec;
+      result->complete = true;
+      result->usable = true;
+      inc->zfixed = ( operand->spec == SPEC_ZFIXED );
+      return true;
+   }
+   // Reference type.
+   else {
+      return false;
+   }
 }
 
 void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast ) {
    test_operand( semantic, test, result, cast->operand );
-   if ( valid_cast( cast, result ) ) {
-      result->spec = cast->spec;
+   if ( ! result->usable ) {
+      s_diag( semantic, DIAG_POS_ERR, &cast->pos,
+         "cast operand not a value" );
+      s_bail( semantic );
    }
-   else {
+   if ( ! valid_cast( cast, result ) ) {
       invalid_cast( semantic, cast, result );
       s_bail( semantic );
    }
+   result->spec = cast->spec;
 }
 
-bool valid_cast( struct cast* cast, struct result* result ) {
-   bool valid = false;
-   switch ( cast->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-      switch ( result->spec ) {
+bool valid_cast( struct cast* cast, struct result* operand ) {
+   // Value type.
+   if ( is_value_type( operand ) ) {
+      bool valid = false;
+      switch ( cast->spec ) {
       case SPEC_ZRAW:
       case SPEC_ZINT:
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+         case SPEC_ZFIXED:
+         case SPEC_ZBOOL:
+         case SPEC_ZSTR:
+            valid = true;
+            break;
+         default:
+            break;
+         }
+         break;
       case SPEC_ZFIXED:
       case SPEC_ZBOOL:
       case SPEC_ZSTR:
-         valid = true;
+         switch ( operand->spec ) {
+         case SPEC_ZRAW:
+         case SPEC_ZINT:
+            valid = true;
+            break;
+         default:
+            valid = ( cast->spec == operand->spec );
+            break;
+         }
          break;
       default:
          break;
       }
-      break;
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
-   case SPEC_ZSTR:
-      switch ( result->spec ) {
+      return valid;
+   }
+   // Reference type.
+   else {
+      switch ( cast->spec ) {
       case SPEC_ZRAW:
       case SPEC_ZINT:
-         valid = true;
-         break;
+         return true;
       default:
-         valid = ( cast->spec == result->spec );
-         break;
+         return false;
       }
-      break;
-   default:
-      break;
    }
-   return valid;
 }
 
 // TODO: Change error message.
 void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
-   struct str type;
-   str_init( &type );
-   s_present_spec( cast->spec, &type );
-   struct str operand_type;
-   str_init( &operand_type );
-   present_spec( operand, &operand_type );
+   struct type_info cast_type;
+   s_init_type_info( &cast_type, cast->spec, NULL, NULL, NULL );
+   struct type_info operand_type;
+   init_type_info( &operand_type, operand );
+   struct str cast_type_s;
+   str_init( &cast_type_s );
+   s_present_type( &cast_type, &cast_type_s );
+   struct str operand_type_s;
+   str_init( &operand_type_s );
+   s_present_type( &operand_type, &operand_type_s );
    s_diag( semantic, DIAG_POS_ERR, &cast->pos,
-      "invalid cast: `%s` to `%s`",
-       operand_type.value, type.value );
-   str_deinit( &type );
+      "%s operand cannot be cast to %s",
+       operand_type_s.value, cast_type_s.value );
+   str_deinit( &cast_type_s );
+   str_deinit( &operand_type_s );
 }
 
 void test_suffix( struct semantic* semantic, struct expr_test* test,
@@ -1050,8 +1006,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, subscript->lside );
-   bool array_ref = ( lside.dim || lside.ref_dim > 0 );
-   if ( ! array_ref ) {
+   if ( ! is_array_ref( &lside ) ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "operand not an array reference" );
       s_bail( semantic );
@@ -1115,41 +1070,24 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    }
 }
 
+bool is_array_ref( struct result* result ) {
+   return ( result->dim || result->ref_dim > 0 );
+}
+
 void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access ) {
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, access->lside );
-   if ( ! ( lside.spec == SPEC_STRUCT && ! lside.dim ) ) {
+   if ( ! is_struct_ref( &lside ) ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand not of struct type" );
       s_bail( semantic );
    }
    struct name* name = t_extend_name( lside.structure->body, access->name );
    if ( ! name->object ) {
-      // The right operand might be a member of a structure that hasn't been
-      // processed yet because the structure appears later in the source code.
-      // Leave for now.
-      // TODO: The name should already refer to a valid member by this stage.
-      // Need to refactor the declaration code, then remove this.
-      if ( ! semantic->trigger_err ) {
-         test->undef_erred = true;
-         longjmp( test->bail, 1 );
-      }
-      if ( lside.structure->anon ) {
-         s_diag( semantic, DIAG_POS_ERR, &access->pos,
-            "`%s` not member of anonymous struct", access->name );
-         s_bail( semantic );
-      }
-      else {
-         struct str str;
-         str_init( &str );
-         t_copy_name( lside.structure->name, false, &str );
-         s_diag( semantic, DIAG_POS_ERR, &access->pos,
-            "`%s` not member of struct `%s`", access->name,
-            str.value );
-         s_bail( semantic );
-      }
+      unknown_member( semantic, access, &lside.structure->object );
+      s_bail( semantic );
    }
    if ( ! name->object->resolved ) {
       if ( semantic->trigger_err ) {
@@ -1162,8 +1100,48 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   select_object( semantic, test, result, name->object );
+   select_object( test, result, name->object );
    access->rside = ( struct node* ) name->object;
+}
+
+bool is_struct_ref( struct result* result ) {
+   bool explicit_ref = ( ! result->dim && result->ref &&
+      result->ref->type == REF_VAR && result->spec == SPEC_STRUCT );
+   bool implicit_ref = ( ! result->dim && ! result->ref &&
+      result->spec == SPEC_STRUCT );
+   return ( explicit_ref || implicit_ref );
+}
+
+void unknown_member( struct semantic* semantic, struct access* access,
+   struct object* object ) {
+   if ( object->node.type == NODE_STRUCTURE ) {
+      struct structure* type = ( struct structure* ) object;
+      if ( type->anon ) {
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
+            "`%s` not a member of anonymous struct", access->name );
+         s_bail( semantic );
+      }
+      else {
+         struct str str;
+         str_init( &str );
+         t_copy_name( type->name, false, &str );
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
+            "`%s` not a member of struct `%s`", access->name,
+            str.value );
+         str_deinit( &str );
+      }
+   }
+   /*
+   else if ( object->node.type == NODE_ENUMERATION ) {
+      struct enumeration* enumeration = ( struct enumeration* ) object;
+      struct str str;
+      str_init( &str );
+      t_copy_name( enumeration->name, false, &str );
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "`%s` not an enumerator of `%s` enumeration", access->name,
+         str.value );
+      str_deinit( &str );
+   } */
 }
 
 void test_call( struct semantic* semantic, struct expr_test* expr_test,
@@ -1379,7 +1357,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
       false, false );
    // When using the array format-cast, accept an array as the result of the
    // expression.
-   nested.accept_array = true;
+   // nested.accept_array = true;
    struct result root;
    init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
@@ -1435,7 +1413,7 @@ void test_remaining_args( struct semantic* semantic,
       struct result required_result;
       init_result( &required_result );
       required_result.spec = param->spec;
-      if ( ! same_types( &result, &required_result ) ) {
+      if ( ! same_type( &result, &required_result ) ) {
          arg_mismatch( semantic, &expr->pos, &result, &required_result,
             test->num_args + 1 );
          s_bail( semantic );
@@ -1448,38 +1426,42 @@ void test_remaining_args( struct semantic* semantic,
 
 void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct result* result, struct result* required_result, int number ) {
-   struct str type;
-   str_init( &type );
-   present_spec( result, &type );
-   struct str param_type;
-   str_init( &param_type );
-   present_spec( required_result, &param_type );
+   struct type_info arg_type;
+   init_type_info( &arg_type, result );
+   struct type_info param_type;
+   init_type_info( &param_type, required_result );
+   struct str arg_type_s;
+   str_init( &arg_type_s );
+   s_present_type( &arg_type, &arg_type_s );
+   struct str param_type_s;
+   str_init( &param_type_s );
+   s_present_type( &param_type, &param_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
       "argument/parameter type mismatch (in argument %d)", number );
    s_diag( semantic, DIAG_POS, pos,
       "`%s` argument, but `%s` parameter",
-      type.value, param_type.value );
-   str_deinit( &param_type );
-   str_deinit( &type );
+      arg_type_s.value, param_type_s.value );
+   str_deinit( &param_type_s );
+   str_deinit( &arg_type_s );
 }
 
 void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_LITERAL:
-      test_literal( semantic, result,
+      test_literal( result,
          ( struct literal* ) node );
       break;
    case NODE_FIXED_LITERAL:
-      test_fixed_literal( semantic, result,
+      test_fixed_literal( result,
          ( struct fixed_literal* ) node );
       break;
    case NODE_INDEXED_STRING_USAGE:
-      test_string_usage( semantic, test, result,
+      test_string_usage( test, result,
          ( struct indexed_string_usage* ) node );
       break;
    case NODE_BOOLEAN:
-      test_boolean( semantic, result,
+      test_boolean( result,
          ( struct boolean* ) node );
       break;
    case NODE_NAME_USAGE:
@@ -1499,8 +1481,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_literal( struct semantic* semantic, struct result* result,
-   struct literal* literal ) {
+void test_literal( struct result* result, struct literal* literal ) {
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
@@ -1508,7 +1489,7 @@ void test_literal( struct semantic* semantic, struct result* result,
    result->spec = SPEC_ZINT;
 }
 
-void test_fixed_literal( struct semantic* semantic, struct result* result,
+void test_fixed_literal( struct result* result,
    struct fixed_literal* literal ) {
    result->value = literal->value;
    result->folded = true;
@@ -1517,8 +1498,8 @@ void test_fixed_literal( struct semantic* semantic, struct result* result,
    result->spec = SPEC_ZFIXED;
 }
 
-void test_string_usage( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct indexed_string_usage* usage ) {
+void test_string_usage( struct expr_test* test, struct result* result,
+   struct indexed_string_usage* usage ) {
    result->value = usage->string->index;
    result->folded = true;
    result->complete = true;
@@ -1527,8 +1508,7 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
    test->has_string = true;
 }
 
-void test_boolean( struct semantic* semantic, struct result* result,
-   struct boolean* boolean ) {
+void test_boolean( struct result* result, struct boolean* boolean ) {
    result->value = boolean->value;
    result->folded = true;
    result->complete = true;
@@ -1540,7 +1520,7 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage ) {
    struct object* object = find_referenced_object( semantic, usage );
    if ( object && object->resolved ) {
-      select_object( semantic, test, result, object );
+      select_object( test, result, object );
       usage->object = &object->node;
    }
    // Object not found or isn't valid.
@@ -1582,7 +1562,6 @@ struct object* find_referenced_object( struct semantic* semantic,
          return name->object;
       }
    }
-
    // Try searching in the upmost scope.
    struct name* name = t_extend_name( semantic->task->body, usage->text );
    if ( name->object ) {
@@ -1593,35 +1572,34 @@ struct object* find_referenced_object( struct semantic* semantic,
       }
       return object;
    }
-
    return NULL;
 }
 
-void select_object( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct object* object ) {
+void select_object( struct expr_test* test, struct result* result,
+   struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
-      select_constant( semantic, result, 
+      select_constant( result, 
          ( struct constant* ) object );
       break;
    case NODE_ENUMERATOR:
-      select_enumerator( semantic, result,
+      select_enumerator( result,
          ( struct enumerator* ) object );
       break;
    case NODE_VAR:
-      select_var( semantic, test, result,
+      select_var( test, result,
          ( struct var* ) object );
       break;
    case NODE_PARAM:
-      select_param( semantic, result,
+      select_param( result,
          ( struct param* ) object );
       break;
    case NODE_STRUCTURE_MEMBER:
-      select_member( semantic, test, result,
+      select_member( test, result,
          ( struct structure_member* ) object );
       break;
    case NODE_FUNC:
-      select_func( semantic, result,
+      select_func( result,
          ( struct func* ) object );
       break;
    default:
@@ -1629,8 +1607,7 @@ void select_object( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_constant( struct semantic* semantic, struct result* result,
-   struct constant* constant ) {
+void select_constant( struct result* result, struct constant* constant ) {
    result->spec = SPEC_ZINT;
    result->value = constant->value;
    result->folded = true;
@@ -1638,7 +1615,7 @@ void select_constant( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-void select_enumerator( struct semantic* semantic, struct result* result,
+void select_enumerator( struct result* result,
    struct enumerator* enumerator ) {
    result->spec = SPEC_ZINT;
    result->value = enumerator->value;
@@ -1647,37 +1624,35 @@ void select_enumerator( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-void select_var( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct var* var ) {
+void select_var( struct expr_test* test, struct result* result,
+   struct var* var ) {
    result->ref = var->ref;
    result->structure = var->structure;
+   result->dim = var->dim;
    result->spec = var->spec;
-   if ( var->dim ) {
-      result->dim = var->dim;
-      // NOTE: I'm not too happy with the idea of this field. It is
-      // contagious. Blame the Hypnotoad.
-      if ( test->accept_array ) {
-         result->complete = true;
-      }
-   }
-   else {
+   result->usable = true;
+   if ( is_ref_type( result ) ) {
       if ( result->ref ) {
          if ( result->ref->type == REF_ARRAY ) {
             struct ref_array* part = ( struct ref_array* ) result->ref;
             result->ref_dim = part->dim_count;
          }
+         if ( ! result->dim ) {
+            result->assignable = true;
+         }
       }
+      result->complete = true;
+   }
+   else {
       if ( ! var->structure ) {
          result->complete = true;
-         result->usable = true;
          result->assignable = true;
       }
    }
    var->used = true;
 }
 
-void select_param( struct semantic* semantic, struct result* result,
-   struct param* param ) {
+void select_param( struct result* result, struct param* param ) {
    result->spec = param->spec;
    result->complete = true;
    result->usable = true;
@@ -1685,16 +1660,13 @@ void select_param( struct semantic* semantic, struct result* result,
    param->used = true;
 }
 
-void select_member( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct structure_member* member ) {
+void select_member( struct expr_test* test, struct result* result,
+   struct structure_member* member ) {
    result->ref = member->ref;
    result->structure = member->structure;
    result->spec = member->spec;
    if ( member->dim ) {
       result->dim = member->dim;
-      if ( test->accept_array ) {
-         result->complete = true;
-      }
    }
    else {
       if ( result->ref ) {
@@ -1711,8 +1683,7 @@ void select_member( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_func( struct semantic* semantic, struct result* result,
-   struct func* func ) {
+void select_func( struct result* result, struct func* func ) {
    if ( func->type == FUNC_USER ) {
       struct func_user* impl = func->impl;
       ++impl->usage;
@@ -1733,53 +1704,73 @@ void select_func( struct semantic* semantic, struct result* result,
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
    // Array.
-   struct expr_test nested;
-   s_init_expr_test( &nested,
-      test->stmt_test, test->format_block,
-      false, false );
-   nested.accept_array = true;
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, test, &nested, &root, call->array );
-   if ( ! root.dim ) {
+   struct result arg;
+   init_result( &arg );
+   test_root( semantic, test, &arg, call->array );
+   if ( ! is_onedim_intelem_array_ref( &arg ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
-         "argument not an array" );
+         "array argument not a one-dimensional, "
+         "integer element-type array-reference" );
       s_bail( semantic );
    }
    // Array-offset.
    if ( call->array_offset ) {
-      s_init_expr_test( &nested,
-         test->stmt_test, test->format_block,
-         false, false );
-      init_result( &root );
-      test_nested_root( semantic, test, &nested, &root, call->array_offset );
+      init_result( &arg );
+      test_root( semantic, test, &arg, call->array_offset );
+      if ( ! ( arg.usable && is_int_value( &arg ) ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->array_offset->pos,
+            "array-offset argument not an integer value" );
+         s_bail( semantic );
+      }
       // Array-length.
       if ( call->array_length ) {
-         s_init_expr_test( &nested,
-            test->stmt_test, test->format_block,
-            false, false );
-         init_result( &root );
-         test_nested_root( semantic, test, &nested, &root,
-            call->array_length );
+         init_result( &arg );
+         test_root( semantic, test, &arg, call->array_length );
+         if ( ! ( arg.usable && is_int_value( &arg ) ) ) {
+            s_diag( semantic, DIAG_POS_ERR, &call->array_length->pos,
+               "array-length argument not an integer value" );
+            s_bail( semantic );
+         }
       }
    }
    // String.
-   s_init_expr_test( &nested,
-      test->stmt_test, test->format_block,
-      false, false );
-   init_result( &root );
-   test_nested_root( semantic, test, &nested, &root, call->string );
+   init_result( &arg );
+   test_root( semantic, test, &arg, call->string );
+   if ( ! ( arg.usable && is_str_value( &arg ) ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->string->pos,
+         "string argument not a string value" );
+      s_bail( semantic );
+   }
    // String-offset.
    if ( call->offset ) {
-      s_init_expr_test( &nested,
-         test->stmt_test, test->format_block,
-         false, false );
-      init_result( &root );
-      test_nested_root( semantic, test, &nested, &root, call->offset );
+      init_result( &arg );
+      test_root( semantic, test, &arg, call->offset );
+      if ( ! ( arg.usable && is_int_value( &arg ) ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->offset->pos,
+            "string-offset argument not an integer value" );
+         s_bail( semantic );
+      }
    }
    result->spec = SPEC_ZBOOL;
    result->complete = true;
    result->usable = true;
+}
+
+bool is_onedim_intelem_array_ref( struct result* result ) {
+   bool onedim_array = ( result->dim && ! result->dim->next ) ||
+      ( result->ref_dim == 1 );
+   bool int_elem = ( result->spec == SPEC_ZRAW ||
+      result->spec == SPEC_ZINT );
+   return ( onedim_array && int_elem );
+}
+
+bool is_int_value( struct result* result ) {
+   return ( is_value_type( result ) && ( result->spec == SPEC_ZRAW ||
+      result->spec == SPEC_ZINT ) );
+}
+
+bool is_str_value( struct result* result ) {
+   return ( is_value_type( result ) && result->spec == SPEC_ZSTR );
 }
 
 void test_paren( struct semantic* semantic, struct expr_test* test,
@@ -1789,7 +1780,25 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
    result->in_paren = false;
 }
 
-inline static void init_type_info( struct type_info* type,
-   struct result* result ) {
-   s_init_type_info( type, result->spec, result->ref, result->dim );
+inline void init_type_info( struct type_info* type, struct result* result ) {
+   s_init_type_info( type, result->spec, result->ref, result->dim,
+      result->structure );
+}
+
+bool same_type( struct result* a, struct result* b ) {
+   struct type_info a_type;
+   init_type_info( &a_type, a );
+   struct type_info b_type;
+   init_type_info( &b_type, b );
+   return s_same_type( &a_type, &b_type );
+}
+
+bool is_value_type( struct result* result ) {
+   struct type_info type;
+   init_type_info( &type, result );
+   return s_is_value_type( &type );
+}
+
+bool is_ref_type( struct result* result ) {
+   return ( result->ref || result->dim || result->structure );
 }

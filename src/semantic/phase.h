@@ -38,14 +38,18 @@ struct expr_test {
    bool result_required;
    bool has_string;
    bool undef_erred;
-   bool accept_array;
    bool suggest_paren_assign;
 };
 
 struct type_info {
    struct ref* ref;
+   struct structure* structure;
    struct dim* dim;
    int spec;
+   union {
+      struct ref var;
+      struct ref_array array;
+   } implicit_ref;
 };
 
 struct semantic {
@@ -94,13 +98,13 @@ void s_bail( struct semantic* semantic );
 void s_init_object_search( struct object_search* search, struct path* path,
    bool get_struct );
 void s_find_object( struct semantic* semantic, struct object_search* search );
-void s_present_spec( int spec, struct str* string );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
-   struct dim* dim );
+   struct dim* dim, struct structure* structure );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_scalar_type( struct type_info* type );
+bool s_is_value_type( struct type_info* type );
 
 #endif

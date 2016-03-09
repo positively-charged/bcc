@@ -31,8 +31,6 @@ struct value_index_alloc {
 
 static void test_enumerator( struct semantic* semantic,
    struct enumeration_test* test, struct enumerator* enumerator );
-static void enumerator_mismatch( struct semantic* semantic,
-   struct enumerator* enumerator );
 static void test_struct_name( struct semantic* semantic, struct structure* type );
 static bool test_struct_body( struct semantic* semantic, struct structure* type );
 static void test_member( struct semantic* semantic,
@@ -81,9 +79,7 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
-static bool same_ref_type( struct type_info* a, struct type_info* b );
 static bool same_ref( struct ref* a, struct ref* b );
-static bool same_ref_decay( struct ref* a, struct type_info* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool compatible_zraw_spec( int spec );
@@ -156,7 +152,8 @@ void test_enumerator( struct semantic* semantic,
       // The type of an enumerator is `zint`. Maybe, sometime later, we'll
       // allow the user to specify the type of an enumerator value.
       if ( enumerator->initz->spec != SPEC_ZINT ) {
-         enumerator_mismatch( semantic, enumerator );
+         s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
+            "enumerator initializer of non-integer value" );
          s_bail( semantic );
       }
       test->value = enumerator->initz->value;
@@ -176,23 +173,6 @@ void test_enumerator( struct semantic* semantic,
    }
    enumerator->value = test->value;
    enumerator->object.resolved = true;
-}
-
-void enumerator_mismatch( struct semantic* semantic,
-   struct enumerator* enumerator ) {
-   struct str type;
-   str_init( &type );
-   s_present_spec( enumerator->initz->spec, &type );
-   struct str required_type;
-   str_init( &required_type );
-   s_present_spec( SPEC_ZINT, &required_type );
-   s_diag( semantic, DIAG_POS_ERR, &enumerator->initz->pos,
-      "enumerator-initializer type mismatch" );
-   s_diag( semantic, DIAG_POS, &enumerator->initz->pos,
-      "`%s` enumerator-initializer, but needs to be `%s`", type.value,
-      required_type.value );
-   str_deinit( &type );
-   str_deinit( &required_type );
 }
 
 void s_test_struct( struct semantic* semantic, struct structure* type ) {
@@ -322,7 +302,7 @@ void test_ref_part( struct semantic* semantic,
    struct var* var, struct ref* ref ) {
    if ( ref->type == REF_FUNCTION ) {
       struct type_info return_type;
-      s_init_type_info( &return_type, var->spec, ref->next, NULL );
+      s_init_type_info( &return_type, var->spec, ref->next, NULL, NULL );
       if ( ! s_is_scalar_type( &return_type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &ref->pos,
             "invalid return-type in function reference" );
@@ -588,9 +568,9 @@ bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
    // Scalar object.
    else {
       struct type_info type;
-      s_init_type_info( &type, spec, NULL, NULL );
+      s_init_type_info( &type, spec, NULL, NULL, NULL );
       struct type_info value_type;
-      s_init_type_info( &value_type, value->expr->spec, NULL, NULL );
+      s_init_type_info( &value_type, value->expr->spec, NULL, NULL, NULL );
       if ( ! s_same_type( &type, &value_type ) ) {
          value_mismatch_diag( semantic, &type, &value_type, value->expr,
             ( test->dim != NULL ), ( test->member != NULL ) );
@@ -624,10 +604,10 @@ void value_mismatch_diag( struct semantic* semantic, struct type_info* type,
    struct type_info* value_type, struct expr* expr, bool array, bool member ) {
    struct str type_s;
    str_init( &type_s );
-   s_present_spec( type->spec, &type_s );
+   s_present_type( type, &type_s );
    struct str value_type_s;
    str_init( &value_type_s );
-   s_present_spec( value_type->spec, &value_type_s );
+   s_present_type( value_type, &value_type_s );
    const char* object =
       array  ? "element" :
       member ? "struct-member" : "variable";
@@ -735,6 +715,7 @@ bool test_func_param( struct semantic* semantic,
 
 void default_value_mismatch( struct semantic* semantic, struct func* func,
    struct param* param, struct expr_test* expr ) {
+/*
    struct str type;
    str_init( &type );
    s_present_spec( param->default_value->spec, &type );
@@ -749,6 +730,7 @@ void default_value_mismatch( struct semantic* semantic, struct func* func,
       param_type.value );
    str_deinit( &type );
    str_deinit( &param_type );
+*/
 }
 
 int get_param_number( struct func* func, struct param* target ) {
@@ -1015,19 +997,42 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
 }
 
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
-   struct dim* dim ) {
+   struct dim* dim, struct structure* structure ) {
    type->ref = ref;
-   type->dim = dim;
+   type->structure = structure;
+   type->dim = NULL;
    type->spec = spec;
+   // An array and a structure decay into a reference.
+   if ( dim ) {
+      struct ref_array* part = &type->implicit_ref.array;
+      part->ref.next = type->ref;
+      part->ref.type = REF_ARRAY;
+      part->dim_count = 0;
+      while ( dim ) {
+         ++part->dim_count;
+         dim = dim->next;
+      }
+      type->ref = &part->ref;
+   }
+   else {
+      if ( structure && ! ref ) {
+         struct ref* part = &type->implicit_ref.var;
+         part->next = NULL;
+         part->type = REF_VAR;
+         type->ref = part;
+      }
+   }
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
    // Reference.
-   if ( a->ref || b->ref ) {
-      bool same = same_ref_type( a, b );
-      if ( ! same ) {
-         return false;
-      }
+   bool same = same_ref( a->ref, b->ref );
+   if ( ! same ) {
+      return false;
+   }
+   // Structure.
+   if ( a->structure != b->structure ) {
+      return false;
    }
    // Specifier.
    if ( a->spec == SPEC_ZRAW ) {
@@ -1038,21 +1043,6 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
    }
    else {
       return ( a->spec == b->spec );
-   }
-}
-
-bool same_ref_type( struct type_info* a, struct type_info* b ) {
-   if ( a->ref && b->ref ) {
-      return same_ref( a->ref, b->ref );
-   }
-   else if ( a->ref && ! b->ref ) {
-      return same_ref_decay( a->ref, b );
-   }
-   else if ( ! a->ref && b->ref ) {
-      return same_ref_decay( b->ref, a );
-   }
-   else {
-      return false;
    }
 }
 
@@ -1086,37 +1076,6 @@ bool same_ref( struct ref* a, struct ref* b ) {
       b = b->next;
    }
    return ( a == NULL && b == NULL );
-}
-
-// When one of the operands is not a reference value, create a temporary
-// reference value that would then be used for the reference match.
-bool same_ref_decay( struct ref* a, struct type_info* b ) {
-   if ( b->dim ) {
-      struct ref_array part;
-      part.ref.next = NULL;
-      part.ref.type = REF_ARRAY;
-      part.dim_count = 0;
-      struct dim* dim = b->dim;
-      while ( dim ) {
-         ++part.dim_count;
-         dim = dim->next;
-      }
-      return same_ref( a, &part.ref );
-   }
-/*
-   else if ( a->type == REF_FUNCTION ) {
-      if ( b->func ) {
-         struct ref_func func;
-         func.ref.next = NULL;
-         func.ref.type = REF_FUNCTION;
-         func.params = b->func->params;
-         func.min_param = b->func->min_param;
-         func.max_param = b->func->max_param;
-         same = same_ref( a, &func.ref );
-      }
-   }
-*/
-   return false;
 }
 
 bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
@@ -1158,12 +1117,27 @@ bool compatible_zraw_spec( int spec ) {
 
 void s_present_type( struct type_info* type, struct str* string ) {
    if ( type->ref ) {
-      str_append( string, "reference" );
+      switch ( type->ref->type ) {
+      case REF_ARRAY:
+         str_append( string, "array-reference" );
+         break;
+      case REF_FUNCTION:
+         str_append( string, "function-reference" );
+         break;
+      default:
+         str_append( string, "reference" );
+         break;
+      }
    }
    else {
-      str_append( string, "`" );
-      present_spec( type, string );
-      str_append( string, "`" );
+      if ( type->ref ) {
+         str_append( string, "reference" );
+      }
+      else {
+         str_append( string, "`" );
+         present_spec( type, string );
+         str_append( string, "`" );
+      }
    }
 }
 
@@ -1200,6 +1174,8 @@ void present_spec( struct type_info* type, struct str* string ) {
    case SPEC_ZSTR:
       str_append( string, "zstr" );
       break;
+   case SPEC_VOID:
+      str_append( string, "void" );
    default:
       break;
    }
@@ -1225,4 +1201,8 @@ bool s_is_scalar_type( struct type_info* type ) {
       }
    }
    return false;
+}
+
+bool s_is_value_type( struct type_info* type ) {
+   return ( ! type->ref );
 }

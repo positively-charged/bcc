@@ -134,9 +134,9 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    }
    // Check case type.
    struct type_info cond_type;
-   s_init_type_info( &cond_type, switch_stmt->cond->spec, NULL, NULL );
+   s_init_type_info( &cond_type, switch_stmt->cond->spec, NULL, NULL, NULL );
    struct type_info case_type;
-   s_init_type_info( &case_type, label->number->spec, NULL, NULL );
+   s_init_type_info( &case_type, label->number->spec, NULL, NULL, NULL );
    if ( ! s_same_type( &case_type, &cond_type ) ) {
       case_type_mismatch( semantic, &cond_type, &case_type,
          &label->number->pos );
@@ -172,10 +172,10 @@ void case_type_mismatch( struct semantic* semantic,
    struct pos* case_pos ) {
    struct str cond_type_s;
    str_init( &cond_type_s );
-   s_present_spec( cond_type->spec, &cond_type_s );
+   s_present_type( cond_type, &cond_type_s );
    struct str case_type_s;
    str_init( &case_type_s );
-   s_present_spec( case_type->spec, &case_type_s );
+   s_present_type( case_type, &case_type_s );
    s_diag( semantic, DIAG_POS_ERR, case_pos,
       "case-value/switch-condition type mismatch" );
    s_diag( semantic, DIAG_POS, case_pos,
@@ -517,6 +517,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
 
 void return_value_mismatch( struct semantic* semantic,
    struct func* func, struct return_stmt* stmt, struct pos* pos ) {
+/*
    struct str return_type;
    str_init( &return_type );
    s_present_spec( func->return_spec, &return_type );
@@ -530,6 +531,7 @@ void return_value_mismatch( struct semantic* semantic,
       return_type.value );
    str_deinit( &return_type );
    str_deinit( &value_type );
+*/
 }
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
