@@ -133,6 +133,20 @@ enum {
    SPEC_VOID
 };
 
+struct enumeration {
+   struct object object;
+   struct enumerator* head;
+   struct name* name;
+};
+
+struct enumerator {
+   struct object object;
+   struct name* name;
+   struct enumerator* next;
+   struct expr* initz;
+   int value;
+};
+
 struct structure {
    struct object object;
    struct name* name;
@@ -731,19 +745,6 @@ struct constant {
    int value;
    int lib_id;
    bool hidden;
-};
-
-struct enumerator {
-   struct object object;
-   struct name* name;
-   struct enumerator* next;
-   struct expr* initz;
-   int value;
-};
-
-struct enumeration {
-   struct object object;
-   struct enumerator* head;
 };
 
 struct indexed_string {

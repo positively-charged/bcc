@@ -280,11 +280,13 @@ void read_enum( struct parse* parse, struct dec* dec ) {
 }
 
 void read_enum_def( struct parse* parse, struct dec* dec ) {
+   struct name* name = NULL;
+   struct name* name_offset = parse->task->body;
+   struct pos name_pos = parse->tk_pos;
    if ( parse->tk == TK_ID ) {
-      p_unexpect_diag( parse );
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "naming an enum is not currently supported" );
-      p_bail( parse );
+      name = t_extend_name( parse->task->body, parse->tk_text );
+      name_offset = t_extend_name( name, "." );
+      p_read_tk( parse );
    }
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
@@ -306,7 +308,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       }
       struct enumerator* enumerator = alloc_enumerator();
       enumerator->object.pos = parse->tk_pos;
-      enumerator->name = t_extend_name( parse->task->body, parse->tk_text );
+      enumerator->name = t_extend_name( name_offset, parse->tk_text );
       p_read_tk( parse );
       if ( parse->tk == TK_ASSIGN ) {
          p_read_tk( parse );
@@ -342,6 +344,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    struct enumeration* set = mem_alloc( sizeof( *set ) );
    t_init_object( &set->object, NODE_ENUMERATION );
    set->head = head;
+   set->name = name;
    if ( dec->vars ) {
       list_append( dec->vars, set );
    }
@@ -349,7 +352,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse->task->library, &set->object );
       list_append( &parse->task->library->objects, set );
    }
-   dec->spec = SPEC_ZINT;
+   dec->spec = SPEC_ENUM;
    if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
       dec->leave = true;
