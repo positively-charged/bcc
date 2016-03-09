@@ -129,6 +129,7 @@ bool p_is_dec( struct parse* parse ) {
       case TK_ZBOOL:
       case TK_ZSTR:
       case TK_REF:
+      case TK_AUTO:
          return true;
       default:
          return false;
@@ -168,8 +169,14 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    }
    read_qual( parse, dec );
    read_storage( parse, dec );
-   read_ref( parse, dec );
-   read_type( parse, dec );
+   if ( parse->tk == TK_AUTO ) {
+      dec->spec = SPEC_AUTO;
+      p_read_tk( parse );
+   }
+   else {
+      read_ref( parse, dec );
+      read_type( parse, dec );
+   }
    if ( ! dec->leave ) {
       read_objects( parse, dec );
    }

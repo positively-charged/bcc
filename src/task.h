@@ -131,6 +131,7 @@ enum {
    SPEC_ENUM,
    SPEC_STRUCT,
    SPEC_NAME,
+   SPEC_AUTO,
    SPEC_VOID
 };
 

@@ -556,6 +556,7 @@ void read_token( struct parse* parse, struct token* token ) {
       static const struct { const char* name; enum tk tk; }
       reserved[] = {
          { "assert", TK_ASSERT },
+         { "auto", TK_AUTO },
          { "bluereturn", TK_BLUE_RETURN },
          { "bool", TK_BOOL },
          { "break", TK_BREAK },

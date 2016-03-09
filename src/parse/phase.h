@@ -139,6 +139,7 @@ enum tk {
    TK_CAST,
    TK_ASSERT,
    TK_REF,
+   TK_AUTO,
 
    TK_TOTAL,
 
