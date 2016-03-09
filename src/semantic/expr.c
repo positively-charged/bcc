@@ -542,6 +542,12 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "right operand unusable" );
       s_bail( semantic );
    }
+   if ( lside.enumeration ) {
+      lside.spec = SPEC_ENUM;
+   }
+   if ( rside.enumeration ) {
+      rside.spec = SPEC_ENUM;
+   }
    if ( ! same_type( &lside, &rside ) ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "left operand and right operand of different type" );
@@ -574,6 +580,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
          case SPEC_ZFIXED:
          case SPEC_ZBOOL:
          case SPEC_ZSTR:
+         case SPEC_ENUM:
             valid = true;
             break;
          default:
@@ -967,7 +974,7 @@ bool valid_cast( struct cast* cast, struct result* operand ) {
 void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    struct type_info cast_type;
-   s_init_type_info( &cast_type, cast->spec, NULL, NULL, NULL );
+   s_init_type_info( &cast_type, cast->spec, NULL, NULL, NULL, NULL );
    struct type_info operand_type;
    init_type_info( &operand_type, operand );
    struct str cast_type_s;
@@ -1009,7 +1016,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct subscript* subscript ) {
    struct result lside;
    init_result( &lside );
-   test_operand( semantic, test, &lside, subscript->lside );
+   test_suffix( semantic, test, &lside, subscript->lside );
    if ( ! is_array_ref( &lside ) ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "operand not an array reference" );
@@ -1082,7 +1089,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access ) {
    struct result lside;
    init_result( &lside );
-   test_operand( semantic, test, &lside, access->lside );
+   test_suffix( semantic, test, &lside, access->lside );
    struct name* name = NULL;
    if ( is_struct_ref( &lside ) ) {
       name = lside.structure->name;
@@ -1165,7 +1172,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    };
    struct result callee;
    init_result( &callee );
-   test_operand( semantic, expr_test, &callee, call->operand );
+   test_suffix( semantic, expr_test, &callee, call->operand );
    if ( ! callee.func ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "operand not a function" );
@@ -1632,6 +1639,7 @@ void select_constant( struct result* result, struct constant* constant ) {
 
 void select_enumerator( struct result* result,
    struct enumerator* enumerator ) {
+   result->enumeration = enumerator->enumeration;
    result->spec = SPEC_ZINT;
    result->value = enumerator->value;
    result->folded = true;
@@ -1648,6 +1656,7 @@ void select_var( struct expr_test* test, struct result* result,
    struct var* var ) {
    result->ref = var->ref;
    result->structure = var->structure;
+   result->enumeration = var->enumeration;
    result->dim = var->dim;
    result->spec = var->spec;
    result->usable = true;
@@ -1664,9 +1673,12 @@ void select_var( struct expr_test* test, struct result* result,
       result->complete = true;
    }
    else {
-      if ( ! var->structure ) {
+      if ( ! result->structure ) {
          result->complete = true;
          result->assignable = true;
+         if ( result->spec == SPEC_ENUM ) {
+            result->spec = SPEC_ZINT;
+         }
       }
    }
    var->used = true;
@@ -1802,7 +1814,7 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
 
 inline void init_type_info( struct type_info* type, struct result* result ) {
    s_init_type_info( type, result->spec, result->ref, result->dim,
-      result->structure );
+      result->structure, result->enumeration );
 }
 
 bool same_type( struct result* a, struct result* b ) {

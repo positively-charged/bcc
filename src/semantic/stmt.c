@@ -134,9 +134,9 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    }
    // Check case type.
    struct type_info cond_type;
-   s_init_type_info( &cond_type, switch_stmt->cond->spec, NULL, NULL, NULL );
+   s_init_type_info( &cond_type, switch_stmt->cond->spec, NULL, NULL, NULL, NULL );
    struct type_info case_type;
-   s_init_type_info( &case_type, label->number->spec, NULL, NULL, NULL );
+   s_init_type_info( &case_type, label->number->spec, NULL, NULL, NULL, NULL );
    if ( ! s_same_type( &case_type, &cond_type ) ) {
       case_type_mismatch( semantic, &cond_type, &case_type,
          &label->number->pos );

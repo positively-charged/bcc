@@ -347,6 +347,12 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    set->object.pos = name_pos;
    set->head = head;
    set->name = name;
+   // TODO: Clean up.
+   struct enumerator* enumerator = set->head;
+   while ( enumerator ) {
+      enumerator->enumeration = set;
+      enumerator = enumerator->next;
+   }
    if ( dec->vars ) {
       list_append( dec->vars, set );
    }

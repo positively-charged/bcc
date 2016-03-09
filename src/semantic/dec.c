@@ -45,6 +45,7 @@ static bool test_ref( struct semantic* semantic, struct var* var );
 static void test_ref_part( struct semantic* semantic,
    struct var* var, struct ref* ref );
 static bool test_spec( struct semantic* semantic, struct var* var );
+static void resolve_name_spec( struct semantic* semantic, struct var* var );
 static bool test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
@@ -156,7 +157,8 @@ void test_enumerator( struct semantic* semantic,
       }
       // The type of an enumerator is `zint`. Maybe, sometime later, we'll
       // allow the user to specify the type of an enumerator value.
-      if ( enumerator->initz->spec != SPEC_ZINT ) {
+      if ( enumerator->initz->spec != SPEC_ZINT &&
+         enumerator->initz->spec != SPEC_ENUM ) {
          s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
             "enumerator initializer of non-integer value" );
          s_bail( semantic );
@@ -285,6 +287,9 @@ bool test_member_dim( struct semantic* semantic,
 }
 
 void s_test_var( struct semantic* semantic, struct var* var ) {
+   if ( var->spec == SPEC_NAME ) {
+      resolve_name_spec( semantic, var );
+   }
    var->object.resolved = (
       test_ref( semantic, var ) &&
       test_spec( semantic, var ) &&
@@ -307,7 +312,7 @@ void test_ref_part( struct semantic* semantic,
    struct var* var, struct ref* ref ) {
    if ( ref->type == REF_FUNCTION ) {
       struct type_info return_type;
-      s_init_type_info( &return_type, var->spec, ref->next, NULL, NULL );
+      s_init_type_info( &return_type, var->spec, ref->next, NULL, NULL, NULL );
       if ( ! s_is_scalar_type( &return_type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &ref->pos,
             "invalid return-type in function reference" );
@@ -328,14 +333,9 @@ void test_ref_part( struct semantic* semantic,
 }
 
 bool test_spec( struct semantic* semantic, struct var* var ) {
-   bool resolved = false;
-   if ( var->type_path ) {
-      if ( ! var->structure ) {
-         struct object_search search;
-         s_init_object_search( &search, var->type_path, true );
-         s_find_object( semantic, &search );
-         var->structure = search.struct_object;
-      }
+   // Locate specified type.
+   // Test type.
+   if ( var->spec == SPEC_STRUCT ) {
       if ( ! var->structure->object.resolved ) {
          return false;
       }
@@ -349,6 +349,29 @@ bool test_spec( struct semantic* semantic, struct var* var ) {
       }
    }
    return true;
+}
+
+void resolve_name_spec( struct semantic* semantic, struct var* var ) {
+   struct object_search search;
+   s_init_object_search( &search, var->type_path, false );
+   s_find_object( semantic, &search );
+   switch ( search.object->node.type ) {
+   case NODE_STRUCTURE:
+      var->structure =
+         ( struct structure* ) search.object;
+      var->spec = SPEC_STRUCT;
+      break;
+   case NODE_ENUMERATION:
+      var->enumeration =
+         ( struct enumeration* ) search.object;
+      var->spec = SPEC_ENUM;
+      break;
+   default:
+      s_diag( semantic, DIAG_POS_ERR, &search.path->pos,
+         "`%s` is not a valid type",
+         search.path->text );
+      s_bail( semantic );
+   }
 }
 
 bool test_name( struct semantic* semantic, struct var* var ) {
@@ -573,9 +596,9 @@ bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
    // Scalar object.
    else {
       struct type_info type;
-      s_init_type_info( &type, spec, NULL, NULL, NULL );
+      s_init_type_info( &type, spec, NULL, NULL, NULL, NULL );
       struct type_info value_type;
-      s_init_type_info( &value_type, value->expr->spec, NULL, NULL, NULL );
+      s_init_type_info( &value_type, value->expr->spec, NULL, NULL, NULL, NULL );
       if ( ! s_same_type( &type, &value_type ) ) {
          value_mismatch_diag( semantic, &type, &value_type, value->expr,
             ( test->dim != NULL ), ( test->member != NULL ) );
@@ -1002,9 +1025,11 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
 }
 
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
-   struct dim* dim, struct structure* structure ) {
+   struct dim* dim, struct structure* structure,
+   struct enumeration* enumeration ) {
    type->ref = ref;
    type->structure = structure;
+   type->enumeration = enumeration;
    type->dim = NULL;
    type->spec = spec;
    // An array and a structure decay into a reference.
@@ -1037,6 +1062,10 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
    }
    // Structure.
    if ( a->structure != b->structure ) {
+      return false;
+   }
+   // Enumeration.
+   if ( a->enumeration != b->enumeration ) {
       return false;
    }
    // Specifier.

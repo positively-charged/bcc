@@ -145,6 +145,7 @@ struct enumerator {
    struct name* name;
    struct enumerator* next;
    struct expr* initz;
+   struct enumeration* enumeration;
    int value;
 };
 
