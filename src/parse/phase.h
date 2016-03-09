@@ -263,6 +263,7 @@ struct dec {
    struct pos static_qual_pos;
    struct structure* structure;
    struct structure* type_make;
+   struct enumeration* enumeration;
    struct path* type_path;
    struct ref* ref;
    struct name* name;

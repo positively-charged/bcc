@@ -139,6 +139,7 @@ bool p_is_dec( struct parse* parse ) {
 void p_init_dec( struct dec* dec ) {
    dec->area = DEC_TOP;
    dec->structure = NULL;
+   dec->enumeration = NULL;
    dec->type_make = NULL;
    dec->type_path = NULL;
    dec->ref = NULL;
@@ -354,6 +355,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->task->library->objects, set );
    }
    dec->spec = SPEC_ENUM;
+   dec->enumeration = set;
    if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
       dec->leave = true;
@@ -527,9 +529,7 @@ void read_struct_body( struct parse* parse, struct dec* dec,
 
 void read_named_type( struct parse* parse, struct dec* dec ) {
    dec->type_path = p_read_path( parse );
-   // TODO: Later, when adding named enums, move determining of the specifier
-   // to the semantic phase.
-   dec->spec = SPEC_STRUCT;
+   dec->spec = SPEC_NAME;
 }
 
 void read_ref( struct parse* parse, struct dec* dec ) {
@@ -851,6 +851,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    member->name = dec->name;
    member->ref = dec->ref;
    member->structure = dec->structure;
+   member->enumeration = dec->enumeration;
    member->type_path = dec->type_path;
    member->dim = dec->dim;
    member->next = NULL;
@@ -920,6 +921,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->name = dec->name;
    var->ref = dec->ref;
    var->structure = dec->structure;
+   var->enumeration = dec->enumeration;
    var->type_path = dec->type_path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;

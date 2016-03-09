@@ -130,6 +130,7 @@ enum {
    SPEC_ZSTR,
    SPEC_ENUM,
    SPEC_STRUCT,
+   SPEC_NAME,
    SPEC_VOID
 };
 
@@ -162,6 +163,7 @@ struct structure_member {
    struct name* name;
    struct ref* ref;
    struct structure* structure;
+   struct enumeration* enumeration;
    struct path* type_path;
    struct dim* dim;
    struct structure_member* next;
@@ -509,6 +511,7 @@ struct var {
    struct name* name;
    struct ref* ref;
    struct structure* structure;
+   struct enumeration* enumeration;
    struct path* type_path;
    struct dim* dim;
    struct initial* initial;
