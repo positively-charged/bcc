@@ -80,6 +80,8 @@ void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
    bool suggest_paren_assign );
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
+void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
+   struct type_info* result_type, struct expr* expr );
 void s_test_cond( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_top_block( struct semantic* semantic, struct stmt_test*, struct block* );

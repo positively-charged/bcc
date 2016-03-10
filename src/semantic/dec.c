@@ -51,6 +51,7 @@ static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
+static void test_auto_var( struct semantic* semantic, struct var* var );
 static void init_initz_test( struct initz_test* test, int spec,
    struct dim* dim, struct structure* structure, bool constant );
 static bool test_multi_value( struct semantic* semantic,
@@ -80,6 +81,7 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
+static bool same_ref_implicit( struct ref* a, struct type_info* b );
 static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
@@ -287,15 +289,20 @@ bool test_member_dim( struct semantic* semantic,
 }
 
 void s_test_var( struct semantic* semantic, struct var* var ) {
-   if ( var->spec == SPEC_NAME ) {
-      resolve_name_spec( semantic, var );
+   if ( var->spec == SPEC_AUTO ) {
+      test_auto_var( semantic, var );
    }
-   var->object.resolved = (
-      test_ref( semantic, var ) &&
-      test_spec( semantic, var ) &&
-      test_name( semantic, var ) &&
-      test_dim( semantic, var ) &&
-      test_initz( semantic, var ) );
+   else {
+      if ( var->spec == SPEC_NAME ) {
+         resolve_name_spec( semantic, var );
+      }
+      var->object.resolved = (
+         test_ref( semantic, var ) &&
+         test_spec( semantic, var ) &&
+         test_name( semantic, var ) &&
+         test_dim( semantic, var ) &&
+         test_initz( semantic, var ) );
+   }
 }
 
 bool test_ref( struct semantic* semantic, struct var* var ) {
@@ -662,6 +669,37 @@ bool test_imported_object_initz( struct var* var ) {
       }
    }
    return true;
+}
+
+void test_auto_var( struct semantic* semantic, struct var* var ) {
+   // Infer type from initializer.
+   if ( ! var->initial ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "auto-declaration missing initializer" );
+      s_bail( semantic );
+   }
+   struct value* value = ( struct value* ) var->initial;
+   struct type_info type;
+   struct expr_test expr;
+   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_test_expr_type( semantic, &expr, &type, value->expr );
+   if ( var->is_constant_init && ! value->expr->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+         "non-constant initializer" );
+      s_bail( semantic );
+   }
+   // For now, keep an auto-declaration in local scope.
+   if ( ! semantic->in_localscope ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "auto-declaration in non-local scope" );
+      s_bail( semantic );
+   }
+   var->ref = type.ref;
+   var->structure = type.structure;
+   var->enumeration = type.enumeration;
+   var->spec = type.spec;
+   s_bind_name( semantic, var->name, &var->object );
+   var->object.resolved = true;
 }
 
 void s_test_local_var( struct semantic* semantic, struct var* var ) {
@@ -1032,6 +1070,8 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    type->enumeration = enumeration;
    type->dim = NULL;
    type->spec = spec;
+
+/*
    // An array and a structure decay into a reference.
    if ( dim ) {
       struct ref_array* part = &type->implicit_ref.array;
@@ -1051,12 +1091,21 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
          part->type = REF_VAR;
          type->ref = part;
       }
-   }
+   } */
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
    // Reference.
-   bool same = same_ref( a->ref, b->ref );
+   bool same = false;
+   if ( a->ref && ! b->ref ) {
+      same = same_ref_implicit( a->ref, b );
+   }
+   else if ( ! a->ref && b->ref ) {
+      same = same_ref_implicit( b->ref, a );
+   }
+   else {
+      same = same_ref( a->ref, b->ref );
+   }
    if ( ! same ) {
       return false;
    }
@@ -1077,6 +1126,43 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
    }
    else {
       return ( a->spec == b->spec );
+   }
+}
+
+bool same_ref_implicit( struct ref* a, struct type_info* b ) {
+   if ( b->dim ) {
+      struct ref_array part;
+      part.ref.next = b->ref;
+      part.ref.type = REF_ARRAY;
+      part.dim_count = 0;
+      struct dim* dim = b->dim;
+      while ( dim ) {
+         ++part.dim_count;
+         dim = dim->next;
+      }
+      return same_ref( a, &part.ref );
+   }
+   else if ( b->structure ) {
+      struct ref part;
+      part.next = b->ref;
+      part.type = REF_VAR;
+      return same_ref( a, &part );
+   }
+/*
+   else if ( a->type == REF_FUNCTION ) {
+      if ( b->func ) {
+         struct ref_func func;
+         func.ref.next = NULL;
+         func.ref.type = REF_FUNCTION;
+         func.params = b->func->params;
+         func.min_param = b->func->min_param;
+         func.max_param = b->func->max_param;
+         matches = match_ref( a, &func.ref );
+      }
+   }
+*/
+   else {
+      return false;
    }
 }
 

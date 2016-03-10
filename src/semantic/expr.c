@@ -160,6 +160,19 @@ void s_test_expr( struct semantic* semantic, struct expr_test* test,
    }
 }
 
+void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
+   struct type_info* result_type, struct expr* expr ) {
+   if ( setjmp( test->bail ) == 0 ) {
+      struct result result;
+      init_result( &result );
+      test_root( semantic, test, &result, expr );
+      init_type_info( result_type, &result );
+   }
+   else {
+      test->undef_erred = true;
+   }
+}
+
 void s_test_cond( struct semantic* semantic, struct expr* expr ) {
    struct expr_test test;
    s_init_expr_test( &test, NULL, NULL, true, true );
