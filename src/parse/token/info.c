@@ -114,6 +114,7 @@ static const struct {
    { "switch", TK_SWITCH },
    { "terminate", TK_TERMINATE },
    { "true", TK_TRUE },
+   { "typedef", TK_TYPEDEF },
    { "unloading", TK_UNLOADING },
    { "until", TK_UNTIL },
    { "void", TK_VOID },
@@ -424,6 +425,9 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
 
+      // 120
+      ENTRY( "typedef", TKF_KEYWORD ),
+
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
       ENTRY( BLANK, TKF_NONE )
@@ -554,8 +558,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_CAST, "`cast`" },
       { TK_ASSERT, "`assert`" },
       { TK_REF, "`ref`" },
-      { TK_AUTO, "`auto`" } };
-   STATIC_ASSERT( TK_TOTAL == 120 );
+      { TK_AUTO, "`auto`" },
+      { TK_TYPEDEF, "`typedef`" } };
+   STATIC_ASSERT( TK_TOTAL == 121 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

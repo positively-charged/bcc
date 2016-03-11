@@ -141,6 +141,9 @@ enum tk {
    TK_REF,
    TK_AUTO,
 
+   // 120
+   TK_TYPEDEF,
+
    TK_TOTAL,
 
    // Pseudo tokens.
@@ -289,6 +292,7 @@ struct dec {
    } initz;
    int spec;
    bool static_qual;
+   bool typedef_qual;
    bool leave;
    bool read_func;
 };

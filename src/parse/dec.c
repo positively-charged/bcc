@@ -85,6 +85,7 @@ static void init_initial( struct initial*, bool );
 static struct value* alloc_value( void );
 static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
+static void add_type_alias( struct parse* parse, struct dec* dec );
 static void test_struct_member( struct parse* parse, struct dec* dec );
 static void add_struct_member( struct parse* parse, struct dec* );
 static void add_var( struct parse* parse, struct dec* );
@@ -130,6 +131,7 @@ bool p_is_dec( struct parse* parse ) {
       case TK_ZSTR:
       case TK_REF:
       case TK_AUTO:
+      case TK_TYPEDEF:
          return true;
       default:
          return false;
@@ -157,6 +159,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
    dec->static_qual = false;
+   dec->typedef_qual = false;
    dec->leave = false;
    dec->read_func = false;
 }
@@ -189,6 +192,10 @@ void read_qual( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_STATIC ) {
       dec->static_qual = true;
       dec->static_qual_pos = parse->tk_pos;
+      p_read_tk( parse );
+   }
+   else if ( parse->tk == TK_TYPEDEF ) {
+      dec->typedef_qual = true;
       p_read_tk( parse );
    }
 }
@@ -646,7 +653,10 @@ void read_objects( struct parse* parse, struct dec* dec ) {
       }
       read_dim( parse, dec );
       read_init( parse, dec );
-      if ( dec->area == DEC_MEMBER ) {
+      if ( dec->typedef_qual ) {
+         add_type_alias( parse, dec );
+      }
+      else if ( dec->area == DEC_MEMBER ) {
          test_struct_member( parse, dec );
          add_struct_member( parse, dec );
       }
@@ -836,6 +846,30 @@ struct value* alloc_value( void ) {
    value->index = 0;
    value->string_initz = false;
    return value;
+}
+
+void add_type_alias( struct parse* parse, struct dec* dec ) {
+   if ( dec->initz.specified ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
+         "initializing a typedef" );
+      p_bail( parse );
+   }
+   struct type_alias* alias = mem_alloc( sizeof( *alias ) );
+   t_init_object( &alias->object, NODE_TYPE_ALIAS );
+   alias->object.pos = dec->name_pos;
+   alias->name = dec->name;
+   alias->ref = dec->ref;
+   alias->structure = dec->structure;
+   alias->enumeration = dec->enumeration;
+   alias->path = dec->type_path;
+   alias->dim = dec->dim;
+   alias->spec = dec->spec;
+   if ( dec->area == DEC_TOP ) {
+      p_add_unresolved( parse->task->library, &alias->object );
+   }
+   else {
+      list_append( dec->vars, alias );
+   }
 }
 
 void test_struct_member( struct parse* parse, struct dec* dec ) {

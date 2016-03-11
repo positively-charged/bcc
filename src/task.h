@@ -87,6 +87,7 @@ struct node {
       NODE_CAST,
       NODE_INLINE_ASM,
       NODE_ASSERT,
+      NODE_TYPE_ALIAS,
    } type;
 };
 
@@ -194,6 +195,17 @@ struct ref_func {
    struct param* params;
    int min_param;
    int max_param;
+};
+
+struct type_alias {
+   struct object object;
+   struct ref* ref;
+   struct structure* structure;
+   struct enumeration* enumeration;
+   struct path* path;
+   struct dim* dim;
+   struct name* name;
+   int spec;
 };
 
 struct paren {

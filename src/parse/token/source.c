@@ -603,6 +603,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "switch", TK_SWITCH },
          { "terminate", TK_TERMINATE },
          { "true", TK_TRUE },
+         { "typedef", TK_TYPEDEF },
          { "unloading", TK_UNLOADING },
          { "until", TK_UNTIL },
          { "void", TK_VOID },
