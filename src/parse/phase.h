@@ -143,6 +143,7 @@ enum tk {
 
    // 120
    TK_TYPEDEF,
+   TK_FOREACH,
 
    TK_TOTAL,
 
@@ -448,5 +449,6 @@ void p_fill_queue( struct parse* parse, struct token_queue* queue,
    int required_size );
 void p_read_mnemonic( struct parse* parse );
 void p_read_asm( struct parse* parse, struct stmt_reading* reading );
+void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
 
 #endif

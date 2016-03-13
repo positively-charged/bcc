@@ -89,6 +89,7 @@ static const struct {
    // Maybe we'll add this as a type later.
    { "fixed", TK_RESERVED },
    { "for", TK_FOR },
+   { "foreach", TK_FOREACH },
    { "function", TK_FUNCTION },
    { "global", TK_GLOBAL },
    { "goto", TK_GOTO },
@@ -427,6 +428,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
 
       // 120
       ENTRY( "typedef", TKF_KEYWORD ),
+      ENTRY( "foreach", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -559,8 +561,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ASSERT, "`assert`" },
       { TK_REF, "`ref`" },
       { TK_AUTO, "`auto`" },
-      { TK_TYPEDEF, "`typedef`" } };
-   STATIC_ASSERT( TK_TOTAL == 121 );
+      { TK_TYPEDEF, "`typedef`" },
+      { TK_FOREACH, "`foreach`" } };
+   STATIC_ASSERT( TK_TOTAL == 122 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

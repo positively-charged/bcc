@@ -89,9 +89,11 @@ static void add_type_alias( struct parse* parse, struct dec* dec );
 static void test_struct_member( struct parse* parse, struct dec* dec );
 static void add_struct_member( struct parse* parse, struct dec* );
 static void add_var( struct parse* parse, struct dec* );
+static struct var* alloc_var( struct dec* dec );
 static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static const char* get_storage_name( int type );
+static void read_foreach_var( struct parse* parse, struct dec* dec );
 
 bool p_is_dec( struct parse* parse ) {
    if ( parse->tk == TK_ID ) {
@@ -962,6 +964,23 @@ void test_var( struct parse* parse, struct dec* dec ) {
 }
 
 void add_var( struct parse* parse, struct dec* dec ) {
+   struct var* var = alloc_var( dec );
+   var->imported = parse->task->library->imported;
+   if ( dec->area == DEC_TOP ) {
+      p_add_unresolved( parse->task->library, &var->object );
+      list_append( &parse->task->library->vars, var );
+      list_append( &parse->task->library->objects, var );
+   }
+   else if ( dec->storage.type == STORAGE_MAP ) {
+      list_append( &parse->task->library->vars, var );
+      list_append( dec->vars, var );
+   }
+   else {
+      list_append( dec->vars, var );
+   }
+}
+
+struct var* alloc_var( struct dec* dec ) {
    struct var* var = mem_alloc( sizeof( *var ) );
    t_init_object( &var->object, NODE_VAR );
    var->object.pos = dec->name_pos;
@@ -982,24 +1001,13 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->hidden = false;
    var->used = false;
    var->initial_has_str = false;
-   var->imported = parse->task->library->imported;
+   var->imported = false;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    if ( dec->static_qual ) {
       var->hidden = true;
    }
-   if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse->task->library, &var->object );
-      list_append( &parse->task->library->vars, var );
-      list_append( &parse->task->library->objects, var );
-   }
-   else if ( dec->storage.type == STORAGE_MAP ) {
-      list_append( &parse->task->library->vars, var );
-      list_append( dec->vars, var );
-   }
-   else {
-      list_append( dec->vars, var );
-   }
+   return var;
 }
 
 void test_storage( struct parse* parse, struct dec* dec ) {
@@ -1403,6 +1411,40 @@ void read_bfunc( struct parse* parse, struct func* func ) {
       }
       func->impl = impl;
    }
+}
+
+void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
+   struct dec dec;
+   p_init_dec( &dec );
+   dec.name_offset = parse->task->body;
+   read_foreach_var( parse, &dec );
+   stmt->value = alloc_var( &dec );
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      read_name( parse, &dec );
+      stmt->key = stmt->value;
+      stmt->value = alloc_var( &dec );
+   }
+   else if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+      stmt->key = stmt->value;
+      p_init_dec( &dec );
+      dec.name_offset = parse->task->body;
+      read_foreach_var( parse, &dec );
+      stmt->value = alloc_var( &dec );
+   }
+}
+
+void read_foreach_var( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_AUTO ) {
+      dec->spec = SPEC_AUTO;
+      p_read_tk( parse );
+   }
+   else {
+      read_ref( parse, dec );
+      read_type( parse, dec );
+   }
+   read_name( parse, dec );
 }
 
 void check_useless( struct parse* parse, struct dec* dec ) {

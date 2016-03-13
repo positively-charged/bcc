@@ -578,6 +578,7 @@ void read_token( struct parse* parse, struct token* token ) {
          // Maybe we'll add this as a type later.
          { "fixed", TK_RESERVED },
          { "for", TK_FOR },
+         { "foreach", TK_FOREACH },
          { "function", TK_FUNCTION },
          { "global", TK_GLOBAL },
          { "goto", TK_GOTO },

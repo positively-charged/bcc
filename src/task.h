@@ -88,6 +88,7 @@ struct node {
       NODE_INLINE_ASM,
       NODE_ASSERT,
       NODE_TYPE_ALIAS,
+      NODE_FOREACH,
    } type;
 };
 
@@ -476,6 +477,16 @@ struct for_stmt {
    struct list init;
    struct list post;
    struct expr* cond;
+   struct node* body;
+   struct jump* jump_break;
+   struct jump* jump_continue;
+};
+
+struct foreach_stmt {
+   struct node node;
+   struct var* key;
+   struct var* value;
+   struct expr* collection;
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;

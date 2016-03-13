@@ -15,6 +15,8 @@ static struct switch_stmt* alloc_switch_stmt( void );
 static void read_while( struct parse* parse, struct stmt_reading* );
 static void read_do( struct parse* parse, struct stmt_reading* );
 static void read_for( struct parse* parse, struct stmt_reading* );
+static void read_foreach( struct parse* parse, struct stmt_reading* reading );
+static struct foreach_stmt* alloc_foreach( void );
 static void read_jump( struct parse* parse, struct stmt_reading* );
 static void read_script_jump( struct parse* parse, struct stmt_reading* );
 static void read_return( struct parse* parse, struct stmt_reading* );
@@ -213,6 +215,9 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading ) {
       break;
    case TK_FOR:
       read_for( parse, reading );
+      break;
+   case TK_FOREACH:
+      read_foreach( parse, reading );
       break;
    case TK_BREAK:
    case TK_CONTINUE:
@@ -444,6 +449,38 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    read_stmt( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
+}
+
+void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
+   struct foreach_stmt* stmt = alloc_foreach();
+   p_test_tk( parse, TK_FOREACH );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   p_read_foreach_item( parse, stmt );
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
+   struct expr_reading collection;
+   p_init_expr_reading( &collection, false, false, false, true );
+   p_read_expr( parse, &collection );
+   stmt->collection = collection.output_node;
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_stmt( parse, reading );
+   stmt->body = reading->node;
+   reading->node = &stmt->node;
+}
+
+struct foreach_stmt* alloc_foreach( void ) {
+   struct foreach_stmt* stmt = mem_alloc( sizeof( *stmt ) );
+   stmt->node.type = NODE_FOREACH;
+   stmt->key = NULL;
+   stmt->value = NULL;
+   stmt->collection = NULL;
+   stmt->body = NULL;
+   stmt->jump_break = NULL;
+   stmt->jump_continue = NULL;
+   return stmt;
 }
 
 void read_jump( struct parse* parse, struct stmt_reading* reading ) {
