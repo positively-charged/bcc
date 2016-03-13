@@ -38,6 +38,7 @@ static void read_call_args( struct parse* parse, struct expr_reading* reading,
 static struct format_item* read_format_item( struct parse* parse, bool colon );
 static void init_format_cast( struct format_cast* cast, bool colon );
 static void read_format_cast( struct parse* parse, struct format_cast* cast );
+static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* parse, struct expr_reading* reading );
@@ -888,6 +889,10 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
    }
 }
 
+bool peek_format_cast( struct parse* parse ) {
+   return ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON );
+}
+
 void init_array_field( struct array_field* field ) {
    field->array = NULL;
    field->offset = NULL;
@@ -939,22 +944,30 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    // Array field.
-   struct format_cast cast;
-   init_format_cast( &cast, true );
-   read_format_cast( parse, &cast );
-   if ( cast.type != FCAST_ARRAY ) {
-      p_diag( parse, DIAG_POS_ERR, &cast.pos,
-         "not an array format-cast" );
-      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &cast.pos,
-         "expecting `a:` here" );
-      p_bail( parse );
+   if ( peek_format_cast( parse ) ) {
+      struct format_cast cast;
+      init_format_cast( &cast, true );
+      read_format_cast( parse, &cast );
+      if ( cast.type != FCAST_ARRAY ) {
+         p_diag( parse, DIAG_POS_ERR, &cast.pos,
+            "not an array format-cast" );
+         p_diag( parse, DIAG_POS, &cast.pos,
+            "expecting `a:` here" );
+         p_bail( parse );
+      }
+      struct array_field field;
+      init_array_field( &field );
+      read_array_field( parse, &field );
+      call->array = field.array;
+      call->array_offset = field.offset;
+      call->array_length = field.length;
    }
-   struct array_field field;
-   init_array_field( &field );
-   read_array_field( parse, &field );
-   call->array = field.array;
-   call->array_offset = field.offset;
-   call->array_length = field.length;
+   else {
+      struct expr_reading expr;
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      call->array = expr.output_node;
+   }
    p_test_tk( parse, TK_COMMA );
    p_read_tk( parse );
    // String field.
