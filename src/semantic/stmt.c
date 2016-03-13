@@ -18,6 +18,11 @@ static void test_switch( struct semantic* semantic, struct stmt_test*,
 static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* );
+static void test_foreach( struct semantic* semantic, struct stmt_test* test,
+   struct foreach_stmt* stmt );
+static void foreach_mismatch( struct semantic* semantic,
+   struct type_info* type, struct type_info* collection_type, struct pos* pos,
+   const char* subject );
 static void test_jump( struct semantic* semantic, struct stmt_test*, struct jump* );
 static void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
@@ -257,6 +262,10 @@ void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
    case NODE_FOR:
       test_for( semantic, test, ( struct for_stmt* ) node );
       break;
+   case NODE_FOREACH:
+      test_foreach( semantic, test,
+         ( struct foreach_stmt* ) node );
+      break;
    case NODE_JUMP:
       test_jump( semantic, test, ( struct jump* ) node );
       break;
@@ -365,6 +374,76 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    s_pop_scope( semantic );
+}
+
+void test_foreach( struct semantic* semantic, struct stmt_test* test,
+   struct foreach_stmt* stmt ) {
+   s_add_scope( semantic );
+   struct var* key = stmt->key;
+   struct var* value = stmt->value;
+   if ( key ) {
+      s_bind_name( semantic, key->name, &key->object );
+   }
+   s_bind_name( semantic, value->name, &value->object );
+   // Collection.
+   struct type_info collection_type;
+   struct expr_test expr;
+   s_init_expr_test( &expr, test, NULL, false, false );
+   s_test_expr_type( semantic, &expr, &collection_type, stmt->collection );
+   struct type_iter iter;
+   s_iterate_type( &collection_type, &iter );
+   if ( ! iter.available ) {
+      s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
+         "expression not of iterable type" );
+      s_bail( semantic );
+   }
+   // Key.
+   if ( stmt->key ) {
+      s_test_foreach_var( semantic, &iter.key, key );
+      struct type_info type;
+      s_init_type_info( &type, key->spec, key->ref, key->dim, key->structure,
+         key->enumeration );
+      if ( ! s_same_type( &type, &iter.key ) ) {
+         foreach_mismatch( semantic, &type, &iter.key, &key->object.pos,
+            "key" );
+         s_bail( semantic );
+      }
+   }
+   // Value.
+   s_test_foreach_var( semantic, &iter.value, value );
+   struct type_info type;
+   s_init_type_info( &type, value->spec, value->ref, value->dim,
+      value->structure, value->enumeration );
+   if ( ! s_same_type( &type, &iter.value ) ) {
+      foreach_mismatch( semantic, &type, &iter.value, &value->object.pos,
+         "value" );
+      s_bail( semantic );
+   }
+   // Body.
+   struct stmt_test body;
+   s_init_stmt_test( &body, test );
+   body.in_loop = true;
+   s_test_stmt( semantic, &body, stmt->body );
+   stmt->jump_break = body.jump_break;
+   stmt->jump_continue = body.jump_continue;
+   s_pop_scope( semantic );
+}
+
+void foreach_mismatch( struct semantic* semantic, struct type_info* type,
+   struct type_info* collection_type, struct pos* pos, const char* subject ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_type( type, &type_s );
+   struct str collection_type_s;
+   str_init( &collection_type_s );
+   s_present_type( collection_type, &collection_type_s );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "%s/collection-%s type mismatch", subject, subject );
+   s_diag( semantic, DIAG_POS, pos,
+      "%s %s, but %s collection-%s",
+      type_s.value, subject, collection_type_s.value, subject );
+   str_deinit( &collection_type_s );
+   str_deinit( &type_s );
 }
 
 void test_jump( struct semantic* semantic, struct stmt_test* test,

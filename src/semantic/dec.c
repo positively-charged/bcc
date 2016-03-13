@@ -1,3 +1,4 @@
+#include <string.h>
 #include <limits.h>
 
 #include "phase.h"
@@ -52,6 +53,7 @@ static bool test_initz( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
+static void assign_inferred_type( struct var* var, struct type_info* type );
 static void init_initz_test( struct initz_test* test, int spec,
    struct dim* dim, struct structure* structure, bool constant );
 static bool test_multi_value( struct semantic* semantic,
@@ -88,6 +90,13 @@ static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool compatible_zraw_spec( int spec );
 // static void present_ref( struct type_info* type, struct str* string );
 static void present_spec( struct type_info* type, struct str* string );
+static bool is_str_value_type( struct type_info* type );
+static bool is_array_ref_type( struct type_info* type );
+static void subscript_array_type( struct type_info* type,
+   struct type_info* element_type );
+static void take_type_snapshot( struct type_info* type,
+   struct type_snapshot* snapshot );
+static struct ref* dup_ref( struct ref* ref );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
@@ -694,12 +703,19 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
          "auto-declaration in non-local scope" );
       s_bail( semantic );
    }
-   var->ref = type.ref;
-   var->structure = type.structure;
-   var->enumeration = type.enumeration;
-   var->spec = type.spec;
+   assign_inferred_type( var, &type );
    s_bind_name( semantic, var->name, &var->object );
    var->object.resolved = true;
+}
+
+void assign_inferred_type( struct var* var, struct type_info* type ) {
+   struct type_snapshot snapshot;
+   take_type_snapshot( type, &snapshot );
+   var->ref = snapshot.ref;
+   var->structure = snapshot.structure;
+   var->enumeration = snapshot.enumeration;
+   var->dim = snapshot.dim;
+   var->spec = snapshot.spec;
 }
 
 void s_test_local_var( struct semantic* semantic, struct var* var ) {
@@ -708,6 +724,25 @@ void s_test_local_var( struct semantic* semantic, struct var* var ) {
    if ( var->initial ) {
       s_calc_var_value_index( var );
    }
+}
+
+void s_test_foreach_var( struct semantic* semantic,
+   struct type_info* collection_type, struct var* var ) {
+   bool resolved = false;
+   if ( var->spec == SPEC_AUTO ) {
+      assign_inferred_type( var, collection_type );
+      resolved = true;
+   }
+   else {
+      if ( var->spec == SPEC_NAME ) {
+         resolve_name_spec( semantic, var );
+      }
+      resolved =
+         test_ref( semantic, var ) &&
+         test_spec( semantic, var );
+   }
+   var->object.resolved = resolved;
+   s_calc_var_size( var );
 }
 
 void s_test_func( struct semantic* semantic, struct func* func ) {
@@ -1068,30 +1103,13 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    type->ref = ref;
    type->structure = structure;
    type->enumeration = enumeration;
-   type->dim = NULL;
+   type->dim = dim;
    type->spec = spec;
+   type->implicit_ref = false;
+}
 
-/*
-   // An array and a structure decay into a reference.
-   if ( dim ) {
-      struct ref_array* part = &type->implicit_ref.array;
-      part->ref.next = type->ref;
-      part->ref.type = REF_ARRAY;
-      part->dim_count = 0;
-      while ( dim ) {
-         ++part->dim_count;
-         dim = dim->next;
-      }
-      type->ref = &part->ref;
-   }
-   else {
-      if ( structure && ! ref ) {
-         struct ref* part = &type->implicit_ref.var;
-         part->next = NULL;
-         part->type = REF_VAR;
-         type->ref = part;
-      }
-   } */
+void s_init_type_info_scalar( struct type_info* type, int spec ) {
+   s_init_type_info( type, spec, NULL, NULL, NULL, NULL );
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
@@ -1250,8 +1268,18 @@ void s_present_type( struct type_info* type, struct str* string ) {
       }
    }
    else {
-      if ( type->ref ) {
-         str_append( string, "reference" );
+      if ( type->enumeration ) {
+         str_append( string, "`" );
+         str_append( string, "enum" );
+         if ( type->enumeration->name ) {
+            struct str name;
+            str_init( &name );
+            t_copy_name( type->enumeration->name, false, &name );
+            str_append( string, " " );
+            str_append( string, name.value );
+            str_deinit( &name );
+         }
+         str_append( string, "`" );
       }
       else {
          str_append( string, "`" );
@@ -1323,6 +1351,82 @@ bool s_is_scalar_type( struct type_info* type ) {
    return false;
 }
 
+bool s_is_ref_type( struct type_info* type ) {
+   return ( type->ref || type->dim || type->structure );
+}
+
 bool s_is_value_type( struct type_info* type ) {
-   return ( ! type->ref );
+   return ( ! s_is_ref_type( type ) );
+}
+
+// Initializes @type with the type of the key used by the iterable type. Right
+// now, only an integer key is possible.
+void s_iterate_type( struct type_info* type, struct type_iter* iter ) {
+   if ( is_str_value_type( type ) ) {
+      s_init_type_info_scalar( &iter->key, SPEC_ZINT );
+      s_init_type_info_scalar( &iter->value, SPEC_ZINT );
+      iter->available = true;
+   }
+   else if ( is_array_ref_type( type ) ) {
+      s_init_type_info_scalar( &iter->key, SPEC_ZINT );
+      subscript_array_type( type, &iter->value );
+      iter->available = true;
+   }
+}
+
+inline bool is_str_value_type( struct type_info* type ) {
+   return ( s_is_value_type( type ) && type->spec == SPEC_ZSTR );
+}
+
+inline bool is_array_ref_type( struct type_info* type ) {
+   return ( type->dim || ( type->ref && type->ref->type == REF_ARRAY ) );
+}
+
+void subscript_array_type( struct type_info* type,
+   struct type_info* element_type ) {
+   s_init_type_info( element_type, type->spec, NULL, NULL, type->structure,
+      type->enumeration );
+   if ( type->dim ) {
+      element_type->dim = type->dim->next;
+      element_type->ref = type->ref;
+   }
+   else if ( type->ref && type->ref->type == REF_ARRAY ) {
+      struct ref_array* part = ( struct ref_array* ) type->ref;
+      if ( part->dim_count > 1 ) {
+         struct ref_array* implicit_part =
+            &element_type->implicit_ref_part.array;
+         implicit_part->ref.next = part->ref.next;
+         implicit_part->ref.type = REF_ARRAY;
+         implicit_part->dim_count = part->dim_count - 1;
+         element_type->ref = &implicit_part->ref;
+         element_type->implicit_ref = true;
+      }
+   }
+}
+
+void take_type_snapshot( struct type_info* type,
+   struct type_snapshot* snapshot ) {
+   if ( type->implicit_ref ) {
+      snapshot->ref = dup_ref( type->ref );
+   }
+   else {
+      snapshot->ref = type->ref;
+   }
+   snapshot->structure = type->structure;
+   snapshot->enumeration = type->enumeration;
+   snapshot->dim = type->dim;
+   snapshot->spec = type->spec;
+}
+
+struct ref* dup_ref( struct ref* ref ) {
+   size_t size = 0;
+   switch ( ref->type ) {
+   case REF_ARRAY: size = sizeof( struct ref_array ); break;
+   default:
+      UNREACHABLE()
+      return NULL;
+   }
+   void* block = mem_alloc( size );
+   memcpy( block, ref, size );
+   return block;
 }

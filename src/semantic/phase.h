@@ -50,7 +50,22 @@ struct type_info {
    union {
       struct ref var;
       struct ref_array array;
-   } implicit_ref;
+   } implicit_ref_part;
+   bool implicit_ref;
+};
+
+struct type_snapshot {
+   struct ref* ref;
+   struct structure* structure;
+   struct enumeration* enumeration;
+   struct dim* dim;
+   int spec;
+};
+
+struct type_iter {
+   struct type_info key;
+   struct type_info value;
+   bool available;
 };
 
 struct semantic {
@@ -76,6 +91,8 @@ void s_test_var( struct semantic* semantic, struct var* var );
 void s_test_func( struct semantic* semantic, struct func* func );
 void s_test_func_body( struct semantic* semantic, struct func* func );
 void s_test_local_var( struct semantic* semantic, struct var* );
+void s_test_foreach_var( struct semantic* semantic,
+   struct type_info* collection_type, struct var* var );
 void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
    struct block* format_block, bool result_required,
    bool suggest_paren_assign );
@@ -106,9 +123,12 @@ void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
    struct enumeration* enumeration );
+void s_init_type_info_scalar( struct type_info* type, int spec );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_scalar_type( struct type_info* type );
+bool s_is_ref_type( struct type_info* type );
 bool s_is_value_type( struct type_info* type );
+void s_iterate_type( struct type_info* type, struct type_iter* iter );
 
 #endif
