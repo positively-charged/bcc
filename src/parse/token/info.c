@@ -100,6 +100,7 @@ static const struct {
    { "net", TK_NET },
    { "open", TK_OPEN },
    { "pickup", TK_PICKUP },
+   { "private", TK_PRIVATE },
    { "redreturn", TK_RED_RETURN },
    { "ref", TK_REF },
    { "respawn", TK_RESPAWN },
@@ -429,6 +430,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       // 120
       ENTRY( "typedef", TKF_KEYWORD ),
       ENTRY( "foreach", TKF_KEYWORD ),
+      ENTRY( "private", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -562,8 +564,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_REF, "`ref`" },
       { TK_AUTO, "`auto`" },
       { TK_TYPEDEF, "`typedef`" },
-      { TK_FOREACH, "`foreach`" } };
-   STATIC_ASSERT( TK_TOTAL == 122 );
+      { TK_FOREACH, "`foreach`" },
+      { TK_PRIVATE, "`private`" } };
+   STATIC_ASSERT( TK_TOTAL == 123 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

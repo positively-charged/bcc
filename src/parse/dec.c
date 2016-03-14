@@ -134,6 +134,7 @@ bool p_is_dec( struct parse* parse ) {
       case TK_REF:
       case TK_AUTO:
       case TK_TYPEDEF:
+      case TK_PRIVATE:
          return true;
       default:
          return false;
@@ -160,6 +161,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.specified = false;
    dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
+   dec->visibility = VISIBILITY_PUBLIC;
    dec->static_qual = false;
    dec->typedef_qual = false;
    dec->leave = false;
@@ -168,6 +170,10 @@ void p_init_dec( struct dec* dec ) {
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
+   if ( parse->tk == TK_PRIVATE ) {
+      dec->visibility = VISIBILITY_PRIVATE;
+      p_read_tk( parse );
+   }
    if ( parse->tk == TK_FUNCTION ) {
       dec->read_func = true;
       p_read_tk( parse );

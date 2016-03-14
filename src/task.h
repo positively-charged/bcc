@@ -123,6 +123,11 @@ struct path {
    struct pos pos;
 };
 
+enum visibility {
+   VISIBILITY_PUBLIC,
+   VISIBILITY_PRIVATE
+};
+
 enum {
    SPEC_NONE,
    SPEC_ZRAW,
