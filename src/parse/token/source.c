@@ -574,6 +574,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "enter", TK_ENTER },
          { "enum", TK_ENUM },
          { "event", TK_EVENT },
+         { "extspec", TK_EXTSPEC },
          { "false", TK_FALSE },
          // Maybe we'll add this as a type later.
          { "fixed", TK_RESERVED },

@@ -85,6 +85,7 @@ static const struct {
    { "enter", TK_ENTER },
    { "enum", TK_ENUM },
    { "event", TK_EVENT },
+   { "extspec", TK_EXTSPEC },
    { "false", TK_FALSE },
    // Maybe we'll add this as a type later.
    { "fixed", TK_RESERVED },
@@ -435,6 +436,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "objcpy", TKF_KEYWORD ),
       ENTRY( "msgbuild", TKF_KEYWORD ),
+      ENTRY( "extspec", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -571,8 +573,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_FOREACH, "`foreach`" },
       { TK_PRIVATE, "`private`" },
       { TK_OBJCPY, "`objcpy`" },
-      { TK_MSGBUILD, "`msgbuild`" }, };
-   STATIC_ASSERT( TK_TOTAL == 125 );
+      { TK_MSGBUILD, "`msgbuild`" },
+      { TK_EXTSPEC, "`extspec`" }, };
+   STATIC_ASSERT( TK_TOTAL == 126 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

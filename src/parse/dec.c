@@ -50,6 +50,7 @@ static void read_var( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
 static void read_spec( struct parse* parse, struct dec* dec );
+static void read_extended_spec( struct parse* parse, struct dec* dec );
 static void missing_type( struct parse* parse, struct dec* dec );
 static void read_named_type( struct parse* parse, struct dec* dec );
 static void init_ref( struct ref* ref, int type, struct pos* pos );
@@ -137,6 +138,7 @@ bool p_is_dec( struct parse* parse ) {
       case TK_AUTO:
       case TK_TYPEDEF:
       case TK_PRIVATE:
+      case TK_EXTSPEC:
          return true;
       default:
          return false;
@@ -452,7 +454,7 @@ void read_struct_member( struct parse* parse, struct dec* dec,
    member.name_offset = structure->body;
    member.vars = dec->vars;
    read_ref( parse, &member );
-   read_spec( parse, &member );
+   read_extended_spec( parse, &member );
    while ( true ) {
       read_name( parse, &member );
       read_dim( parse, &member );
@@ -517,7 +519,7 @@ void read_var( struct parse* parse, struct dec* dec ) {
    else {
       read_storage( parse, dec );
       read_ref( parse, dec );
-      read_spec( parse, dec );
+      read_extended_spec( parse, dec );
       read_instance_list( parse, dec );
       // check_useless( parse, dec );
    }
@@ -582,6 +584,21 @@ void read_spec( struct parse* parse, struct dec* dec ) {
       break;
    default:
       missing_type( parse, dec );
+   }
+}
+
+void read_extended_spec( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_EXTSPEC ) {
+      p_read_tk( parse );
+      if ( parse->tk == TK_STRUCT ) {
+         read_struct( parse, dec );
+      }
+      else {
+         read_enum( parse, dec );
+      }
+   }
+   else {
+      read_spec( parse, dec );
    }
 }
 
@@ -1113,7 +1130,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_FUNCTION );
    p_read_tk( parse );
    read_func_qual( parse, dec );
-   read_spec( parse, dec );
+   read_extended_spec( parse, dec );
    read_name( parse, dec );
    struct func* func = mem_slot_alloc( sizeof( *func ) );
    t_init_object( &func->object, NODE_FUNC );

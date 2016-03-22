@@ -147,6 +147,7 @@ enum tk {
    TK_PRIVATE,
    TK_OBJCPY,
    TK_MSGBUILD,
+   TK_EXTSPEC,
 
    TK_TOTAL,
 
