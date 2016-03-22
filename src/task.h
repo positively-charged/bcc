@@ -665,6 +665,7 @@ struct func_user {
    bool nested;
    bool publish;
    bool hidden;
+   bool msgbuild;
 };
 
 struct func_intern {

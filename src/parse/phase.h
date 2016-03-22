@@ -146,6 +146,7 @@ enum tk {
    TK_FOREACH,
    TK_PRIVATE,
    TK_OBJCPY,
+   TK_MSGBUILD,
 
    TK_TOTAL,
 
@@ -299,6 +300,7 @@ struct dec {
    bool typedef_qual;
    bool leave;
    bool read_func;
+   bool msgbuild;
 };
 
 struct stmt_reading {

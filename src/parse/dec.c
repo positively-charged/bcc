@@ -65,6 +65,7 @@ static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
+static void read_func_qual( struct parse* parse, struct dec* dec );
 static void read_bfunc( struct parse* parse, struct func* );
 static void check_useless( struct parse* parse, struct dec* dec );
 static void init_params( struct params* );
@@ -167,6 +168,7 @@ void p_init_dec( struct dec* dec ) {
    dec->typedef_qual = false;
    dec->leave = false;
    dec->read_func = false;
+   dec->msgbuild = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -1110,6 +1112,7 @@ const char* get_storage_name( int type ) {
 void read_func( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_FUNCTION );
    p_read_tk( parse );
+   read_func_qual( parse, dec );
    read_spec( parse, dec );
    read_name( parse, dec );
    struct func* func = mem_slot_alloc( sizeof( *func ) );
@@ -1158,6 +1161,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;
       impl->hidden = dec->private_visibility;
+      impl->msgbuild = dec->msgbuild;
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! parse->task->library->imported ) {
@@ -1203,6 +1207,13 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    else {
       list_append( dec->vars, func );
+   }
+}
+
+void read_func_qual( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_MSGBUILD ) {
+      dec->msgbuild = true;
+      p_read_tk( parse );
    }
 }
 
