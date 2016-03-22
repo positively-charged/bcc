@@ -101,6 +101,7 @@ static const struct {
    { "lightning", TK_LIGHTNING },
    { "msgbuild", TK_MSGBUILD },
    { "net", TK_NET },
+   { "null", TK_NULL },
    { "objcpy", TK_OBJCPY },
    { "open", TK_OPEN },
    { "pickup", TK_PICKUP },
@@ -439,6 +440,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "msgbuild", TKF_KEYWORD ),
       ENTRY( "extspec", TKF_KEYWORD ),
       ENTRY( "in", TKF_KEYWORD ),
+      ENTRY( "null", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -577,8 +579,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_OBJCPY, "`objcpy`" },
       { TK_MSGBUILD, "`msgbuild`" },
       { TK_EXTSPEC, "`extspec`" },
-      { TK_IN, "`in`" }, };
-   STATIC_ASSERT( TK_TOTAL == 127 );
+      { TK_IN, "`in`" },
+      { TK_NULL, "`null`" }, };
+   STATIC_ASSERT( TK_TOTAL == 128 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

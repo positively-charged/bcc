@@ -590,6 +590,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "lightning", TK_LIGHTNING },
          { "msgbuild", TK_MSGBUILD },
          { "net", TK_NET },
+         { "null", TK_NULL },
          { "objcpy", TK_OBJCPY },
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },

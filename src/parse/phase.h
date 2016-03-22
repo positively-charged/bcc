@@ -149,6 +149,7 @@ enum tk {
    TK_MSGBUILD,
    TK_EXTSPEC,
    TK_IN,
+   TK_NULL,
 
    TK_TOTAL,
 

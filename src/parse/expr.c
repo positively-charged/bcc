@@ -42,6 +42,7 @@ static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* parse, struct expr_reading* reading );
+static void read_null( struct parse* parse, struct expr_reading* reading );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 
@@ -508,6 +509,9 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       reading->node = &boolean.node;
       p_read_tk( parse );
    }
+   else if ( parse->tk == TK_NULL ) {
+      read_null( parse, reading );
+   }
    else if ( parse->tk == TK_STRCPY || parse->tk == TK_OBJCPY ) {
       read_strcpy( parse, reading );
    }
@@ -562,6 +566,13 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &usage->node;
    reading->has_str = true;
    p_read_tk( parse );
+}
+
+void read_null( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_NULL );
+   p_read_tk( parse );
+   static struct node node = { NODE_NULL };
+   reading->node = &node;
 }
 
 int p_extract_literal_value( struct parse* parse ) {

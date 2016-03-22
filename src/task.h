@@ -89,6 +89,7 @@ struct node {
       NODE_ASSERT,
       NODE_TYPE_ALIAS,
       NODE_FOREACH,
+      NODE_NULL,
    } type;
 };
 
