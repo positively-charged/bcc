@@ -913,6 +913,7 @@ void add_struct_member( struct parse* parse, struct dec* dec ) {
    member->spec = dec->spec;
    member->offset = 0;
    member->size = 0;
+   member->diminfo_start = 0;
    if ( dec->type_make->member ) {
       dec->type_make->member_tail->next = member;
    }
@@ -1003,6 +1004,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->storage = dec->storage.type;
    var->index = dec->storage_index.value;
    var->size = 0;
+   var->diminfo_start = 0;
    var->initz_zero = false;
    var->hidden = false;
    var->used = false;
@@ -1010,6 +1012,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->imported = false;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
+   var->addr_taken = false;
    if ( dec->static_qual ) {
       var->hidden = true;
    }

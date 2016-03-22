@@ -2,6 +2,7 @@
 
 struct result {
    struct func* func;
+   struct var* data_origin;
    struct ref* ref;
    struct enumeration* enumeration;
    struct structure* structure;
@@ -217,6 +218,7 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
 
 void init_result( struct result* result ) {
    result->func = NULL;
+   result->data_origin = NULL;
    result->ref = NULL;
    result->enumeration = NULL;
    result->structure = NULL;
@@ -571,6 +573,15 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "invalid assignment operation" );
       s_bail( semantic );
    }
+   if ( rside.data_origin ) {
+      // At this time, a reference can be made only to private data.
+      if ( ! rside.data_origin->ref && ! rside.data_origin->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+            "right operand not a reference to a private variable" );
+         s_bail( semantic );
+      }
+      rside.data_origin->addr_taken = true;
+   }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
@@ -662,6 +673,10 @@ bool perform_assign( struct assign* assign, struct result* lside,
       result->spec = lside->spec;
       result->complete = true;
       result->usable = true;
+      if ( result->ref && result->ref->type == REF_ARRAY ) {
+         struct ref_array* part = ( struct ref_array* ) result->ref;
+         result->ref_dim = part->dim_count;
+      }
       return true;
    }
 }
@@ -1058,6 +1073,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    result->dim = lside.dim;
    result->ref_dim = lside.ref_dim;
    result->spec = lside.spec;
+   result->usable = true;
    // Move past the current dimension.
    bool reached_element = false;
    if ( result->dim ) {
@@ -1088,7 +1104,6 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
          if ( result->spec != SPEC_STRUCT ) {
             result->assignable = true;
             result->complete = true;
-            result->usable = true;
          }
       }
    }
@@ -1667,6 +1682,7 @@ void select_enumeration( struct result* result,
 
 void select_var( struct expr_test* test, struct result* result,
    struct var* var ) {
+   result->data_origin = var;
    result->ref = var->ref;
    result->structure = var->structure;
    result->enumeration = var->enumeration;
@@ -1682,6 +1698,8 @@ void select_var( struct expr_test* test, struct result* result,
          if ( ! result->dim ) {
             result->assignable = true;
          }
+      }
+      else {
       }
       result->complete = true;
    }
@@ -1709,21 +1727,31 @@ void select_member( struct expr_test* test, struct result* result,
    struct structure_member* member ) {
    result->ref = member->ref;
    result->structure = member->structure;
+   result->enumeration = member->enumeration;
+   result->dim = member->dim;
    result->spec = member->spec;
-   if ( member->dim ) {
-      result->dim = member->dim;
-   }
-   else {
+   result->usable = true;
+   if ( is_ref_type( result ) ) {
       if ( result->ref ) {
          if ( result->ref->type == REF_ARRAY ) {
             struct ref_array* part = ( struct ref_array* ) result->ref;
             result->ref_dim = part->dim_count;
          }
+         if ( ! result->dim ) {
+            result->assignable = true;
+         }
       }
+      else {
+      }
+      result->complete = true;
+   }
+   else {
       if ( ! result->structure ) {
          result->complete = true;
-         result->usable = true;
          result->assignable = true;
+         if ( result->spec == SPEC_ENUM ) {
+            result->spec = SPEC_ZINT;
+         }
       }
    }
 }

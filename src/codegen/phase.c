@@ -6,6 +6,7 @@
 #define MAX_MAP_LOCATIONS 128
 
 static void alloc_mapvars_index( struct codegen* codegen );
+static bool alloc_sharedarray( struct codegen* codegen, int index );
 static void create_assert_strings( struct codegen* codegen );
 
 void c_init( struct codegen* codegen, struct task* task ) {
@@ -30,6 +31,10 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->assert_prefix = NULL;
    codegen->runtime_index = 0;
    list_init( &codegen->used_strings );
+   codegen->shared_array_index = 0;
+   codegen->shared_array_size = 0;
+   codegen->shared_array_diminfo_size = 0;
+   codegen->shared_array_used = false;
 }
 
 void c_publish( struct codegen* codegen ) {
@@ -117,15 +122,9 @@ void alloc_mapvars_index( struct codegen* codegen ) {
       list_next( &i );
    }
    // Arrays, hidden.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) && var->hidden ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
+   // Combine all variables used by references into a single array.
+   if ( alloc_sharedarray( codegen, index ) ) {
+      ++index;
    }
    // Imported.
    list_iter_init( &i, &codegen->task->library_main->dynamic );
@@ -204,6 +203,69 @@ void alloc_mapvars_index( struct codegen* codegen ) {
          "to use more functions, try using the #nocompact directive" );
       t_bail( codegen->task );
    }
+}
+
+bool alloc_sharedarray( struct codegen* codegen, int index ) {
+   // Array layout:
+   // <null-element>
+   // <array-dimension-information>
+   // <arrays>
+   int size = 0;
+   // Reserve space for the null element.
+   ++size;
+   // Reserve space for dimension information.
+   int diminfo_size = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      if ( object->node.type == NODE_VAR ) {
+         struct var* var = ( struct var* ) object;
+         if ( var->dim ) {
+            var->diminfo_start = size;
+            struct dim* dim = var->dim;
+            while ( dim ) {
+               ++diminfo_size;
+               ++size;
+               dim = dim->next;
+            }
+         }
+      }
+      else if ( object->node.type == NODE_STRUCTURE ) {
+         struct structure* structure = ( struct structure* ) object;
+         struct structure_member* member = structure->member;
+         while ( member ) {
+            if ( member->dim ) {
+               member->diminfo_start = size;
+               struct dim* dim = member->dim;
+               while ( dim ) {
+                  ++diminfo_size;
+                  ++size;
+                  dim = dim->next;
+               }
+            }
+            member = member->next;
+         }
+      }
+      list_next( &i );
+   }
+   // Reserve space for arrays.
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->hidden ) {
+         var->index = size;
+         size += var->size;
+      }
+      list_next( &i );
+   }
+   if ( size > 0 ) {
+      codegen->shared_array_index = index;
+      codegen->shared_array_size = size;
+      codegen->shared_array_diminfo_size = diminfo_size;
+      codegen->shared_array_used = true;
+   }
+   return true;
 }
 
 void create_assert_strings( struct codegen* codegen ) {

@@ -119,7 +119,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
 }
 
 void init_func_record( struct func_record* record ) {
-   record->start_index = 0;
+   record->start_index = RESERVEDSCRIPTVAR_TOTAL;
    record->size = 0;
    record->nested_func = false;
 }
@@ -162,11 +162,14 @@ void c_visit_var( struct codegen* codegen, struct var* var ) {
       break;
    default:
       break;
-    }
+   }
 }
 
 void visit_local_var( struct codegen* codegen, struct var* var ) {
    var->index = c_alloc_script_var( codegen );
+   if ( var->ref && var->ref->type == REF_ARRAY ) {
+      c_alloc_script_var( codegen );
+   }
    if ( var->value ) {
       c_push_expr( codegen, var->value->expr );
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );

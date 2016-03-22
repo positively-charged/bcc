@@ -20,6 +20,7 @@ static bool aray_var( struct var* var );
 static bool aray_hidden_var( struct var* var );
 static void do_aini( struct codegen* codegen );
 static void do_aini_single( struct codegen* codegen, struct var* var );
+static void do_aini_sharedarray( struct codegen* codegen );
 static void do_load( struct codegen* codegen );
 static void do_mimp( struct codegen* codegen );
 static bool mimp_var( struct var* var );
@@ -527,11 +528,12 @@ void do_aray( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) ) {
+         ( var->dim || var->structure ) && ! var->hidden ) {
          ++count;
       }
       list_next( &i );
    }
+   count += ( int ) codegen->shared_array_used;
    if ( ! count ) {
       return;
    }
@@ -553,6 +555,12 @@ void do_aray( struct codegen* codegen ) {
       list_next( &i );
    }
    // Hidden arrays.
+   if ( codegen->shared_array_used ) {
+      entry.number = codegen->shared_array_index;
+      entry.size = codegen->shared_array_size;
+      c_add_sized( codegen, &entry, sizeof( entry ) );
+   }
+/*
    list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
@@ -563,6 +571,7 @@ void do_aray( struct codegen* codegen ) {
       }
       list_next( &i );
    }
+*/
 }
 
 inline bool aray_var( struct var* var ) {
@@ -585,6 +594,10 @@ void do_aini( struct codegen* codegen ) {
          do_aini_single( codegen, var );
       }
       list_next( &i );
+   }
+   // Shared array.
+   if ( codegen->shared_array_used ) {
+      do_aini_sharedarray( codegen );
    }
 }
 
@@ -634,6 +647,47 @@ void do_aini_single( struct codegen* codegen, struct var* var ) {
          }
       }
       value = value->next;
+   }
+}
+
+void do_aini_sharedarray( struct codegen* codegen ) {
+   c_add_str( codegen, "AINI" );
+   c_add_int( codegen, sizeof( int ) +
+      sizeof( int ) +
+      sizeof( int ) * codegen->shared_array_diminfo_size );
+   c_add_int( codegen, codegen->shared_array_index );
+   // Insert null element.
+   c_add_int( codegen, 0 );
+   // Insert array dimension information.
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      if ( object->node.type == NODE_VAR ) {
+         struct var* var = ( struct var* ) object;
+         if ( var->dim ) {
+            struct dim* dim = var->dim;
+            while ( dim ) {
+               c_add_int( codegen, dim->size * dim->element_size );
+               dim = dim->next;
+            }
+         }
+      }
+      else if ( object->node.type == NODE_STRUCTURE ) {
+         struct structure* structure = ( struct structure* ) object;
+         struct structure_member* member = structure->member;
+         while ( member ) {
+            if ( member->dim ) {
+               struct dim* dim = member->dim;
+               while ( dim ) {
+                  c_add_int( codegen, dim->size * dim->element_size );
+                  dim = dim->next;
+               }
+            }
+            member = member->next;
+         }
+      }
+      list_next( &i );
    }
 }
 

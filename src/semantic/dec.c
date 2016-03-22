@@ -10,6 +10,13 @@ struct enumeration_test {
    int value;
 };
 
+struct var_test {
+   struct structure* structure;
+   struct enumeration* enumeration;
+   struct path* path;
+   int spec;
+};
+
 struct initz_test {
    struct dim* dim;
    struct structure* structure;
@@ -46,7 +53,9 @@ static bool test_ref( struct semantic* semantic, struct var* var );
 static void test_ref_part( struct semantic* semantic,
    struct var* var, struct ref* ref );
 static bool test_spec( struct semantic* semantic, struct var* var );
-static void resolve_name_spec( struct semantic* semantic, struct var* var );
+static void init_var_test( struct var_test* test, struct path* path );
+static void resolve_name_spec( struct semantic* semantic,
+   struct var_test* test );
 static bool test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
@@ -74,7 +83,8 @@ static bool test_func_param( struct semantic* semantic,
 static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct expr_test* expr );
 static int get_param_number( struct func* func, struct param* target );
-static int calc_size( struct dim* dim, struct structure* structure );
+static int calc_size( struct dim* dim, struct structure* structure,
+   struct ref* ref );
 static void calc_struct_size( struct structure* structure );
 static void make_value_list( struct value_list*, struct multi_value* );
 static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
@@ -196,7 +206,10 @@ void test_enumerator( struct semantic* semantic,
 void s_test_struct( struct semantic* semantic, struct structure* type ) {
    test_struct_name( semantic, type );
    bool resolved = test_struct_body( semantic, type );
-   type->object.resolved = resolved;
+   if ( resolved ) {
+      calc_struct_size( type );
+      type->object.resolved = true;
+   }
 }
 
 void test_struct_name( struct semantic* semantic, struct structure* type ) {
@@ -220,6 +233,14 @@ bool test_struct_body( struct semantic* semantic, struct structure* type ) {
 }
 
 void test_member( struct semantic* semantic, struct structure_member* member ) {
+      if ( member->spec == SPEC_NAME ) {
+         struct var_test test;
+         init_var_test( &test, member->type_path );
+         resolve_name_spec( semantic, &test );
+         member->structure = test.structure;
+         member->enumeration = test.enumeration;
+         member->spec = test.spec;
+      }
    if ( test_member_spec( semantic, member ) ) {
       test_member_name( semantic, member );
       bool resolved = test_member_dim( semantic, member );
@@ -303,7 +324,12 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
    }
    else {
       if ( var->spec == SPEC_NAME ) {
-         resolve_name_spec( semantic, var );
+         struct var_test test;
+         init_var_test( &test, var->type_path );
+         resolve_name_spec( semantic, &test );
+         var->structure = test.structure;
+         var->enumeration = test.enumeration;
+         var->spec = test.spec;
       }
       var->object.resolved = (
          test_ref( semantic, var ) &&
@@ -367,20 +393,27 @@ bool test_spec( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void resolve_name_spec( struct semantic* semantic, struct var* var ) {
+void init_var_test( struct var_test* test, struct path* path ) {
+   test->structure = NULL;
+   test->enumeration = NULL;
+   test->path = path;
+   test->spec = SPEC_NONE;
+}
+
+void resolve_name_spec( struct semantic* semantic, struct var_test* test ) {
    struct object_search search;
-   s_init_object_search( &search, var->type_path, false );
+   s_init_object_search( &search, test->path, false );
    s_find_object( semantic, &search );
    switch ( search.object->node.type ) {
    case NODE_STRUCTURE:
-      var->structure =
+      test->structure =
          ( struct structure* ) search.object;
-      var->spec = SPEC_STRUCT;
+      test->spec = SPEC_STRUCT;
       break;
    case NODE_ENUMERATION:
-      var->enumeration =
+      test->enumeration =
          ( struct enumeration* ) search.object;
-      var->spec = SPEC_ENUM;
+      test->spec = SPEC_ENUM;
       break;
    default:
       s_diag( semantic, DIAG_POS_ERR, &search.path->pos,
@@ -735,7 +768,12 @@ void s_test_foreach_var( struct semantic* semantic,
    }
    else {
       if ( var->spec == SPEC_NAME ) {
-         resolve_name_spec( semantic, var );
+         struct var_test test;
+         init_var_test( &test, var->type_path );
+         resolve_name_spec( semantic, &test );
+         var->structure = test.structure;
+         var->enumeration = test.enumeration;
+         var->spec = test.spec;
       }
       resolved =
          test_ref( semantic, var ) &&
@@ -937,28 +975,37 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
 }
 
 void s_calc_var_size( struct var* var ) {
-   var->size = calc_size( var->dim, var->structure );
+   var->size = calc_size( var->dim, var->structure, var->ref );
 }
 
-int calc_size( struct dim* dim, struct structure* structure ) {
+int calc_size( struct dim* dim, struct structure* structure,
+   struct ref* ref ) {
+   enum { PRIMITIVE_SIZE = 1 };
    // Array.
    if ( dim ) {
-      dim->element_size = calc_size( dim->next, structure );
+      dim->element_size = calc_size( dim->next, structure, ref );
       return ( dim->size * dim->element_size );
    }
-   // Array element.
-   else {
-      if ( structure ) {
-         if ( structure->size == 0 ) {
-            calc_struct_size( structure );
-         }
-         return structure->size;
+   // Reference.
+   else if ( ref ) {
+      // Reference to an array is a fat pointer. It consists of two primitive
+      // data units. The first data unit stores an offset to the first element
+      // of the array. The second data unit stores an offset to the dimension
+      // information of the array.
+      if ( ref->type == REF_ARRAY ) {
+         return PRIMITIVE_SIZE + PRIMITIVE_SIZE;
       }
       else {
-         // TODO: Calculate size of references.
-         enum { PRIMITIVE_SIZE = 1 };
          return PRIMITIVE_SIZE;
       }
+   }
+   // Structure.
+   else if ( structure ) {
+      return structure->size;
+   }
+   // Primitive.
+   else {
+      return PRIMITIVE_SIZE;
    }
 }
 
@@ -966,7 +1013,7 @@ void calc_struct_size( struct structure* structure ) {
    struct structure_member* member = structure->member;
    while ( member ) {
       member->offset = structure->size;
-      member->size = calc_size( member->dim, member->structure );
+      member->size = calc_size( member->dim, member->structure, member->ref );
       structure->size += member->size;
       member = member->next;
    }

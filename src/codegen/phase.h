@@ -31,6 +31,10 @@ struct func_record {
    bool nested_func;
 };
 
+enum {
+   RESERVEDSCRIPTVAR_DIM,
+   RESERVEDSCRIPTVAR_TOTAL
+};
 
 struct codegen {
    struct task* task;
@@ -56,6 +60,10 @@ struct codegen {
    struct indexed_string* assert_prefix;
    int runtime_index;
    struct list used_strings;
+   int shared_array_index;
+   int shared_array_size;
+   int shared_array_diminfo_size;
+   bool shared_array_used;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -109,5 +117,7 @@ void p_visit_inline_asm( struct codegen* codegen,
 void c_write_opc( struct codegen* codegen, int opcode );
 void c_write_arg( struct codegen* codegen, int arg );
 void c_push_string( struct codegen* codegen, struct indexed_string* string );
+int c_alloc_script_var( struct codegen* codegen );
+void c_dealloc_last_script_var( struct codegen* codegen );
 
 #endif

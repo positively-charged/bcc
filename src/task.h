@@ -179,6 +179,7 @@ struct structure_member {
    int spec;
    int offset;
    int size;
+   int diminfo_start;
 };
 
 struct ref {
@@ -551,12 +552,14 @@ struct var {
    int storage;
    int index;
    int size;
+   int diminfo_start;
    bool initz_zero;
    bool hidden;
    bool used;
    bool initial_has_str;
    bool imported;
    bool is_constant_init;
+   bool addr_taken;
    DBG_LASTMEMBER
 };
 
