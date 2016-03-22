@@ -293,7 +293,7 @@ struct dec {
       bool has_str;
    } initz;
    int spec;
-   enum visibility visibility;
+   bool private_visibility;
    bool static_qual;
    bool typedef_qual;
    bool leave;

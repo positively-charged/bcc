@@ -162,7 +162,7 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.specified = false;
    dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
-   dec->visibility = VISIBILITY_PUBLIC;
+   dec->private_visibility = false;
    dec->static_qual = false;
    dec->typedef_qual = false;
    dec->leave = false;
@@ -181,7 +181,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       // At this time, visibility can be specified only for variables and
       // functions.
       if ( parse->tk == TK_PRIVATE ) {
-         dec->visibility = VISIBILITY_PRIVATE;
+         dec->private_visibility = true;
          p_read_tk( parse );
       }
       if ( parse->tk == TK_FUNCTION ) {
@@ -468,11 +468,6 @@ void read_struct_member( struct parse* parse, struct dec* dec,
 }
 
 void test_struct_member( struct parse* parse, struct dec* dec ) {
-   if ( dec->static_qual ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "static struct-member" );
-      p_bail( parse );
-   }
    test_storage( parse, dec );
    if ( dec->spec == SPEC_VOID ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
@@ -935,6 +930,20 @@ void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
 }
 
 void test_var( struct parse* parse, struct dec* dec ) {
+   if ( dec->private_visibility && dec->area != DEC_TOP ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+         "private non-namespace variable" );
+      p_diag( parse, DIAG_POS, &dec->name_pos,
+         "only variables outside script/function can be made private" );
+      p_bail( parse );
+   }
+   if ( dec->static_qual && dec->area != DEC_LOCAL ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+         "static non-local variable" );
+      p_diag( parse, DIAG_POS, &dec->name_pos,
+         "only variables in script/function can be static-qualified" );
+      p_bail( parse );
+   }
    test_storage( parse, dec );
    // Variable must have a type.
    if ( dec->spec == SPEC_VOID ) {
@@ -985,11 +994,13 @@ void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = alloc_var( dec );
    var->imported = parse->task->library->imported;
    if ( dec->area == DEC_TOP ) {
+      var->hidden = dec->private_visibility;
       p_add_unresolved( parse->task->library, &var->object );
       list_append( &parse->task->library->vars, var );
       list_append( &parse->task->library->objects, var );
    }
    else if ( dec->storage.type == STORAGE_MAP ) {
+      var->hidden = ( dec->static_qual == true );
       list_append( &parse->task->library->vars, var );
       list_append( dec->vars, var );
    }
@@ -1024,9 +1035,6 @@ struct var* alloc_var( struct dec* dec ) {
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    var->addr_taken = false;
-   if ( dec->static_qual ) {
-      var->hidden = true;
-   }
    return var;
 }
 
@@ -1149,7 +1157,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;
-      impl->hidden = ( dec->static_qual );
+      impl->hidden = dec->private_visibility;
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! parse->task->library->imported ) {
@@ -1166,13 +1174,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
       read_bfunc( parse, func );
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
-   }
-   if ( dec->static_qual && func->type != FUNC_USER ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "static non-user function" );
-      p_diag( parse, DIAG_POS, &dec->static_qual_pos,
-         "only user-created functions can be made static" );
-      p_bail( parse );
    }
    if ( dec->storage.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
@@ -1438,11 +1439,6 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
 }
 
 void check_useless( struct parse* parse, struct dec* dec ) {
-   if ( dec->static_qual ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->static_qual_pos,
-         "useless static-qualifier" );
-      p_bail( parse );
-   }
    if ( dec->storage.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
          "useless %s-storage specifier",
