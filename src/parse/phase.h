@@ -145,6 +145,7 @@ enum tk {
    TK_TYPEDEF,
    TK_FOREACH,
    TK_PRIVATE,
+   TK_OBJCPY,
 
    TK_TOTAL,
 

@@ -374,6 +374,7 @@ struct strcpy_call {
    struct expr* array_length;
    struct expr* string;
    struct expr* offset;
+   bool obj;
 };
 
 struct expr {

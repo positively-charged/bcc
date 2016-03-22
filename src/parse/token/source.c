@@ -587,6 +587,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "int", TK_INT },
          { "lightning", TK_LIGHTNING },
          { "net", TK_NET },
+         { "objcpy", TK_OBJCPY },
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },
          { "private", TK_PRIVATE },

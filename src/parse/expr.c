@@ -508,7 +508,7 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       reading->node = &boolean.node;
       p_read_tk( parse );
    }
-   else if ( parse->tk == TK_STRCPY ) {
+   else if ( parse->tk == TK_STRCPY || parse->tk == TK_OBJCPY ) {
       read_strcpy( parse, reading );
    }
    else if ( parse->tk == TK_PAREN_L ) {
@@ -932,8 +932,15 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
 }
 
 void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
-   p_test_tk( parse, TK_STRCPY );
-   p_read_tk( parse );
+   bool obj = false;
+   if ( parse->tk == TK_OBJCPY ) {
+      p_read_tk( parse );
+      obj = true;
+   }
+   else {
+      p_test_tk( parse, TK_STRCPY );
+      p_read_tk( parse );
+   }
    struct strcpy_call* call = mem_alloc( sizeof( *call ) );
    call->node.type = NODE_STRCPY;
    call->array = NULL;
@@ -941,6 +948,7 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    call->array_length = NULL;
    call->string = NULL;
    call->offset = NULL;
+   call->obj = obj;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    // Array field.
