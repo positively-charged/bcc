@@ -585,6 +585,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "goto", TK_GOTO },
          { "if", TK_IF },
          { "import", TK_IMPORT },
+         { "in", TK_IN },
          { "int", TK_INT },
          { "lightning", TK_LIGHTNING },
          { "msgbuild", TK_MSGBUILD },

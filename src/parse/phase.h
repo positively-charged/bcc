@@ -148,6 +148,7 @@ enum tk {
    TK_OBJCPY,
    TK_MSGBUILD,
    TK_EXTSPEC,
+   TK_IN,
 
    TK_TOTAL,
 

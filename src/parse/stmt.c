@@ -458,7 +458,7 @@ void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    p_read_foreach_item( parse, stmt );
-   p_test_tk( parse, TK_COLON );
+   p_test_tk( parse, TK_IN );
    p_read_tk( parse );
    struct expr_reading collection;
    p_init_expr_reading( &collection, false, false, false, true );
