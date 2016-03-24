@@ -1153,7 +1153,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
 
 bool is_struct_ref( struct result* result ) {
    bool explicit_ref = ( ! result->dim && result->ref &&
-      result->ref->type == REF_VAR && result->spec == SPEC_STRUCT );
+      result->ref->type == REF_STRUCTURE && result->spec == SPEC_STRUCT );
    bool implicit_ref = ( ! result->dim && ! result->ref &&
       result->spec == SPEC_STRUCT );
    return ( explicit_ref || implicit_ref );

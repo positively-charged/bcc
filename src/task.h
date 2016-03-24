@@ -182,15 +182,23 @@ struct ref {
    struct ref* next;
    struct pos pos;
    enum {
-      REF_VAR,
+      REF_STRUCTURE,
       REF_ARRAY,
       REF_FUNCTION
    } type;
 };
 
+struct ref_struct {
+   struct ref ref;
+   int storage;
+   int storage_index;
+};
+
 struct ref_array {
    struct ref ref;
    int dim_count;
+   int storage;
+   int storage_index;
 };
 
 struct ref_func {
@@ -198,6 +206,7 @@ struct ref_func {
    struct param* params;
    int min_param;
    int max_param;
+   bool msgbuild;
 };
 
 struct type_alias {

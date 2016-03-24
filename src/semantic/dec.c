@@ -362,7 +362,7 @@ void test_ref_part( struct semantic* semantic,
       }
       struct ref_func* part = ( struct ref_func* ) ref;
    }
-   else if ( ref->type == REF_VAR ) {
+   else if ( ref->type == REF_STRUCTURE ) {
       if ( var->spec != SPEC_STRUCT ) {
          s_diag( semantic, DIAG_POS_ERR, &ref->pos,
             "invalid reference type" );
@@ -1208,10 +1208,10 @@ bool same_ref_implicit( struct ref* a, struct type_info* b ) {
       return same_ref( a, &part.ref );
    }
    else if ( b->structure ) {
-      struct ref part;
-      part.next = b->ref;
-      part.type = REF_VAR;
-      return same_ref( a, &part );
+      struct ref_struct part;
+      part.ref.next = b->ref;
+      part.ref.type = REF_STRUCTURE;
+      return same_ref( a, &part.ref );
    }
 /*
    else if ( a->type == REF_FUNCTION ) {
@@ -1248,7 +1248,7 @@ bool same_ref( struct ref* a, struct ref* b ) {
             ( struct ref_func* ) a,
             ( struct ref_func* ) b );
          break;
-      case REF_VAR:
+      case REF_STRUCTURE:
          same = true;
          break;
       default:

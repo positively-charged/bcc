@@ -9,7 +9,8 @@
 
 struct ref_reading {
    struct ref* head;
-   struct ref* tail;
+   int storage;
+   int storage_index;
 };
 
 struct params {
@@ -31,6 +32,7 @@ struct script_reading {
    struct pos param_pos;
 };
 
+static bool peek_dec_beginning_with_id( struct parse* parse );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
 static struct enumerator* alloc_enumerator( void );
@@ -54,14 +56,14 @@ static void read_extended_spec( struct parse* parse, struct dec* dec );
 static void missing_type( struct parse* parse, struct dec* dec );
 static void read_named_type( struct parse* parse, struct dec* dec );
 static void init_ref( struct ref* ref, int type, struct pos* pos );
-static void append_ref( struct ref_reading* reading, struct ref* part );
+static void prepend_ref( struct ref_reading* reading, struct ref* part );
 static void read_ref( struct parse* parse, struct dec* dec );
-static void read_var_ref( struct parse* parse,
-   struct ref_reading* reading, struct pos* pos );
-static void read_array_ref( struct parse* parse, struct ref_reading* reading,
-   struct pos* pos );
-static void read_func_ref( struct parse* parse, struct ref_reading* reading,
-   struct pos* pos );
+static void read_struct_ref( struct parse* parse,
+   struct ref_reading* reading );
+static void read_ref_storage( struct parse* parse,
+   struct ref_reading* reading );
+static void read_array_ref( struct parse* parse, struct ref_reading* reading );
+static void read_func_ref( struct parse* parse, struct ref_reading* reading );
 static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
@@ -100,19 +102,7 @@ static void read_foreach_var( struct parse* parse, struct dec* dec );
 
 bool p_is_dec( struct parse* parse ) {
    if ( parse->tk == TK_ID ) {
-      // When an identifier is allowed to start a declaration, the situation
-      // becomes ambiguous because an identifier can also start an expression.
-      // To disambiguate the situation, we look ahead of the variable type.
-      struct parsertk_iter iter;
-      p_init_parsertk_iter( parse, &iter );
-      p_next_tk( parse, &iter );
-      return (
-         // The object type should be followed by one of these:
-         // - declaration name
-         // - storage number
-         iter.token->type == TK_ID ||
-         iter.token->type == TK_LIT_DECIMAL
-      );
+      return peek_dec_beginning_with_id( parse );
    }
    else if ( parse->tk == TK_STATIC ) {
       // The `static` keyword is also used by static-assert.
@@ -143,6 +133,40 @@ bool p_is_dec( struct parse* parse ) {
       default:
          return false;
       }
+   }
+}
+
+bool peek_dec_beginning_with_id( struct parse* parse ) {
+   // When an identifier is allowed to start a declaration, the situation
+   // becomes ambiguous because an identifier can also start an expression.
+   // To disambiguate the situation, we look ahead of the variable type.
+   struct parsertk_iter iter;
+   p_init_parsertk_iter( parse, &iter );
+   p_next_tk( parse, &iter );
+   // The variable type should be followed by one of these:
+   if (
+      // - variable name
+      iter.token->type == TK_ID ||
+      // - storage index
+      iter.token->type == TK_LIT_DECIMAL ||
+      // - Structure reference. NOTE: In this context, the ampersand can also
+      // indicate a bitwise-and operation. However, it doesn't look like such a
+      // bitwise-and operation can be used in any meaningful way in real code,
+      // so a declaration takes precedence.
+      iter.token->type == TK_BIT_AND ||
+      // - Function reference.
+      iter.token->type == TK_FUNCTION
+   ) {
+      return true;
+   }
+   else if (
+      // - Array reference.
+      iter.token->type == TK_BRACKET_L ) {
+      p_next_tk( parse, &iter );
+      return ( iter.token->type == TK_BRACKET_R );
+   }
+   else {
+      return false;
    }
 }
 
@@ -453,8 +477,8 @@ void read_struct_member( struct parse* parse, struct dec* dec,
    member.type_make = structure;
    member.name_offset = structure->body;
    member.vars = dec->vars;
-   read_ref( parse, &member );
    read_extended_spec( parse, &member );
+   read_ref( parse, &member );
    while ( true ) {
       read_name( parse, &member );
       read_dim( parse, &member );
@@ -518,8 +542,8 @@ void read_var( struct parse* parse, struct dec* dec ) {
    }
    else {
       read_storage( parse, dec );
-      read_ref( parse, dec );
       read_extended_spec( parse, dec );
+      read_ref( parse, dec );
       read_instance_list( parse, dec );
       // check_useless( parse, dec );
    }
@@ -624,29 +648,38 @@ void read_named_type( struct parse* parse, struct dec* dec ) {
 }
 
 void read_ref( struct parse* parse, struct dec* dec ) {
-   struct ref_reading reading = { NULL, NULL };
+   struct ref_reading reading = { NULL, STORAGE_MAP, 0 };
+   // Read structure reference.
+   switch ( parse->tk ) {
+   case TK_GLOBAL:
+   case TK_WORLD:
+   case TK_SCRIPT:
+   case TK_BIT_AND:
+      read_struct_ref( parse, &reading );
+      break;
+   default:
+      break;
+   }
    // Read array and function references.
-   while ( parse->tk == TK_REF && (
-      p_peek( parse ) == TK_BRACKET_L ||
-      p_peek( parse ) == TK_PAREN_L ) ) {
-      struct pos pos = parse->tk_pos;
-      p_read_tk( parse );
+   while ( parse->tk == TK_BRACKET_L || parse->tk == TK_FUNCTION ) {
       switch ( parse->tk ) {
       case TK_BRACKET_L:
-         read_array_ref( parse, &reading, &pos );
+         read_array_ref( parse, &reading );
          break;
-      case TK_PAREN_L:
-         read_func_ref( parse, &reading, &pos );
+      case TK_FUNCTION:
+         read_func_ref( parse, &reading );
          break;
       default:
          UNREACHABLE()
       }
+      if ( parse->tk == TK_BIT_AND ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
    }
-   // Read variable reference.
-   if ( parse->tk == TK_REF ) {
-      read_var_ref( parse, &reading, &parse->tk_pos );
-      p_read_tk( parse );
-   }
+   // Done.
    dec->ref = reading.head;
 }
 
@@ -656,25 +689,56 @@ void init_ref( struct ref* ref, int type, struct pos* pos ) {
    ref->pos = *pos;
 }
 
-void append_ref( struct ref_reading* reading, struct ref* part ) {
-   if ( reading->head ) {
-      reading->tail->next = part;
-   }
-   else {
-      reading->head = part;
-   }
-   reading->tail = part;
+void prepend_ref( struct ref_reading* reading, struct ref* part ) {
+   part->next = reading->head;
+   reading->head = part;
 }
 
-void read_var_ref( struct parse* parse, struct ref_reading* reading,
-   struct pos* pos ) {
-   struct ref* part = mem_alloc( sizeof( *part ) );
-   init_ref( part, REF_VAR, pos );
-   append_ref( reading, part );
+void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
+   read_ref_storage( parse, reading );
+   p_test_tk( parse, TK_BIT_AND );
+   struct ref_struct* part = mem_alloc( sizeof( *part ) );
+   init_ref( &part->ref, REF_STRUCTURE, &parse->tk_pos );
+   part->storage = reading->storage;
+   part->storage_index = reading->storage_index;
+   prepend_ref( reading, &part->ref );
+   p_read_tk( parse );
 }
 
-void read_array_ref( struct parse* parse, struct ref_reading* reading,
-   struct pos* pos ) {
+void read_ref_storage( struct parse* parse, struct ref_reading* reading ) {
+   // Storage.
+   int storage = STORAGE_MAP;
+   switch ( parse->tk ) {
+   case TK_GLOBAL:
+      storage = STORAGE_GLOBAL;
+      p_read_tk( parse );
+      break;
+   case TK_WORLD:
+      storage = STORAGE_WORLD;
+      p_read_tk( parse );
+      break;
+   case TK_SCRIPT:
+      storage = STORAGE_LOCAL;
+      p_read_tk( parse );
+      break;
+   default:
+      break;
+   }
+   // Storage index. (Optional)
+   int storage_index = 0;
+   if ( ( storage == STORAGE_GLOBAL || storage == STORAGE_WORLD ) &&
+      parse->tk == TK_COLON ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      storage_index = p_extract_literal_value( parse );
+      p_read_tk( parse );
+   }
+   reading->storage = storage;
+   reading->storage_index = storage_index;
+}
+
+void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
+   struct pos pos = parse->tk_pos;
    int count = 0;
    while ( parse->tk == TK_BRACKET_L ) {
       p_read_tk( parse );
@@ -682,21 +746,27 @@ void read_array_ref( struct parse* parse, struct ref_reading* reading,
       p_read_tk( parse );
       ++count;
    }
+   read_ref_storage( parse, reading );
    struct ref_array* part = mem_alloc( sizeof( *part ) );
-   init_ref( &part->ref, REF_ARRAY, pos );
+   init_ref( &part->ref, REF_ARRAY, &pos );
    part->dim_count = count;
-   append_ref( reading, &part->ref );
+   part->storage = reading->storage;
+   part->storage_index = reading->storage_index;
+   prepend_ref( reading, &part->ref );
 }
 
-void read_func_ref( struct parse* parse, struct ref_reading* reading,
-   struct pos* pos ) {
-   p_test_tk( parse, TK_PAREN_L );
-   p_read_tk( parse );
+void read_func_ref( struct parse* parse, struct ref_reading* reading ) {
    struct ref_func* part = mem_alloc( sizeof( *part ) );
-   init_ref( &part->ref, REF_FUNCTION, pos );
+   init_ref( &part->ref, REF_FUNCTION, &parse->tk_pos );
    part->params = NULL;
    part->min_param = 0;
    part->max_param = 0;
+   part->msgbuild = false;
+   p_test_tk( parse, TK_FUNCTION );
+   p_read_tk( parse );
+   // Read parameter list.
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    if ( parse->tk != TK_PAREN_R ) {
       struct params params;
       init_params( &params );
@@ -707,7 +777,13 @@ void read_func_ref( struct parse* parse, struct ref_reading* reading,
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   append_ref( reading, &part->ref );
+   // Read function qualifier.
+   if ( parse->tk == TK_MSGBUILD ) {
+      part->msgbuild = true;
+      p_read_tk( parse );
+   }
+   // Done.
+   prepend_ref( reading, &part->ref );
 }
 
 void read_instance_list( struct parse* parse, struct dec* dec ) {
@@ -1460,8 +1536,8 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
    }
    else {
-      read_ref( parse, dec );
       read_spec( parse, dec );
+      read_ref( parse, dec );
    }
    read_name( parse, dec );
 }
