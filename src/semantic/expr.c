@@ -1294,7 +1294,7 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
       t_copy_name( func->name, false, &str );
       s_diag( semantic, DIAG_FILE, &call->pos,
          "function `%s` takes %s%d argument%s", str.value,
-         func->min_param != func->max_param ? "up_to " : "",
+         func->min_param != func->max_param ? "at most " : "",
          func->max_param, func->max_param != 1 ? "s" : "" );
       s_bail( semantic );
    }
@@ -1447,7 +1447,7 @@ void s_test_formatitemlist_stmt( struct semantic* semantic,
 void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    struct param* param = test->func->params;
-   while ( ! list_end( test->i ) && param ) {
+   while ( ! list_end( test->i ) ) {
       struct expr* expr = list_data( test->i );
       struct expr_test nested;
       s_init_expr_test( &nested,
@@ -1456,16 +1456,18 @@ void test_remaining_args( struct semantic* semantic,
       struct result result;
       init_result( &result );
       test_nested_root( semantic, expr_test, &nested, &result, expr );
-      struct result required_result;
-      init_result( &required_result );
-      required_result.spec = param->spec;
-      if ( ! same_type( &result, &required_result ) ) {
-         arg_mismatch( semantic, &expr->pos, &result, &required_result,
-            test->num_args + 1 );
-         s_bail( semantic );
+      if ( param ) {
+         struct result required_result;
+         init_result( &required_result );
+         required_result.spec = param->spec;
+         if ( ! same_type( &result, &required_result ) ) {
+            arg_mismatch( semantic, &expr->pos, &result, &required_result,
+               test->num_args + 1 );
+            s_bail( semantic );
+         }
+         param = param->next;
       }
       ++test->num_args;
-      param = param->next;
       list_next( test->i );
    }
 }

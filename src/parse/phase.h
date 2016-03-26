@@ -150,6 +150,7 @@ enum tk {
    TK_EXTSPEC,
    TK_IN,
    TK_NULL,
+   TK_SPECIAL,
 
    TK_TOTAL,
 
@@ -458,5 +459,7 @@ void p_fill_queue( struct parse* parse, struct token_queue* queue,
 void p_read_mnemonic( struct parse* parse );
 void p_read_asm( struct parse* parse, struct stmt_reading* reading );
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
+void p_read_special_list( struct parse* parse );
+void p_skip_semicolon( struct parse* parse );
 
 #endif

@@ -601,7 +601,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "restart", TK_RESTART },
          { "return", TK_RETURN },
          { "script", TK_SCRIPT },
-         { "special", TK_RESERVED },
+         { "special", TK_SPECIAL },
          { "static", TK_STATIC },
          { "str", TK_STR },
          { "strcpy", TK_STRCPY },

@@ -112,7 +112,7 @@ static const struct {
    { "restart", TK_RESTART },
    { "return", TK_RETURN },
    { "script", TK_SCRIPT },
-   { "special", TK_RESERVED },
+   { "special", TK_SPECIAL },
    { "static", TK_STATIC },
    { "str", TK_STR },
    { "strcpy", TK_STRCPY },
@@ -441,6 +441,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "extspec", TKF_KEYWORD ),
       ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
+      ENTRY( "special", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -580,8 +581,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_MSGBUILD, "`msgbuild`" },
       { TK_EXTSPEC, "`extspec`" },
       { TK_IN, "`in`" },
-      { TK_NULL, "`null`" }, };
-   STATIC_ASSERT( TK_TOTAL == 128 );
+      { TK_NULL, "`null`" },
+      { TK_SPECIAL, "`special`" }, };
+   STATIC_ASSERT( TK_TOTAL == 129 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

@@ -105,6 +105,8 @@ static void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_ext_call( struct codegen* codegen, struct result* result,
    struct call* call );
+static int push_aspecext_arg_list( struct codegen* codegen,
+   struct call* call );
 static int push_nonzero_args( struct codegen* codegen, struct param* params,
    struct list* args, int min );
 static void visit_ded_call( struct codegen* codegen, struct result* result,
@@ -1059,8 +1061,7 @@ void visit_call( struct codegen* codegen, struct result* result,
 
 void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   int count = push_nonzero_args( codegen, call->func->params,
-      &call->args, 0 );
+   int count = push_aspecext_arg_list( codegen, call );
    struct func_aspec* aspec = call->func->impl;
    if ( result->push ) {
       while ( count < 5 ) {
@@ -1081,11 +1082,26 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
 
 void visit_ext_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   int count = push_nonzero_args( codegen, call->func->params, &call->args,
-      call->func->min_param );
+   int count = push_aspecext_arg_list( codegen, call );
    struct func_ext* impl = call->func->impl;
    c_pcd( codegen, PCD_CALLFUNC, count, impl->id );
    result->status = R_VALUE;
+}
+
+int push_aspecext_arg_list( struct codegen* codegen, struct call* call ) {
+   if ( call->func->params ) {
+      return push_nonzero_args( codegen, call->func->params, &call->args,
+         call->func->type == FUNC_ASPEC ? 0 : call->func->min_param );
+   }
+   else {
+      list_iter_t i;
+      list_iter_init( &i, &call->args );
+      while ( ! list_end( &i ) ) {
+         c_push_expr( codegen, list_data( &i ) );
+         list_next( &i );
+      }
+      return list_size( &call->args );
+   }
 }
 
 // Pushes the specified function arguments onto the stack. A minimum amount of

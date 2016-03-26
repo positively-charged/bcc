@@ -35,6 +35,9 @@ void p_read_lib( struct parse* parse ) {
          p_read_tk( parse );
          read_dirc( parse, &pos );
       }
+      else if ( parse->tk == TK_SPECIAL ) {
+         p_read_special_list( parse );
+      }
       else if ( parse->tk == TK_END ) {
          break;
       }

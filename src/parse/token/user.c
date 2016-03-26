@@ -171,6 +171,16 @@ void p_skip_block( struct parse* parse ) {
    p_read_tk( parse );
 }
 
+void p_skip_semicolon( struct parse* parse ) {
+   while (
+      parse->tk != TK_END &&
+      parse->tk != TK_SEMICOLON ) {
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
+}
+
 // Functions used by the preprocessor.
 // ==========================================================================
 

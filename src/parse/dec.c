@@ -68,8 +68,10 @@ static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
+static struct func* alloc_func( void );
 static void read_func_qual( struct parse* parse, struct dec* dec );
 static void read_bfunc( struct parse* parse, struct func* );
+static struct func_aspec* alloc_aspec_impl( void );
 static void check_useless( struct parse* parse, struct dec* dec );
 static void init_params( struct params* );
 static void read_params( struct parse* parse, struct params* );
@@ -99,6 +101,7 @@ static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static const char* get_storage_name( int type );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
+static void read_special( struct parse* parse );
 
 bool p_is_dec( struct parse* parse ) {
    if ( parse->tk == TK_ID ) {
@@ -1303,6 +1306,21 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
 }
 
+struct func* alloc_func( void ) {
+   struct func* func = mem_slot_alloc( sizeof( *func ) );
+   t_init_object( &func->object, NODE_FUNC );
+   func->type = FUNC_ASPEC;
+   func->ref = NULL;
+   func->name = NULL;
+   func->params = NULL;
+   func->impl = NULL;
+   func->return_spec = SPEC_VOID;
+   func->min_param = 0;
+   func->max_param = 0;
+   func->hidden = false;
+   return func;
+}
+
 void read_func_qual( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_MSGBUILD ) {
       dec->msgbuild = true;
@@ -1434,17 +1452,14 @@ void read_bfunc( struct parse* parse, struct func* func ) {
    // Action special.
    if ( parse->tk == TK_ASSIGN ) {
       p_read_tk( parse );
-      struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
+      struct func_aspec* impl = alloc_aspec_impl();
       p_test_tk( parse, TK_LIT_DECIMAL );
       impl->id = p_extract_literal_value( parse );
-      impl->script_callable = false;
       p_read_tk( parse );
       p_test_tk( parse, TK_COMMA );
       p_read_tk( parse );
       p_test_tk( parse, TK_LIT_DECIMAL );
-      if ( p_extract_literal_value( parse ) ) {
-         impl->script_callable = true;
-      }
+      impl->script_callable = ( p_extract_literal_value( parse ) != 0 );
       func->impl = impl;
       p_read_tk( parse );
    }
@@ -1506,6 +1521,13 @@ void read_bfunc( struct parse* parse, struct func* func ) {
       }
       func->impl = impl;
    }
+}
+
+struct func_aspec* alloc_aspec_impl( void ) {
+   struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
+   impl->id = 0;
+   impl->script_callable = false;
+   return impl;
 }
 
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
@@ -1736,4 +1758,79 @@ void read_script_body( struct parse* parse, struct script* script ) {
    p_init_stmt_reading( &body, &script->labels );
    p_read_top_stmt( parse, &body, false );
    script->body = body.node;
+}
+
+void p_read_special_list( struct parse* parse ) {
+   p_test_tk( parse, TK_SPECIAL );
+   p_read_tk( parse );
+   if ( parse->task->library->imported ) {
+      p_skip_semicolon( parse );
+   }
+   else {
+      while ( true ) {
+         read_special( parse );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
+      }
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
+   }
+}
+
+void read_special( struct parse* parse ) {
+   bool minus = false;
+   if ( parse->tk == TK_MINUS ) {
+      p_read_tk( parse );
+      minus = true;
+   }
+   // Special-number/function-index.
+   struct func* func = alloc_func();
+   func->return_spec = SPEC_ZINT;
+   p_test_tk( parse, TK_LIT_DECIMAL );
+   int id = p_extract_literal_value( parse );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
+   // Name.
+   p_test_tk( parse, TK_ID );
+   func->object.pos = parse->tk_pos;
+   func->name = t_extend_name( parse->task->body, parse->tk_text );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   // Parameter count, in two formats:
+   // 1. Maximum parameters
+   // 2. Minimum parameters , maximum-parameters
+   p_test_tk( parse, TK_LIT_DECIMAL );
+   func->max_param = p_extract_literal_value( parse );
+   func->min_param = func->max_param;
+   p_read_tk( parse );
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_LIT_DECIMAL );
+      func->max_param = p_extract_literal_value( parse );
+      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   // Done.
+   if ( minus ) {
+      struct func_ext* impl = mem_alloc( sizeof( *impl ) );
+      impl->id = id;
+      func->type = FUNC_EXT;
+      func->impl = impl;
+   }
+   else {
+      struct func_aspec* impl = alloc_aspec_impl();
+      impl->id = id;
+      impl->script_callable = true;
+      func->type = FUNC_ASPEC;
+      func->impl = impl;
+   }
+   p_add_unresolved( parse->task->library, &func->object );
+   list_append( &parse->task->library->objects, func );
 }
