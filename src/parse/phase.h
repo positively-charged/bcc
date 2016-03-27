@@ -155,6 +155,7 @@ enum tk {
 
    // 130
    TK_UPMOST,
+   TK_USING,
 
    TK_TOTAL,
 
@@ -467,5 +468,6 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
 void p_read_special_list( struct parse* parse );
 void p_skip_semicolon( struct parse* parse );
 bool p_peek_path( struct parse* parse, struct parsertk_iter* iter );
+void p_read_using( struct parse* parse, struct list* output );
 
 #endif

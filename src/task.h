@@ -93,6 +93,7 @@ struct node {
       NODE_NAMESPACE,
       // 50
       NODE_UPMOST,
+      NODE_USING
    } type;
 };
 
@@ -901,6 +902,24 @@ struct ns_link {
    struct ns_link* next;
    struct ns* ns;
    struct pos pos;
+};
+
+struct using_dirc {
+   struct node node;
+   struct path* path;
+   struct list items;
+   struct pos pos;
+   enum {
+      USING_ALL,
+      USING_SELECTION
+   } type;
+};
+
+struct using_item {
+   const char* name;
+   const char* alias;
+   struct pos name_pos;
+   struct pos alias_pos;
 };
 
 struct library {

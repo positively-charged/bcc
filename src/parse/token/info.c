@@ -126,6 +126,7 @@ static const struct {
    { "unloading", TK_UNLOADING },
    { "until", TK_UNTIL },
    { "upmost", TK_UPMOST },
+   { "using", TK_USING },
    { "void", TK_VOID },
    { "while", TK_WHILE },
    { "whitereturn", TK_WHITE_RETURN },
@@ -448,6 +449,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
 
       // 130
       ENTRY( "upmost", TKF_KEYWORD ),
+      ENTRY( "using", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -590,8 +592,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_NULL, "`null`" },
       { TK_SPECIAL, "`special`" },
       { TK_NAMESPACE, "`namespace`" },
-      { TK_UPMOST, "`upmost`" }, };
-   STATIC_ASSERT( TK_TOTAL == 131 );
+      { TK_UPMOST, "`upmost`" },
+      { TK_USING, "`using`" }, };
+   STATIC_ASSERT( TK_TOTAL == 132 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

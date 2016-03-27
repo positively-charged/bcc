@@ -615,6 +615,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "unloading", TK_UNLOADING },
          { "until", TK_UNTIL },
          { "upmost", TK_UPMOST },
+         { "using", TK_USING },
          { "void", TK_VOID },
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },

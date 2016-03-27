@@ -8,6 +8,11 @@ static void read_namespace_name_list( struct parse* parse );
 static void read_namespace_name( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
+static struct using_dirc* alloc_using( struct pos* pos );
+static void read_using_item_list( struct parse* parse,
+   struct using_dirc* dirc );
+static void read_using_item( struct parse* parse, struct using_dirc* dirc );
+static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
 static void read_dirc( struct parse* parse, struct pos* );
 static void read_include( struct parse* parse, struct pos*, bool );
@@ -35,6 +40,9 @@ void p_read_lib( struct parse* parse ) {
       }
       else if ( parse->tk == TK_NAMESPACE ) {
          read_namespace( parse );
+      }
+      else if ( parse->tk == TK_USING ) {
+         p_read_using( parse, &parse->ns->usings );
       }
       else if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
@@ -139,9 +147,9 @@ void read_namespace_member( struct parse* parse ) {
    else if ( parse->tk == TK_NAMESPACE ) {
       read_namespace( parse );
    }
-   //else if ( parse->tk == TK_USING ) {
-   //   p_read_using( parse, &parse->ns->usings );
-   //}
+   else if ( parse->tk == TK_USING ) {
+      p_read_using( parse, &parse->ns->usings );
+   }
    else if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
    }
@@ -150,6 +158,68 @@ void read_namespace_member( struct parse* parse ) {
          "unexpected %s", p_get_token_name( parse->tk ) );
       p_bail( parse );
    }
+}
+
+void p_read_using( struct parse* parse, struct list* output ) {
+   struct using_dirc* dirc = alloc_using( &parse->tk_pos );
+   p_test_tk( parse, TK_USING );
+   p_read_tk( parse );
+   dirc->path = p_read_path( parse );
+   if ( parse->tk == TK_COLON ) {
+      p_read_tk( parse );
+      read_using_item_list( parse, dirc );
+      dirc->type = USING_SELECTION;
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
+   list_append( output, dirc );
+}
+
+struct using_dirc* alloc_using( struct pos* pos ) {
+   struct using_dirc* dirc = mem_alloc( sizeof( *dirc ) );
+   dirc->node.type = NODE_USING;
+   dirc->path = NULL;
+   list_init( &dirc->items );
+   dirc->pos = *pos;
+   dirc->type = USING_ALL;
+   return dirc;
+}
+
+void read_using_item_list( struct parse* parse, struct using_dirc* dirc ) {
+   while ( true ) {
+      read_using_item( parse, dirc );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
+}
+
+void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
+   p_test_tk( parse, TK_ID );
+   struct using_item* item = alloc_using_item();
+   item->name = parse->tk_text;
+   item->name_pos = parse->tk_pos;
+   p_read_tk( parse );
+   if ( parse->tk == TK_ASSIGN ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ID );
+      item->alias = item->name;
+      item->alias_pos = item->name_pos;
+      item->name = parse->tk_text;
+      item->name_pos = parse->tk_pos;
+      p_read_tk( parse );
+   }
+   list_append( &dirc->items, item );
+}
+
+struct using_item* alloc_using_item( void ) {
+   struct using_item* item = mem_alloc( sizeof( *item ) );
+   item->name = NULL;
+   item->alias = NULL;
+   return item;
 }
 
 struct path* p_read_path( struct parse* parse ) {
