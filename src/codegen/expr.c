@@ -94,6 +94,8 @@ static void subscript_array( struct codegen* codegen,
 static void copy_diminfo( struct codegen* codegen, struct result* lside );
 static void subscript_array_reference( struct codegen* codegen,
    struct subscript* subscript, struct result* lside, struct result* result );
+static void subscript_str( struct codegen* codegen,
+   struct subscript* subscript, struct result* result );
 static void visit_access( struct codegen* codegen, struct result* result,
    struct access* access );
 static void access_structure_member( struct codegen* codegen,
@@ -827,6 +829,9 @@ void visit_subscript( struct codegen* codegen, struct result* result,
    else if ( lside.ref && lside.ref->type == REF_ARRAY ) {
       subscript_array_reference( codegen, subscript, &lside, result );
    }
+   else if ( subscript->string ) {
+      subscript_str( codegen, subscript, result );
+   }
    else {
       UNREACHABLE()
    }
@@ -972,6 +977,13 @@ void subscript_array_reference( struct codegen* codegen,
          result->status = R_ARRAYINDEX;
       }
    }
+}
+
+void subscript_str( struct codegen* codegen, struct subscript* subscript,
+   struct result* result ) {
+   c_push_expr( codegen, subscript->index );
+   c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+   result->status = R_VALUE;
 }
 
 void visit_access( struct codegen* codegen, struct result* result,

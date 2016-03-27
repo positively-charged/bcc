@@ -355,6 +355,7 @@ struct subscript {
    struct node* lside;
    struct expr* index;
    struct pos pos;
+   bool string;
 };
 
 struct access {

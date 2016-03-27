@@ -76,6 +76,12 @@ static void test_suffix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct subscript* subscript );
+static void test_subscript_array( struct semantic* semantic,
+   struct expr_test* test, struct result* lside, struct result* result,
+   struct subscript* subscript );
+static void test_subscript_str( struct semantic* semantic,
+   struct expr_test* test, struct result* lside, struct result* result,
+   struct subscript* subscript );
 static bool is_array_ref( struct result* result );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
@@ -1049,11 +1055,25 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, subscript->lside );
-   if ( ! is_array_ref( &lside ) ) {
+   if ( is_array_ref( &lside ) ) {
+      test_subscript_array( semantic, test, &lside, result, subscript );
+   }
+   else if ( lside.spec == SPEC_ZSTR ) {
+      test_subscript_str( semantic, test, &lside, result, subscript );
+   }
+   else {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "operand not an array reference" );
+         "subscript operation not supported for given operand" );
       s_bail( semantic );
    }
+}
+
+bool is_array_ref( struct result* result ) {
+   return ( result->dim || result->ref_dim > 0 );
+}
+
+void test_subscript_array( struct semantic* semantic, struct expr_test* test,
+   struct result* lside, struct result* result, struct subscript* subscript ) {
    struct expr_test index;
    s_init_expr_test( &index, test->stmt_test, test->format_block, true,
       test->suggest_paren_assign );
@@ -1066,17 +1086,17 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside.dim && lside.dim->size && subscript->index->folded && (
+   if ( lside->dim && lside->dim->size && subscript->index->folded && (
       subscript->index->value < 0 ||
-      subscript->index->value >= lside.dim->size ) ) {
+      subscript->index->value >= lside->dim->size ) ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
          "index out of bounds" );
    }
-   result->ref = lside.ref;
-   result->structure = lside.structure;
-   result->dim = lside.dim;
-   result->ref_dim = lside.ref_dim;
-   result->spec = lside.spec;
+   result->ref = lside->ref;
+   result->structure = lside->structure;
+   result->dim = lside->dim;
+   result->ref_dim = lside->ref_dim;
+   result->spec = lside->spec;
    result->usable = true;
    result->complete = true;
    // Move past the current dimension.
@@ -1114,8 +1134,33 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool is_array_ref( struct result* result ) {
-   return ( result->dim || result->ref_dim > 0 );
+void test_subscript_str( struct semantic* semantic, struct expr_test* test,
+   struct result* lside, struct result* result, struct subscript* subscript ) {
+   struct expr_test index;
+   s_init_expr_test( &index, test->stmt_test, test->format_block, true,
+      test->suggest_paren_assign );
+   s_test_expr( semantic, &index, subscript->index );
+   // Index must be of integer type.
+   if ( ! ( subscript->index->spec == SPEC_ZRAW ||
+      subscript->index->spec == SPEC_ZINT ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
+         "index of non-integer type" );
+      s_bail( semantic );
+   }
+   // Out-of-bounds warning for a constant index.
+   if ( lside->folded && subscript->index->folded ) {
+      struct indexed_string* string = t_lookup_string( semantic->task,
+         lside->value );
+      if ( subscript->index->value < 0 ||
+         subscript->index->value >= string->length ) {
+         s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
+            "index out of bounds" );
+      }
+   }
+   result->spec = SPEC_ZINT;
+   result->complete = true;
+   result->usable = true;
+   subscript->string = true;
 }
 
 void test_access( struct semantic* semantic, struct expr_test* test,

@@ -691,6 +691,7 @@ void read_postfix( struct parse* parse, struct expr_reading* reading ) {
          p_read_tk( parse );
          sub->index = index.output_node;
          sub->lside = reading->node;
+         sub->string = false;
          reading->node = &sub->node;
       }
       else if ( parse->tk == TK_DOT ) {
