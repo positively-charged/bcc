@@ -27,6 +27,7 @@ struct local_record {
 
 struct func_record {
    int start_index;
+   int array_index;
    int size;
    bool nested_func;
 };

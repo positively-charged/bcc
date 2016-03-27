@@ -387,6 +387,7 @@ struct parse {
    struct token_queue parser_tkque;
    bool create_nltk;
    struct ns* ns;
+   struct list* local_vars;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );

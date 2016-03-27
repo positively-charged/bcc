@@ -476,6 +476,20 @@ void write_arg( struct codegen* codegen, int arg ) {
    case PCD_DECMAPARRAY:
    case PCD_DECWORLDARRAY:
    case PCD_DECGLOBALARRAY:
+   case PCD_ASSIGNSCRIPTARRAY:
+   case PCD_PUSHSCRIPTARRAY:
+   case PCD_ADDSCRIPTARRAY:
+   case PCD_SUBSCRIPTARRAY:
+   case PCD_MULSCRIPTARRAY:
+   case PCD_DIVSCRIPTARRAY:
+   case PCD_MODSCRIPTARRAY:
+   case PCD_INCSCRIPTARRAY:
+   case PCD_DECSCRIPTARRAY:
+   case PCD_ANDSCRIPTARRAY:
+   case PCD_EORSCRIPTARRAY:
+   case PCD_ORSCRIPTARRAY:
+   case PCD_LSSCRIPTARRAY:
+   case PCD_RSSCRIPTARRAY:
       if ( codegen->compress ) {
          c_add_byte( codegen, arg );
       }

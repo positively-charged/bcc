@@ -685,9 +685,12 @@ void inc_array( struct codegen* codegen, struct result* result,
 
 void inc_element( struct codegen* codegen, int storage, int index,
    bool do_inc ) {
-   int code = PCD_INCMAPARRAY;
+   int code = PCD_INCSCRIPTARRAY;
    if ( do_inc ) {
       switch ( storage ) {
+      case STORAGE_MAP:
+         code = PCD_INCMAPARRAY;
+         break;
       case STORAGE_WORLD:
          code = PCD_INCWORLDARRAY;
          break;
@@ -700,6 +703,9 @@ void inc_element( struct codegen* codegen, int storage, int index,
    }
    else {
       switch ( storage ) {
+      case STORAGE_MAP:
+         code = PCD_DECMAPARRAY;
+         break;
       case STORAGE_WORLD:
          code = PCD_DECWORLDARRAY;
          break;
@@ -707,7 +713,7 @@ void inc_element( struct codegen* codegen, int storage, int index,
          code = PCD_DECGLOBALARRAY;
          break;
       default:
-         code = PCD_DECMAPARRAY;
+         code = PCD_DECSCRIPTARRAY;
          break;
       }
    }
@@ -1374,8 +1380,11 @@ void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
 void visit_array_format_item( struct codegen* codegen,
    struct format_item* item ) {
    struct result object;
-   init_result( &object, false );
+   init_result( &object, true );
    visit_operand( codegen, &object, item->value->root );
+   if ( object.status != R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   }
    c_pcd( codegen, PCD_PUSHNUMBER, object.index );
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
@@ -1391,6 +1400,9 @@ void visit_array_format_item( struct codegen* codegen,
    int code = PCD_NONE;
    if ( item->extra ) {
       switch ( object.storage ) {
+      case STORAGE_LOCAL:
+         code = PCD_PRINTSCRIPTCHRANGE;
+         break;
       case STORAGE_MAP:
          code = PCD_PRINTMAPCHRANGE;
          break;
@@ -1406,6 +1418,9 @@ void visit_array_format_item( struct codegen* codegen,
    }
    else {
       switch ( object.storage ) {
+      case STORAGE_LOCAL:
+         code = PCD_PRINTSCRIPTCHARARRAY;
+         break;
       case STORAGE_MAP:
          code = PCD_PRINTMAPCHARARRAY;
          break;
@@ -1739,8 +1754,11 @@ void write_strcpy( struct codegen* codegen, struct result* result,
    else {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
-   int code = PCD_STRCPYTOMAPCHRANGE;
+   int code = PCD_STRCPYTOSCRIPTCHRANGE;
    switch ( object.storage ) {
+   case STORAGE_MAP:
+      code = PCD_STRCPYTOMAPCHRANGE;
+      break;
    case STORAGE_WORLD:
       code = PCD_STRCPYTOWORLDCHRANGE;
       break;
@@ -1778,8 +1796,11 @@ void push_indexed( struct codegen* codegen, int storage, int index ) {
 }
 
 void push_element( struct codegen* codegen, int storage, int index ) {
-   int code = PCD_PUSHMAPARRAY;
+   int code = PCD_PUSHSCRIPTARRAY;
    switch ( storage ) {
+   case STORAGE_MAP:
+      code = PCD_PUSHMAPARRAY;
+      break;
    case STORAGE_WORLD:
       code = PCD_PUSHWORLDARRAY;
       break;
@@ -1820,22 +1841,57 @@ void c_update_indexed( struct codegen* codegen, int storage, int index,
 void c_update_element( struct codegen* codegen, int storage, int index,
    int op ) {
    static const int code[] = {
-      PCD_ASSIGNMAPARRAY, PCD_ASSIGNWORLDARRAY, PCD_ASSIGNGLOBALARRAY,
-      PCD_ADDMAPARRAY, PCD_ADDWORLDARRAY, PCD_ADDGLOBALARRAY,
-      PCD_SUBMAPARRAY, PCD_SUBWORLDARRAY, PCD_SUBGLOBALARRAY,
-      PCD_MULMAPARRAY, PCD_MULWORLDARRAY, PCD_MULGLOBALARRAY,
-      PCD_DIVMAPARRAY, PCD_DIVWORLDARRAY, PCD_DIVGLOBALARRAY,
-      PCD_MODMAPARRAY, PCD_MODWORLDARRAY, PCD_MODGLOBALARRAY,
-      PCD_LSMAPARRAY, PCD_LSWORLDARRAY, PCD_LSGLOBALARRAY,
-      PCD_RSMAPARRAY, PCD_RSWORLDARRAY, PCD_RSGLOBALARRAY,
-      PCD_ANDMAPARRAY, PCD_ANDWORLDARRAY, PCD_ANDGLOBALARRAY,
-      PCD_EORMAPARRAY, PCD_EORWORLDARRAY, PCD_EORGLOBALARRAY,
-      PCD_ORMAPARRAY, PCD_ORWORLDARRAY, PCD_ORGLOBALARRAY };
+      PCD_ASSIGNSCRIPTARRAY,
+      PCD_ASSIGNMAPARRAY,
+      PCD_ASSIGNWORLDARRAY,
+      PCD_ASSIGNGLOBALARRAY,
+      PCD_ADDSCRIPTARRAY,
+      PCD_ADDMAPARRAY,
+      PCD_ADDWORLDARRAY,
+      PCD_ADDGLOBALARRAY,
+      PCD_SUBSCRIPTARRAY,
+      PCD_SUBMAPARRAY,
+      PCD_SUBWORLDARRAY,
+      PCD_SUBGLOBALARRAY,
+      PCD_MULSCRIPTARRAY,
+      PCD_MULMAPARRAY,
+      PCD_MULWORLDARRAY,
+      PCD_MULGLOBALARRAY,
+      PCD_DIVSCRIPTARRAY,
+      PCD_DIVMAPARRAY,
+      PCD_DIVWORLDARRAY,
+      PCD_DIVGLOBALARRAY,
+      PCD_MODSCRIPTARRAY,
+      PCD_MODMAPARRAY,
+      PCD_MODWORLDARRAY,
+      PCD_MODGLOBALARRAY,
+      PCD_LSSCRIPTARRAY,
+      PCD_LSMAPARRAY,
+      PCD_LSWORLDARRAY,
+      PCD_LSGLOBALARRAY,
+      PCD_RSSCRIPTARRAY,
+      PCD_RSMAPARRAY,
+      PCD_RSWORLDARRAY,
+      PCD_RSGLOBALARRAY,
+      PCD_ANDSCRIPTARRAY,
+      PCD_ANDMAPARRAY,
+      PCD_ANDWORLDARRAY,
+      PCD_ANDGLOBALARRAY,
+      PCD_EORSCRIPTARRAY,
+      PCD_EORMAPARRAY,
+      PCD_EORWORLDARRAY,
+      PCD_EORGLOBALARRAY,
+      PCD_ORSCRIPTARRAY,
+      PCD_ORMAPARRAY,
+      PCD_ORWORLDARRAY,
+      PCD_ORGLOBALARRAY
+   };
    int pos = 0;
    switch ( storage ) {
-   case STORAGE_WORLD: pos = 1; break;
-   case STORAGE_GLOBAL: pos = 2; break;
+   case STORAGE_MAP: pos = 1; break;
+   case STORAGE_WORLD: pos = 2; break;
+   case STORAGE_GLOBAL: pos = 3; break;
    default: break;
    }
-   c_pcd( codegen, code[ op * 3 + pos ], index );
+   c_pcd( codegen, code[ op * 4 + pos ], index );
 }

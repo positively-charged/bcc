@@ -37,6 +37,10 @@ static bool astr_var( struct var* var );
 static void do_atag( struct codegen* codegen );
 static bool atag_var( struct var* var );
 static void write_atagchunk( struct codegen* codegen, struct var* var );
+static void do_sary( struct codegen* codegen );
+static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
+   int index, struct list* vars );
+static bool script_array( struct var* var );
 
 void c_write_chunk_obj( struct codegen* codegen ) {
    if ( codegen->task->library_main->format == FORMAT_LITTLE_E ) {
@@ -60,6 +64,7 @@ void c_write_chunk_obj( struct codegen* codegen ) {
    do_load( codegen );
    do_mimp( codegen );
    do_aimp( codegen );
+   do_sary( codegen );
    if ( codegen->task->library_main->importable ) {
       do_mexp( codegen );
       do_mstr( codegen );
@@ -1074,4 +1079,57 @@ void write_atagchunk( struct codegen* codegen, struct var* var ) {
       }
       value = value->next;
    }
+}
+
+void do_sary( struct codegen* codegen ) {
+   // Scripts.
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      write_sary_chunk( codegen, "SARY", script->assigned_number,
+         &script->vars );
+      list_next( &i );
+   }
+   // Functions.
+   list_iter_init( &i, &codegen->task->library_main->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      write_sary_chunk( codegen, "FARY", impl->index, &impl->vars );
+      list_next( &i );
+   }
+}
+
+void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
+   int index, struct list* vars ) {
+   int count = 0;
+   list_iter_t i;
+   list_iter_init( &i, vars );
+   while ( ! list_end( &i ) ) {
+      count += ( int ) script_array( list_data( &i ) );
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   c_add_str( codegen, chunk_name );
+   c_add_int( codegen,
+      // Function-index/script-number.
+      sizeof( short ) +
+      // List of array sizes.
+      sizeof( int ) * count );
+   c_add_short( codegen, ( short ) index );
+   list_iter_init( &i, vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( script_array( var ) ) {
+         c_add_int( codegen, var->size );
+      }
+      list_next( &i );
+   }
+}
+
+inline bool script_array( struct var* var ) {
+   return ( var->storage == STORAGE_LOCAL && var->dim ); 
 }

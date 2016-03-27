@@ -1111,6 +1111,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    }
    else {
       list_append( dec->vars, var );
+      list_append( parse->local_vars, var );
    }
 }
 
@@ -1256,6 +1257,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->returns = NULL;
       impl->prologue_point = NULL;
       impl->return_table = NULL;
+      list_init( &impl->vars );
       impl->index = 0;
       impl->size = 0;
       impl->usage = 0;
@@ -1270,8 +1272,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
       if ( ! parse->task->library->imported ) {
          struct stmt_reading body;
          p_init_stmt_reading( &body, &impl->labels );
+         parse->local_vars = &impl->vars;
          p_read_top_stmt( parse, &body, true );
          impl->body = body.block_node;
+         parse->local_vars = NULL;
       }
       else {
          p_skip_block( parse );
@@ -1594,6 +1598,7 @@ void p_read_script( struct parse* parse ) {
    script->nested_funcs = NULL;
    script->nested_calls = NULL;
    list_init( &script->labels );
+   list_init( &script->vars );
    script->assigned_number = 0;
    script->num_param = 0;
    script->offset = 0;
@@ -1765,8 +1770,10 @@ void read_script_flag( struct parse* parse, struct script* script ) {
 void read_script_body( struct parse* parse, struct script* script ) {
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
+   parse->local_vars = &script->vars;
    p_read_top_stmt( parse, &body, false );
    script->body = body.node;
+   parse->local_vars = NULL;
 }
 
 void p_read_special_list( struct parse* parse ) {

@@ -672,6 +672,7 @@ struct func_user {
    struct return_stmt* returns;
    struct c_point* prologue_point;
    struct c_sortedcasejump* return_table;
+   struct list vars;
    int index;
    int size;
    int usage;
@@ -772,6 +773,7 @@ struct script {
    struct func* nested_funcs;
    struct call* nested_calls;
    struct list labels;
+   struct list vars;
    int assigned_number;
    int num_param;
    int offset;

@@ -1078,6 +1078,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    result->ref_dim = lside.ref_dim;
    result->spec = lside.spec;
    result->usable = true;
+   result->complete = true;
    // Move past the current dimension.
    bool reached_element = false;
    if ( result->dim ) {

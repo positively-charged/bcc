@@ -475,11 +475,6 @@ bool test_dim( struct semantic* semantic, struct var* var ) {
       }
       dim = dim->next;
    }
-   if ( var->storage == STORAGE_LOCAL ) {
-      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "array in local storage" );
-      s_bail( semantic );
-   }
    return true;
 }
 
