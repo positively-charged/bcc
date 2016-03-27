@@ -103,6 +103,9 @@ void read_block( struct parse* parse, struct stmt_reading* reading ) {
          p_read_tk( parse );
          break;
       }
+      else if ( parse->tk == TK_USING ) {
+         p_read_using( parse, &block->stmts );
+      }
       else if ( parse->tk == TK_ASSERT ||
          ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
          read_assert( parse, reading );

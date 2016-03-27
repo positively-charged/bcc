@@ -11,7 +11,7 @@ struct sweep {
 struct scope {
    struct scope* prev;
    struct sweep* sweep;
-   struct region_link* region_link;
+   struct ns_link* ns_link;
 };
 
 static void determine_publishable_objects( struct semantic* semantic );
@@ -554,6 +554,7 @@ void s_add_scope( struct semantic* semantic ) {
    }
    scope->prev = semantic->scope;
    scope->sweep = NULL;
+   scope->ns_link = semantic->ns->links;
    semantic->scope = scope;
    ++semantic->depth;
    semantic->in_localscope = ( semantic->depth > 0 );
@@ -576,6 +577,7 @@ void s_pop_scope( struct semantic* semantic ) {
       }
    }
    struct scope* prev = semantic->scope->prev;
+   semantic->ns->links = semantic->scope->ns_link;
    semantic->scope->prev = semantic->free_scope;
    semantic->free_scope = semantic->scope;
    semantic->scope = prev;
