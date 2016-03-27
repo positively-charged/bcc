@@ -154,14 +154,13 @@ void test_label_arg( struct semantic* semantic, struct test* test,
 
 void test_var_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
-   struct name* name = t_extend_name( semantic->task->body, arg->value.id );
-   if ( ! name->object ) {
+   struct object* object = s_search_object( semantic, arg->value.id );
+   if ( ! object ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "`%s` not found", arg->value.id );
       s_bail( semantic );
    }
-   if ( name->object->node.type != NODE_VAR &&
-      name->object->node.type != NODE_PARAM ) {
+   if ( object->node.type != NODE_VAR && object->node.type != NODE_PARAM ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "instruction argument not a variable" );
       s_bail( semantic );
@@ -171,11 +170,11 @@ void test_var_arg( struct semantic* semantic, struct test* test,
    struct structure* structure = NULL;
    struct dim* dim = NULL;
    int storage = STORAGE_LOCAL;
-   if ( name->object->node.type == NODE_PARAM ) {
-      param = ( struct param* ) name->object;
+   if ( object->node.type == NODE_PARAM ) {
+      param = ( struct param* ) object;
    }
    else {
-      var = ( struct var* ) name->object;
+      var = ( struct var* ) object;
       structure = var->structure;
       dim = var->dim;
       storage = var->storage;
@@ -227,18 +226,18 @@ void test_var_arg( struct semantic* semantic, struct test* test,
 
 void test_func_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
-   struct name* name = t_extend_name( semantic->task->body, arg->value.id );
-   if ( ! name->object ) {
+   struct object* object = s_search_object( semantic, arg->value.id );
+   if ( ! object ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "`%s` not found", arg->value.id );
       s_bail( semantic );
    }
-   if ( name->object->node.type != NODE_FUNC ) {
+   if ( object->node.type != NODE_FUNC ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "instruction argument not a function" );
       s_bail( semantic );
    }
-   struct func* func = ( struct func* ) name->object;
+   struct func* func = ( struct func* ) object;
    if ( test->format[ 1 ] == 'e' ) {
       if ( func->type != FUNC_EXT ) {
          s_diag( semantic, DIAG_POS_ERR, &arg->pos,

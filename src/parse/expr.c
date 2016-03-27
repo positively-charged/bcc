@@ -512,6 +512,11 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    else if ( parse->tk == TK_NULL ) {
       read_null( parse, reading );
    }
+   else if ( parse->tk == TK_UPMOST ) {
+      static struct node node = { NODE_UPMOST };
+      reading->node = &node;
+      p_read_tk( parse );
+   }
    else if ( parse->tk == TK_STRCPY || parse->tk == TK_OBJCPY ) {
       read_strcpy( parse, reading );
    }

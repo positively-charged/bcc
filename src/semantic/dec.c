@@ -250,6 +250,7 @@ void test_member( struct semantic* semantic, struct structure_member* member ) {
 
 bool test_member_spec( struct semantic* semantic,
    struct structure_member* member ) {
+/*
    if ( member->type_path ) {
       if ( ! member->structure ) {
          struct object_search search;
@@ -270,6 +271,7 @@ bool test_member_spec( struct semantic* semantic,
          return false;
       }
    }
+*/
    return true;
 }
 
@@ -401,25 +403,24 @@ void init_var_test( struct var_test* test, struct path* path ) {
 }
 
 void resolve_name_spec( struct semantic* semantic, struct var_test* test ) {
-   struct object_search search;
-   s_init_object_search( &search, test->path, false );
-   s_find_object( semantic, &search );
-   switch ( search.object->node.type ) {
+   struct object* object = s_follow_path( semantic, test->path );
+   switch ( object->node.type ) {
+      struct path* path;
    case NODE_STRUCTURE:
       test->structure =
-         ( struct structure* ) search.object;
+         ( struct structure* ) object;
       test->spec = SPEC_STRUCT;
       break;
    case NODE_ENUMERATION:
       test->enumeration =
-         ( struct enumeration* ) search.object;
+         ( struct enumeration* ) object;
       test->spec = SPEC_ENUM;
       break;
-   default:
-      s_diag( semantic, DIAG_POS_ERR, &search.path->pos,
-         "`%s` is not a valid type",
-         search.path->text );
-      s_bail( semantic );
+   default: {
+      path = s_last_path_part( test->path );
+      s_diag( semantic, DIAG_POS_ERR, &path->pos,
+         "object not a valid type" );
+      s_bail( semantic ); }
    }
 }
 

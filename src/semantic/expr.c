@@ -7,6 +7,7 @@ struct result {
    struct enumeration* enumeration;
    struct structure* structure;
    struct dim* dim;
+   struct ns* ns;
    int ref_dim;
    int spec;
    int value;
@@ -81,6 +82,8 @@ static void test_access( struct semantic* semantic, struct expr_test* test,
 static bool is_struct_ref( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
    struct object* object );
+static void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
+   const char* object_name, struct pos* pos );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
 static void test_call_args( struct semantic* semantic,
@@ -125,6 +128,7 @@ static void select_param( struct result* result, struct param* param );
 static void select_member( struct expr_test* test, struct result* result,
    struct structure_member* member );
 static void select_func( struct result* result, struct func* func );
+static void select_namespace( struct result* result, struct ns* ns );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static bool is_onedim_intelem_array_ref( struct result* result );
@@ -132,6 +136,7 @@ static bool is_int_value( struct result* result );
 static bool is_str_value( struct result* result );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
+static void test_upmost( struct semantic* semantic, struct result* result );
 static void init_type_info( struct type_info* type, struct result* result );
 static bool same_type( struct result* a, struct result* b );
 static bool is_value_type( struct result* result );
@@ -223,6 +228,7 @@ void init_result( struct result* result ) {
    result->enumeration = NULL;
    result->structure = NULL;
    result->dim = NULL;
+   result->ns = NULL;
    result->ref_dim = 0;
    result->spec = SPEC_VOID;
    result->value = 0;
@@ -1125,6 +1131,9 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    else if ( ! lside.usable && lside.enumeration ) {
       name = lside.enumeration->name;
    }
+   else if ( lside.ns ) {
+      name = lside.ns->name;
+   }
    if ( ! name ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand does not support member access" );
@@ -1187,6 +1196,28 @@ void unknown_member( struct semantic* semantic, struct access* access,
          "`%s` not an enumerator of enumeration `%s`", access->name,
          str.value );
       str_deinit( &str );
+   }
+   else if ( object->node.type == NODE_NAMESPACE ) {
+      s_unknown_ns_object( semantic,
+         ( struct ns* ) object, access->name, &access->pos );
+      s_bail( semantic );
+   }
+}
+
+void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
+   const char* object_name, struct pos* pos ) {
+   if ( ns == semantic->task->upmost_ns ) {
+      s_diag( semantic, DIAG_POS_ERR, pos,
+         "`%s` not an object of upmost namespace", object_name );
+   }
+   else {
+      struct str name;
+      str_init( &name );
+      t_copy_name( ns->name, true, &name );
+      s_diag( semantic, DIAG_POS_ERR, pos,
+         "`%s` not an object of namespace `%s`", object_name,
+         name.value );
+      str_deinit( &name );
    }
 }
 
@@ -1524,6 +1555,9 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_paren( semantic, test, result,
          ( struct paren* ) node );
       break;
+   case NODE_UPMOST:
+      test_upmost( semantic, result );
+      break;
    default:
       UNREACHABLE();
    }
@@ -1610,17 +1644,7 @@ struct object* find_referenced_object( struct semantic* semantic,
          return name->object;
       }
    }
-   // Try searching in the upmost scope.
-   struct name* name = t_extend_name( semantic->task->body, usage->text );
-   if ( name->object ) {
-      struct object* object = name->object;
-      if ( object->node.type == NODE_ALIAS ) {
-         struct alias* alias = ( struct alias* ) object;
-         object = alias->target;
-      }
-      return object;
-   }
-   return NULL;
+   return s_search_object( semantic, usage->text );
 }
 
 void select_object( struct expr_test* test, struct result* result,
@@ -1653,6 +1677,10 @@ void select_object( struct expr_test* test, struct result* result,
    case NODE_FUNC:
       select_func( result,
          ( struct func* ) object );
+      break;
+   case NODE_NAMESPACE:
+      select_namespace( result,
+         ( struct ns* ) object );
       break;
    default:
       break;
@@ -1776,6 +1804,10 @@ void select_func( struct result* result, struct func* func ) {
    result->func = func;
 }
 
+void select_namespace( struct result* result, struct ns* ns ) {
+   result->ns = ns;
+}
+
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
    // Array.
@@ -1853,6 +1885,10 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
    result->in_paren = true;
    test_operand( semantic, test, result, paren->inside );
    result->in_paren = false;
+}
+
+void test_upmost( struct semantic* semantic, struct result* result ) {
+   result->ns = semantic->task->upmost_ns;
 }
 
 inline void init_type_info( struct type_info* type, struct result* result ) {

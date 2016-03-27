@@ -90,6 +90,9 @@ struct node {
       NODE_TYPE_ALIAS,
       NODE_FOREACH,
       NODE_NULL,
+      NODE_NAMESPACE,
+      // 50
+      NODE_UPMOST,
    } type;
 };
 
@@ -122,6 +125,7 @@ struct path {
    struct path* next;
    const char* text;
    struct pos pos;
+   bool upmost;
 };
 
 enum {
@@ -879,6 +883,26 @@ struct assert {
    bool is_static;
 };
 
+struct ns {
+   struct object object;
+   struct ns* parent;
+   struct name* name;
+   struct name* body;
+   struct object* unresolved;
+   struct object* unresolved_tail;
+   struct ns_link* links;
+   struct list objects;
+   struct list scripts;
+   struct list usings;
+   bool defined;
+};
+
+struct ns_link {
+   struct ns_link* next;
+   struct ns* ns;
+   struct pos pos;
+};
+
 struct library {
    struct str name;
    struct pos name_pos;
@@ -889,8 +913,6 @@ struct library {
    // #included/#imported libraries.
    struct list dynamic;
    struct name* hidden_names;
-   struct object* unresolved;
-   struct object* unresolved_tail;
    struct file_entry* file;
    struct pos file_pos;
    int id;
@@ -912,11 +934,10 @@ struct task {
    jmp_buf* bail;
    struct file_entry* file_entries;
    struct str_table str_table;
-   struct name* root_name;
-   struct name* body;
    struct library* library;
    struct library* library_main;
    struct list libraries;
+   struct list namespaces;
    // List of alternative filenames. Each entry is a string.
    struct list altern_filenames;
    int last_id;
@@ -924,6 +945,7 @@ struct task {
    struct gbuf growing_buffer;
    struct mnemonic* mnemonics;
    struct list runtime_asserts;
+   struct ns* upmost_ns;
 };
 
 #define DIAG_NONE 0
@@ -964,5 +986,8 @@ struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );
+struct ns* t_alloc_ns( struct task* task, struct name* name );
+void t_append_unresolved_namespace_object( struct ns* ns,
+   struct object* object );
 
 #endif

@@ -71,6 +71,7 @@ struct type_iter {
 struct semantic {
    struct task* task;
    struct library* lib;
+   struct ns* ns;
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
@@ -130,5 +131,9 @@ bool s_is_scalar_type( struct type_info* type );
 bool s_is_ref_type( struct type_info* type );
 bool s_is_value_type( struct type_info* type );
 void s_iterate_type( struct type_info* type, struct type_iter* iter );
+struct object* s_search_object( struct semantic* semantic,
+   const char* object_name );
+struct object* s_follow_path( struct semantic* semantic, struct path* path );
+struct path* s_last_path_part( struct path* path );
 
 #endif

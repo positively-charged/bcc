@@ -104,7 +104,7 @@ static void read_foreach_var( struct parse* parse, struct dec* dec );
 static void read_special( struct parse* parse );
 
 bool p_is_dec( struct parse* parse ) {
-   if ( parse->tk == TK_ID ) {
+   if ( parse->tk == TK_ID || parse->tk == TK_UPMOST ) {
       return peek_dec_beginning_with_id( parse );
    }
    else if ( parse->tk == TK_STATIC ) {
@@ -146,6 +146,9 @@ bool peek_dec_beginning_with_id( struct parse* parse ) {
    struct parsertk_iter iter;
    p_init_parsertk_iter( parse, &iter );
    p_next_tk( parse, &iter );
+   if ( ! p_peek_path( parse, &iter ) ) {
+      return false;
+   }
    // The variable type should be followed by one of these:
    if (
       // - variable name
@@ -250,10 +253,10 @@ void read_enum( struct parse* parse, struct dec* dec ) {
 
 void read_enum_def( struct parse* parse, struct dec* dec ) {
    struct name* name = NULL;
-   struct name* name_offset = parse->task->body;
+   struct name* name_offset = parse->ns->body;
    struct pos name_pos = parse->tk_pos;
    if ( parse->tk == TK_ID ) {
-      name = t_extend_name( parse->task->body, parse->tk_text );
+      name = t_extend_name( parse->ns->body, parse->tk_text );
       name_offset = t_extend_name( name, "." );
       p_read_tk( parse );
    }
@@ -326,7 +329,8 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, set );
    }
    else {
-      p_add_unresolved( parse->task->library, &set->object );
+      p_add_unresolved( parse, &set->object );
+      list_append( &parse->ns->objects, set );
       list_append( &parse->task->library->objects, set );
    }
    dec->spec = SPEC_ENUM;
@@ -352,7 +356,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_ID );
    struct constant* constant = alloc_constant();
    constant->object.pos = parse->tk_pos;
-   constant->name = t_extend_name( parse->task->body, parse->tk_text );
+   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );
@@ -364,7 +368,8 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, constant );
    }
    else {
-      p_add_unresolved( parse->task->library, &constant->object );
+      p_add_unresolved( parse, &constant->object );
+      list_append( &parse->ns->objects, constant );
       list_append( &parse->task->library->objects, constant );
    }
    p_test_tk( parse, TK_SEMICOLON );
@@ -395,7 +400,8 @@ void read_struct( struct parse* parse, struct dec* dec ) {
       list_append( dec->vars, structure );
    }
    else {
-      p_add_unresolved( parse->task->library, &structure->object );
+      p_add_unresolved( parse, &structure->object );
+      list_append( &parse->ns->objects, structure );
       list_append( &parse->task->library->objects, structure );
    }
    dec->structure = structure;
@@ -443,7 +449,7 @@ struct structure* alloc_structure( struct pos* pos ) {
 
 void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
-      structure->name = t_extend_name( parse->task->body, parse->tk_text );
+      structure->name = t_extend_name( parse->ns->body, parse->tk_text );
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
@@ -607,6 +613,7 @@ void read_spec( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
       break;
    case TK_ID:
+   case TK_UPMOST:
       read_named_type( parse, dec );
       break;
    default:
@@ -1005,7 +1012,7 @@ void add_type_alias( struct parse* parse, struct dec* dec ) {
    alias->dim = dec->dim;
    alias->spec = dec->spec;
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse->task->library, &alias->object );
+      p_add_unresolved( parse, &alias->object );
    }
    else {
       list_append( dec->vars, alias );
@@ -1093,7 +1100,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    var->imported = parse->task->library->imported;
    if ( dec->area == DEC_TOP ) {
       var->hidden = dec->private_visibility;
-      p_add_unresolved( parse->task->library, &var->object );
+      p_add_unresolved( parse, &var->object );
       list_append( &parse->task->library->vars, var );
       list_append( &parse->task->library->objects, var );
    }
@@ -1295,7 +1302,8 @@ void read_func( struct parse* parse, struct dec* dec ) {
       p_bail( parse );
    }
    if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse->task->library, &func->object );
+      p_add_unresolved( parse, &func->object );
+      list_append( &parse->ns->objects, func );
       list_append( &parse->task->library->objects, func );
       if ( func->type == FUNC_USER ) {
          list_append( &parse->task->library->funcs, func );
@@ -1362,7 +1370,7 @@ void read_param( struct parse* parse, struct params* params ) {
    read_param_spec( parse, param );
    // Name not required for a parameter.
    if ( parse->tk == TK_ID ) {
-      param->name = t_extend_name( parse->task->body, parse->tk_text );
+      param->name = t_extend_name( parse->ns->body, parse->tk_text );
       param->object.pos = parse->tk_pos;
       p_read_tk( parse );
    }
@@ -1533,7 +1541,7 @@ struct func_aspec* alloc_aspec_impl( void ) {
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
    struct dec dec;
    p_init_dec( &dec );
-   dec.name_offset = parse->task->body;
+   dec.name_offset = parse->ns->body;
    read_foreach_var( parse, &dec );
    stmt->value = alloc_var( &dec );
    if ( parse->tk == TK_COMMA ) {
@@ -1546,7 +1554,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
       p_read_tk( parse );
       stmt->key = stmt->value;
       p_init_dec( &dec );
-      dec.name_offset = parse->task->body;
+      dec.name_offset = parse->ns->body;
       read_foreach_var( parse, &dec );
       stmt->value = alloc_var( &dec );
    }
@@ -1600,6 +1608,7 @@ void p_read_script( struct parse* parse ) {
    read_script_flag( parse, script );
    read_script_body( parse, script );
    list_append( &parse->task->library->scripts, script );
+   list_append( &parse->ns->scripts, script );
 }
 
 void read_script_number( struct parse* parse, struct script* script ) {
@@ -1798,7 +1807,7 @@ void read_special( struct parse* parse ) {
    // Name.
    p_test_tk( parse, TK_ID );
    func->object.pos = parse->tk_pos;
-   func->name = t_extend_name( parse->task->body, parse->tk_text );
+   func->name = t_extend_name( parse->ns->body, parse->tk_text );
    p_read_tk( parse );
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
@@ -1831,6 +1840,7 @@ void read_special( struct parse* parse ) {
       func->type = FUNC_ASPEC;
       func->impl = impl;
    }
-   p_add_unresolved( parse->task->library, &func->object );
+   p_add_unresolved( parse, &func->object );
+   list_append( &parse->ns->objects, func );
    list_append( &parse->task->library->objects, func );
 }

@@ -27,17 +27,47 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->bail = bail;
    task->file_entries = NULL;
    init_str_table( &task->str_table );
-   task->root_name = t_create_name();
-   task->body = task->root_name;
    task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
+   list_init( &task->namespaces );
    list_init( &task->altern_filenames );
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
    task->mnemonics = NULL;
    list_init( &task->runtime_asserts );
+   struct name* root_name = t_create_name();
+   task->upmost_ns = t_alloc_ns( task, root_name );
+   root_name->object = &task->upmost_ns->object;
+}
+
+struct ns* t_alloc_ns( struct task* task, struct name* name ) {
+   struct ns* ns = mem_alloc( sizeof( *ns ) );
+   t_init_object( &ns->object, NODE_NAMESPACE );
+   ns->parent = NULL;
+   ns->name = name;
+   ns->body = t_extend_name( name, "." );
+   ns->unresolved = NULL;
+   ns->unresolved_tail = NULL;
+   ns->links = NULL;
+   list_init( &ns->objects );
+   list_init( &ns->scripts );
+   list_init( &ns->usings );
+   ns->defined = false;
+   list_append( &task->namespaces, ns );
+   return ns;
+}
+
+void t_append_unresolved_namespace_object( struct ns* ns,
+   struct object* object ) {
+   if ( ns->unresolved ) {
+      ns->unresolved_tail->next = object;
+   }
+   else {
+      ns->unresolved = object;
+   }
+   ns->unresolved_tail = object;
 }
 
 void init_str_table( struct str_table* table ) {
@@ -103,14 +133,18 @@ struct name* t_extend_name( struct name* parent, const char* extension ) {
 
 void t_copy_name( struct name* start, bool full, struct str* str ) {
    int length = 0;
-   char term = ':';
-   if ( full ) {
-      term = 0;
-   }
    struct name* name = start;
-   while ( name->ch && name->ch != term ) {
-      name = name->parent;
-      ++length;
+   if ( full ) {
+      while ( ! ( name->ch == '.' && name->parent->ch == '\0' ) ) {
+         name = name->parent;
+         ++length;
+      }
+   }
+   else {
+      while ( name->ch != '.' ) {
+         name = name->parent;
+         ++length;
+      }
    }
    if ( str->buffer_length < length + 1 ) {
       str_grow( str, length + 1 );
@@ -127,7 +161,7 @@ void t_copy_name( struct name* start, bool full, struct str* str ) {
 
 int t_full_name_length( struct name* name ) {
    int length = 0;
-   while ( name->ch ) {
+   while ( ! ( name->ch == '.' && name->parent->ch == '\0' ) ) {
       name = name->parent;
       ++length;
    }
@@ -482,13 +516,11 @@ struct library* t_add_library( struct task* task ) {
       lib->hidden_names = t_extend_name( last_lib->hidden_names, "a." );
    }
    else {
-      lib->hidden_names = t_extend_name( task->root_name, "!hidden." );
+      lib->hidden_names = t_create_name();
    }
    lib->encrypt_str = false;
    list_append( &task->libraries, lib );
    lib->file = NULL;
-   lib->unresolved = NULL;
-   lib->unresolved_tail = NULL;
    lib->header = false;
    lib->compiletime = false;
    return lib;

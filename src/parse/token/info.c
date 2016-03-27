@@ -100,6 +100,7 @@ static const struct {
    { "int", TK_INT },
    { "lightning", TK_LIGHTNING },
    { "msgbuild", TK_MSGBUILD },
+   { "namespace", TK_NAMESPACE },
    { "net", TK_NET },
    { "null", TK_NULL },
    { "objcpy", TK_OBJCPY },
@@ -124,6 +125,7 @@ static const struct {
    { "typedef", TK_TYPEDEF },
    { "unloading", TK_UNLOADING },
    { "until", TK_UNTIL },
+   { "upmost", TK_UPMOST },
    { "void", TK_VOID },
    { "while", TK_WHILE },
    { "whitereturn", TK_WHITE_RETURN },
@@ -442,6 +444,10 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
       ENTRY( "special", TKF_KEYWORD ),
+      ENTRY( "namespace", TKF_KEYWORD ),
+
+      // 130
+      ENTRY( "upmost", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -582,8 +588,10 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_EXTSPEC, "`extspec`" },
       { TK_IN, "`in`" },
       { TK_NULL, "`null`" },
-      { TK_SPECIAL, "`special`" }, };
-   STATIC_ASSERT( TK_TOTAL == 129 );
+      { TK_SPECIAL, "`special`" },
+      { TK_NAMESPACE, "`namespace`" },
+      { TK_UPMOST, "`upmost`" }, };
+   STATIC_ASSERT( TK_TOTAL == 131 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

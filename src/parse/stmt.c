@@ -30,7 +30,6 @@ static struct label* alloc_label( const char*, struct pos );
 static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
 static struct import_item* read_import_item( struct parse* parse );
-static struct path* alloc_path( struct pos );
 static void read_assert( struct parse* parse, struct stmt_reading* reading );
 static struct assert* alloc_assert( struct pos* pos );
 
@@ -84,7 +83,7 @@ void read_block( struct parse* parse, struct stmt_reading* reading ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_LOCAL;
-         dec.name_offset = parse->task->body;
+         dec.name_offset = parse->ns->body;
          dec.vars = &block->stmts;
          p_read_dec( parse, &dec );
       }
@@ -393,7 +392,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
          struct dec dec;
          p_init_dec( &dec );
          dec.area = DEC_FOR;
-         dec.name_offset = parse->task->body;
+         dec.name_offset = parse->ns->body;
          dec.vars = &stmt->init;
          p_read_dec( parse, &dec );
       }
@@ -678,22 +677,6 @@ void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
       p_read_tk( parse );
    }
    reading->node = &packed->node;
-}
-
-struct path* p_read_path( struct parse* parse ) {
-   struct path* path = alloc_path( parse->tk_pos );
-   p_test_tk( parse, TK_ID );
-   path->text = parse->tk_text;
-   p_read_tk( parse );
-   return path;
-}
-
-struct path* alloc_path( struct pos pos ) {
-   struct path* path = mem_alloc( sizeof( *path ) );
-   path->next = NULL;
-   path->text = NULL;
-   path->pos = pos;
-   return path;
 }
 
 void read_assert( struct parse* parse, struct stmt_reading* reading ) {

@@ -3,6 +3,12 @@
 #include "phase.h"
 #include "cache/cache.h"
 
+static void read_namespace( struct parse* parse );
+static void read_namespace_name_list( struct parse* parse );
+static void read_namespace_name( struct parse* parse );
+static void read_namespace_member_list( struct parse* parse );
+static void read_namespace_member( struct parse* parse );
+static struct path* alloc_path( struct pos pos );
 static void read_dirc( struct parse* parse, struct pos* );
 static void read_include( struct parse* parse, struct pos*, bool );
 static void read_import( struct parse* parse, struct pos* pos );
@@ -21,11 +27,14 @@ void p_read_lib( struct parse* parse ) {
       if ( p_is_dec( parse ) ) {
          struct dec dec;
          p_init_dec( &dec );
-         dec.name_offset = parse->task->body;
+         dec.name_offset = parse->ns->body;
          p_read_dec( parse, &dec );
       }
       else if ( parse->tk == TK_SCRIPT ) {
          p_read_script( parse );
+      }
+      else if ( parse->tk == TK_NAMESPACE ) {
+         read_namespace( parse );
       }
       else if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
@@ -54,6 +63,150 @@ void p_read_lib( struct parse* parse ) {
          "#imported file missing #library directive" );
       p_bail( parse );
    }
+}
+
+void read_namespace( struct parse* parse ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_NAMESPACE );
+   p_read_tk( parse );
+   struct ns* parent = parse->ns;
+   read_namespace_name_list( parse );
+   if ( parse->tk == TK_BRACE_L ) {
+      // A namespace can be opened only once. This behaves like modules in
+      // other languages.
+      if ( parse->ns->defined ) {
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "duplicate namespace" );
+         p_diag( parse, DIAG_POS, &parse->ns->object.pos,
+            "namespace already defined here" );
+         p_bail( parse );
+      }
+      parse->ns->defined = true;
+      parse->ns->object.pos = pos;
+      p_read_tk( parse );
+      read_namespace_member_list( parse );
+      p_test_tk( parse, TK_BRACE_R );
+      p_read_tk( parse );
+   }
+   parse->ns = parent;
+}
+
+void read_namespace_name_list( struct parse* parse ) {
+   while ( true ) {
+      read_namespace_name( parse );
+      if ( parse->tk == TK_DOT ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
+}
+
+void read_namespace_name( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   struct name* name = t_extend_name( parse->ns->body, parse->tk_text );
+   if ( ! name->object ) {
+      struct ns* ns = t_alloc_ns( parse->task, name );
+      ns->parent = parse->ns;
+      name->object = &ns->object;
+   }
+   parse->ns = ( struct ns* ) name->object;
+   p_read_tk( parse );
+}
+
+void read_namespace_member_list( struct parse* parse ) {
+   while ( parse->tk != TK_BRACE_R ) {
+      read_namespace_member( parse );
+   }
+}
+
+void read_namespace_member( struct parse* parse ) {
+   if ( p_is_dec( parse ) ) {
+      struct dec dec;
+      p_init_dec( &dec );
+      dec.name_offset = parse->ns->body;
+      p_read_dec( parse, &dec );
+   }
+   else if ( parse->tk == TK_SCRIPT ) {
+      if ( ! parse->task->library->imported ) {
+         p_read_script( parse );
+      }
+      else {
+         p_skip_block( parse );
+      }
+   }
+   else if ( parse->tk == TK_NAMESPACE ) {
+      read_namespace( parse );
+   }
+   //else if ( parse->tk == TK_USING ) {
+   //   p_read_using( parse, &parse->ns->usings );
+   //}
+   else if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+   }
+   else {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unexpected %s", p_get_token_name( parse->tk ) );
+      p_bail( parse );
+   }
+}
+
+struct path* p_read_path( struct parse* parse ) {
+   // Head of path.
+   struct path* path = alloc_path( parse->tk_pos );
+   if ( parse->tk == TK_UPMOST ) {
+      path->upmost = true;
+      p_read_tk( parse );
+   }
+   else {
+      p_test_tk( parse, TK_ID );
+      path->text = parse->tk_text;
+      p_read_tk( parse );
+   }
+   // Tail of path.
+   struct path* head = path;
+   struct path* tail = head;
+   while ( parse->tk == TK_DOT && p_peek( parse ) == TK_ID ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ID );
+      path = alloc_path( parse->tk_pos );
+      path->text = parse->tk_text;
+      tail->next = path;
+      tail = path;
+      p_read_tk( parse );
+   }
+   return head;
+}
+
+struct path* alloc_path( struct pos pos ) {
+   struct path* path = mem_alloc( sizeof( *path ) );
+   path->next = NULL;
+   path->text = NULL;
+   path->pos = pos;
+   path->upmost = false;
+   return path;
+}
+
+bool p_peek_path( struct parse* parse, struct parsertk_iter* iter ) {
+/*
+   switch ( iter->token->type ) {
+   case TK_UPMOST:
+   case TK_ID:
+      p_next_tk( parse, iter );
+      break;
+   default:
+      return false;
+   }
+*/
+   while ( iter->token->type == TK_DOT ) {
+      p_next_tk( parse, iter );
+      if ( iter->token->type != TK_ID ) {
+         return false;
+      }
+      p_next_tk( parse, iter );
+   }
+   return true;
 }
 
 void read_dirc( struct parse* parse, struct pos* pos ) {
@@ -255,8 +408,7 @@ void read_define( struct parse* parse ) {
          parse->tk_text );
    }
    else {
-      constant->name = t_extend_name( parse->task->body,
-            parse->tk_text );
+      constant->name = t_extend_name( parse->ns->body, parse->tk_text );
    }
    p_read_tk( parse );
    struct expr_reading value;
@@ -266,15 +418,9 @@ void read_define( struct parse* parse ) {
    constant->value = 0;
    constant->hidden = hidden;
    constant->lib_id = parse->task->library->id;
-   p_add_unresolved( parse->task->library, &constant->object );
+   p_add_unresolved( parse, &constant->object );
 }
 
-void p_add_unresolved( struct library* lib, struct object* object ) {
-   if ( lib->unresolved ) {
-      lib->unresolved_tail->next = object;
-   }
-   else {
-      lib->unresolved = object;
-   }
-   lib->unresolved_tail = object;
+void p_add_unresolved( struct parse* parse, struct object* object ) {
+   t_append_unresolved_namespace_object( parse->ns, object );
 }

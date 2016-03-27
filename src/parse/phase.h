@@ -151,6 +151,10 @@ enum tk {
    TK_IN,
    TK_NULL,
    TK_SPECIAL,
+   TK_NAMESPACE,
+
+   // 130
+   TK_UPMOST,
 
    TK_TOTAL,
 
@@ -381,6 +385,7 @@ struct parse {
    struct token_queue tkque;
    struct token_queue parser_tkque;
    bool create_nltk;
+   struct ns* ns;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -418,7 +423,7 @@ int p_extract_literal_value( struct parse* parse );
 struct source* p_load_included_source( struct parse* parse );
 void p_read_lib( struct parse* parse );
 void p_read_script( struct parse* parse );
-void p_add_unresolved( struct library* lib, struct object* object );
+void p_add_unresolved( struct parse* parse, struct object* object );
 struct path* p_read_path( struct parse* parse );
 void p_increment_pos( struct pos* pos, enum tk tk );
 void p_unexpect_diag( struct parse* parse );
@@ -461,5 +466,6 @@ void p_read_asm( struct parse* parse, struct stmt_reading* reading );
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
 void p_read_special_list( struct parse* parse );
 void p_skip_semicolon( struct parse* parse );
+bool p_peek_path( struct parse* parse, struct parsertk_iter* iter );
 
 #endif

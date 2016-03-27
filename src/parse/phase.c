@@ -31,6 +31,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->cache = cache;
    parse->create_nltk = false;
    p_init_stream( parse );
+   parse->ns = task->upmost_ns;
 }
 
 void p_read( struct parse* parse ) {

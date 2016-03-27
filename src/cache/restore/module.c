@@ -108,9 +108,9 @@ void* alloc( struct serial* serial, int size ) {
 void deserialize_var( struct serial* serial ) {
    srl_rf( serial->r, F_VAR );
    struct var* var = alloc( serial, sizeof( *var ) );
-   deserialize_object( serial, &var->object, NODE_VAR );
-   var->name = t_extend_name( serial->task->root_name,
-      srl_rs( serial->r, F_STRNAME ) );
+   //deserialize_object( serial, &var->object, NODE_VAR );
+   //var->name = t_extend_name( serial->task->root_name,
+   //   srl_rs( serial->r, F_STRNAME ) );
    var->structure = deserialize_type( serial );
    var->type_path = deserialize_type_path( serial );
    var->dim = deserialize_dim( serial );
@@ -138,6 +138,7 @@ void deserialize_object( struct serial* serial,
 
 struct structure* deserialize_primitive_type( struct serial* serial,
    enum field field ) {
+/*
    struct name* name = t_extend_name( serial->task->root_name,
       srl_rs( serial->r, field ) );
    if ( name->object && name->object->node.type == NODE_STRUCTURE ) {
@@ -146,6 +147,8 @@ struct structure* deserialize_primitive_type( struct serial* serial,
    else {
       return NULL;
    }
+*/
+   return NULL;
 }
 
 struct path* deserialize_path( struct serial* serial ) {
@@ -191,8 +194,8 @@ void deserialize_func( struct serial* serial ) {
    struct func* func = mem_slot_alloc( sizeof( *func ) );
    deserialize_object( serial, &func->object, NODE_FUNC );
    func->type = srl_ri( serial->r, F_INTTYPE );
-   func->name = t_extend_name( serial->task->root_name,
-      srl_rs( serial->r, F_STRNAME ) );
+   //func->name = t_extend_name( serial->task->root_name,
+   //   srl_rs( serial->r, F_STRNAME ) );
    func->params = deserialize_param_list( serial );
 /*
    if ( srl_peekf( serial->r ) == F_STRRETURNTYPE ) {
@@ -414,8 +417,8 @@ struct enumerator* deserialize_enumerator( struct serial* serial ) {
    srl_rf( serial->r, F_CONSTANT );
    struct enumerator* enumerator = mem_slot_alloc( sizeof( *enumerator ) );
    deserialize_object( serial, &enumerator->object, NODE_ENUMERATOR );
-   enumerator->name = t_extend_name( serial->task->root_name,
-      srl_rs( serial->r, F_STRNAME ) );
+   //enumerator->name = t_extend_name( serial->task->root_name,
+   //   srl_rs( serial->r, F_STRNAME ) );
    enumerator->next = NULL;
    enumerator->value = srl_ri( serial->r, F_INTVALUE );
    enumerator->initz = NULL;
@@ -427,8 +430,8 @@ struct constant* deserialize_constant( struct serial* serial ) {
    srl_rf( serial->r, F_CONSTANT );
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
    deserialize_object( serial, &constant->object, NODE_CONSTANT );
-   constant->name = t_extend_name( serial->task->root_name,
-      srl_rs( serial->r, F_STRNAME ) );
+   //constant->name = t_extend_name( serial->task->root_name,
+   //   srl_rs( serial->r, F_STRNAME ) );
    constant->next = NULL;
    constant->value = srl_ri( serial->r, F_INTVALUE );
    constant->value_node = NULL;
