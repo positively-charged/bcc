@@ -19,6 +19,15 @@ static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
 static void bind_lib( struct semantic* semantic, struct library* lib );
 static void bind_object( struct semantic* semantic, struct object* object );
+static void perform_usings( struct semantic* semantic );
+static void import_all( struct semantic* semantic, struct ns* ns,
+   struct using_dirc* dirc );
+static void import_selection( struct semantic* semantic, struct ns* ns,
+   struct using_dirc* dirc );
+static void import_item( struct semantic* semantic, struct ns* ns,
+   struct using_item* item );
+static struct object* follow_path( struct semantic* semantic,
+   struct path* path, bool only_ns );
 static void test_objects( struct semantic* semantic );
 static void test_ns( struct semantic* semantic, bool* resolved, bool* retry );
 static void test_object( struct semantic* semantic, struct object* object );
@@ -67,6 +76,7 @@ void s_init( struct semantic* semantic, struct task* task,
 void s_test( struct semantic* semantic ) {
    determine_publishable_objects( semantic );
    bind_names( semantic );
+   perform_usings( semantic );
    test_objects( semantic );
    if ( ! semantic->lib->imported ) {
       test_objects_bodies( semantic );
@@ -173,7 +183,100 @@ void bind_object( struct semantic* semantic, struct object* object ) {
    }
 }
 
+void perform_usings( struct semantic* semantic ) {
+   list_iter_t i;
+   list_iter_init( &i, &semantic->task->namespaces );
+   while ( ! list_end( &i ) ) {
+      semantic->ns = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &semantic->ns->usings );
+      while ( ! list_end( &k ) ) {
+         s_perform_using( semantic, list_data( &k ) );
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+}
+
+void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
+   struct ns* ns = ( struct ns* ) follow_path( semantic, dirc->path, true );
+   switch ( dirc->type ) {
+   case USING_ALL:
+      import_all( semantic, ns, dirc );
+      break;
+   case USING_SELECTION:
+      import_selection( semantic, ns, dirc );
+      break;
+   default:
+      UNREACHABLE()
+   }
+}
+
+void import_all( struct semantic* semantic, struct ns* ns,
+   struct using_dirc* dirc ) {
+   if ( ns == semantic->ns ) {
+      s_diag( semantic, DIAG_POS_ERR, &dirc->pos,
+         "namespace importing itself" );
+      s_bail( semantic );
+   }
+   struct ns_link* link = semantic->ns->links;
+   while ( link && link->ns != ns ) {
+      link = link->next;
+   }
+   // Duplicate links are allowed, but warn the user about them.
+   if ( link ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &dirc->pos,
+         "duplicate namespace import" );
+      s_diag( semantic, DIAG_POS, &link->pos,
+         "namespace already imported here" );
+   }
+   else {
+      link = mem_alloc( sizeof( *link ) );
+      link->next = semantic->ns->links;
+      link->ns = ns;
+      link->pos = dirc->pos;
+      semantic->ns->links = link;
+   }
+}
+
+void import_selection( struct semantic* semantic, struct ns* ns,
+   struct using_dirc* dirc ) {
+   list_iter_t i;
+   list_iter_init( &i, &dirc->items );
+   while ( ! list_end( &i ) ) {
+      import_item( semantic, ns, list_data( &i ) );
+      list_next( &i );
+   }
+}
+
+void import_item( struct semantic* semantic, struct ns* ns,
+   struct using_item* item ) {
+   // Locate object.
+   struct object* object = get_nsobject( ns, item->name );
+   if ( ! object ) {
+      s_unknown_ns_object( semantic, ns, item->name, &item->pos );
+      s_bail( semantic );
+   }
+   // Bind object to name in current namespace.
+   struct name* name = t_extend_name( semantic->ns->body, item->name );
+   // Duplicate imports are allowed as long as both names refer to the
+   // same object.
+   if ( name->object == object ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &item->pos,
+         "duplicate import-name `%s`", item->name );
+      //s_diag( semantic, DIAG_DIAG_POS, &alias->object.pos,
+      //   "import-name already used here" );
+      return;
+   }
+   s_bind_name( semantic, name, object );
+}
+
 struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
+   return follow_path( semantic, path, false );
+}
+
+struct object* follow_path( struct semantic* semantic, struct path* path,
+   bool only_ns ) {
    struct ns* ns = NULL;
    struct object* object = NULL;
    if ( path->upmost ) {
@@ -189,7 +292,7 @@ struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
             "`%s` not found", path->text );
          s_bail( semantic );
       }
-      if ( path->next ) {
+      if ( path->next || only_ns ) {
          if ( object->node.type != NODE_NAMESPACE ) {
             s_diag( semantic, DIAG_POS_ERR, &path->pos,
                "`%s` not a namespace", path->text );

@@ -9,8 +9,6 @@ static void read_namespace_name( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
 static struct using_dirc* alloc_using( struct pos* pos );
-static void read_using_item_list( struct parse* parse,
-   struct using_dirc* dirc );
 static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
@@ -167,7 +165,15 @@ void p_read_using( struct parse* parse, struct list* output ) {
    dirc->path = p_read_path( parse );
    if ( parse->tk == TK_COLON ) {
       p_read_tk( parse );
-      read_using_item_list( parse, dirc );
+      while ( true ) {
+         read_using_item( parse, dirc );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
+      }
       dirc->type = USING_SELECTION;
    }
    p_test_tk( parse, TK_SEMICOLON );
@@ -185,40 +191,18 @@ struct using_dirc* alloc_using( struct pos* pos ) {
    return dirc;
 }
 
-void read_using_item_list( struct parse* parse, struct using_dirc* dirc ) {
-   while ( true ) {
-      read_using_item( parse, dirc );
-      if ( parse->tk == TK_COMMA ) {
-         p_read_tk( parse );
-      }
-      else {
-         break;
-      }
-   }
-}
-
 void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
    p_test_tk( parse, TK_ID );
    struct using_item* item = alloc_using_item();
    item->name = parse->tk_text;
-   item->name_pos = parse->tk_pos;
-   p_read_tk( parse );
-   if ( parse->tk == TK_ASSIGN ) {
-      p_read_tk( parse );
-      p_test_tk( parse, TK_ID );
-      item->alias = item->name;
-      item->alias_pos = item->name_pos;
-      item->name = parse->tk_text;
-      item->name_pos = parse->tk_pos;
-      p_read_tk( parse );
-   }
+   item->pos = parse->tk_pos;
    list_append( &dirc->items, item );
+   p_read_tk( parse );
 }
 
 struct using_item* alloc_using_item( void ) {
    struct using_item* item = mem_alloc( sizeof( *item ) );
    item->name = NULL;
-   item->alias = NULL;
    return item;
 }
 

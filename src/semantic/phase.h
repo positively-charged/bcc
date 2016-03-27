@@ -135,5 +135,8 @@ struct object* s_search_object( struct semantic* semantic,
    const char* object_name );
 struct object* s_follow_path( struct semantic* semantic, struct path* path );
 struct path* s_last_path_part( struct path* path );
+void s_perform_using( struct semantic* semantic, struct using_dirc* dirc );
+void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
+   const char* object_name, struct pos* pos );
 
 #endif

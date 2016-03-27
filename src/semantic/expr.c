@@ -82,8 +82,6 @@ static void test_access( struct semantic* semantic, struct expr_test* test,
 static bool is_struct_ref( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
    struct object* object );
-static void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
-   const char* object_name, struct pos* pos );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
 static void test_call_args( struct semantic* semantic,

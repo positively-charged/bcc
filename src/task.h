@@ -917,9 +917,7 @@ struct using_dirc {
 
 struct using_item {
    const char* name;
-   const char* alias;
-   struct pos name_pos;
-   struct pos alias_pos;
+   struct pos pos;
 };
 
 struct library {
