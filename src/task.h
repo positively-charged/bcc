@@ -598,6 +598,9 @@ struct func {
       FUNC_SAMPLE
    } type;
    struct ref* ref;
+   struct structure* structure;
+   struct enumeration* enumeration;
+   struct path* path;
    struct name* name;
    struct param* params;
    void* impl;

@@ -1107,6 +1107,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    else if ( dec->storage.type == STORAGE_MAP ) {
       var->hidden = ( dec->static_qual == true );
       list_append( &parse->task->library->vars, var );
+      list_append( &parse->task->library->objects, var );
       list_append( dec->vars, var );
    }
    else {
@@ -1225,6 +1226,9 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->object.pos = dec->name_pos;
    func->type = FUNC_ASPEC;
    func->ref = dec->ref;
+   func->structure = dec->structure;
+   func->enumeration = dec->enumeration;
+   func->path = dec->type_path;
    func->name = dec->name;
    func->params = NULL;
    func->impl = NULL;
@@ -1296,14 +1300,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
    if ( dec->storage_index.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
          "storage-number specified for function" );
-      p_bail( parse );
-   }
-   // TODO: Move to semantic phase.
-   // At this time, returning a struct is not possible. Maybe later, this can
-   // be added as part of variable assignment.
-   if ( dec->spec == SPEC_STRUCT || dec->type_path ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "function return-type of struct type" );
       p_bail( parse );
    }
    if ( dec->area == DEC_TOP ) {

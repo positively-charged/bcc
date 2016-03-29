@@ -1095,7 +1095,7 @@ bool is_array_ref( struct result* result ) {
 
 void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    struct result* lside, struct result* result, struct subscript* subscript ) {
-   if ( lside->ref->type == REF_ARRAY ) {
+   if ( lside->ref && lside->ref->type == REF_ARRAY && lside->ref_dim == 0  ) {
       struct ref_array* array = ( struct ref_array* ) lside->ref;
       lside->ref_dim = array->dim_count;
    }
@@ -1371,8 +1371,8 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
          }
       }
       result->ref = operand.func->ref;
-      // result->structure = operand.func->structure;
-      // result->enumeration = operand.func->enumeration;
+      result->structure = operand.func->structure;
+      result->enumeration = operand.func->enumeration;
       result->spec = operand.func->return_spec;
       result->complete = true;
       result->usable = ( operand.func->return_spec != SPEC_VOID );
@@ -1381,6 +1381,8 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    else if ( operand.ref && operand.ref->type == REF_FUNCTION ) {
       struct ref_func* func = ( struct ref_func* ) operand.ref;
       result->ref = operand.ref->next;
+      result->structure = operand.structure;
+      result->enumeration = operand.enumeration;
       result->spec = operand.spec;
       result->complete = true;
       result->usable = ( operand.spec != SPEC_VOID );

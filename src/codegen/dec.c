@@ -119,7 +119,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
 }
 
 void init_func_record( struct func_record* record ) {
-   record->start_index = RESERVEDSCRIPTVAR_TOTAL;
+   record->start_index = 0;
    record->array_index = 0;
    record->size = 0;
    record->nested_func = false;

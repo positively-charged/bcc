@@ -198,6 +198,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
 }
 
 void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
+   c_push_cond( codegen, stmt->cond );
    struct c_jump* else_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
    struct c_jump* exit_jump = else_jump;
    c_append_node( codegen, &else_jump->node );

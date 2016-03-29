@@ -567,7 +567,8 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       // Return value must be of the same type as the return type.
       struct type_info return_type;
       s_init_type_info( &return_type, target->func->return_spec,
-         target->func->ref, NULL, NULL, NULL, NULL );
+         target->func->ref, NULL, target->func->structure,
+         target->func->enumeration, NULL );
       if ( ! s_same_type( &type, &return_type ) ) {
          return_mismatch( semantic, &type, &return_type,
             &stmt->return_value->expr->pos );

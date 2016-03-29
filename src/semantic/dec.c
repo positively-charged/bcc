@@ -93,12 +93,14 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic, struct script* script );
 static void test_script_body( struct semantic* semantic, struct script* script );
+static void init_type_info( struct type_info* type );
 static bool same_ref_implicit( struct ref* a, struct type_info* b );
 static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool compatible_zraw_spec( int spec );
-static void present_ref( struct ref* ref, struct str* string );
+static void present_ref( struct ref* ref, struct str* string,
+   bool require_ampersand );
 static void present_spec( int spec, struct str* string );
 static bool is_str_value_type( struct type_info* type );
 static bool is_array_ref_type( struct type_info* type );
@@ -782,6 +784,22 @@ void s_test_foreach_var( struct semantic* semantic,
 }
 
 void s_test_func( struct semantic* semantic, struct func* func ) {
+   // Test return type.
+   if ( func->return_spec == SPEC_NAME ) {
+      struct var_test test;
+      init_var_test( &test, func->path );
+      resolve_name_spec( semantic, &test );
+      func->structure = test.structure;
+      func->enumeration = test.enumeration;
+      func->return_spec = test.spec;
+   }
+   if ( func->return_spec == SPEC_STRUCT && ! func->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "function returning a struct" );
+      s_diag( semantic, DIAG_POS, &func->object.pos,
+         "a struct can only be returned by reference" );
+      s_bail( semantic );
+   }
    // Test name of nested function.
    bool in_localscope = semantic->in_localscope;
    if ( in_localscope ) {
@@ -1145,30 +1163,59 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
    struct enumeration* enumeration, struct func* func ) {
-   type->ref = ref;
-   type->structure = structure;
-   type->enumeration = enumeration;
-   type->dim = dim;
-   type->func = func;
-   type->spec = spec;
-   type->implicit_ref = false;
+   init_type_info( type );
+   // Array type.
    if ( dim ) {
+      // Implicitly convert to reference-to-array.
       struct ref_array* array = &type->implicit_ref_part.array;
       array->ref.next = ref;
       array->ref.type = REF_ARRAY;
       array->dim_count = 0;
-      while ( dim ) {
+      struct dim* count_dim = dim;
+      while ( count_dim ) {
          ++array->dim_count;
-         dim = dim->next;
+         count_dim = count_dim->next;
       }
       type->ref = &array->ref;
+      type->structure = structure;
+      type->enumeration = enumeration;
+      type->dim = dim;
+      type->spec = spec;
+      type->implicit_ref = true;
    }
+   // Reference type.
+   else if ( ref ) {
+      type->ref = ref;
+      type->structure = structure;
+      type->enumeration = enumeration;
+      type->spec = spec;
+   }
+   // Structure type.
    else if ( structure ) {
-      struct ref_struct* structure = &type->implicit_ref_part.structure;
-      structure->ref.next = ref;
-      structure->ref.type = REF_STRUCTURE;
-      type->ref = &structure->ref;
+      // Implicitly convert to reference-to-struct.
+      struct ref_struct* implicit_ref = &type->implicit_ref_part.structure;
+      implicit_ref->ref.next = NULL;
+      implicit_ref->ref.type = REF_STRUCTURE;
+      type->ref = &implicit_ref->ref;
+      type->structure = structure;
+      type->spec = SPEC_STRUCT;
+      type->implicit_ref = true;
    }
+   // Primitive type.
+   else {
+      type->enumeration = enumeration;
+      type->spec = spec;
+   }
+}
+
+void init_type_info( struct type_info* type ) {
+   type->ref = NULL;
+   type->structure = NULL;
+   type->enumeration = NULL;
+   type->dim = NULL;
+   type->func = NULL;
+   type->spec = SPEC_NONE;
+   type->implicit_ref = false;
 }
 
 void s_init_type_info_func( struct type_info* type, struct func* func ) {
@@ -1183,8 +1230,8 @@ void s_init_type_info_func( struct type_info* type, struct func* func ) {
       struct func_user* impl = func->impl;
       part->msgbuild = impl->msgbuild;
    }
-   s_init_type_info( type, func->return_spec, &part->ref, NULL, NULL, NULL,
-      func );
+   s_init_type_info( type, func->return_spec, &part->ref, NULL,
+      func->structure, func->enumeration, func );
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {
@@ -1193,17 +1240,7 @@ void s_init_type_info_scalar( struct type_info* type, int spec ) {
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
    // Reference.
-   bool same = false;
-   if ( a->ref && ! b->ref ) {
-      same = same_ref_implicit( a->ref, b );
-   }
-   else if ( ! a->ref && b->ref ) {
-      same = same_ref_implicit( b->ref, a );
-   }
-   else {
-      same = same_ref( a->ref, b->ref );
-   }
-   if ( ! same ) {
+   if ( ! same_ref( a->ref, b->ref ) ) {
       return false;
    }
    // Structure.
@@ -1318,27 +1355,35 @@ void s_present_type( struct type_info* type, struct str* string ) {
          str_deinit( &name );
       }
    }
+   else if ( type->structure ) {
+      struct str name;
+      str_init( &name );
+      t_copy_name( type->structure->name, true, &name );
+      str_append( string, name.value );
+      str_deinit( &name );
+   }
    else {
       present_spec( type->spec, string );
    }
    // Reference.
-   present_ref( type->ref, string );
+   present_ref( type->ref, string, false );
 }
 
-void present_ref( struct ref* ref, struct str* string ) {
+void present_ref( struct ref* ref, struct str* string,
+   bool require_ampersand ) {
    if ( ref ) {
-      present_ref( ref->next, string );
-      if ( ref->next ) {
-         str_append( string, "&" );
-      }
+      present_ref( ref->next, string, true );
       if ( ref->type == REF_ARRAY ) {
          struct ref_array* part = ( struct ref_array* ) ref;
          for ( int i = 0; i < part->dim_count; ++i ) {
             str_append( string, "[]" );
          }
+         if ( require_ampersand ) {
+            str_append( string, "&" );
+         }
       }
       else if ( ref->type == REF_STRUCTURE ) {
-
+         str_append( string, "&" );
       }
       else if ( ref->type == REF_FUNCTION ) {
          struct ref_func* func = ( struct ref_func* ) ref;
@@ -1358,6 +1403,9 @@ void present_ref( struct ref* ref, struct str* string ) {
          if ( func->msgbuild ) {
             str_append( string, " " );
             str_append( string, "msgbuild" );
+         }
+         if ( require_ampersand ) {
+            str_append( string, "&" );
          }
       }
       else {

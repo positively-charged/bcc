@@ -33,8 +33,9 @@ struct func_record {
 };
 
 enum {
-   RESERVEDSCRIPTVAR_DIM,
-   RESERVEDSCRIPTVAR_TOTAL
+   SHAREDARRAYFIELD_NULL,
+   SHAREDARRAYFIELD_DIMTRACK = SHAREDARRAYFIELD_NULL,
+   SHAREDARRAYFIELD_TOTAL
 };
 
 struct codegen {
@@ -65,6 +66,12 @@ struct codegen {
    int shared_array_size;
    int shared_array_diminfo_size;
    bool shared_array_used;
+   struct {
+      int null;
+      int dim_counter;
+      int dim_info;
+      int data;
+   } shared_array_offsets;
 };
 
 void c_init( struct codegen*, struct task* );
