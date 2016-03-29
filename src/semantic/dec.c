@@ -98,8 +98,8 @@ static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool compatible_zraw_spec( int spec );
-// static void present_ref( struct type_info* type, struct str* string );
-static void present_spec( struct type_info* type, struct str* string );
+static void present_ref( struct ref* ref, struct str* string );
+static void present_spec( int spec, struct str* string );
 static bool is_str_value_type( struct type_info* type );
 static bool is_array_ref_type( struct type_info* type );
 static void subscript_array_type( struct type_info* type,
@@ -356,7 +356,8 @@ void test_ref_part( struct semantic* semantic,
    struct var* var, struct ref* ref ) {
    if ( ref->type == REF_FUNCTION ) {
       struct type_info return_type;
-      s_init_type_info( &return_type, var->spec, ref->next, NULL, NULL, NULL );
+      s_init_type_info( &return_type, var->spec, ref->next,
+         NULL, NULL, NULL, NULL );
       if ( ! s_is_scalar_type( &return_type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &ref->pos,
             "invalid return-type in function reference" );
@@ -641,9 +642,10 @@ bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
    // Scalar object.
    else {
       struct type_info type;
-      s_init_type_info( &type, spec, NULL, NULL, NULL, NULL );
+      s_init_type_info( &type, spec, NULL, NULL, NULL, NULL, NULL );
       struct type_info value_type;
-      s_init_type_info( &value_type, value->expr->spec, NULL, NULL, NULL, NULL );
+      s_init_type_info( &value_type, value->expr->spec,
+         NULL, NULL, NULL, NULL, NULL );
       if ( ! s_same_type( &type, &value_type ) ) {
          value_mismatch_diag( semantic, &type, &value_type, value->expr,
             ( test->dim != NULL ), ( test->member != NULL ) );
@@ -1142,17 +1144,51 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
 
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
-   struct enumeration* enumeration ) {
+   struct enumeration* enumeration, struct func* func ) {
    type->ref = ref;
    type->structure = structure;
    type->enumeration = enumeration;
    type->dim = dim;
+   type->func = func;
    type->spec = spec;
    type->implicit_ref = false;
+   if ( dim ) {
+      struct ref_array* array = &type->implicit_ref_part.array;
+      array->ref.next = ref;
+      array->ref.type = REF_ARRAY;
+      array->dim_count = 0;
+      while ( dim ) {
+         ++array->dim_count;
+         dim = dim->next;
+      }
+      type->ref = &array->ref;
+   }
+   else if ( structure ) {
+      struct ref_struct* structure = &type->implicit_ref_part.structure;
+      structure->ref.next = ref;
+      structure->ref.type = REF_STRUCTURE;
+      type->ref = &structure->ref;
+   }
+}
+
+void s_init_type_info_func( struct type_info* type, struct func* func ) {
+   struct ref_func* part = &type->implicit_ref_part.func;
+   part->ref.next = func->ref;
+   part->ref.type = REF_FUNCTION;
+   part->params = func->params;
+   part->min_param = func->min_param;
+   part->max_param = func->max_param;
+   part->msgbuild = false;
+   if ( func->type == FUNC_USER ) {
+      struct func_user* impl = func->impl;
+      part->msgbuild = impl->msgbuild;
+   }
+   s_init_type_info( type, func->return_spec, &part->ref, NULL, NULL, NULL,
+      func );
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {
-   s_init_type_info( type, spec, NULL, NULL, NULL, NULL );
+   s_init_type_info( type, spec, NULL, NULL, NULL, NULL, NULL );
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
@@ -1191,40 +1227,7 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
 }
 
 bool same_ref_implicit( struct ref* a, struct type_info* b ) {
-   if ( b->dim ) {
-      struct ref_array part;
-      part.ref.next = b->ref;
-      part.ref.type = REF_ARRAY;
-      part.dim_count = 0;
-      struct dim* dim = b->dim;
-      while ( dim ) {
-         ++part.dim_count;
-         dim = dim->next;
-      }
-      return same_ref( a, &part.ref );
-   }
-   else if ( b->structure ) {
-      struct ref_struct part;
-      part.ref.next = b->ref;
-      part.ref.type = REF_STRUCTURE;
-      return same_ref( a, &part.ref );
-   }
-/*
-   else if ( a->type == REF_FUNCTION ) {
-      if ( b->func ) {
-         struct ref_func func;
-         func.ref.next = NULL;
-         func.ref.type = REF_FUNCTION;
-         func.params = b->func->params;
-         func.min_param = b->func->min_param;
-         func.max_param = b->func->max_param;
-         matches = match_ref( a, &func.ref );
-      }
-   }
-*/
-   else {
       return false;
-   }
 }
 
 bool same_ref( struct ref* a, struct ref* b ) {
@@ -1260,16 +1263,6 @@ bool same_ref( struct ref* a, struct ref* b ) {
 }
 
 bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
-/*
-   struct dim* dim_a = a->dim;
-   struct dim* dim_b = b->dim;
-   while ( dim_a && dim_b &&
-      dim_a->size == dim_b->size ) {
-      dim_a = dim_a->next;
-      dim_b = dim_b->next;
-   }
-   return ( dim_a == NULL && dim_b == NULL );
-*/
    return ( a->dim_count == b->dim_count );
 }
 
@@ -1281,7 +1274,9 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       param_a = param_a->next;
       param_b = param_b->next;
    }
-   return ( param_a == NULL && param_b == NULL );
+   return
+      ( param_a == NULL && param_b == NULL ) &&
+      ( a->msgbuild == b->msgbuild );
 }
 
 bool compatible_zraw_spec( int spec ) {
@@ -1297,6 +1292,7 @@ bool compatible_zraw_spec( int spec ) {
 }
 
 void s_present_type( struct type_info* type, struct str* string ) {
+/*
    if ( type->ref ) {
       switch ( type->ref->type ) {
       case REF_ARRAY:
@@ -1309,47 +1305,69 @@ void s_present_type( struct type_info* type, struct str* string ) {
          str_append( string, "reference" );
          break;
       }
+   } */
+   // Specifier.
+   if ( type->enumeration ) {
+      str_append( string, "enum" );
+      if ( type->enumeration->name ) {
+         struct str name;
+         str_init( &name );
+         t_copy_name( type->enumeration->name, false, &name );
+         str_append( string, " " );
+         str_append( string, name.value );
+         str_deinit( &name );
+      }
    }
    else {
-      if ( type->enumeration ) {
-         str_append( string, "`" );
-         str_append( string, "enum" );
-         if ( type->enumeration->name ) {
-            struct str name;
-            str_init( &name );
-            t_copy_name( type->enumeration->name, false, &name );
-            str_append( string, " " );
-            str_append( string, name.value );
-            str_deinit( &name );
-         }
-         str_append( string, "`" );
-      }
-      else {
-         str_append( string, "`" );
-         present_spec( type, string );
-         str_append( string, "`" );
-      }
+      present_spec( type->spec, string );
    }
+   // Reference.
+   present_ref( type->ref, string );
 }
 
-/*
-void present_ref( struct type_info* type, struct str* string ) {
-   struct ref* ref = type->ref;
-   while ( ref ) {
-      str_append( string, "ref" );
+void present_ref( struct ref* ref, struct str* string ) {
+   if ( ref ) {
+      present_ref( ref->next, string );
+      if ( ref->next ) {
+         str_append( string, "&" );
+      }
       if ( ref->type == REF_ARRAY ) {
          struct ref_array* part = ( struct ref_array* ) ref;
          for ( int i = 0; i < part->dim_count; ++i ) {
             str_append( string, "[]" );
          }
       }
-      str_append( string, " " );
-      ref = ref->next;
-   }
-} */
+      else if ( ref->type == REF_STRUCTURE ) {
 
-void present_spec( struct type_info* type, struct str* string ) {
-   switch ( type->spec ) {
+      }
+      else if ( ref->type == REF_FUNCTION ) {
+         struct ref_func* func = ( struct ref_func* ) ref;
+         str_append( string, " " );
+         str_append( string, "function" );
+         str_append( string, "(" );
+         struct param* param = func->params;
+         while ( param ) {
+            present_spec( param->spec, string );
+            param = param->next;
+            if ( param ) {
+               str_append( string, "," );
+               str_append( string, " " );
+            }
+         }
+         str_append( string, ")" );
+         if ( func->msgbuild ) {
+            str_append( string, " " );
+            str_append( string, "msgbuild" );
+         }
+      }
+      else {
+         UNREACHABLE()
+      }
+   }
+}
+
+void present_spec( int spec, struct str* string ) {
+   switch ( spec ) {
    case SPEC_ZRAW:
       str_append( string, "zraw" );
       break;
@@ -1428,7 +1446,7 @@ inline bool is_array_ref_type( struct type_info* type ) {
 void subscript_array_type( struct type_info* type,
    struct type_info* element_type ) {
    s_init_type_info( element_type, type->spec, NULL, NULL, type->structure,
-      type->enumeration );
+      type->enumeration, NULL );
    if ( type->dim ) {
       element_type->dim = type->dim->next;
       element_type->ref = type->ref;

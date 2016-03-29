@@ -594,7 +594,8 @@ struct func {
       FUNC_DED,
       FUNC_FORMAT,
       FUNC_USER,
-      FUNC_INTERNAL
+      FUNC_INTERNAL,
+      FUNC_SAMPLE
    } type;
    struct ref* ref;
    struct name* name;

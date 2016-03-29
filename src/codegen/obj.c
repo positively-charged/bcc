@@ -490,6 +490,7 @@ void write_arg( struct codegen* codegen, int arg ) {
    case PCD_ORSCRIPTARRAY:
    case PCD_LSSCRIPTARRAY:
    case PCD_RSSCRIPTARRAY:
+   case PCD_PUSHFUNCTION:
       if ( codegen->compress ) {
          c_add_byte( codegen, arg );
       }

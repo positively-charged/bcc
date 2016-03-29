@@ -32,8 +32,8 @@ static void test_script_jump( struct semantic* semantic, struct stmt_test*,
    struct script_jump* );
 static void test_return( struct semantic* semantic, struct stmt_test*,
    struct return_stmt* );
-static void return_value_mismatch( struct semantic* semantic,
-   struct func* func, struct return_stmt* stmt, struct pos* pos );
+static void return_mismatch( struct semantic* semantic, struct type_info* type,
+   struct type_info* return_type, struct pos* pos );
 static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
@@ -143,9 +143,11 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    }
    // Check case type.
    struct type_info cond_type;
-   s_init_type_info( &cond_type, switch_stmt->cond->spec, NULL, NULL, NULL, NULL );
+   s_init_type_info( &cond_type, switch_stmt->cond->spec,
+      NULL, NULL, NULL, NULL, NULL );
    struct type_info case_type;
-   s_init_type_info( &case_type, label->number->spec, NULL, NULL, NULL, NULL );
+   s_init_type_info( &case_type, label->number->spec,
+      NULL, NULL, NULL, NULL, NULL );
    if ( ! s_same_type( &case_type, &cond_type ) ) {
       case_type_mismatch( semantic, &cond_type, &case_type,
          &label->number->pos );
@@ -406,7 +408,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
       s_test_foreach_var( semantic, &iter.key, key );
       struct type_info type;
       s_init_type_info( &type, key->spec, key->ref, key->dim, key->structure,
-         key->enumeration );
+         key->enumeration, NULL );
       if ( ! s_same_type( &type, &iter.key ) ) {
          foreach_mismatch( semantic, &type, &iter.key, &key->object.pos,
             "key" );
@@ -417,7 +419,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_test_foreach_var( semantic, &iter.value, value );
    struct type_info type;
    s_init_type_info( &type, value->spec, value->ref, value->dim,
-      value->structure, value->enumeration );
+      value->structure, value->enumeration, NULL );
    if ( ! s_same_type( &type, &iter.value ) ) {
       foreach_mismatch( semantic, &type, &iter.value, &value->object.pos,
          "value" );
@@ -553,27 +555,22 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       s_bail( semantic );
    }
    if ( stmt->return_value ) {
-      struct pos pos;
-      test_packed_expr( semantic, test, stmt->return_value, &pos );
+      struct type_info type;
+      struct expr_test expr;
+      s_init_expr_test( &expr, test, NULL, true, false );
+      s_test_expr_type( semantic, &expr, &type, stmt->return_value->expr );
       if ( target->func->return_spec == SPEC_VOID ) {
-         s_diag( semantic, DIAG_POS_ERR, &pos,
-            "returning value in void function" );
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+            "returning a value in void function" );
          s_bail( semantic );
       }
-
-/*
-      struct type_attr type;
-      s_init_expr_test( test, &type );
-      s_test_type_expr( semantic );
-      struct type_attr required_type;
-      s_init_type_attr( &type,
-         stmt->return_value->spec,
-         stmt->return_value->structure );
-*/
-      //if ( ! s_same_types( &type ) ) {
       // Return value must be of the same type as the return type.
-      if ( stmt->return_value->expr->spec != target->func->return_spec ) {
-         return_value_mismatch( semantic, target->func, stmt, &pos );
+      struct type_info return_type;
+      s_init_type_info( &return_type, target->func->return_spec,
+         target->func->ref, NULL, NULL, NULL, NULL );
+      if ( ! s_same_type( &type, &return_type ) ) {
+         return_mismatch( semantic, &type, &return_type,
+            &stmt->return_value->expr->pos );
          s_bail( semantic );
       }
    }
@@ -598,23 +595,21 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    semantic->func_test->returns = stmt;
 }
 
-void return_value_mismatch( struct semantic* semantic,
-   struct func* func, struct return_stmt* stmt, struct pos* pos ) {
-/*
-   struct str return_type;
-   str_init( &return_type );
-   s_present_spec( func->return_spec, &return_type );
-   struct str value_type;
-   str_init( &value_type );
-   s_present_spec( stmt->return_value->expr->spec, &value_type );
+void return_mismatch( struct semantic* semantic, struct type_info* type,
+   struct type_info* return_type, struct pos* pos ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_type( type, &type_s );
+   struct str return_type_s;
+   str_init( &return_type_s );
+   s_present_type( return_type, &return_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
-      "return-value/return-type type mismatch" );
+      "value/return-type type mismatch" );
    s_diag( semantic, DIAG_POS, pos,
-      "`%s` return-value, but `%s` return-type", value_type.value,
-      return_type.value );
-   str_deinit( &return_type );
-   str_deinit( &value_type );
-*/
+      "`%s` value, but `%s` return-type", type_s.value,
+      return_type_s.value );
+   str_deinit( &type_s );
+   str_deinit( &return_type_s );
 }
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,

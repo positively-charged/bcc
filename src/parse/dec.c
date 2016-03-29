@@ -1218,6 +1218,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
    read_func_qual( parse, dec );
    read_extended_spec( parse, dec );
+   read_ref( parse, dec );
    read_name( parse, dec );
    struct func* func = mem_slot_alloc( sizeof( *func ) );
    t_init_object( &func->object, NODE_FUNC );

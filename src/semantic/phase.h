@@ -46,10 +46,12 @@ struct type_info {
    struct structure* structure;
    struct enumeration* enumeration;
    struct dim* dim;
+   struct func* func;
    int spec;
    union {
-      struct ref var;
+      struct ref_struct structure;
       struct ref_array array;
+      struct ref_func func;
    } implicit_ref_part;
    bool implicit_ref;
 };
@@ -123,8 +125,9 @@ void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
-   struct enumeration* enumeration );
+   struct enumeration* enumeration, struct func* func );
 void s_init_type_info_scalar( struct type_info* type, int spec );
+void s_init_type_info_func( struct type_info* type, struct func* func );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_scalar_type( struct type_info* type );

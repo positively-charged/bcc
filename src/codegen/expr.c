@@ -129,6 +129,8 @@ static void write_call_args( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_nested_userfunc_call( struct codegen* codegen,
    struct result* result, struct call* call );
+static void visit_sample_call( struct codegen* codegen, struct result* result,
+   struct call* call );
 static void visit_internal_call( struct codegen* codegen,
    struct result* result, struct call* call );
 static void write_executewait( struct codegen* codegen, struct call* call,
@@ -1071,9 +1073,14 @@ void visit_call( struct codegen* codegen, struct result* result,
    case FUNC_USER:
       visit_user_call( codegen, result, call );
       break;
+   case FUNC_SAMPLE:
+      visit_sample_call( codegen, result, call );
+      break;
    case FUNC_INTERNAL:
       visit_internal_call( codegen, result, call );
       break;
+   default:
+      UNREACHABLE()
    }
 }
 
@@ -1209,7 +1216,7 @@ void visit_user_call( struct codegen* codegen, struct result* result,
    }
    else {
       write_call_args( codegen, result, call );
-      if ( call->func->return_spec != SPEC_VOID ) {
+      if ( call->func->return_spec != SPEC_VOID && result->push ) {
          c_pcd( codegen, PCD_CALL, impl->index );
          result->status = R_VALUE;
       }
@@ -1253,6 +1260,43 @@ void visit_nested_userfunc_call( struct codegen* codegen,
    c_append_node( codegen, &return_point->node );
    call->nested_call->return_point = return_point;
    if ( call->func->return_spec != SPEC_VOID ) {
+      result->status = R_VALUE;
+   }
+}
+
+void visit_sample_call( struct codegen* codegen, struct result* result,
+   struct call* call ) {
+   struct result operand;
+   init_result( &operand, true );
+   visit_suffix( codegen, &operand, call->operand );
+   list_iter_t i;
+   list_iter_init( &i, &call->args );
+   while ( ! list_end( &i ) ) {
+      c_push_expr( codegen, list_data( &i ) );
+      c_pcd( codegen, PCD_SWAP );
+      list_next( &i );
+   }
+   c_pcd( codegen, PCD_CALLSTACK );
+   // Reference value.
+   if ( operand.ref->next ) {
+      result->ref = operand.ref->next;
+      switch ( result->ref->type ) {
+      case REF_STRUCTURE:
+      case REF_ARRAY:
+         result->structure = operand.structure;
+         result->storage = operand.storage;
+         result->index = operand.index;
+         result->status = R_ARRAYINDEX;
+         break;
+      case REF_FUNCTION:
+         result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE()
+      }
+   }
+   // Primitive value.
+   else {
       result->status = R_VALUE;
    }
 }
@@ -1730,7 +1774,12 @@ void visit_param( struct codegen* codegen, struct result* result,
 
 void visit_func( struct codegen* codegen, struct result* result,
    struct func* func ) {
-   if ( func->type == FUNC_ASPEC ) {
+   if ( func->type == FUNC_USER ) {
+      struct func_user* impl = func->impl;
+      c_pcd( codegen, PCD_PUSHFUNCTION, impl->index );
+      result->status = R_VALUE;
+   }
+   else if ( func->type == FUNC_ASPEC ) {
       struct func_aspec* impl = func->impl;
       c_pcd( codegen, PCD_PUSHNUMBER, impl->id );
    }
