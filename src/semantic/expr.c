@@ -182,6 +182,10 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
       struct result result;
       init_result( &result );
       test_root( semantic, test, &result, expr );
+      // Reveal enumeration type.
+      if ( result.enumeration ) {
+         result.spec = SPEC_ENUM;
+      }
       init_type_info( result_type, &result );
    }
    else {
@@ -604,14 +608,16 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "invalid assignment operation" );
       s_bail( semantic );
    }
-   if ( rside.data_origin ) {
-      // At this time, a reference can be made only to private data.
-      if ( ! rside.data_origin->ref && ! rside.data_origin->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-            "right operand not a reference to a private variable" );
-         s_bail( semantic );
+   if ( is_ref_type( &lside ) ) {
+      if ( rside.data_origin ) {
+         // At this time, a reference can be made only to private data.
+         if ( ! rside.data_origin->ref && ! rside.data_origin->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+               "right operand not a reference to a private variable" );
+            s_bail( semantic );
+         }
+         rside.data_origin->addr_taken = true;
       }
-      rside.data_origin->addr_taken = true;
    }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
@@ -1601,7 +1607,7 @@ void test_remaining_args( struct semantic* semantic,
          struct result required_result;
          init_result( &required_result );
          required_result.spec = param->spec;
-         if ( ! same_type( &result, &required_result ) ) {
+         if ( ! same_type( &required_result, &result ) ) {
             arg_mismatch( semantic, &expr->pos, &result, &required_result,
                test->num_args + 1 );
             s_bail( semantic );
@@ -1628,7 +1634,7 @@ void arg_mismatch( struct semantic* semantic, struct pos* pos,
    s_diag( semantic, DIAG_POS_ERR, pos,
       "argument/parameter type mismatch (in argument %d)", number );
    s_diag( semantic, DIAG_POS, pos,
-      "%s argument, but %s parameter",
+      "`%s` argument, but `%s` parameter",
       arg_type_s.value, param_type_s.value );
    str_deinit( &param_type_s );
    str_deinit( &arg_type_s );
@@ -1858,6 +1864,9 @@ void select_var( struct expr_test* test, struct result* result,
       else {
       }
       result->complete = true;
+      if ( result->dim || result->structure ) {
+         result->folded = true;
+      }
    }
    else {
       if ( ! result->structure ) {
@@ -2021,7 +2030,12 @@ void test_upmost( struct semantic* semantic, struct result* result ) {
 
 inline void init_type_info( struct type_info* type, struct result* result ) {
    if ( result->func ) {
-      s_init_type_info_func( type, result->func );
+      if ( result->func->type == FUNC_ASPEC ) {
+         s_init_type_info_scalar( type, SPEC_ZINT );
+      }
+      else {
+         s_init_type_info_func( type, result->func );
+      }
    }
    else {
       s_init_type_info( type, result->spec, result->ref, result->dim,

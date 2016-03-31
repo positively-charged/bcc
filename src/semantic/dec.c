@@ -18,13 +18,22 @@ struct var_test {
 };
 
 struct initz_test {
-   struct dim* dim;
+   struct var* var;
+   struct ref* ref;
    struct structure* structure;
    struct structure_member* member;
+   struct enumeration* enumeration;
+   struct dim* dim;
+   struct initz_test* parent;
    int spec;
    int count;
    bool constant;
    bool has_string;
+};
+
+struct initz_pres {
+   struct str output;
+   bool member_last;
 };
 
 struct value_list {
@@ -42,7 +51,7 @@ static void test_enumerator( struct semantic* semantic,
 static void test_struct_name( struct semantic* semantic, struct structure* type );
 static bool test_struct_body( struct semantic* semantic, struct structure* type );
 static void test_member( struct semantic* semantic,
-   struct structure_member* member );
+   struct structure* structure, struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
    struct structure_member* member );
 static void test_member_name( struct semantic* semantic,
@@ -59,23 +68,47 @@ static void resolve_name_spec( struct semantic* semantic,
 static bool test_name( struct semantic* semantic, struct var* var );
 static bool test_dim( struct semantic* semantic, struct var* var );
 static bool test_initz( struct semantic* semantic, struct var* var );
+static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
 static void assign_inferred_type( struct var* var, struct type_info* type );
-static void init_initz_test( struct initz_test* test, int spec,
-   struct dim* dim, struct structure* structure, bool constant );
+static void init_initz_test( struct initz_test* test,
+   struct initz_test* parent, int spec, struct dim* dim,
+   struct structure* structure, struct enumeration* enumeration,
+   struct ref* ref, bool constant );
+static void init_root_initz_test( struct initz_test* test, struct var* var );
 static bool test_multi_value( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value );
-static bool test_multi_value_child( struct semantic* semantic,
+static bool test_multi_value_array( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value );
+static bool test_multi_value_array_child( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial );
+static void refnotinit_array( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value );
+static bool test_multi_value_struct( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value );
+static bool test_multi_value_struct_child( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value,
+   struct initial* initial, struct structure_member* member );
+static void refnotinit_struct( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value );
 static bool test_value( struct semantic* semantic, struct initz_test* test,
-   int spec, struct dim* dim, struct value* value );
-static bool is_scalar( int spec, struct dim* dim );
-static void value_mismatch_diag( struct semantic* semantic,
-   struct type_info* type, struct type_info* value_type, struct expr* expr,
-   bool array, bool member );
+   struct type_info* type, struct value* value );
+static bool test_scalar_initz( struct semantic* semantic,
+   struct initz_test* test, struct type_info* type, struct value* value );
+static void initz_mismatch_diag( struct semantic* semantic,
+   struct initz_test* test, struct type_info* initz_type,
+   struct type_info* type, struct pos* pos );
+static bool test_string_initz( struct semantic* semantic, struct dim* dim,
+   struct value* value );
+static void init_initz_pres( struct initz_pres* pres );
+static void present_parent( struct initz_pres* pres, struct initz_test* test );
+static void present_ref_element( struct initz_pres* pres, struct dim* dim,
+   struct structure_member* member );
+static void refnotinit( struct semantic* semantic, struct initz_pres* pres,
+   struct pos* pos );
 static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_paramlist( struct semantic* semantic, struct func* func );
 static bool test_func_param( struct semantic* semantic,
@@ -102,6 +135,7 @@ static bool compatible_zraw_spec( int spec );
 static void present_ref( struct ref* ref, struct str* string,
    bool require_ampersand );
 static void present_spec( int spec, struct str* string );
+static bool is_scalar( struct type_info* type );
 static bool is_str_value_type( struct type_info* type );
 static bool is_array_ref_type( struct type_info* type );
 static void subscript_array_type( struct type_info* type,
@@ -109,6 +143,7 @@ static void subscript_array_type( struct type_info* type,
 static void take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot );
 static struct ref* dup_ref( struct ref* ref );
+static bool is_onedim_int_array( struct type_info* type );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test name. Only applies in a local scope.
@@ -224,7 +259,7 @@ bool test_struct_body( struct semantic* semantic, struct structure* type ) {
    struct structure_member* member = type->member;
    while ( member ) {
       if ( ! member->object.resolved ) {
-         test_member( semantic, member );
+         test_member( semantic, type, member );
          if ( ! member->object.resolved ) {
             return false;
          }
@@ -234,7 +269,8 @@ bool test_struct_body( struct semantic* semantic, struct structure* type ) {
    return true;
 }
 
-void test_member( struct semantic* semantic, struct structure_member* member ) {
+void test_member( struct semantic* semantic, struct structure* structure,
+   struct structure_member* member ) {
       if ( member->spec == SPEC_NAME ) {
          struct var_test test;
          init_var_test( &test, member->type_path );
@@ -247,6 +283,9 @@ void test_member( struct semantic* semantic, struct structure_member* member ) {
       test_member_name( semantic, member );
       bool resolved = test_member_dim( semantic, member );
       member->object.resolved = resolved;
+   }
+   if ( member->structure && member->structure->has_ref_member ) {
+      structure->has_ref_member = true;
    }
 }
 
@@ -274,6 +313,9 @@ bool test_member_spec( struct semantic* semantic,
       }
    }
 */
+   if ( member->structure ) {
+      return member->structure->object.resolved;
+   }
    return true;
 }
 
@@ -360,7 +402,7 @@ void test_ref_part( struct semantic* semantic,
       struct type_info return_type;
       s_init_type_info( &return_type, var->spec, ref->next,
          NULL, NULL, NULL, NULL );
-      if ( ! s_is_scalar_type( &return_type ) ) {
+      if ( ! is_scalar( &return_type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &ref->pos,
             "invalid return-type in function reference" );
          s_bail( semantic );
@@ -490,13 +532,41 @@ bool test_initz( struct semantic* semantic, struct var* var ) {
          return test_object_initz( semantic, var );
       }
    }
+   else {
+      // References must always have a valid value.
+      if ( var->ref || ( var->structure &&
+         var->structure->has_ref_member ) ) {
+         refnotinit_var( semantic, var );
+         s_bail( semantic );
+      }
+   }
    return true;
+}
+
+void refnotinit_var( struct semantic* semantic, struct var* var ) {
+   if ( var->dim || ( var->structure && ! var->ref ) ) {
+      struct initz_pres pres;
+      init_initz_pres( &pres );
+      struct str name;
+      str_init( &name );
+      t_copy_name( var->name, false, &name );
+      str_append( &pres.output, name.value );
+      str_deinit( &name );
+      present_ref_element( &pres, var->dim, var->structure ?
+         var->structure->member : NULL );
+      refnotinit( semantic, &pres, &var->object.pos );
+   }
+   else {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "variable not initialized" );
+      s_diag( semantic, DIAG_POS, &var->object.pos,
+         "a reference-type variable must be initialized explicitly" );
+   }
 }
 
 bool test_object_initz( struct semantic* semantic, struct var* var ) {
    struct initz_test test;
-   init_initz_test( &test, var->spec, var->dim, var->structure,
-      var->is_constant_init );
+   init_root_initz_test( &test, var );
    if ( var->initial->multi ) {
       if ( ! ( var->dim || var->structure ) ) {
          struct multi_value* multi_value =
@@ -516,7 +586,10 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    else {
-      bool resolved = test_value( semantic, &test, var->spec, var->dim,
+      struct type_info type;
+      s_init_type_info( &type, var->spec, var->ref, var->dim, var->structure,
+         var->enumeration, NULL );
+      bool resolved = test_value( semantic, &test, &type,
          ( struct value* ) var->initial );
       if ( ! resolved ) {
          return false;
@@ -526,62 +599,87 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void init_initz_test( struct initz_test* test, int spec, struct dim* dim,
-   struct structure* structure, bool constant ) {
-   test->dim = dim;
+void init_initz_test( struct initz_test* test, struct initz_test* parent,
+   int spec, struct dim* dim, struct structure* structure,
+   struct enumeration* enumeration, struct ref* ref, bool constant ) {
+   test->var = NULL;
+   test->ref = ref;
    test->structure = structure;
-   test->member = ( ! dim && structure ? structure->member : NULL );
+   test->member = NULL;
+   test->enumeration = enumeration;
+   test->dim = dim;
+   test->parent = parent;
    test->spec = spec;
    test->count = 0;
    test->constant = constant;
    test->has_string = false;
+   if ( structure ) {
+      test->member = structure->member;
+   }
+}
+
+void init_root_initz_test( struct initz_test* test, struct var* var ) {
+   init_initz_test( test, NULL, var->spec, var->dim, var->structure,
+      var->enumeration, var->ref, var->is_constant_init );
+   test->var = var;
 }
 
 bool test_multi_value( struct semantic* semantic, struct initz_test* test,
    struct multi_value* multi_value ) {
-   if ( ! ( test->dim || test->structure ) ) {
+   if ( test->dim ) {
+      return test_multi_value_array( semantic, test, multi_value );
+   }
+   else if ( test->structure ) {
+      return test_multi_value_struct( semantic, test, multi_value );
+   }
+   else {
       s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
          "too many brace initializers" );
       s_bail( semantic );
+      return false;
    }
+}
+
+bool test_multi_value_array( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( ! initial->tested ) {
-         bool resolved = test_multi_value_child( semantic,
+         bool resolved = test_multi_value_array_child( semantic,
             test, multi_value, initial );
          if ( ! resolved ) {
             return false;
          }
          initial->tested = true;
       }
-      if ( test->member ) {
-         test->member = test->member->next;
-      }
       ++test->count;
       initial = initial->next;
+   }
+   // All reference-type elements must be initialized.
+   if ( test->count < test->dim->size ) {
+      if ( test->ref || ( test->structure &&
+         test->structure->has_ref_member ) ) {
+         refnotinit_array( semantic, test, multi_value );
+         s_bail( semantic );
+      }
    }
    return true;
 }
 
-bool test_multi_value_child( struct semantic* semantic,
+bool test_multi_value_array_child( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial ) {
-   // Make sure there is an object to initialize. 
-   bool have_element = ( test->dim &&
-      ( ! test->dim->size_node || test->count < test->dim->size ) );
-   bool have_member = ( test->member != NULL );
-   if ( ! ( have_element || have_member ) ) {
+   // Make sure there is an element to initialize.
+   if ( ! ( test->dim && ( ! test->dim->size_node ||
+      test->count < test->dim->size ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
          "too many values in brace initializer" );
       s_bail( semantic );
    }
    if ( initial->multi ) {
       struct initz_test nested_test;
-      init_initz_test( &nested_test,
-         ( test->dim ? test->spec : test->member->spec ),
-         ( test->dim ? test->dim->next : test->member->dim ),
-         ( test->dim ? test->structure : test->member->structure ),
-         test->constant );
+      init_initz_test( &nested_test, test, test->spec, test->dim->next,
+         test->structure, test->enumeration, test->ref, test->constant );
       bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
       if ( nested_test.has_string ) {
@@ -590,18 +688,118 @@ bool test_multi_value_child( struct semantic* semantic,
       return resolved;
    }
    else {
-      return test_value( semantic, test,
-         ( test->dim ? test->spec : test->member->spec ),
-         ( test->dim ? test->dim->next : test->member->dim ),
+      struct type_info type;
+      s_init_type_info( &type, test->spec, test->ref, test->dim->next,
+         test->structure, test->enumeration, NULL );
+      return test_value( semantic, test, &type,
          ( struct value* ) initial );
    }
 }
 
-bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
-   struct dim* dim, struct value* value ) {
+void refnotinit_array( struct semantic* semantic, struct initz_test* test,
+   struct multi_value* multi_value ) {
+   struct initz_pres pres;
+   init_initz_pres( &pres );
+   present_parent( &pres, test );
+   if ( ! test->ref ) {
+      present_ref_element( &pres, NULL, test->structure->member );
+   }
+   refnotinit( semantic, &pres, &multi_value->pos );
+}
+
+bool test_multi_value_struct( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value ) {
+   struct initial* initial = multi_value->body;
+   while ( initial ) {
+      if ( ! initial->tested ) {
+         bool resolved = test_multi_value_struct_child( semantic,
+            test, multi_value, initial, test->member );
+         if ( ! resolved ) {
+            return false;
+         }
+         initial->tested = true;
+      }
+      test->member = test->member->next;
+      initial = initial->next;
+   }
+   // Every reference-type member must be initialized.
+   while ( test->member ) {
+      if ( test->member->ref || ( test->member->structure &&
+         test->member->structure->has_ref_member ) ) {
+         refnotinit_struct( semantic, test, multi_value );
+         s_bail( semantic );
+      }
+      test->member = test->member->next;
+   }
+   return true;
+}
+
+bool test_multi_value_struct_child( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value,
+   struct initial* initial, struct structure_member* member ) {
+   // Make sure there is a member to initialize.
+   if ( ! member ) {
+      s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
+         "too many values in brace initializer" );
+      s_bail( semantic );
+   }
+   if ( initial->multi ) {
+      struct initz_test nested_test;
+      init_initz_test( &nested_test, test, member->spec, member->dim,
+         member->structure, member->enumeration, member->ref, test->constant );
+      bool resolved = test_multi_value( semantic, &nested_test,
+         ( struct multi_value* ) initial );
+      if ( nested_test.has_string ) {
+         test->has_string = true;
+      }
+      return resolved;
+   }
+   else {
+      struct type_info type;
+      s_init_type_info( &type, member->spec, member->ref, member->dim,
+         member->structure, member->enumeration, NULL );
+      return test_value( semantic, test, &type,
+         ( struct value* ) initial );
+   }
+}
+
+void refnotinit_struct( struct semantic* semantic, struct initz_test* test,
+   struct multi_value* multi_value ) {
+   struct initz_pres pres;
+   init_initz_pres( &pres );
+   present_parent( &pres, test );
+   if ( test->member->ref ) {
+      present_ref_element( &pres, test->member->dim, NULL );
+   }
+   else {
+      present_ref_element( &pres, test->member->dim,
+         test->member->structure->member );
+   }
+   refnotinit( semantic, &pres, &multi_value->pos );
+}
+
+bool test_value( struct semantic* semantic, struct initz_test* test,
+   struct type_info* type, struct value* value ) {
+   if ( is_scalar( type ) ) {
+      return test_scalar_initz( semantic, test, type, value );
+   }
+   else if ( is_onedim_int_array( type ) ) {
+      return test_string_initz( semantic, type->dim, value );
+   }
+   else {
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+         "missing brace initializer" );
+      s_bail( semantic );
+      return false;
+   }
+}
+
+bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
+   struct type_info* type, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, NULL, NULL, true, false );
-   s_test_expr( semantic, &expr, value->expr );
+   struct type_info initz_type;
+   s_test_expr_type( semantic, &expr, &initz_type, value->expr );
    if ( expr.undef_erred ) {
       return false;
    }
@@ -610,91 +808,148 @@ bool test_value( struct semantic* semantic, struct initz_test* test, int spec,
          "non-constant initializer" );
       s_bail( semantic );
    }
-   // Only initialize a scalar object or an array of a single dimension
-   // (using the string initializer).
-   bool scalar = is_scalar( spec, dim );
-   bool string_initz_element = ( dim && ! dim->next &&
-      value->expr->spec == SPEC_ZSTR );
-   if ( ! ( scalar || string_initz_element ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-         "missing brace initializer" );
+   if ( ! s_same_type( type, &initz_type ) ) {
+      initz_mismatch_diag( semantic, test, &initz_type, type,
+         &value->expr->pos );
       s_bail( semantic );
    }
-   // String initializer.
-   if ( string_initz_element ) {
-      if ( ! ( spec == SPEC_ZINT || spec == SPEC_ZRAW ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-            "string initializer specified for a non-integer array" );
-         s_bail( semantic );
-      }
-      struct indexed_string* string = t_lookup_string( semantic->task,
-         value->expr->value );
-      if ( dim->size_node ) {
-         if ( string->length >= dim->size ) {
-            s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-               "string initializer too long" );
-            s_bail( semantic );
-         }
-      }
-      else {
-         dim->size = string->length + 1;
-      }
-      value->string_initz = true;
-   }
-   // Scalar object.
-   else {
-      struct type_info type;
-      s_init_type_info( &type, spec, NULL, NULL, NULL, NULL, NULL );
-      struct type_info value_type;
-      s_init_type_info( &value_type, value->expr->spec,
-         NULL, NULL, NULL, NULL, NULL );
-      if ( ! s_same_type( &type, &value_type ) ) {
-         value_mismatch_diag( semantic, &type, &value_type, value->expr,
-            ( test->dim != NULL ), ( test->member != NULL ) );
-         s_bail( semantic );
-      }
-      if ( expr.has_string ) {
-         test->has_string = true;
-      }
+   if ( expr.has_string ) {
+      test->has_string = true;
    }
    return true;
 }
 
-bool is_scalar( int spec, struct dim* dim ) {
-   if ( ! dim ) {
-      switch ( spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZBOOL:
-      case SPEC_ZSTR:
-      case SPEC_ENUM:
-         return true;
-      default:
-         break;
-      }
-   }
-   return false;
-}
-
-void value_mismatch_diag( struct semantic* semantic, struct type_info* type,
-   struct type_info* value_type, struct expr* expr, bool array, bool member ) {
+void initz_mismatch_diag( struct semantic* semantic, struct initz_test* test,
+   struct type_info* initz_type, struct type_info* type, struct pos* pos ) {
+   struct str initz_type_s;
+   str_init( &initz_type_s );
+   s_present_type( initz_type, &initz_type_s );
    struct str type_s;
    str_init( &type_s );
    s_present_type( type, &type_s );
-   struct str value_type_s;
-   str_init( &value_type_s );
-   s_present_type( value_type, &value_type_s );
    const char* object =
-      array  ? "element" :
-      member ? "struct-member" : "variable";
-   s_diag( semantic, DIAG_POS_ERR, &expr->pos,
-      "initializer/%s type-mismatch", object );
-   s_diag( semantic, DIAG_POS, &expr->pos,
-      "`%s` initializer, but `%s` %s", value_type_s.value,
+      test->dim ? "element" :
+      test->member ? "struct-member" : "variable";
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "initializer/%s type mismatch", object );
+   s_diag( semantic, DIAG_POS, pos,
+      "`%s` initializer, but `%s` %s", initz_type_s.value,
       type_s.value, object );
    str_deinit( &type_s );
-   str_deinit( &value_type_s );
+   str_deinit( &initz_type_s );
+}
+
+bool test_string_initz( struct semantic* semantic, struct dim* dim,
+   struct value* value ) {
+   struct type_info type;
+   struct expr_test expr;
+   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_test_expr_type( semantic, &expr, &type, value->expr );
+   if ( expr.undef_erred ) {
+      return false;
+   }
+   if ( ! is_str_value_type( &type ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+         "missing brace initializer" );
+      s_bail( semantic );
+   }
+   if ( ! value->expr->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+         "non-constant string initializer" );
+      s_bail( semantic );
+   }
+   struct indexed_string* string = t_lookup_string( semantic->task,
+      value->expr->value );
+   if ( dim->size_node ) {
+      if ( string->length >= dim->size ) {
+         s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+            "string initializer too long" );
+         s_bail( semantic );
+      }
+   }
+   else {
+      dim->size = string->length + 1;
+   }
+   value->string_initz = true;
+   return true;
+}
+
+void init_initz_pres( struct initz_pres* pres ) {
+   str_init( &pres->output );
+   pres->member_last = false;
+}
+
+void present_parent( struct initz_pres* pres, struct initz_test* test ) {
+   if ( test->parent ) {
+      present_parent( pres, test->parent );
+   }
+   else {
+      struct str name;
+      str_init( &name );
+      t_copy_name( test->var->name, false, &name );
+      str_append( &pres->output, name.value );
+      str_deinit( &name );
+   }
+   if ( test->dim ) {
+      str_append( &pres->output, "[" );
+      char number[ 11 ];
+      sprintf( number, "%d", test->count );
+      str_append( &pres->output, number );
+      str_append( &pres->output, "]" );
+      pres->member_last = false;
+   }
+   else if ( test->member ) {
+      str_append( &pres->output, "." );
+      struct str name;
+      str_init( &name );
+      t_copy_name( test->member->name, false, &name );
+      str_append( &pres->output, name.value );
+      str_deinit( &name );
+      pres->member_last = true;
+   }
+}
+
+void present_ref_element( struct initz_pres* pres, struct dim* dim,
+   struct structure_member* member ) {
+   if ( dim ) {
+      while ( dim ) {
+         str_append( &pres->output, "[0]" );
+         dim = dim->next;
+      }
+      pres->member_last = false;
+   }
+   while ( member && ! ( member->ref || ( member->structure &&
+      member->structure->has_ref_member ) ) ) {
+      member = member->next;
+   }
+   if ( member ) {
+      str_append( &pres->output, "." );
+      struct str name;
+      str_init( &name );
+      t_copy_name( member->name, false, &name );
+      str_append( &pres->output, name.value );
+      str_deinit( &name );
+      pres->member_last = true;
+      if ( member->ref ) {
+         present_ref_element( pres, member->dim, NULL );
+      }
+      else {
+         present_ref_element( pres, member->dim,
+            member->structure->member );
+      }
+   }
+}
+
+void refnotinit( struct semantic* semantic, struct initz_pres* pres,
+   struct pos* pos ) {
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "%s `%s` not initialized",
+      pres->member_last ? "member" : "element",
+      pres->output.value );
+   s_diag( semantic, DIAG_POS, pos,
+      "a reference-type %s must be initialized explicitly",
+      pres->member_last ? "member" : "element" );
+   str_deinit( &pres->output );
 }
 
 bool test_imported_object_initz( struct var* var ) {
@@ -1248,7 +1503,7 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
       return false;
    }
    // Enumeration.
-   if ( a->enumeration != b->enumeration ) {
+   if ( a->enumeration && a->enumeration != b->enumeration ) {
       return false;
    }
    // Specifier.
@@ -1323,6 +1578,7 @@ bool compatible_zraw_spec( int spec ) {
    case SPEC_ZFIXED:
    case SPEC_ZBOOL:
    case SPEC_ZSTR:
+   case SPEC_ENUM:
       return true;
    }
    return false;
@@ -1345,22 +1601,28 @@ void s_present_type( struct type_info* type, struct str* string ) {
    } */
    // Specifier.
    if ( type->enumeration ) {
-      str_append( string, "enum" );
       if ( type->enumeration->name ) {
          struct str name;
          str_init( &name );
          t_copy_name( type->enumeration->name, false, &name );
-         str_append( string, " " );
          str_append( string, name.value );
          str_deinit( &name );
       }
+      else {
+         str_append( string, "anonymous-enum" );
+      }
    }
    else if ( type->structure ) {
-      struct str name;
-      str_init( &name );
-      t_copy_name( type->structure->name, true, &name );
-      str_append( string, name.value );
-      str_deinit( &name );
+      if ( type->structure->anon ) {
+         str_append( string, "anonymous-struct" );
+      }
+      else {
+         struct str name;
+         str_init( &name );
+         t_copy_name( type->structure->name, true, &name );
+         str_append( string, name.value );
+         str_deinit( &name );
+      }
    }
    else {
       present_spec( type->spec, string );
@@ -1438,26 +1700,8 @@ void present_spec( int spec, struct str* string ) {
    }
 }
 
-bool s_is_scalar_type( struct type_info* type ) {
-   if ( ! type->dim ) {
-      if ( type->ref ) {
-         return true;
-      }
-      else {
-         switch ( type->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZBOOL:
-         case SPEC_ZSTR:
-         case SPEC_ENUM:
-            return true;
-         default:
-            break;
-         }
-      }
-   }
-   return false;
+bool is_scalar( struct type_info* type ) {
+   return ( ! type->dim && ( type->ref || ! type->structure ) );
 }
 
 bool s_is_ref_type( struct type_info* type ) {
@@ -1538,4 +1782,9 @@ struct ref* dup_ref( struct ref* ref ) {
    void* block = mem_alloc( size );
    memcpy( block, ref, size );
    return block;
+}
+
+bool is_onedim_int_array( struct type_info* type ) {
+   return ( type->dim && ! type->dim->next && ! type->structure &&
+      ! type->ref && ( type->spec == SPEC_ZINT || type->spec == SPEC_ZRAW ) );
 }

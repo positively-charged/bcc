@@ -1009,6 +1009,10 @@ void visit_access( struct codegen* codegen, struct result* result,
       access_structure_member( codegen,
          ( struct structure_member* ) access->rside, &lside, result );
    }
+   else if ( access->rside->type == NODE_ENUMERATOR ) {
+      visit_enumerator( codegen, result,
+         ( struct enumerator* ) access->rside );
+   }
 }
 
 void access_structure_member( struct codegen* codegen,

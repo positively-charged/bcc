@@ -228,6 +228,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
+   dec->type_pos = parse->tk_pos;
    p_test_tk( parse, TK_ENUM );
    p_read_tk( parse );
    if ( ( parse->tk == TK_ID && p_peek( parse ) == TK_BRACE_L ) ||
@@ -335,11 +336,13 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
    dec->spec = SPEC_ENUM;
    dec->enumeration = set;
+/*
    if ( dec->area == DEC_MEMBER ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
          "enum inside struct" );
       p_bail( parse );
    }
+*/
 }
 
 struct enumerator* alloc_enumerator( void ) {
@@ -444,6 +447,7 @@ struct structure* alloc_structure( struct pos* pos ) {
    structure->member_tail = NULL;
    structure->size = 0;
    structure->anon = false;
+   structure->has_ref_member = false;
    return structure;
 }
 
@@ -499,6 +503,9 @@ void read_struct_member( struct parse* parse, struct dec* dec,
       else {
          break;
       }
+   }
+   if ( member.ref ) {
+      structure->has_ref_member = true;
    }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );

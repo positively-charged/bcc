@@ -166,6 +166,7 @@ struct structure {
    struct structure_member* member_tail;
    int size;
    bool anon;
+   bool has_ref_member;
 };
 
 struct structure_member {
