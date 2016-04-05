@@ -205,6 +205,12 @@ void p_init_dec( struct dec* dec ) {
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
+   // At this time, visibility can be specified only for variables and
+   // functions.
+   if ( parse->tk == TK_PRIVATE ) {
+      dec->private_visibility = true;
+      p_read_tk( parse );
+   }
    if ( parse->tk == TK_STRUCT ) {
       read_struct( parse, dec );
    }
@@ -212,12 +218,6 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       read_enum( parse, dec );
    }
    else {
-      // At this time, visibility can be specified only for variables and
-      // functions.
-      if ( parse->tk == TK_PRIVATE ) {
-         dec->private_visibility = true;
-         p_read_tk( parse );
-      }
       if ( parse->tk == TK_FUNCTION ) {
          read_func( parse, dec );
       }
@@ -320,6 +320,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    set->object.pos = name_pos;
    set->head = head;
    set->name = name;
+   set->hidden = dec->private_visibility;
    // TODO: Clean up.
    struct enumerator* enumerator = set->head;
    while ( enumerator ) {
@@ -332,7 +333,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    else {
       p_add_unresolved( parse, &set->object );
       list_append( &parse->ns->objects, set );
-      list_append( &parse->task->library->objects, set );
+      list_append( &parse->lib->objects, set );
    }
    dec->spec = SPEC_ENUM;
    dec->enumeration = set;
@@ -360,6 +361,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    struct constant* constant = alloc_constant();
    constant->object.pos = parse->tk_pos;
    constant->name = t_extend_name( parse->ns->body, parse->tk_text );
+   constant->hidden = dec->private_visibility;
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );
@@ -373,7 +375,7 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    else {
       p_add_unresolved( parse, &constant->object );
       list_append( &parse->ns->objects, constant );
-      list_append( &parse->task->library->objects, constant );
+      list_append( &parse->lib->objects, constant );
    }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
@@ -405,7 +407,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
    else {
       p_add_unresolved( parse, &structure->object );
       list_append( &parse->ns->objects, structure );
-      list_append( &parse->task->library->objects, structure );
+      list_append( &parse->lib->objects, structure );
    }
    dec->structure = structure;
    dec->spec = SPEC_STRUCT;
@@ -1104,17 +1106,21 @@ void test_var( struct parse* parse, struct dec* dec ) {
 
 void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = alloc_var( dec );
-   var->imported = parse->task->library->imported;
+   var->imported = parse->lib->imported;
    if ( dec->area == DEC_TOP ) {
       var->hidden = dec->private_visibility;
       p_add_unresolved( parse, &var->object );
-      list_append( &parse->task->library->vars, var );
-      list_append( &parse->task->library->objects, var );
+      list_append( &parse->lib->vars, var );
+      list_append( &parse->lib->objects, var );
+      list_append( &parse->ns->objects, var );
+      if ( var->hidden ) {
+         list_append( &parse->ns->private_objects, var );
+      }
    }
    else if ( dec->storage.type == STORAGE_MAP ) {
       var->hidden = ( dec->static_qual == true );
-      list_append( &parse->task->library->vars, var );
-      list_append( &parse->task->library->objects, var );
+      list_append( &parse->lib->vars, var );
+      list_append( &parse->lib->objects, var );
       list_append( dec->vars, var );
    }
    else {
@@ -1242,7 +1248,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->return_spec = dec->spec;
    func->min_param = 0;
    func->max_param = 0;
-   func->hidden = false;
+   func->hidden = dec->private_visibility;
    // Parameter list:
    p_test_tk( parse, TK_PAREN_L );
    struct pos params_pos = parse->tk_pos;
@@ -1277,11 +1283,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
       impl->publish = false;
-      impl->hidden = dec->private_visibility;
       impl->msgbuild = dec->msgbuild;
       func->impl = impl;
       // Only read the function body when it is needed.
-      if ( ! parse->task->library->imported ) {
+      if ( ! parse->lib->imported ) {
          struct stmt_reading body;
          p_init_stmt_reading( &body, &impl->labels );
          parse->local_vars = &impl->vars;
@@ -1297,6 +1302,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       read_bfunc( parse, func );
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
+      func->hidden = true;
    }
    if ( dec->storage.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
@@ -1312,9 +1318,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &func->object );
       list_append( &parse->ns->objects, func );
-      list_append( &parse->task->library->objects, func );
+      list_append( &parse->lib->objects, func );
       if ( func->type == FUNC_USER ) {
-         list_append( &parse->task->library->funcs, func );
+         list_append( &parse->lib->funcs, func );
+         list_append( &parse->ns->funcs, func );
       }
    }
    else {
@@ -1616,7 +1623,7 @@ void p_read_script( struct parse* parse ) {
    read_script_type( parse, script, &reading );
    read_script_flag( parse, script );
    read_script_body( parse, script );
-   list_append( &parse->task->library->scripts, script );
+   list_append( &parse->lib->scripts, script );
    list_append( &parse->ns->scripts, script );
 }
 
@@ -1783,7 +1790,7 @@ void read_script_body( struct parse* parse, struct script* script ) {
 void p_read_special_list( struct parse* parse ) {
    p_test_tk( parse, TK_SPECIAL );
    p_read_tk( parse );
-   if ( parse->task->library->imported ) {
+   if ( parse->lib->imported ) {
       p_skip_semicolon( parse );
    }
    else {
@@ -1853,5 +1860,5 @@ void read_special( struct parse* parse ) {
    }
    p_add_unresolved( parse, &func->object );
    list_append( &parse->ns->objects, func );
-   list_append( &parse->task->library->objects, func );
+   list_append( &parse->lib->objects, func );
 }

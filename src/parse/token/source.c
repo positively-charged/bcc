@@ -38,6 +38,21 @@ void p_load_main_source( struct parse* parse ) {
    }
 }
 
+void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
+   struct file_entry* file ) {
+   struct request request;
+   p_init_request( &request, file->full_path.value );
+   p_load_source( parse, &request );
+   if ( request.source ) {
+      request.source->imported = true;
+   }
+   else {
+      p_diag( parse, DIAG_POS_ERR, &dirc->pos,
+         "failed to load library file: %s", dirc->file_path );
+      p_bail( parse );
+   }
+}
+
 struct source* p_load_included_source( struct parse* parse ) {
    struct request request;
    p_init_request( &request, parse->tk_text );

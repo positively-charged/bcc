@@ -388,6 +388,7 @@ struct parse {
    bool create_nltk;
    struct ns* ns;
    struct list* local_vars;
+   struct library* lib;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -397,6 +398,8 @@ void p_preprocess( struct parse* parse );
 void p_diag( struct parse* parse, int flags, ... );
 void p_bail( struct parse* parse );
 void p_load_main_source( struct parse* parse );
+void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
+   struct file_entry* file );
 void p_read_tk( struct parse* parse );
 void p_read_preptk( struct parse* parse );
 void p_read_expanpreptk( struct parse* parse );
@@ -470,5 +473,7 @@ void p_read_special_list( struct parse* parse );
 void p_skip_semicolon( struct parse* parse );
 bool p_peek_path( struct parse* parse, struct parsertk_iter* iter );
 void p_read_using( struct parse* parse, struct list* output );
+void p_read_target_lib( struct parse* parse );
+void p_clear_macros( struct parse* parse );
 
 #endif

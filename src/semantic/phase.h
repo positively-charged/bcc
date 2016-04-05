@@ -80,6 +80,8 @@ struct semantic {
    struct stmt_test* topfunc_test;
    struct stmt_test* func_test;
    int depth;
+   bool retest_nss;
+   bool resolved_objects;
    bool trigger_err;
    bool in_localscope;
 };

@@ -27,19 +27,15 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->bail = bail;
    task->file_entries = NULL;
    init_str_table( &task->str_table );
-   task->library = NULL;
    task->library_main = NULL;
    list_init( &task->libraries );
-   list_init( &task->namespaces );
    list_init( &task->altern_filenames );
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
    task->mnemonics = NULL;
    list_init( &task->runtime_asserts );
-   struct name* root_name = t_create_name();
-   task->upmost_ns = t_alloc_ns( task, root_name );
-   root_name->object = &task->upmost_ns->object;
+   task->root_name = t_create_name();
 }
 
 struct ns* t_alloc_ns( struct task* task, struct name* name ) {
@@ -52,10 +48,11 @@ struct ns* t_alloc_ns( struct task* task, struct name* name ) {
    ns->unresolved_tail = NULL;
    ns->links = NULL;
    list_init( &ns->objects );
+   list_init( &ns->private_objects );
+   list_init( &ns->funcs );
    list_init( &ns->scripts );
    list_init( &ns->usings );
    ns->defined = false;
-   list_append( &task->namespaces, ns );
    return ns;
 }
 
@@ -503,7 +500,12 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->funcs );
    list_init( &lib->scripts );
    list_init( &lib->objects );
+   list_init( &lib->namespaces );
+   list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
+   lib->upmost_ns = t_alloc_ns( task, task->root_name );
+   // root_name->object = &lib->upmost_ns->object;
+   list_append( &lib->namespaces, lib->upmost_ns );
    lib->file_pos.line = 0;
    lib->file_pos.column = 0;
    lib->file_pos.id = 0;

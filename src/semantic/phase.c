@@ -17,9 +17,15 @@ struct scope {
 static void determine_publishable_objects( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
-static void bind_lib( struct semantic* semantic, struct library* lib );
-static void bind_object( struct semantic* semantic, struct object* object );
+static void bind_namespace_object( struct semantic* semantic,
+   struct object* object );
+static void bind_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration );
+static void show_private_objects( struct semantic* semantic );
+static void hide_private_objects( struct semantic* semantic );
 static void perform_usings( struct semantic* semantic );
+static void perform_lib_usings( struct semantic* semantic,
+   struct library* lib );
 static void import_all( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc );
 static void import_selection( struct semantic* semantic, struct ns* ns,
@@ -29,10 +35,11 @@ static void import_item( struct semantic* semantic, struct ns* ns,
 static struct object* follow_path( struct semantic* semantic,
    struct path* path, bool only_ns );
 static void test_objects( struct semantic* semantic );
-static void test_ns( struct semantic* semantic, bool* resolved, bool* retry );
-static void test_object( struct semantic* semantic, struct object* object );
+static void test_all( struct semantic* semantic );
+static void test_namespace( struct semantic* semantic, struct ns* ns );
+static void test_namespace_object( struct semantic* semantic,
+   struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
-static void test_namespace_objects_bodies( struct semantic* semantic );
 static void check_dup_scripts( struct semantic* semantic );
 static void match_duplicate_script( struct semantic* semantic,
    struct script* script, struct script* other_script, bool* first_match );
@@ -52,11 +59,6 @@ static void find_tail_object( struct semantic* semantic,
 static struct object* get_nsobject( struct ns* ns, const char* object_name );
 static void confirm_compiletime_content( struct semantic* semantic );
 static bool is_compiletime_object( struct object* object );
-static void unbind_all( struct semantic* semantic );
-static void unbind_lib( struct library* lib );
-static void unbind_object( struct object* object );
-static void unbind_enum( struct enumeration* enum_ );
-static void unbind_struct( struct structure* struct_ );
 
 void s_init( struct semantic* semantic, struct task* task,
    struct library* lib ) {
@@ -69,6 +71,8 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
    semantic->depth = 0;
+   semantic->retest_nss = false;
+   semantic->resolved_objects = false;
    semantic->trigger_err = false;
    semantic->in_localscope = false;
 }
@@ -78,11 +82,9 @@ void s_test( struct semantic* semantic ) {
    bind_names( semantic );
    perform_usings( semantic );
    test_objects( semantic );
-   if ( ! semantic->lib->imported ) {
-      test_objects_bodies( semantic );
-      check_dup_scripts( semantic );
-      assign_script_numbers( semantic );
-   }
+   test_objects_bodies( semantic );
+   check_dup_scripts( semantic );
+   assign_script_numbers( semantic );
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
    if ( semantic->lib->compiletime ) {
@@ -94,9 +96,6 @@ void s_test( struct semantic* semantic ) {
             "a compile-time library can only be #imported" );
          s_bail( semantic );
       }
-   }
-   if ( semantic->lib->imported ) {
-      unbind_all( semantic );
    }
 }
 
@@ -118,82 +117,181 @@ void determine_publishable_objects( struct semantic* semantic ) {
    }
 }
 
-// Goes through every object in every region and connects the name of the
-// object to the object.
 void bind_names( struct semantic* semantic ) {
-   list_iter_t i;
-   list_iter_init( &i, &semantic->task->namespaces );
-   while ( ! list_end( &i ) ) {
-      bind_namespace( semantic, list_data( &i ) );
-      list_next( &i );
-   }
-/*
-   // Imported objects.
    list_iter_t i;
    list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
-      bind_lib( semantic, list_data( &i ) );
+      struct library* lib = list_data( &i );
+      bind_namespace( semantic, lib->upmost_ns );
       list_next( &i );
    }
-   // Objects of the current library.
-   bind_lib( semantic, semantic->lib );
-*/
+   bind_namespace( semantic, semantic->lib->upmost_ns );
 }
 
 void bind_namespace( struct semantic* semantic, struct ns* ns ) {
-   struct object* object = ns->unresolved;
-   while ( object ) {
-      bind_object( semantic, object );
-      object = object->next;
+   semantic->ns = ns;
+   list_iter_t i;
+   list_iter_init( &i, &ns->objects );
+   while ( ! list_end( &i ) ) {
+      bind_namespace_object( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   hide_private_objects( semantic );
+}
+
+void bind_namespace_object( struct semantic* semantic,
+   struct object* object ) {
+   switch ( object->node.type ) {
+      struct constant* constant;
+      struct structure* structure;
+      struct var* var;
+      struct func* func;
+   case NODE_CONSTANT:
+      constant = ( struct constant* ) object;
+      s_bind_name( semantic, constant->name, &constant->object );
+      break;
+   case NODE_ENUMERATION:
+      bind_enumeration( semantic,
+         ( struct enumeration* ) object );
+      break;
+   case NODE_STRUCTURE:
+      structure = ( struct structure* ) object;
+      s_bind_name( semantic, structure->name, &structure->object );
+      break;
+   case NODE_VAR:
+      var = ( struct var* ) object;
+      s_bind_name( semantic, var->name, &var->object );
+      break;
+   case NODE_FUNC:
+      func = ( struct func* ) object;
+      s_bind_name( semantic, func->name, &func->object );
+      break;
+   case NODE_NAMESPACE:
+      bind_namespace( semantic,
+         ( struct ns* ) object );
+      break;
+   default:
+      UNREACHABLE();
    }
 }
 
-void bind_object( struct semantic* semantic, struct object* object ) {
-   switch ( object->node.type ) {
-   case NODE_CONSTANT: {
-      struct constant* constant = ( struct constant* ) object;
-      s_bind_name( semantic, constant->name, &constant->object );
-      break; }
-   case NODE_ENUMERATION: {
-      struct enumeration* set = ( struct enumeration* ) object;
-      if ( set->name ) {
-         s_bind_name( semantic, set->name, &set->object );
+void bind_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration ) {
+   if ( enumeration->name ) {
+      s_bind_name( semantic, enumeration->name, &enumeration->object );
+   }
+   struct enumerator* enumerator = enumeration->head;
+   while ( enumerator ) {
+      s_bind_name( semantic, enumerator->name, &enumerator->object );
+      enumerator = enumerator->next;
+   }
+}
+
+void show_private_objects( struct semantic* semantic ) {
+   // Local objects.
+   list_iter_t i;
+   list_iter_init( &i, &semantic->ns->private_objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      switch ( object->node.type ) {
+         struct var* var;
+         struct func* func;
+      case NODE_VAR:
+         var = ( struct var* ) object;
+         var->name->object = &var->object;
+         break;
+      case NODE_FUNC:
+         func = ( struct func* ) object;
+         func->name->object = &func->object;
+         break;
+      default:
+         UNREACHABLE();
       }
-      struct enumerator* enumerator = set->head;
-      while ( enumerator ) {
-         s_bind_name( semantic, enumerator->name, &enumerator->object );
-         enumerator = enumerator->next;
+      list_next( &i );
+   }
+   // Imports.
+   list_iter_init( &i, &semantic->ns->usings );
+   while ( ! list_end( &i ) ) {
+      struct using_dirc* dirc = list_data( &i );
+      if ( dirc->type == USING_SELECTION ) {
+         list_iter_t k;
+         list_iter_init( &k, &dirc->items );
+         while ( ! list_end( &k ) ) {
+            struct using_item* item = list_data( &k );
+            struct name* name = t_extend_name( semantic->ns->body,
+               item->name );
+            name->object = item->imported_object;
+            list_next( &k );
+         }
       }
-      break; }
-   case NODE_VAR: {
-      struct var* var = ( struct var* ) object;
-      s_bind_name( semantic, var->name, &var->object );
-      break; }
-   case NODE_FUNC: {
-      struct func* func = ( struct func* ) object;
-      s_bind_name( semantic, func->name, &func->object );
-      break; }
-   case NODE_STRUCTURE: {
-      struct structure* type = ( struct structure* ) object;
-      s_bind_name( semantic, type->name, &type->object );
-      break; }
-   default:
-      t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
-      t_bail( semantic->task );
+      list_next( &i );
+   }
+}
+
+void hide_private_objects( struct semantic* semantic ) {
+   // Local objects.
+   list_iter_t i;
+   list_iter_init( &i, &semantic->ns->private_objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      switch ( object->node.type ) {
+         struct var* var;
+         struct func* func;
+      case NODE_VAR:
+         var = ( struct var* ) object;
+         var->name->object = NULL;
+         break;
+      case NODE_FUNC:
+         func = ( struct func* ) object;
+         func->name->object = NULL;
+         break;
+      default:
+         UNREACHABLE();
+      }
+      list_next( &i );
+   }
+   // Imported objects.
+   list_iter_init( &i, &semantic->ns->usings );
+   while ( ! list_end( &i ) ) {
+      struct using_dirc* dirc = list_data( &i );
+      if ( dirc->type == USING_SELECTION ) {
+         list_iter_t k;
+         list_iter_init( &k, &dirc->items );
+         while ( ! list_end( &k ) ) {
+            struct using_item* item = list_data( &k );
+            struct name* name = t_extend_name( semantic->ns->body,
+               item->name );
+            name->object = NULL;
+            list_next( &k );
+         }
+      }
+      list_next( &i );
    }
 }
 
 void perform_usings( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->namespaces );
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      perform_lib_usings( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   perform_lib_usings( semantic, semantic->lib );
+}
+
+void perform_lib_usings( struct semantic* semantic, struct library* lib ) {
+   list_iter_t i;
+   list_iter_init( &i, &lib->namespaces );
    while ( ! list_end( &i ) ) {
       semantic->ns = list_data( &i );
+      show_private_objects( semantic );
       list_iter_t k;
       list_iter_init( &k, &semantic->ns->usings );
       while ( ! list_end( &k ) ) {
          s_perform_using( semantic, list_data( &k ) );
          list_next( &k );
       }
+      hide_private_objects( semantic );
       list_next( &i );
    }
 }
@@ -269,6 +367,7 @@ void import_item( struct semantic* semantic, struct ns* ns,
       return;
    }
    s_bind_name( semantic, name, object );
+   item->imported_object = object;
 }
 
 struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
@@ -280,7 +379,7 @@ struct object* follow_path( struct semantic* semantic, struct path* path,
    struct ns* ns = NULL;
    struct object* object = NULL;
    if ( path->upmost ) {
-      ns = semantic->task->upmost_ns;
+      ns = semantic->lib->upmost_ns;
       object = &ns->object;
       path = path->next;
    }
@@ -340,20 +439,16 @@ struct object* s_search_object( struct semantic* semantic,
 
 void test_objects( struct semantic* semantic ) {
    while ( true ) {
-      bool resolved = false;
-      bool retry = false;
-      list_iter_t i;
-      list_iter_init( &i, &semantic->task->namespaces );
-      while ( ! list_end( &i ) ) {
-         semantic->ns = list_data( &i );
-         test_ns( semantic, &resolved, &retry );
-         list_next( &i );
-      }
-      if ( retry ) {
+      semantic->retest_nss = false;
+      semantic->resolved_objects = false;
+      test_all( semantic );
+      if ( semantic->retest_nss ) {
          // Continue resolving as long as something got resolved. If nothing
-         // gets resolved during the last run, then nothing can be resolved
+         // gets resolved in the previous run, then nothing can be resolved
          // anymore. So report errors.
-         semantic->trigger_err = ( ! resolved );
+         if ( ! semantic->resolved_objects ) {
+            semantic->trigger_err = true;
+         }
       }
       else {
          break;
@@ -361,87 +456,101 @@ void test_objects( struct semantic* semantic ) {
    }
 }
 
-void test_ns( struct semantic* semantic, bool* resolved, bool* retry ) {
-   struct object* object = semantic->ns->unresolved;
-   struct object* tail = NULL;
-   semantic->ns->unresolved = NULL;
-   while ( object ) {
-      test_object( semantic, object );
-      if ( object->resolved ) {
-         struct object* next = object->next;
-         object->next = NULL;
-         object = next;
-         *resolved = true;
-      }
-      else {
-         if ( tail ) {
-            tail->next = object;
-         }
-         else {
-            semantic->ns->unresolved = object;
-         }
-         tail = object;
-         struct object* next = object->next;
-         object->next = NULL;
-         object = next;
-         *retry = true;
-      }
+void test_all( struct semantic* semantic ) {
+   list_iter_t i;
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      test_namespace( semantic, lib->upmost_ns );
+      list_next( &i );
    }
-   semantic->ns->object.resolved = ( semantic->ns->unresolved == NULL );
+   test_namespace( semantic, semantic->lib->upmost_ns );
 }
 
-void test_object( struct semantic* semantic, struct object* object ) {
+void test_namespace( struct semantic* semantic, struct ns* ns ) {
+   semantic->ns = ns;
+   show_private_objects( semantic );
+   struct object* object = ns->unresolved;
+   ns->unresolved = NULL;
+   ns->unresolved_tail = NULL;
+   while ( object ) {
+      struct object* next_object = object->next;
+      object->next = NULL;
+      test_namespace_object( semantic, object );
+      if ( object->resolved ) {
+         semantic->resolved_objects = true;
+      }
+      else {
+         t_append_unresolved_namespace_object( ns, object );
+      }
+      object = next_object;
+   }
+   if ( ! ns->unresolved ) {
+      ns->object.resolved = true;
+   }
+   else {
+      semantic->retest_nss = true;
+   }
+   hide_private_objects( semantic );
+}
+
+void test_nested_namespace( struct semantic* semantic, struct ns* ns ) {
+   struct ns* parent_ns = semantic->ns;
+   test_namespace( semantic, ns );
+   semantic->ns = parent_ns;
+}
+
+void test_namespace_object( struct semantic* semantic,
+   struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
-      s_test_constant( semantic, ( struct constant* ) object );
+      s_test_constant( semantic,
+         ( struct constant* ) object );
       break;
    case NODE_ENUMERATION:
       s_test_enumeration( semantic,
          ( struct enumeration* ) object );
       break;
    case NODE_STRUCTURE:
-      s_test_struct( semantic, ( struct structure* ) object );
+      s_test_struct( semantic,
+         ( struct structure* ) object );
       break;
    case NODE_VAR:
-      s_test_var( semantic, ( struct var* ) object );
+      s_test_var( semantic,
+         ( struct var* ) object );
       break;
    case NODE_FUNC:
-      s_test_func( semantic, ( struct func* ) object );
+      s_test_func( semantic,
+         ( struct func* ) object );
+      break;
+   case NODE_NAMESPACE:
+      test_nested_namespace( semantic,
+         ( struct ns* ) object );
       break;
    default:
-      t_unhandlednode_diag( semantic->task, __FILE__, __LINE__, &object->node );
-      t_bail( semantic->task );
+      UNREACHABLE();
    }
 }
 
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->namespaces );
+   list_iter_init( &i, &semantic->task->library_main->namespaces );
    while ( ! list_end( &i ) ) {
       semantic->ns = list_data( &i );
-      test_namespace_objects_bodies( semantic );
-      list_next( &i );
-   }
-}
-
-void test_namespace_objects_bodies( struct semantic* semantic ) {
-   // Scripts.
-   list_iter_t i;
-   list_iter_init( &i, &semantic->ns->scripts );
-   while ( ! list_end( &i ) ) {
-      s_test_script( semantic, list_data( &i ) );
-      list_next( &i );
-   }
-   // Functions.
-   list_iter_init( &i, &semantic->ns->objects );
-   while ( ! list_end( &i ) ) {
-      struct node* node = list_data( &i );
-      if ( node->type == NODE_FUNC ) {
-         struct func* func = ( struct func* ) node;
+      list_iter_t k;
+      list_iter_init( &k, &semantic->ns->scripts );
+      while ( ! list_end( &k ) ) {
+         s_test_script( semantic, list_data( &k ) );
+         list_next( &k );
+      }
+      list_iter_init( &k, &semantic->ns->funcs );
+      while ( ! list_end( &k ) ) {
+         struct func* func = list_data( &k );
          if ( func->type == FUNC_USER ) {
             s_test_func_body( semantic, func );
          }
+         list_next( &k );
       }
       list_next( &i );
    }
@@ -715,8 +824,7 @@ void find_tail_object( struct semantic* semantic,
 
 struct regobjget s_get_regionobject( struct semantic* semantic,
    const char* lookup, bool get_struct ) {
-   struct name* name = t_extend_name( semantic->task->upmost_ns->body,
-      lookup );
+   struct name* name = t_extend_name( semantic->lib->upmost_ns->body, lookup );
    struct object* object = name->object;
    if ( object ) {
       while ( object->next_scope ) {
@@ -804,71 +912,5 @@ bool is_compiletime_object( struct object* object ) {
       default:
          return false;
       }
-   }
-}
-
-void unbind_all( struct semantic* semantic ) {
-   // Imported objects.
-   list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
-   while ( ! list_end( &i ) ) {
-      unbind_lib( list_data( &i ) );
-      list_next( &i );
-   }
-   // Objects of the current library.
-   unbind_lib( semantic->lib );
-}
-
-void unbind_lib( struct library* lib ) {
-/*
-   list_iter_t i;
-   list_iter_init( &i, &lib->objects );
-   while ( ! list_end( &i ) ) {
-      unbind_object( list_data( &i ) );
-      list_next( &i );
-   }
-*/
-}
-
-void unbind_object( struct object* object ) {
-   switch ( object->node.type ) {
-   case NODE_CONSTANT: {
-      struct constant* constant = ( struct constant* ) object;
-      constant->name->object = NULL;
-      break; }
-   case NODE_ENUMERATION:
-      unbind_enum(
-         ( struct enumeration* ) object );
-      break;
-   case NODE_STRUCTURE:
-      unbind_struct( ( struct structure* ) object );
-      break;
-   case NODE_VAR: {
-      struct var* var = ( struct var* ) object;
-      var->name->object = NULL;
-      break; }
-   case NODE_FUNC: {
-      struct func* func = ( struct func* ) object;
-      func->name->object = NULL;
-      break; }
-   default:
-      UNREACHABLE();
-   }
-}
-
-void unbind_enum( struct enumeration* enum_ ) {
-   struct enumerator* enumerator = enum_->head;
-   while ( enumerator ) {
-      enumerator->name->object = NULL;
-      enumerator = enumerator->next;
-   }
-}
-
-void unbind_struct( struct structure* struct_ ) {
-   struct_->name->object = NULL;
-   struct structure_member* member = struct_->member;
-   while ( member ) {
-      member->name->object = NULL;
-      member = member->next;
    }
 }

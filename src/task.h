@@ -147,6 +147,7 @@ struct enumeration {
    struct object object;
    struct enumerator* head;
    struct name* name;
+   bool hidden;
 };
 
 struct enumerator {
@@ -686,7 +687,6 @@ struct func_user {
    int index_offset;
    bool nested;
    bool publish;
-   bool hidden;
    bool msgbuild;
 };
 
@@ -901,6 +901,8 @@ struct ns {
    struct object* unresolved_tail;
    struct ns_link* links;
    struct list objects;
+   struct list private_objects;
+   struct list funcs;
    struct list scripts;
    struct list usings;
    bool defined;
@@ -925,6 +927,12 @@ struct using_dirc {
 
 struct using_item {
    const char* name;
+   struct object* imported_object;
+   struct pos pos;
+};
+
+struct import_dirc {
+   const char* file_path;
    struct pos pos;
 };
 
@@ -935,9 +943,12 @@ struct library {
    struct list funcs;
    struct list scripts;
    struct list objects;
+   struct list namespaces;
    // #included/#imported libraries.
+   struct list import_dircs;
    struct list dynamic;
    struct name* hidden_names;
+   struct ns* upmost_ns;
    struct file_entry* file;
    struct pos file_pos;
    int id;
@@ -959,10 +970,8 @@ struct task {
    jmp_buf* bail;
    struct file_entry* file_entries;
    struct str_table str_table;
-   struct library* library;
    struct library* library_main;
    struct list libraries;
-   struct list namespaces;
    // List of alternative filenames. Each entry is a string.
    struct list altern_filenames;
    int last_id;
@@ -970,7 +979,7 @@ struct task {
    struct gbuf growing_buffer;
    struct mnemonic* mnemonics;
    struct list runtime_asserts;
-   struct ns* upmost_ns;
+   struct name* root_name;
 };
 
 #define DIAG_NONE 0

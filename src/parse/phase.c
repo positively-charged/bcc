@@ -1,7 +1,6 @@
 #include "phase.h"
 #include "cache/cache.h"
 
-static void make_main_lib( struct parse* parse );
 static void alloc_string_indexes( struct parse* parse );
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
@@ -31,16 +30,22 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->cache = cache;
    parse->create_nltk = false;
    p_init_stream( parse );
-   parse->ns = task->upmost_ns;
+   parse->ns = NULL;
    parse->local_vars = NULL;
+   parse->lib = NULL;
 }
 
 void p_read( struct parse* parse ) {
-   make_main_lib( parse );
    p_load_main_source( parse );
-   parse->task->library->file_pos.id = parse->source->file->id;
-   parse->task->library->file = parse->main_source->file;
+   struct library* lib = t_add_library( parse->task );
+   lib->file_pos.id = parse->source->file->id;
+   lib->file = parse->main_source->file;
+   parse->task->library_main = lib;
+   parse->lib = lib;
+   parse->ns = lib->upmost_ns;
    p_read_tk( parse );
+   p_read_target_lib( parse );
+
 /*
    while ( parse->tk != TK_END ) {
       printf( "a %s %d\n", parse->tk_text, parse->tk_length );
@@ -70,13 +75,7 @@ return;
    //printf( "%s\n", iter.token->text );
    //p_next_tk( parse, &iter );
 
-   p_read_lib( parse );
    // alloc_string_indexes( parse );
-}
-
-void make_main_lib( struct parse* parse ) {
-   parse->task->library = t_add_library( parse->task );
-   parse->task->library_main = parse->task->library;
 }
 
 void alloc_string_indexes( struct parse* parse ) {

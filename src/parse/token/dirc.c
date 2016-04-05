@@ -602,6 +602,15 @@ void free_macro( struct parse* parse, struct macro* macro ) {
    parse->macro_free = macro;
 }
 
+void p_clear_macros( struct parse* parse ) {
+   struct macro* macro = parse->macro_head;
+   while ( macro ) {
+      parse->macro_head = macro->next;
+      free_macro( parse, macro );
+      macro = parse->macro_head;
+   }
+}
+
 void read_undef( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );

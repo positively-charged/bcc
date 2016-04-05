@@ -339,8 +339,7 @@ void do_fnam( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      if ( ! impl->hidden ) {
+      if ( ! func->hidden ) {
          size += t_full_name_length( func->name ) + 1;
          ++count;
       }
@@ -379,8 +378,7 @@ void do_fnam( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      if ( ! impl->hidden ) {
+      if ( ! func->hidden ) {
          c_add_int( codegen, offset );
          offset += t_full_name_length( func->name ) + 1;
       }
@@ -411,8 +409,7 @@ void do_fnam( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      if ( ! impl->hidden ) {
+      if ( ! func->hidden ) {
          t_copy_name( func->name, true, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }

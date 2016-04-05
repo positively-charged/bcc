@@ -122,8 +122,6 @@ static void test_string_usage( struct expr_test* test, struct result* result,
 static void test_boolean( struct result* result, struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
-static struct object* find_referenced_object( struct semantic* semantic,
-   struct name_usage* usage );
 static void select_object( struct expr_test* test, struct result* result,
    struct object* object );
 static void select_constant( struct result* result,
@@ -1220,10 +1218,11 @@ void test_access( struct semantic* semantic, struct expr_test* test,
       unknown_member( semantic, access, name->object );
       s_bail( semantic );
    }
-   if ( ! member_name->object->resolved ) {
+   if ( ! member_name->object->resolved &&
+      member_name->object->node.type != NODE_NAMESPACE ) {
       if ( semantic->trigger_err ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
-            "right operand `%s` undefined", access->name );
+            "right operand (`%s`) undefined", access->name );
          s_bail( semantic );
       }
       else {
@@ -1281,16 +1280,16 @@ void unknown_member( struct semantic* semantic, struct access* access,
 
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
    const char* object_name, struct pos* pos ) {
-   if ( ns == semantic->task->upmost_ns ) {
+   if ( ns == semantic->lib->upmost_ns ) {
       s_diag( semantic, DIAG_POS_ERR, pos,
-         "`%s` not an object of upmost namespace", object_name );
+         "`%s` not found in upmost namespace", object_name );
    }
    else {
       struct str name;
       str_init( &name );
       t_copy_name( ns->name, true, &name );
       s_diag( semantic, DIAG_POS_ERR, pos,
-         "`%s` not an object of namespace `%s`", object_name,
+         "`%s` not found in namespace `%s`", object_name,
          name.value );
       str_deinit( &name );
    }
@@ -1732,8 +1731,9 @@ void test_boolean( struct result* result, struct boolean* boolean ) {
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage ) {
-   struct object* object = find_referenced_object( semantic, usage );
-   if ( object && object->resolved ) {
+   struct object* object = s_search_object( semantic, usage->text );
+   if ( object && ( object->resolved ||
+      object->node.type == NODE_NAMESPACE ) ) {
       select_object( test, result, object );
       usage->object = &object->node;
    }
@@ -1755,28 +1755,6 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-}
-
-struct object* find_referenced_object( struct semantic* semantic,
-   struct name_usage* usage ) {
-   // Try searching in the hidden compartment of the library.
-   if ( usage->lib_id ) {
-      list_iter_t i;
-      list_iter_init( &i, &semantic->task->libraries );
-      struct library* lib;
-      while ( true ) {
-         lib = list_data( &i );
-         if ( lib->id == usage->lib_id ) {
-            break;
-         }
-         list_next( &i );
-      }
-      struct name* name = t_extend_name( lib->hidden_names, usage->text );
-      if ( name->object ) {
-         return name->object;
-      }
-   }
-   return s_search_object( semantic, usage->text );
 }
 
 void select_object( struct expr_test* test, struct result* result,
@@ -2025,7 +2003,7 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_upmost( struct semantic* semantic, struct result* result ) {
-   result->ns = semantic->task->upmost_ns;
+   result->ns = semantic->lib->upmost_ns;
 }
 
 inline void init_type_info( struct type_info* type, struct result* result ) {
