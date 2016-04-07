@@ -1301,7 +1301,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
       read_bfunc( parse, func );
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
-      func->hidden = true;
    }
    if ( dec->storage.specified ) {
       p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,

@@ -34,24 +34,27 @@ enum {
    F_HASREFMEMBER,
    F_ID,
    F_INDEX,
+   F_LATENT,
    F_LIB,
    F_LINE,
    F_MAXPARAM,
    F_MINPARAM,
    F_MSGBUILD,
-   F_NAME,
    // 20
+   F_NAME,
    F_NAMEPOS,
    F_NAMESPACE,
    F_OBJECT,
    F_OFFSET,
+   F_OPCODE,
    F_PARAM,
    F_POS,
    F_REF,
    F_RETURNSPEC,
+   // 30
+   F_SCRIPTCALLABLE,
    F_SIZE,
    F_SPEC,
-   // 30
    F_STORAGE,
    F_STORAGEINDEX,
    F_STRUCTURE,
@@ -59,6 +62,7 @@ enum {
    F_TYPE,
    F_VALUE,
    F_VALUESTRING,
+   // 40
    F_VAR,
    F_UNREACHABLE
 };
@@ -304,6 +308,7 @@ void save_var( struct saver* saver, struct var* var ) {
 void save_func( struct saver* saver, struct func* func ) {
    WF( saver, F_FUNC );
    save_object( saver, &func->object );
+   WV( saver, F_TYPE, &func->type );
    WN( saver, F_NAME, func->name );
    save_param_list( saver, func->params );
    save_impl( saver, func );
@@ -315,13 +320,40 @@ void save_func( struct saver* saver, struct func* func ) {
 
 void save_impl( struct saver* saver, struct func* func ) {
    switch ( func->type ) {
+      struct func_aspec* aspec;
+      struct func_ext* ext;
+      struct func_ded* ded;
+      struct func_format* format;
       struct func_user* user;
+      struct func_intern* intern;
+   case FUNC_ASPEC:
+      aspec = func->impl;
+      WV( saver, F_ID, &aspec->id );
+      WV( saver, F_SCRIPTCALLABLE, &aspec->script_callable );
+      break;
+   case FUNC_EXT:
+      ext = func->impl;
+      WV( saver, F_ID, &ext->id );
+      break;
+   case FUNC_DED:
+      ded = func->impl;
+      WV( saver, F_OPCODE, &ded->opcode );
+      WV( saver, F_LATENT, &ded->latent );
+      break;
+   case FUNC_FORMAT:
+      format = func->impl;
+      WV( saver, F_OPCODE, &format->opcode );
+      break;
    case FUNC_USER:
       user = func->impl;
       WV( saver, F_MSGBUILD, &user->msgbuild );
       break;
-   default:
+   case FUNC_INTERNAL:
+      intern = func->impl;
+      WV( saver, F_ID, &intern->id );
       break;
+   default:
+      UNREACHABLE();
    }
 }
 
@@ -404,6 +436,7 @@ static struct ref* restore_specific_ref( struct restorer* restorer, int type );
 static struct dim* restore_dim( struct restorer* restorer );
 static void restore_var( struct restorer* restorer );
 static void restore_func( struct restorer* restorer );
+static void restore_impl( struct restorer* restorer, struct func* func );
 static struct param* restore_param_list( struct restorer* restorer );
 static void restore_object( struct restorer* restorer, struct object* object,
    int node );
@@ -685,18 +718,61 @@ void restore_func( struct restorer* restorer ) {
    RF( restorer, F_FUNC );
    struct func* func = t_alloc_func();
    restore_object( restorer, &func->object, NODE_FUNC );
-   func->type = FUNC_USER;
+   RV( restorer, F_TYPE, &func->type );
    func->name = t_extend_name( restorer->ns->body, RS( restorer, F_NAME ) );
    func->params = restore_param_list( restorer );
-   struct func_user* impl = t_alloc_func_user();
-   RV( restorer, F_MSGBUILD, &impl->msgbuild );
-   func->impl = impl;
+   restore_impl( restorer, func );
    RV( restorer, F_RETURNSPEC, &func->return_spec );
    RV( restorer, F_MINPARAM, &func->min_param );
    RV( restorer, F_MAXPARAM, &func->max_param );
    RF( restorer, F_END );
    list_append( &restorer->ns->objects, func );
    list_append( &restorer->lib->objects, func );
+}
+
+void restore_impl( struct restorer* restorer, struct func* func ) {
+   switch ( func->type ) {
+      struct func_aspec* aspec;
+      struct func_ext* ext;
+      struct func_ded* ded;
+      struct func_format* format;
+      struct func_user* user;
+      struct func_intern* intern;
+   case FUNC_ASPEC:
+      aspec = mem_slot_alloc( sizeof( *aspec ) );
+      RV( restorer, F_ID, &aspec->id );
+      RV( restorer, F_SCRIPTCALLABLE, &aspec->script_callable );
+      func->impl = aspec;
+      break;
+   case FUNC_EXT:
+      ext = mem_alloc( sizeof( *ext ) );
+      RV( restorer, F_ID, &ext->id );
+      func->impl = ext;
+      break;
+   case FUNC_DED:
+      ded = mem_alloc( sizeof( *ded ) );
+      RV( restorer, F_OPCODE, &ded->opcode );
+      RV( restorer, F_LATENT, &ded->latent );
+      func->impl = ded;
+      break;
+   case FUNC_FORMAT:
+      format = mem_alloc( sizeof( *format ) );
+      RV( restorer, F_OPCODE, &format->opcode );
+      func->impl = format;
+      break;
+   case FUNC_USER:
+      user = t_alloc_func_user();
+      RV( restorer, F_MSGBUILD, &user->msgbuild );
+      func->impl = user;
+      break;
+   case FUNC_INTERNAL:
+      intern = mem_alloc( sizeof( *intern ) );
+      RV( restorer, F_ID, &intern->id );
+      func->impl = intern;
+      break;
+   default:
+      UNREACHABLE();
+   }
 }
 
 struct param* restore_param_list( struct restorer* restorer ) {
