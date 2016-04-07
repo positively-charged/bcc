@@ -687,7 +687,6 @@ struct func_user {
    int obj_pos;
    int index_offset;
    bool nested;
-   bool publish;
    bool msgbuild;
 };
 
@@ -785,7 +784,6 @@ struct script {
    int num_param;
    int offset;
    int size;
-   bool publish;
    bool named_script;
 };
 
@@ -826,22 +824,6 @@ struct str_table {
    struct indexed_string* tail;
    int size;
 };
-
-/*
-struct region {
-   struct object object;
-   struct name* name;
-   struct name* body;
-   struct name* body_struct;
-   struct region_link {
-      struct region_link* next;
-      struct region* region;
-      struct pos pos;
-   }* link;
-   struct object* unresolved;
-   struct object* unresolved_tail;
-   struct list items;
-}; */
 
 struct mnemonic {
    const char* name;

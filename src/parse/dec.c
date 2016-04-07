@@ -1282,7 +1282,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->obj_pos = 0;
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
-      impl->publish = false;
       impl->msgbuild = dec->msgbuild;
       func->impl = impl;
       // Only read the function body when it is needed.
@@ -1614,7 +1613,6 @@ void p_read_script( struct parse* parse ) {
    script->num_param = 0;
    script->offset = 0;
    script->size = 0;
-   script->publish = false;
    script->named_script = false;
    p_read_tk( parse );
    struct script_reading reading;

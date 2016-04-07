@@ -3,18 +3,6 @@
 
 #include "task.h"
 
-struct regobjget {
-   struct object* object;
-   struct structure* struct_object;
-};
-
-struct object_search {
-   struct path* path;
-   struct object* object;
-   struct structure* struct_object;
-   bool get_struct;
-};
-
 struct stmt_test {
    struct stmt_test* parent;
    struct func* func;
@@ -120,9 +108,6 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
 void s_diag( struct semantic* semantic, int flags, ... );
 void s_bail( struct semantic* semantic );
-void s_init_object_search( struct object_search* search, struct path* path,
-   bool get_struct );
-void s_find_object( struct semantic* semantic, struct object_search* search );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,

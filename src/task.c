@@ -755,7 +755,6 @@ struct func_user* t_alloc_func_user( void ) {
    impl->obj_pos = 0;
    impl->index_offset = 0;
    impl->nested = false;
-   impl->publish = false;
    impl->msgbuild = false;
    return impl;
 }

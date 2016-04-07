@@ -14,7 +14,6 @@ struct scope {
    struct ns_link* ns_link;
 };
 
-static void determine_publishable_objects( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
 static void bind_namespace_object( struct semantic* semantic,
@@ -50,12 +49,6 @@ static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct name* name,
    struct object* object );
-static void find_next_object( struct semantic* semantic,
-   struct object_search* search );
-static void find_head_object( struct semantic* semantic,
-   struct object_search* search );
-static void find_tail_object( struct semantic* semantic,
-   struct object_search* search );
 static struct object* get_nsobject( struct ns* ns, const char* object_name );
 static void confirm_compiletime_content( struct semantic* semantic );
 static bool is_compiletime_object( struct object* object );
@@ -78,7 +71,6 @@ void s_init( struct semantic* semantic, struct task* task,
 }
 
 void s_test( struct semantic* semantic ) {
-   determine_publishable_objects( semantic );
    bind_names( semantic );
    perform_usings( semantic );
    test_objects( semantic );
@@ -96,24 +88,6 @@ void s_test( struct semantic* semantic ) {
             "a compile-time library can only be #imported" );
          s_bail( semantic );
       }
-   }
-}
-
-// Determines which objects be written into the object file.
-void determine_publishable_objects( struct semantic* semantic ) {
-   list_iter_t i;
-   list_iter_init( &i, &semantic->lib->scripts );
-   while ( ! list_end( &i ) ) {
-      struct script* script = list_data( &i );
-      script->publish = true;
-      list_next( &i );
-   }
-   list_iter_init( &i, &semantic->lib->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      impl->publish = true;
-      list_next( &i );
    }
 }
 
@@ -756,102 +730,6 @@ void add_sweep_name( struct semantic* semantic, struct name* name,
    object->depth = semantic->depth;
    object->next_scope = name->object;
    name->object = object;
-}
-
-void s_init_object_search( struct object_search* search, struct path* path,
-   bool get_struct ) {
-   search->path = path;
-   search->object = NULL;
-   search->struct_object = NULL;
-   search->get_struct = get_struct;
-}
-
-void s_find_object( struct semantic* semantic, struct object_search* search ) {
-   bool get_struct = search->get_struct;
-   while ( search->path ) {
-      search->get_struct = ( get_struct && ! search->path->next );
-      find_next_object( semantic, search );
-      search->path = search->path->next;
-   }
-}
-
-void find_next_object( struct semantic* semantic,
-   struct object_search* search ) {
-   if ( ! search->object ) {
-      find_head_object( semantic, search );
-   }
-   else {
-      find_tail_object( semantic, search );
-   }
-   // Error.
-   if ( ! search->object ) {
-      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
-         "%s`%s` not found", ( search->get_struct ? "struct " : "" ),
-         search->path->text );
-      s_bail( semantic );
-   }
-   else if ( search->get_struct &&
-      search->object->node.type != NODE_STRUCTURE ) {
-      s_diag( semantic, DIAG_POS_ERR, &search->path->pos,
-         "object not a struct" );
-      s_bail( semantic );
-   }
-}
-
-struct regobjget s_get_regionobject( struct semantic* semantic,
-   const char* lookup, bool get_struct );
-
-void find_head_object( struct semantic* semantic,
-   struct object_search* search ) {
-   // Search for the head in the current region.
-   struct regobjget result = s_get_regionobject( semantic,
-      search->path->text, search->get_struct );
-   search->object = result.object;
-   search->struct_object = result.struct_object;
-   if ( search->object ) {
-      return;
-   }
-}
-
-// Assumes that the object currently found is a region.
-void find_tail_object( struct semantic* semantic,
-   struct object_search* search ) {
-   struct regobjget result = s_get_regionobject( semantic,
-      search->path->text, search->get_struct );
-   search->object = result.object;
-   search->struct_object = result.struct_object;
-}
-
-struct regobjget s_get_regionobject( struct semantic* semantic,
-   const char* lookup, bool get_struct ) {
-   struct name* name = t_extend_name( semantic->lib->upmost_ns->body, lookup );
-   struct object* object = name->object;
-   if ( object ) {
-      while ( object->next_scope ) {
-         object = object->next_scope;
-      }
-      if ( object->depth == 0 ) {
-         if ( object->node.type == NODE_ALIAS ) {
-            struct alias* alias = ( struct alias* ) object;
-            object = alias->target;
-         }
-      }
-   }
-   struct regobjget result;
-   result.object = NULL;
-   result.struct_object = NULL;
-   if ( object ) {
-      if ( get_struct ) {
-         if ( object->node.type == NODE_STRUCTURE ) {
-            result.object = object;
-            result.struct_object = ( struct structure* ) object;
-         }
-      }
-      else {
-         result.object = object;
-      }
-   }
-   return result;
 }
 
 // Retrieves an object from a namespace.
