@@ -41,9 +41,6 @@ struct cache {
 void cache_init( struct cache* cache, struct task* task );
 void cache_load( struct cache* cache );
 void cache_entryfile_path( int id, struct str* path );
-void cache_add_dependency( struct cache* cache,
-   struct cache_entry* entry, struct cache_entry* dependency );
-bool cache_isfresh_entry( struct cache_entry* entry );
 void cache_add( struct cache* cache, struct library* lib );
 struct library* cache_get( struct cache* cache, struct file_entry* file );
 void cache_close( struct cache* cache );
