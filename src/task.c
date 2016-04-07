@@ -501,6 +501,7 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->scripts );
    list_init( &lib->objects );
    list_init( &lib->namespaces );
+   list_init( &lib->files );
    list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
    lib->upmost_ns = t_alloc_ns( task, task->root_name );
@@ -597,4 +598,177 @@ int t_add_altern_filename( struct task* task, const char* filename ) {
    }
    list_append( &task->altern_filenames, ( void* ) filename );
    return id;
+}
+
+struct constant* t_alloc_constant( void ) {
+   struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
+   t_init_object( &constant->object, NODE_CONSTANT );
+   constant->name = NULL;
+   constant->next = NULL;
+   constant->value = 0;
+   constant->value_node = NULL;
+   constant->hidden = false;
+   constant->lib_id = 0;
+   return constant;
+}
+
+struct enumeration* t_alloc_enumeration( void ) {
+   struct enumeration* enumeration = mem_alloc( sizeof( *enumeration ) );
+   t_init_object( &enumeration->object, NODE_ENUMERATION );
+   enumeration->head = NULL;
+   enumeration->tail = NULL;
+   enumeration->name = NULL;
+   enumeration->hidden = false;
+   return enumeration;
+}
+
+struct enumerator* t_alloc_enumerator( void ) {
+   struct enumerator* enumerator = mem_alloc( sizeof( *enumerator ) );
+   t_init_object( &enumerator->object, NODE_ENUMERATOR );
+   enumerator->name = NULL;
+   enumerator->next = NULL;
+   enumerator->initz = NULL;
+   enumerator->value = 0;
+   return enumerator;
+}
+
+void t_append_enumerator( struct enumeration* enumeration,
+   struct enumerator* enumerator ) {
+   if ( enumeration->head ) {
+      enumeration->tail->next = enumerator;
+   }
+   else {
+      enumeration->head = enumerator;
+   }
+   enumeration->tail = enumerator;
+}
+
+struct structure* t_alloc_structure( void ) {
+   struct structure* structure = mem_alloc( sizeof( *structure ) );
+   t_init_object( &structure->object, NODE_STRUCTURE );
+   structure->name = NULL;
+   structure->body = NULL;
+   structure->member = NULL;
+   structure->member_tail = NULL;
+   structure->size = 0;
+   structure->anon = false;
+   structure->has_ref_member = false;
+   return structure;
+}
+
+struct structure_member* t_alloc_structure_member( void ) {
+   struct structure_member* member = mem_alloc( sizeof( *member ) );
+   t_init_object( &member->object, NODE_STRUCTURE_MEMBER );
+   member->name = NULL;
+   member->ref = NULL;
+   member->structure = NULL;
+   member->enumeration = NULL;
+   member->type_path = NULL;
+   member->dim = NULL;
+   member->next = NULL;
+   member->spec = SPEC_NONE;
+   member->offset = 0;
+   member->size = 0;
+   member->diminfo_start = 0;
+   return member;
+}
+
+void t_append_structure_member( struct structure* structure,
+   struct structure_member* member ) {
+   if ( structure->member ) {
+      structure->member_tail->next = member;
+   }
+   else {
+      structure->member = member;
+   }
+   structure->member_tail = member;
+}
+
+struct dim* t_alloc_dim( void ) {
+   struct dim* dim = mem_alloc( sizeof( *dim ) );
+   dim->next = NULL;
+   dim->size_node = NULL;
+   dim->size = 0;
+   dim->element_size = 0;
+   return dim;
+}
+
+struct var* t_alloc_var( void ) {
+   struct var* var = mem_alloc( sizeof( *var ) );
+   t_init_object( &var->object, NODE_VAR );
+   var->name = NULL;
+   var->ref = NULL;
+   var->structure = NULL;
+   var->enumeration = NULL;
+   var->type_path = NULL;
+   var->dim = NULL;
+   var->initial = NULL;
+   var->value = NULL;
+   var->next = NULL;
+   var->spec = SPEC_NONE;
+   var->storage = STORAGE_LOCAL;
+   var->index = 0;
+   var->size = 0;
+   var->diminfo_start = 0;
+   var->initz_zero = false;
+   var->hidden = false;
+   var->used = false;
+   var->initial_has_str = false;
+   var->imported = false;
+   var->is_constant_init = false;
+   var->addr_taken = false;
+   return var;
+}
+
+struct func* t_alloc_func( void ) {
+   struct func* func = mem_slot_alloc( sizeof( *func ) );
+   t_init_object( &func->object, NODE_FUNC );
+   func->type = FUNC_ASPEC;
+   func->ref = NULL;
+   func->structure = NULL;
+   func->enumeration = NULL;
+   func->path = NULL;
+   func->name = NULL;
+   func->params = NULL;
+   func->impl = NULL;
+   func->return_spec = SPEC_NONE;
+   func->min_param = 0;
+   func->max_param = 0;
+   func->hidden = false;
+   return func;
+}
+
+struct func_user* t_alloc_func_user( void ) {
+   struct func_user* impl = mem_alloc( sizeof( *impl ) );
+   list_init( &impl->labels );
+   impl->body = NULL;
+   impl->next_nested = NULL;
+   impl->nested_funcs = NULL;
+   impl->nested_calls = NULL;
+   impl->returns = NULL;
+   impl->prologue_point = NULL;
+   impl->return_table = NULL;
+   list_init( &impl->vars );
+   impl->index = 0;
+   impl->size = 0;
+   impl->usage = 0;
+   impl->obj_pos = 0;
+   impl->index_offset = 0;
+   impl->nested = false;
+   impl->publish = false;
+   impl->msgbuild = false;
+   return impl;
+}
+
+struct param* t_alloc_param( void ) {
+   struct param* param = mem_slot_alloc( sizeof( *param ) );
+   t_init_object( &param->object, NODE_PARAM );
+   param->spec = SPEC_NONE;
+   param->next = NULL;
+   param->name = NULL;
+   param->default_value = NULL;
+   param->index = 0;
+   param->obj_pos = 0;
+   param->used = false;
+   return param;
 }

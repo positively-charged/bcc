@@ -30,7 +30,6 @@ static void remove_outdated_entries( struct cache* cache );
 static void write_cache( struct cache* cache );
 static void write_entry( struct cache* cache, struct cache_entry* entry );
 static void write_archive( struct cache* cache );
-static void write_buffer( const char* path, struct gbuf* buffer );
 
 static void print_cache( struct cache* cache );
 
@@ -82,7 +81,7 @@ void prepare_tempdir( struct cache* cache ) {
 void load_archive( struct cache* cache ) {
    char* contents = read_file_contents( LIBCACHE_FILEPATH );
    if ( contents ) {
-      cache_read_archive( cache, contents );
+      cache_restore_archive( cache, contents );
       mem_free( contents );
    }
 }
@@ -244,7 +243,7 @@ void load_entry_file( struct cache* cache, struct cache_entry* entry ) {
    str_init( &path );
    append_entryfile_path( cache, entry, &path );
    char* contents = read_file_contents( path.value );
-   entry->lib = cache_restore_module( cache->task, contents );
+   entry->lib = cache_restore_lib( cache->task, contents );
 }
 
 char* read_file_contents( const char* path ) {
@@ -349,11 +348,11 @@ void write_cache( struct cache* cache ) {
 
 void write_entry( struct cache* cache, struct cache_entry* entry ) {
    gbuf_reset( &cache->task->growing_buffer );
-   cache_dump_module( cache->task, entry->lib, &cache->task->growing_buffer );
+   cache_save_lib( cache->task, entry->lib, &cache->task->growing_buffer );
    struct str path;
    str_init( &path );
    append_entryfile_path( cache, entry, &path );
-   write_buffer( path.value, &cache->task->growing_buffer );
+   gbuf_save( &cache->task->growing_buffer, path.value );
    entry->modified = false;
 }
 
@@ -370,21 +369,8 @@ void append_entryfile_path( struct cache* cache, struct cache_entry* entry,
 
 void write_archive( struct cache* cache ) {
    gbuf_reset( &cache->task->growing_buffer );
-   cache_encode_archive( cache, &cache->task->growing_buffer );
-   write_buffer( LIBCACHE_FILEPATH, &cache->task->growing_buffer ); 
-}
-
-void write_buffer( const char* path, struct gbuf* buffer ) {
-   FILE* fh = fopen( path, "w" );
-   if ( ! fh ) {
-      return;
-   }
-   struct gbuf_seg* segment = buffer->head_segment;
-   while ( segment ) {
-      fwrite( segment->data, segment->used, 1, fh );
-      segment = segment->next;
-   }
-   fclose( fh );
+   cache_save_archive( cache, &cache->task->growing_buffer );
+   gbuf_save( &cache->task->growing_buffer, LIBCACHE_FILEPATH ); 
 }
 
 void print_cache( struct cache* cache ) {
@@ -426,6 +412,14 @@ void cache_test( struct task* task, struct cache* cache ) {
    struct semantic semantic;
    s_init( &semantic, task, task->library_main );
    s_test( &semantic );
+
+   list_iter_t i;
+   list_iter_init( &i, &task->libraries );
+   while ( ! list_end( &i ) ) {
+      cache_add( cache, list_data( &i ) );
+      list_next( &i );
+   }
+   print_cache( cache );
 
 /*
    struct gbuf buffer;

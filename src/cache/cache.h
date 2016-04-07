@@ -46,19 +46,19 @@ void cache_add_dependency( struct cache* cache,
 bool cache_isfresh_entry( struct cache_entry* entry );
 void cache_add( struct cache* cache, struct library* lib );
 struct library* cache_get( struct cache* cache, struct file_entry* file );
-struct library* cache_restore_module( struct task* task,
-   const char* encoded_text );
-void cache_dump_module( struct task* task, struct library* lib,
-   struct gbuf* buffer );
 void cache_close( struct cache* cache );
-void cache_encode_archive( struct cache* cache, struct gbuf* buffer );
-void cache_read_archive( struct cache* cache, const char* contents );
 struct cache_entry* cache_create_entry( struct cache* cache,
    const char* path );
 struct cache_dependency* cache_alloc_dependency( const char* file_path );
 void cache_append_dependency( struct cache_entry* entry,
    struct cache_dependency* dep );
 void cache_clear( struct cache* cache );
+void cache_save_archive( struct cache* cache, struct gbuf* buffer );
+void cache_restore_archive( struct cache* cache, const char* saved_data );
+void cache_save_lib( struct task* task, struct library* lib,
+   struct gbuf* buffer );
+struct library* cache_restore_lib( struct task* task,
+   const char* encoded_text );
 
 // Debugging.
 void cache_print_entry( struct cache_entry* entry );

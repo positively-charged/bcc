@@ -8,7 +8,6 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    // NOTE: parse->queue not initialized.
    parse->token = NULL;
    parse->source = NULL;
-   parse->main_source = NULL;
    parse->free_source = NULL;
    parse->last_id = 0;
    str_init( &parse->temp_text );
@@ -36,13 +35,11 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
 }
 
 void p_read( struct parse* parse ) {
-   p_load_main_source( parse );
    struct library* lib = t_add_library( parse->task );
-   lib->file_pos.id = parse->source->file->id;
-   lib->file = parse->main_source->file;
    parse->task->library_main = lib;
    parse->lib = lib;
    parse->ns = lib->upmost_ns;
+   p_load_main_source( parse );
    p_read_tk( parse );
    p_read_target_lib( parse );
 

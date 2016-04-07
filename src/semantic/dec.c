@@ -158,6 +158,7 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    s_test_expr( semantic, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
       if ( constant->value_node->folded ) {
+         constant->spec = constant->value_node->spec;
          constant->value = constant->value_node->value;
          constant->object.resolved = true;
       }

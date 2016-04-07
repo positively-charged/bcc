@@ -10,6 +10,7 @@ struct text_buffer {
    unsigned int size;
 };
 
+static void append_file( struct library* lib, struct file_entry* file );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static struct source* alloc_source( struct parse* parse );
@@ -29,7 +30,9 @@ void p_load_main_source( struct parse* parse ) {
    p_init_request( &request, parse->task->options->source_file );
    p_load_source( parse, &request );
    if ( request.source ) {
-      parse->main_source = request.source;
+      parse->lib->file = request.file;
+      parse->lib->file_pos.id = request.file->id;
+      append_file( parse->lib, request.file );
    }
    else {
       p_diag( parse, DIAG_ERR, "failed to load source file: %s",
@@ -44,6 +47,9 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    p_init_request( &request, file->full_path.value );
    p_load_source( parse, &request );
    if ( request.source ) {
+      parse->lib->file = file;
+      parse->lib->file_pos.id = file->id;
+      append_file( parse->lib, file );
       request.source->imported = true;
    }
    else {
@@ -53,23 +59,38 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    }
 }
 
-struct source* p_load_included_source( struct parse* parse ) {
+void p_load_included_source( struct parse* parse, const char* file_path,
+   struct pos* pos ) {
    struct request request;
-   p_init_request( &request, parse->tk_text );
+   p_init_request( &request, file_path );
    p_load_source( parse, &request );
-   if ( ! request.source ) {
+   if ( request.source ) {
+      append_file( parse->lib, request.file );
+   }
+   else {
       if ( request.err_loading ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         p_diag( parse, DIAG_POS_ERR, pos,
             "file already being loaded" );
          p_bail( parse );
       }
       else {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "failed to load file: %s", parse->tk_text );
+         p_diag( parse, DIAG_POS_ERR, pos,
+            "failed to load file: %s", file_path );
          p_bail( parse );
       }
    }
-   return request.source;
+}
+
+void append_file( struct library* lib, struct file_entry* file ) {
+   list_iter_t i;
+   list_iter_init( &i, &lib->files );
+   while ( ! list_end( &i ) ) {
+      if ( list_data( &i ) == file ) {
+         return;
+      }
+      list_next( &i );
+   }
+   list_append( &lib->files, file );
 }
 
 void p_init_request( struct request* request, const char* path ) {

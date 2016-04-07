@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "common.h"
@@ -78,4 +79,22 @@ void gbuf_reset( struct gbuf* buffer ) {
       segment->used = 0;
       segment = segment->next;
    }
+}
+
+bool gbuf_save( struct gbuf* buffer, const char* file_path ) {
+   FILE* fh = fopen( file_path, "w" );
+   if ( ! fh ) {
+      return false;
+   }
+   struct gbuf_seg* segment = buffer->head_segment;
+   while ( segment ) {
+      size_t num_written = fwrite( segment->data,
+         sizeof( segment->data[ 0 ] ), segment->used, fh );
+      if ( num_written != segment->used ) {
+         break;
+      }
+      segment = segment->next;
+   }
+   fclose( fh );
+   return ( segment == NULL );
 }

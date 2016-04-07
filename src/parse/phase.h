@@ -345,7 +345,6 @@ struct parse {
    const char* tk_text;
    int tk_length;
    struct source* source;
-   struct source* main_source;
    struct source* free_source;
    int last_id;
    struct str temp_text;
@@ -425,7 +424,8 @@ struct token* p_peek_tk( struct parse* parse );
 struct token* p_peek_stream( struct parse* parse, bool nonwhitespace );
 const char* p_get_token_name( enum tk type );
 int p_extract_literal_value( struct parse* parse );
-struct source* p_load_included_source( struct parse* parse );
+void p_load_included_source( struct parse* parse, const char* file_path,
+   struct pos* pos );
 void p_read_lib( struct parse* parse );
 void p_read_script( struct parse* parse );
 void p_add_unresolved( struct parse* parse, struct object* object );

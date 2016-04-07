@@ -13,7 +13,6 @@ static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
 static void read_dirc( struct parse* parse, struct pos* );
-static void read_include( struct parse* parse, struct pos*, bool );
 static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* );
 static void read_library_name( struct parse* parse, struct pos* pos );
@@ -275,10 +274,6 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
       p_read_tk( parse );
       read_import( parse, pos );
    }
-   else if ( strcmp( parse->tk_text, "include" ) == 0 ) {
-      p_read_tk( parse );
-      read_include( parse, pos, false );
-   }
    else if ( strcmp( parse->tk_text, "define" ) == 0 ||
       strcmp( parse->tk_text, "libdefine" ) == 0 ) {
       read_define( parse );
@@ -312,12 +307,6 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
          "unknown directive '%s'", parse->tk_text );
       p_bail( parse );
    }
-}
-
-void read_include( struct parse* parse, struct pos* pos, bool import ) {
-   p_test_tk( parse, TK_LIT_STRING );
-   p_load_included_source( parse );
-   p_read_tk( parse );
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
@@ -441,19 +430,17 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
       list_next( &i );
    }
    // Load library from cache.
-   if ( ! parse->task->options->ignore_cache ) {
+   // if ( ! parse->task->options->ignore_cache ) {
       lib = cache_get( parse->cache, query.file );
       if ( lib ) {
          goto have_lib;
       }
-   }
+   // }
    // Read library from source file.
-   p_load_imported_lib_source( parse, dirc, query.file );
    lib = t_add_library( parse->task );
-   lib->file_pos.id = parse->source->file->id;
-   lib->file = query.file;
-   lib->imported = true;
    parse->lib = lib;
+   p_load_imported_lib_source( parse, dirc, query.file );
+   lib->imported = true;
    parse->ns = lib->upmost_ns;
    p_clear_macros( parse );
    p_read_tk( parse );
@@ -464,6 +451,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
          "imported library missing #library directive" );
       p_bail( parse );
    }
+   cache_add( parse->cache, lib );
    have_lib:
    // Append library.
    list_iter_init( &i, &parse->lib->dynamic );

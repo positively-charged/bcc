@@ -1798,7 +1798,7 @@ void select_object( struct expr_test* test, struct result* result,
 }
 
 void select_constant( struct result* result, struct constant* constant ) {
-   result->spec = SPEC_ZINT;
+   result->spec = constant->spec;
    result->value = constant->value;
    result->folded = true;
    result->complete = true;

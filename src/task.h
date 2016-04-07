@@ -146,6 +146,7 @@ enum {
 struct enumeration {
    struct object object;
    struct enumerator* head;
+   struct enumerator* tail;
    struct name* name;
    bool hidden;
 };
@@ -798,6 +799,7 @@ struct constant {
    struct name* name;
    struct expr* value_node;
    struct constant* next;
+   int spec;
    int value;
    int lib_id;
    bool hidden;
@@ -947,6 +949,7 @@ struct library {
    // #included/#imported libraries.
    struct list import_dircs;
    struct list dynamic;
+   struct list files;
    struct name* hidden_names;
    struct ns* upmost_ns;
    struct file_entry* file;
@@ -1023,5 +1026,19 @@ int t_add_altern_filename( struct task* task, const char* filename );
 struct ns* t_alloc_ns( struct task* task, struct name* name );
 void t_append_unresolved_namespace_object( struct ns* ns,
    struct object* object );
+struct constant* t_alloc_constant( void );
+struct enumeration* t_alloc_enumeration( void );
+struct enumerator* t_alloc_enumerator( void );
+void t_append_enumerator( struct enumeration* enumeration,
+   struct enumerator* enumerator );
+struct structure* t_alloc_structure( void );
+struct structure_member* t_alloc_structure_member( void );
+void t_append_structure_member( struct structure* structure,
+   struct structure_member* member );
+struct dim* t_alloc_dim( void );
+struct var* t_alloc_var( void );
+struct func* t_alloc_func( void );
+struct func_user* t_alloc_func_user( void );
+struct param* t_alloc_param( void );
 
 #endif

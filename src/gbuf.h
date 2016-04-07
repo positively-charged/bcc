@@ -1,11 +1,13 @@
+#ifndef SRC_GBUF
+#define SRC_GBUF
+
 /*
 
    Growing buffer.
 
 */
 
-#ifndef SRC_GBUF
-#define SRC_GBUF
+#include <stdbool.h>
 
 enum { GBUF_SEGMENT_SIZE = 65536 };
 
@@ -27,5 +29,6 @@ void gbuf_init( struct gbuf* buffer );
 void gbuf_write( struct gbuf* buffer, const void* data, int length );
 char* gbuf_alloc_block( struct gbuf* buffer );
 void gbuf_reset( struct gbuf* buffer );
+bool gbuf_save( struct gbuf* buffer, const char* file_path );
 
 #endif

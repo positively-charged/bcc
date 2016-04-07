@@ -186,21 +186,7 @@ void read_include( struct parse* parse ) {
    struct pos pos = parse->token->pos;
    p_read_expanpreptk( parse );
    p_test_preptk( parse, TK_NL );
-   struct request request;
-   p_init_request( &request, path );
-   p_load_source( parse, &request );
-   if ( ! request.source ) {
-      if ( request.err_loading ) {
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "file already being loaded" );
-         p_bail( parse );
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "failed to load file: %s", path );
-         p_bail( parse );
-      }
-   }
+   p_load_included_source( parse, path, &pos );
 }
 
 void read_error( struct parse* parse, struct pos* pos ) {
