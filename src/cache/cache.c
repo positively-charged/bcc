@@ -373,6 +373,10 @@ void write_archive( struct cache* cache ) {
    gbuf_save( &cache->task->growing_buffer, LIBCACHE_FILEPATH ); 
 }
 
+void cache_print( struct cache* cache ) {
+
+}
+
 void print_cache( struct cache* cache ) {
    printf( "valid entries: \n" );
    cache_print_table( &cache->entries );

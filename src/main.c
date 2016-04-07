@@ -18,6 +18,9 @@ static bool source_object_files_same( struct options* );
 static void print_usage( char* );
 static void perform_task( struct task* task );
 static void perform_selected_task( struct task* task, struct cache* cache );
+static void print_cache( struct task* task, struct cache* cache );
+static void clear_cache( struct task* task, struct cache* cache );
+static void preprocess( struct task* task );
 static void compile_mainlib( struct task* task, struct cache* cache );
 
 int main( int argc, char* argv[] ) {
@@ -105,9 +108,10 @@ void init_options( struct options* options ) {
    options->one_column = false;
    options->help = false;
    options->preprocess = false;
-   options->clear_cache = false;
-   options->ignore_cache = true;
    options->write_asserts = true;
+   options->cache.enable = false;
+   options->cache.clear = false;
+   options->cache.print = false;
 }
 
 bool read_options( struct options* options, char** argv ) {
@@ -174,11 +178,14 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
       }
-      else if ( strcmp( option, "clear-cache" ) == 0 ) {
-         options->clear_cache = true;
+      else if ( strcmp( option, "cache" ) == 0 ) {
+         options->cache.enable = true;
       }
-      else if ( strcmp( option, "ignore-cache" ) == 0 ) {
-         options->ignore_cache = true;
+      else if ( strcmp( option, "cache-print" ) == 0 ) {
+         options->cache.print = true;
+      }
+      else if ( strcmp( option, "cache-clear" ) == 0 ) {
+         options->cache.clear = true;
       }
       else if ( strcmp( option, "E" ) == 0 ) {
          options->preprocess = true;
@@ -240,7 +247,7 @@ void print_usage( char* path ) {
       "                       (asserts will not be executed at run-time)\n"
       "  -E                   Do preprocessing only\n"
       "Cache options:\n"
-      "  -cache-use           Cache library files\n"
+      "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"
       "    <directory>        directory\n"
       "                       (If one is not specified, a system-default\n"
@@ -251,26 +258,59 @@ void print_usage( char* path ) {
 }
 
 void perform_task( struct task* task ) {
-   struct cache cache;
-   cache_init( &cache, task );
-   cache_load( &cache );
-   perform_selected_task( task, &cache );
-   cache_close( &cache );
+   if ( task->options->cache.enable ) {
+      struct cache cache;
+      cache_init( &cache, task );
+      cache_load( &cache );
+      perform_selected_task( task, &cache );
+      cache_close( &cache );
+   }
+   else {
+      perform_selected_task( task, NULL );
+   }
 }
 
 void perform_selected_task( struct task* task, struct cache* cache ) {
-   if ( task->options->clear_cache ) {
-      cache_clear( cache );
+   if ( task->options->cache.print ) {
+      print_cache( task, cache );
+   }
+   else if ( task->options->cache.clear ) {
+      clear_cache( task, cache );
    }
    else if ( task->options->preprocess ) {
-      struct parse parse;
-      p_init( &parse, task, cache );
-      p_preprocess( &parse );
+      preprocess( task );
    }
    else {
-      //cache_test( task, cache );
       compile_mainlib( task, cache );
    }
+}
+
+void print_cache( struct task* task, struct cache* cache ) {
+   if ( cache ) {
+      cache_print( cache );
+   }
+   else {
+      t_diag( task, DIAG_ERR,
+         "attempting to print cache, but cache is not enabled" );
+      t_bail( task );
+   }
+}
+
+void clear_cache( struct task* task, struct cache* cache ) {
+   if ( cache ) {
+      cache_clear( cache );
+   }
+   else {
+      t_diag( task, DIAG_ERR,
+         "attempting to clear cache, but cache is not enabled" );
+      t_bail( task );
+   }
+}
+
+void preprocess( struct task* task ) {
+   struct parse parse;
+   p_init( &parse, task, NULL );
+   p_preprocess( &parse );
 }
 
 void compile_mainlib( struct task* task, struct cache* cache ) {

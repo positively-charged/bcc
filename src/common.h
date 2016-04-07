@@ -75,9 +75,12 @@ struct options {
    bool one_column;
    bool help;
    bool preprocess;
-   bool clear_cache;
-   bool ignore_cache;
    bool write_asserts;
+   struct {
+      bool enable;
+      bool print;
+      bool clear;
+   } cache;
 };
 
 #if OS_WINDOWS

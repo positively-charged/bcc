@@ -56,6 +56,7 @@ void cache_save_lib( struct task* task, struct library* lib,
    struct gbuf* buffer );
 struct library* cache_restore_lib( struct task* task,
    const char* encoded_text );
+void cache_print( struct cache* cache );
 
 // Debugging.
 void cache_print_entry( struct cache_entry* entry );

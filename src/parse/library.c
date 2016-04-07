@@ -418,12 +418,12 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
       list_next( &i );
    }
    // Load library from cache.
-   // if ( ! parse->task->options->ignore_cache ) {
+   if ( parse->cache ) {
       lib = cache_get( parse->cache, query.file );
       if ( lib ) {
          goto have_lib;
       }
-   // }
+   }
    // Read library from source file.
    lib = t_add_library( parse->task );
    parse->lib = lib;
@@ -439,7 +439,9 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
          "imported library missing #library directive" );
       p_bail( parse );
    }
-   cache_add( parse->cache, lib );
+   if ( parse->cache ) {
+      cache_add( parse->cache, lib );
+   }
    have_lib:
    // Append library.
    list_iter_init( &i, &parse->lib->dynamic );
