@@ -237,7 +237,16 @@ void print_usage( char* path ) {
       "  -one-column          Start column position at 1. Default is 0\n"
       "  -tab-size <size>     Select the size of the tab character\n"
       "  -no-assert           Do not include asserts in object file\n"
-      "                       (asserts will not be executed at run-time)\n",
+      "                       (asserts will not be executed at run-time)\n"
+      "  -E                   Do preprocessing only\n"
+      "Cache options:\n"
+      "  -cache-use           Cache library files\n"
+      "  -cache-dir           Store cache-related files in the specified\n"
+      "    <directory>        directory\n"
+      "                       (If one is not specified, a system-default\n"
+      "                       temporary directory will be used)\n"
+      "  -cache-print         Show the contents of the cache\n"
+      "  -cache-clear         Delete all cached library files\n",
       path );
 }
 
