@@ -119,7 +119,6 @@ struct name_usage {
    const char* text;
    struct node* object;
    struct pos pos;
-   int lib_id;
 };
 
 struct path {
@@ -550,8 +549,6 @@ enum {
    STORAGE_GLOBAL
 };
 
-#define DBG_LASTMEMBER char __last[];
-
 struct var {
    struct object object;
    struct name* name;
@@ -575,7 +572,6 @@ struct var {
    bool imported;
    bool is_constant_init;
    bool addr_taken;
-   DBG_LASTMEMBER
 };
 
 struct param {
@@ -932,7 +928,6 @@ struct library {
    struct list import_dircs;
    struct list dynamic;
    struct list files;
-   struct name* hidden_names;
    struct ns* upmost_ns;
    struct file_entry* file;
    struct pos file_pos;

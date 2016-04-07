@@ -514,13 +514,6 @@ struct library* t_add_library( struct task* task ) {
    lib->format = FORMAT_LITTLE_E;
    lib->importable = false;
    lib->imported = false;
-   if ( task->library_main ) {
-      struct library* last_lib = list_tail( &task->libraries );
-      lib->hidden_names = t_extend_name( last_lib->hidden_names, "a." );
-   }
-   else {
-      lib->hidden_names = t_create_name();
-   }
    lib->encrypt_str = false;
    list_append( &task->libraries, lib );
    lib->file = NULL;

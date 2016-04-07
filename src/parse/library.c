@@ -16,7 +16,7 @@ static void read_dirc( struct parse* parse, struct pos* );
 static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* );
 static void read_library_name( struct parse* parse, struct pos* pos );
-static void read_define( struct parse* parse );
+static void read_libdefine( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
    struct file_entry* file );
@@ -274,9 +274,8 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
       p_read_tk( parse );
       read_import( parse, pos );
    }
-   else if ( strcmp( parse->tk_text, "define" ) == 0 ||
-      strcmp( parse->tk_text, "libdefine" ) == 0 ) {
-      read_define( parse );
+   else if ( strcmp( parse->tk_text, "libdefine" ) == 0 ) {
+      read_libdefine( parse );
    }
    else if ( strcmp( parse->tk_text, "library" ) == 0 ) {
       p_read_tk( parse );
@@ -376,30 +375,19 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
    parse->lib->name_pos = *pos;
 }
 
-void read_define( struct parse* parse ) {
-   bool hidden = false;
-   if ( parse->tk_text[ 0 ] == 'd' && parse->lib->imported ) {
-      hidden = true;
-   }
+void read_libdefine( struct parse* parse ) {
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
    struct constant* constant = mem_alloc( sizeof( *constant ) );
    t_init_object( &constant->object, NODE_CONSTANT );
    constant->object.pos = parse->tk_pos;
-   if ( hidden ) {
-      constant->name = t_extend_name( parse->lib->hidden_names,
-         parse->tk_text );
-   }
-   else {
-      constant->name = t_extend_name( parse->ns->body, parse->tk_text );
-   }
+   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
    p_read_tk( parse );
    struct expr_reading value;
    p_init_expr_reading( &value, true, false, false, true );
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
    constant->value = 0;
-   constant->hidden = hidden;
    constant->lib_id = parse->lib->id;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->ns->objects, constant );

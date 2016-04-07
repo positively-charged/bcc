@@ -1,8 +1,6 @@
 #include "phase.h"
 #include "cache/cache.h"
 
-static void alloc_string_indexes( struct parse* parse );
-
 void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
@@ -73,16 +71,6 @@ return;
    //p_next_tk( parse, &iter );
 
    // alloc_string_indexes( parse );
-}
-
-void alloc_string_indexes( struct parse* parse ) {
-   int index = 0;
-   struct indexed_string* string = parse->task->str_table.head;
-   while ( string ) {
-      string->index = index;
-      ++index;
-      string = string->next;
-   }
 }
 
 void p_diag( struct parse* parse, int flags, ... ) {

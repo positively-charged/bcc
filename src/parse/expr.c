@@ -492,7 +492,6 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       usage->text = parse->tk_text;
       usage->pos = parse->tk_pos;
       usage->object = NULL;
-      usage->lib_id = parse->lib->id;
       reading->node = &usage->node;
       p_read_tk( parse );
    }
