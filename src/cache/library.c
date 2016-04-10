@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "task.h"
-#include "field.h"
+#include "cache.h"
 
 // Save
 // ==========================================================================
@@ -95,13 +95,11 @@ static void save_pos( struct saver* saver, struct pos* pos );
 static int map_file( struct saver* saver, int id );
 static const char* name_s( struct saver* saver, struct name* name, bool full );
 
-void cache_save_lib( struct task* task, struct library* lib,
-   struct gbuf* buffer ) {
-   struct field_writer writer;
-   f_init_writer( &writer, buffer );
+void cache_save_lib( struct task* task, struct field_writer* writer,
+   struct library* lib ) {
    struct saver saver;
    saver.task = task;
-   saver.w = &writer;
+   saver.w = writer;
    saver.lib = lib;
    str_init( &saver.string );
    save_lib( &saver );
@@ -443,31 +441,17 @@ static void restore_object( struct restorer* restorer, struct object* object,
 static void restore_pos( struct restorer* restorer, struct pos* pos );
 static struct file_entry* map_id( struct restorer* restorer, int id );
 
-struct library* cache_restore_lib( struct task* task,
-   const char* saved_data ) {
-   jmp_buf bail;
-   struct field_reader reader;
-   f_init_reader( &reader, &bail, saved_data );
+struct library* cache_restore_lib( struct cache* cache,
+   struct field_reader* reader ) {
    struct restorer restorer;
-   restorer.task = task;
-   restorer.r = &reader;
+   restorer.task = cache->task;
+   restorer.r = reader;
    restorer.lib = NULL;
    restorer.ns = NULL;
    restorer.file_map = NULL;
    restorer.file_map_size = 0;
-   if ( setjmp( bail ) == 0 ) {
-      restore_lib( &restorer );
-      return restorer.lib;
-   }
-   else {
-      t_diag( task, DIAG_NONE,
-         "internal error: unexpected field in library cache data: %d",
-            reader.recovered_field );
-      t_diag( task, DIAG_NONE,
-         "internal: expecting field: %d", reader.expected_field );
-      t_bail( task );
-      return NULL;
-   }
+   restore_lib( &restorer );
+   return restorer.lib;
 }
 
 void restore_lib( struct restorer* restorer ) {

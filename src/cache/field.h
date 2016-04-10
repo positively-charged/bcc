@@ -26,13 +26,13 @@ struct field_reader {
       FIELDRERR_NONE,
       FIELDRERR_UNEXPECTEDFIELD,
    } err;
-   char recovered_field;
+   char field;
    char expected_field;
 };
 
 void f_init_reader( struct field_reader* reader, jmp_buf* bail,
    const char* data );
-void f_rf( struct field_reader* reader, char field );
+void f_rf( struct field_reader* reader, char expected_field );
 void f_rv( struct field_reader* reader, char field, void* value,
    size_t value_length );
 const char* f_rs( struct field_reader* reader, char field );

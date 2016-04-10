@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "phase.h"
 
@@ -35,8 +36,9 @@ void p_load_main_source( struct parse* parse ) {
       append_file( parse->lib, request.file );
    }
    else {
-      p_diag( parse, DIAG_ERR, "failed to load source file: %s",
-         parse->task->options->source_file );
+      p_diag( parse, DIAG_ERR,
+         "failed to load source file: %s (%s)",
+         parse->task->options->source_file, strerror( errno ) );
       p_bail( parse );
    }
 }

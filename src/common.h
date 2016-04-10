@@ -68,15 +68,15 @@ struct options {
    struct list includes;
    const char* source_file;
    const char* object_file;
-   const char* cache_path;
    int tab_size;
-   int cache_lifetime;
    bool acc_err;
    bool one_column;
    bool help;
    bool preprocess;
    bool write_asserts;
    struct {
+      const char* dir_path;
+      int lifetime;
       bool enable;
       bool print;
       bool clear;
@@ -92,6 +92,7 @@ struct fileid {
 };
 
 #define NEWLINE_CHAR "\r\n"
+#define OS_PATHSEP "\\"
 
 #else
 
@@ -104,13 +105,30 @@ struct fileid {
 };
 
 #define NEWLINE_CHAR "\n"
+#define OS_PATHSEP "/"
 
 struct fs_query {
+   const char* path;
    struct stat stat;
-   bool exists;
+   int err;
+   bool stat_obtained;
+};
+
+struct fs_timestamp {
+   time_t value;
+};
+
+struct fs_result {
+   int err;
 };
 
 #endif
+
+struct file_contents {
+   char* data;
+   int err;
+   bool obtained;
+};
 
 bool c_read_fileid( struct fileid*, const char* path );
 bool c_same_fileid( struct fileid*, struct fileid* );
@@ -121,9 +139,11 @@ int alignpad( int size, int align_size );
 
 void fs_init_query( struct fs_query* query, const char* path );
 bool fs_exists( struct fs_query* query );
-bool fs_isdir( struct fs_query* query );
-int fs_get_mtime( struct fs_query* query );
-bool fs_create_dir( const char* path );
+bool fs_is_dir( struct fs_query* query );
+bool fs_get_mtime( struct fs_query* query, struct fs_timestamp* timestamp );
+bool fs_create_dir( const char* path, struct fs_result* result );
 const char* fs_get_tempdir( void );
+void fs_get_file_contents( const char* path, struct file_contents* contents );
+void fs_strip_trailing_pathsep( struct str* path );
 
 #endif

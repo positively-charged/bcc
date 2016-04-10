@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <setjmp.h>
 #include <string.h>
+#include <errno.h>
 
 #include "common.h"
 #include "task.h"
@@ -396,6 +397,14 @@ bool c_read_full_path( const char* path, struct str* str ) {
    }
 }
 
+void fs_strip_trailing_pathsep( struct str* path ) {
+   while ( path->length - 1 > 0 &&
+      path->value[ path->length - 1 ] == '/' ) {
+      path->value[ path->length - 1 ] = '\0';
+      --path->length;
+   }
+}
+
 #endif
 
 void c_extract_dirname( struct str* path ) {
@@ -413,31 +422,74 @@ void c_extract_dirname( struct str* path ) {
 }
 
 void fs_init_query( struct fs_query* query, const char* path ) {
-   int result = stat( path, &query->stat );
-   query->exists = ( result == 0 );
+   query->path = path;
+   query->err = 0;
+   query->stat_obtained = false;
+}
+
+struct stat* get_query_stat( struct fs_query* query ) {
+   // Request file statistics once.
+   if ( ! query->stat_obtained ) {
+      if ( stat( query->path, &query->stat ) != 0 ) {
+         query->err = errno;
+         return NULL;
+      }
+      query->stat_obtained = true;
+   }
+   return &query->stat;
 }
 
 bool fs_exists( struct fs_query* query ) {
-   return query->exists;
+   return ( get_query_stat( query ) != NULL );
 }
 
-bool fs_isdir( struct fs_query* query ) {
-   return S_ISDIR( query->stat.st_mode );
+bool fs_is_dir( struct fs_query* query ) {
+   struct stat* stat = get_query_stat( query );
+   return ( stat && S_ISDIR( stat->st_mode ) );
 }
 
-int fs_get_mtime( struct fs_query* query ) {
-   return query->stat.st_mtime;
+bool fs_get_mtime( struct fs_query* query, struct fs_timestamp* timestamp ) {
+   struct stat* stat = get_query_stat( query );
+   if ( ! stat ) {
+      return false;
+   }
+   timestamp->value = stat->st_mtime;
+   return true;
 }
 
-bool fs_create_dir( const char* path ) {
-   mode_t mode =
+bool fs_create_dir( const char* path, struct fs_result* result ) {
+   static const mode_t mode =
       S_IRUSR | S_IWUSR | S_IXUSR |
       S_IRGRP | S_IXGRP |
       S_IROTH | S_IXOTH;
-   int result = mkdir( path, mode );
-   return ( result == 0 );
+   if ( mkdir( path, mode ) == 0 ) {
+      result->err = 0;
+      return true;
+   }
+   else {
+      result->err = errno;
+      return false;
+   }
 }
 
 const char* fs_get_tempdir( void ) {
    return "/tmp";
+}
+
+
+void fs_get_file_contents( const char* path, struct file_contents* contents ) {
+   FILE* fh = fopen( path, "r" );
+   if ( ! fh ) {
+      contents->obtained = false;
+      contents->err = errno;
+      return;
+   }
+   fseek( fh, 0, SEEK_END );
+   size_t size = ftell( fh );
+   fseek( fh, 0, SEEK_SET );
+   contents->data = mem_alloc( size );
+   fread( contents->data, size, 1, fh );
+   fclose( fh );
+   contents->obtained = true;
+   contents->err = 0;
 }

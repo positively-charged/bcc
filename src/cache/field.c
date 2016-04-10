@@ -33,17 +33,17 @@ void f_init_reader( struct field_reader* reader, jmp_buf* bail,
    reader->bail = bail;
    reader->data = data;
    reader->err = FIELDRERR_NONE;
-   reader->recovered_field = 0;
+   reader->field = 0;
    reader->expected_field = 0;
 }
 
-void f_rf( struct field_reader* reader, char field ) {
-   char recovered_field;
-   memcpy( &recovered_field, reader->data, sizeof( recovered_field ) );
-   reader->data += sizeof( recovered_field );
-   if ( recovered_field != field ) {
+void f_rf( struct field_reader* reader, char expected_field ) {
+   char field;
+   memcpy( &field, reader->data, sizeof( field ) );
+   reader->data += sizeof( field );
+   if ( field != expected_field ) {
       reader->err = FIELDRERR_UNEXPECTEDFIELD;
-      reader->recovered_field = recovered_field;
+      reader->field = field;
       reader->expected_field = field;
       longjmp( *reader->bail, 1 );
    }

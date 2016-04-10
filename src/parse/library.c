@@ -444,7 +444,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
    have_lib:
    // Append library.
-   list_iter_init( &i, &parse->lib->dynamic );
+   list_iter_init( &i, &parse->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* another_lib = list_data( &i );
       if ( lib == another_lib ) {

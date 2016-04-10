@@ -100,15 +100,15 @@ void init_options( struct options* options ) {
    list_init( &options->includes );
    options->source_file = NULL;
    options->object_file = NULL;
-   options->cache_path = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
-   options->cache_lifetime = 0;
    options->acc_err = false;
    options->one_column = false;
    options->help = false;
    options->preprocess = false;
    options->write_asserts = true;
+   options->cache.dir_path = NULL;
+   options->cache.lifetime = -1;
    options->cache.enable = false;
    options->cache.clear = false;
    options->cache.print = false;
@@ -181,6 +181,28 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "cache" ) == 0 ) {
          options->cache.enable = true;
       }
+      else if ( strcmp( option, "cache-dir" ) == 0 ) {
+         if ( *args ) {
+            options->cache.dir_path = *args;
+            ++args;
+         }
+         else {
+            printf( "error: missing directory path for %s option\n",
+               option );
+            return false;
+         }
+      }
+      else if ( strcmp( option, "cache-lifetime" ) == 0 ) {
+         if ( *args ) {
+            options->cache.lifetime = atoi( *args );
+            ++args;
+         }
+         else {
+            printf( "error: missing duration argument for %s option\n",
+               option );
+            return false;
+         }
+      }
       else if ( strcmp( option, "cache-print" ) == 0 ) {
          options->cache.print = true;
       }
@@ -252,6 +274,8 @@ void print_usage( char* path ) {
       "    <directory>        directory\n"
       "                       (If one is not specified, a system-default\n"
       "                       temporary directory will be used)\n"
+      "  -cache-lifetime      Keep a library cached for the specified\n"
+      "    <duration>         duration, in hours\n"
       "  -cache-print         Show the contents of the cache\n"
       "  -cache-clear         Delete all cached library files\n",
       path );

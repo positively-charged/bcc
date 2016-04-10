@@ -1,5 +1,4 @@
 #include "cache.h"
-#include "field.h"
 
 // Save
 // ==========================================================================
@@ -13,12 +12,12 @@
 
 enum {
    F_ARCHIVE,
-   F_CACHEDFILEID,
+   F_COMPILETIME,
    F_DEPENDENCY,
    F_END,
    F_ENTRY,
-   F_FILEPATH,
-   F_MTIME,
+   F_ID,
+   F_PATH,
 };
 
 struct saver {
@@ -32,11 +31,9 @@ static void save_entry( struct saver* saver, struct cache_entry* entry );
 static void save_dependency_list( struct saver* saver,
    struct cache_entry* entry );
 
-void cache_save_archive( struct cache* cache, struct gbuf* buffer ) {
-   struct field_writer writer;
-   f_init_writer( &writer, buffer );
+void cache_save_archive( struct cache* cache, struct field_writer* writer ) {
    struct saver saver;
-   saver.w = &writer;
+   saver.w = writer;
    saver.cache = cache;
    save_archive( &saver );
 }
@@ -57,18 +54,18 @@ void save_table( struct saver* saver ) {
 
 void save_entry( struct saver* saver, struct cache_entry* entry ) {
    WF( saver, F_ENTRY );
-   WS( saver, F_FILEPATH, entry->file_path.value );
-   WV( saver, F_CACHEDFILEID, &entry->id );
-   WV( saver, F_MTIME, &entry->mtime );
+   WS( saver, F_PATH, entry->path.value );
+   WV( saver, F_COMPILETIME, &entry->compile_time );
+   WV( saver, F_ID, &entry->id );
    save_dependency_list( saver, entry );
    WF( saver, F_END );
 }
 
 void save_dependency_list( struct saver* saver, struct cache_entry* entry ) {
-   struct cache_dependency* dep = entry->head_dependency;
+   struct cache_dependency* dep = entry->dependency;
    while ( dep ) {
       WF( saver, F_DEPENDENCY );
-      WS( saver, F_FILEPATH, dep->file_path.value );
+      WS( saver, F_PATH, dep->path.value );
       WF( saver, F_END );
       dep = dep->next;
    }
@@ -97,16 +94,12 @@ static void restore_dependency_list( struct restorer* restorer,
 static void restore_dependency( struct restorer* restorer,
    struct cache_entry* entry );
 
-void cache_restore_archive( struct cache* cache, const char* saved_data ) {
-   jmp_buf bail;
-   if ( setjmp( bail ) == 0 ) {
-      struct field_reader reader;
-      f_init_reader( &reader, &bail, saved_data );
-      struct restorer restorer;
-      restorer.r = &reader;
-      restorer.cache = cache;
-      restore_archive( &restorer );
-   }
+void cache_restore_archive( struct cache* cache,
+   struct field_reader* reader ) {
+   struct restorer restorer;
+   restorer.r = reader;
+   restorer.cache = cache;
+   restore_archive( &restorer );
 }
 
 void restore_archive( struct restorer* restorer ) {
@@ -123,12 +116,13 @@ void restore_table( struct restorer* restorer ) {
 
 void restore_entry( struct restorer* restorer ) {
    RF( restorer, F_ENTRY );
-   struct cache_entry* entry = cache_create_entry( restorer->cache,
-      RS( restorer, F_FILEPATH ) );
-   RV( restorer, F_CACHEDFILEID, &entry->id );
-   RV( restorer, F_MTIME, &entry->mtime );
+   struct cache_entry* entry = cache_alloc_entry();
+   str_append( &entry->path, RS( restorer, F_PATH ) );
+   RV( restorer, F_COMPILETIME, &entry->compile_time );
+   RV( restorer, F_ID, &entry->id );
    restore_dependency_list( restorer, entry );
    RF( restorer, F_END );
+   cache_append_entry( &restorer->cache->entries, entry );
 }
 
 void restore_dependency_list( struct restorer* restorer,
@@ -141,8 +135,8 @@ void restore_dependency_list( struct restorer* restorer,
 void restore_dependency( struct restorer* restorer,
    struct cache_entry* entry ) {
    RF( restorer, F_DEPENDENCY );
-   struct cache_dependency* dep = cache_alloc_dependency(
-      RS( restorer, F_FILEPATH ) );
+   struct cache_dependency* dep = cache_alloc_dependency( restorer->cache,
+      RS( restorer, F_PATH ) );
    cache_append_dependency( entry, dep );
    RF( restorer, F_END );
 }
