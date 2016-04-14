@@ -320,12 +320,12 @@ bool perform_bop( struct binary* binary, struct result* operand,
       case BOP_EQ:
       case BOP_NEQ:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZBOOL:
-         case SPEC_ZSTR:
-            spec = SPEC_ZBOOL;
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_BOOL:
+         case SPEC_STR:
+            spec = SPEC_BOOL;
             break;
          default:
             break;
@@ -338,8 +338,8 @@ bool perform_bop( struct binary* binary, struct result* operand,
       case BOP_SHIFT_R:
       case BOP_MOD:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
+         case SPEC_RAW:
+         case SPEC_INT:
             spec = operand->spec;
             break;
          default:
@@ -351,11 +351,11 @@ bool perform_bop( struct binary* binary, struct result* operand,
       case BOP_GT:
       case BOP_GTE:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZSTR:
-            spec = SPEC_ZBOOL;
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_STR:
+            spec = SPEC_BOOL;
             break;
          default:
             break;
@@ -363,10 +363,10 @@ bool perform_bop( struct binary* binary, struct result* operand,
          break;
       case BOP_ADD:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZSTR:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_STR:
             spec = operand->spec;
             break;
          default:
@@ -377,9 +377,9 @@ bool perform_bop( struct binary* binary, struct result* operand,
       case BOP_MUL:
       case BOP_DIV:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
             spec = operand->spec;
             break;
          default:
@@ -403,7 +403,7 @@ bool perform_bop( struct binary* binary, struct result* operand,
       switch ( binary->op ) {
       case BOP_EQ:
       case BOP_NEQ:
-         result->spec = SPEC_ZBOOL;
+         result->spec = SPEC_BOOL;
          result->complete = true;
          result->usable = true;
          return true;
@@ -481,7 +481,7 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
 bool perform_logical( struct logical* logical, struct result* lside,
    struct result* rside, struct result* result ) {
    if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
-      result->spec = SPEC_ZBOOL;
+      result->spec = SPEC_BOOL;
       result->complete = true;
       result->usable = true;
       logical->lside_spec = lside->spec;
@@ -499,11 +499,11 @@ bool can_convert_to_boolean( struct result* operand ) {
    }
    else {
       switch ( operand->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
-      case SPEC_ZBOOL:
-      case SPEC_ZSTR:
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
       case SPEC_ENUM:
          return true;
       default:
@@ -517,13 +517,13 @@ void fold_logical( struct logical* logical, struct result* lside,
    // Get value of left side.
    int l = 0;
    switch ( lside->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
       l = lside->value;
       break;
-   case SPEC_ZSTR:
+   case SPEC_STR:
       // TODO: Implement.
       return;
    default:
@@ -532,13 +532,13 @@ void fold_logical( struct logical* logical, struct result* lside,
    // Get value of right side.
    int r = 0;
    switch ( lside->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
       r = lside->value;
       break;
-   case SPEC_ZSTR:
+   case SPEC_STR:
       // TODO: Implement.
       return;
    default:
@@ -634,11 +634,11 @@ bool perform_assign( struct assign* assign, struct result* lside,
       switch ( assign->op ) {
       case AOP_NONE:
          switch ( lside->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZBOOL:
-         case SPEC_ZSTR:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_BOOL:
+         case SPEC_STR:
          case SPEC_ENUM:
             valid = true;
             break;
@@ -648,10 +648,10 @@ bool perform_assign( struct assign* assign, struct result* lside,
          break;
       case AOP_ADD:
          switch ( lside->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZSTR:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_STR:
             valid = true;
             break;
          default:
@@ -662,9 +662,9 @@ bool perform_assign( struct assign* assign, struct result* lside,
       case AOP_MUL:
       case AOP_DIV:
          switch ( lside->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
             valid = true;
             break;
          default:
@@ -678,8 +678,8 @@ bool perform_assign( struct assign* assign, struct result* lside,
       case AOP_BIT_XOR:
       case AOP_BIT_OR:
          switch ( lside->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
+         case SPEC_RAW:
+         case SPEC_INT:
             valid = true;
             break;
          default:
@@ -813,9 +813,9 @@ bool perform_unary( struct unary* unary, struct result* operand,
       case UOP_MINUS:
       case UOP_PLUS:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
             spec = operand->spec;
          default:
             break;
@@ -823,8 +823,8 @@ bool perform_unary( struct unary* unary, struct result* operand,
          break;
       case UOP_BIT_NOT:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
+         case SPEC_RAW:
+         case SPEC_INT:
             spec = operand->spec;
          default:
             break;
@@ -832,11 +832,11 @@ bool perform_unary( struct unary* unary, struct result* operand,
          break;
       case UOP_LOG_NOT:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-            spec = SPEC_ZRAW;
+         case SPEC_RAW:
+            spec = SPEC_RAW;
             break;
          default:
-            spec = SPEC_ZBOOL;
+            spec = SPEC_BOOL;
             break;
          }
          break;
@@ -858,7 +858,7 @@ bool perform_unary( struct unary* unary, struct result* operand,
    else {
       // Only logical-not can be performed on a reference type.
       if ( unary->op == UOP_LOG_NOT ) {
-         result->spec = SPEC_ZBOOL;
+         result->spec = SPEC_BOOL;
          result->complete = true;
          result->usable = true;
          return true;
@@ -893,9 +893,9 @@ void fold_unary( struct semantic* semantic, struct unary* unary,
 
 void fold_unary_minus( struct result* operand, struct result* result ) {
    switch ( operand->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
       // TODO: Warn on overflow and underflow.
       result->value = ( - operand->value );
       result->folded = true;
@@ -908,14 +908,14 @@ void fold_unary_minus( struct result* operand, struct result* result ) {
 void fold_logical_not( struct semantic* semantic, struct result* operand,
    struct result* result ) {
    switch ( operand->spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
       result->value = ( ! operand->value );
       result->folded = true;
       break;
-   case SPEC_ZSTR: {
+   case SPEC_STR: {
       struct indexed_string* string = t_lookup_string( semantic->task,
          operand->value );
       result->value = ( string->length == 0 );
@@ -950,9 +950,9 @@ bool perform_inc( struct inc* inc, struct result* operand,
    // Value type.
    if ( is_value_type( operand ) ) {
       switch ( operand->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
-      case SPEC_ZFIXED:
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
          break;
       default:
          return false;
@@ -960,7 +960,7 @@ bool perform_inc( struct inc* inc, struct result* operand,
       result->spec = operand->spec;
       result->complete = true;
       result->usable = true;
-      inc->zfixed = ( operand->spec == SPEC_ZFIXED );
+      inc->fixed = ( operand->spec == SPEC_FIXED );
       return true;
    }
    // Reference type.
@@ -989,26 +989,26 @@ bool valid_cast( struct cast* cast, struct result* operand ) {
    if ( is_value_type( operand ) ) {
       bool valid = false;
       switch ( cast->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
+      case SPEC_RAW:
+      case SPEC_INT:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
-         case SPEC_ZFIXED:
-         case SPEC_ZBOOL:
-         case SPEC_ZSTR:
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_BOOL:
+         case SPEC_STR:
             valid = true;
             break;
          default:
             break;
          }
          break;
-      case SPEC_ZFIXED:
-      case SPEC_ZBOOL:
-      case SPEC_ZSTR:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
          switch ( operand->spec ) {
-         case SPEC_ZRAW:
-         case SPEC_ZINT:
+         case SPEC_RAW:
+         case SPEC_INT:
             valid = true;
             break;
          default:
@@ -1024,8 +1024,8 @@ bool valid_cast( struct cast* cast, struct result* operand ) {
    // Reference type.
    else {
       switch ( cast->spec ) {
-      case SPEC_ZRAW:
-      case SPEC_ZINT:
+      case SPEC_RAW:
+      case SPEC_INT:
          return true;
       default:
          return false;
@@ -1083,7 +1083,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    if ( is_array_ref( &lside ) ) {
       test_subscript_array( semantic, test, &lside, result, subscript );
    }
-   else if ( lside.spec == SPEC_ZSTR ) {
+   else if ( lside.spec == SPEC_STR ) {
       test_subscript_str( semantic, test, &lside, result, subscript );
    }
    else {
@@ -1108,8 +1108,8 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       test->suggest_paren_assign );
    s_test_expr( semantic, &index, subscript->index );
    // Index must be of integer type.
-   if ( ! ( subscript->index->spec == SPEC_ZRAW ||
-      subscript->index->spec == SPEC_ZINT ) ) {
+   if ( ! ( subscript->index->spec == SPEC_RAW ||
+      subscript->index->spec == SPEC_INT ) ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "index of non-integer type" );
       s_bail( semantic );
@@ -1170,8 +1170,8 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
       test->suggest_paren_assign );
    s_test_expr( semantic, &index, subscript->index );
    // Index must be of integer type.
-   if ( ! ( subscript->index->spec == SPEC_ZRAW ||
-      subscript->index->spec == SPEC_ZINT ) ) {
+   if ( ! ( subscript->index->spec == SPEC_RAW ||
+      subscript->index->spec == SPEC_INT ) ) {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "index of non-integer type" );
       s_bail( semantic );
@@ -1186,7 +1186,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
             "index out of bounds" );
       }
    }
-   result->spec = SPEC_ZINT;
+   result->spec = SPEC_INT;
    result->complete = true;
    result->usable = true;
    subscript->string = true;
@@ -1699,7 +1699,7 @@ void test_literal( struct result* result, struct literal* literal ) {
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_ZINT;
+   result->spec = SPEC_INT;
 }
 
 void test_fixed_literal( struct result* result,
@@ -1708,7 +1708,7 @@ void test_fixed_literal( struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_ZFIXED;
+   result->spec = SPEC_FIXED;
 }
 
 void test_string_usage( struct expr_test* test, struct result* result,
@@ -1717,7 +1717,7 @@ void test_string_usage( struct expr_test* test, struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_ZSTR;
+   result->spec = SPEC_STR;
    test->has_string = true;
 }
 
@@ -1726,7 +1726,7 @@ void test_boolean( struct result* result, struct boolean* boolean ) {
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_ZBOOL;
+   result->spec = SPEC_BOOL;
 }
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
@@ -1808,7 +1808,7 @@ void select_constant( struct result* result, struct constant* constant ) {
 void select_enumerator( struct result* result,
    struct enumerator* enumerator ) {
    result->enumeration = enumerator->enumeration;
-   result->spec = SPEC_ZINT;
+   result->spec = SPEC_INT;
    result->value = enumerator->value;
    result->folded = true;
    result->complete = true;
@@ -1851,7 +1851,7 @@ void select_var( struct expr_test* test, struct result* result,
          result->complete = true;
          result->assignable = true;
          if ( result->spec == SPEC_ENUM ) {
-            result->spec = SPEC_ZINT;
+            result->spec = SPEC_INT;
          }
       }
    }
@@ -1893,7 +1893,7 @@ void select_member( struct expr_test* test, struct result* result,
          result->complete = true;
          result->assignable = true;
          if ( result->spec == SPEC_ENUM ) {
-            result->spec = SPEC_ZINT;
+            result->spec = SPEC_INT;
          }
       }
    }
@@ -1907,7 +1907,7 @@ void select_func( struct result* result, struct func* func ) {
    // When using just the name of an action special, a value is produced,
    // which is the ID of the action special.
    else if ( func->type == FUNC_ASPEC ) {
-      result->spec = SPEC_ZINT;
+      result->spec = SPEC_INT;
       result->complete = true;
       result->usable = true;
       struct func_aspec* impl = func->impl;
@@ -1973,7 +1973,7 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   result->spec = SPEC_ZBOOL;
+   result->spec = SPEC_BOOL;
    result->complete = true;
    result->usable = true;
 }
@@ -1981,18 +1981,18 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
 bool is_onedim_intelem_array_ref( struct result* result ) {
    bool onedim_array = ( result->dim && ! result->dim->next ) ||
       ( result->ref_dim == 1 );
-   bool int_elem = ( result->spec == SPEC_ZRAW ||
-      result->spec == SPEC_ZINT );
+   bool int_elem = ( result->spec == SPEC_RAW ||
+      result->spec == SPEC_INT );
    return ( onedim_array && int_elem );
 }
 
 bool is_int_value( struct result* result ) {
-   return ( is_value_type( result ) && ( result->spec == SPEC_ZRAW ||
-      result->spec == SPEC_ZINT ) );
+   return ( is_value_type( result ) && ( result->spec == SPEC_RAW ||
+      result->spec == SPEC_INT ) );
 }
 
 bool is_str_value( struct result* result ) {
-   return ( is_value_type( result ) && result->spec == SPEC_ZSTR );
+   return ( is_value_type( result ) && result->spec == SPEC_STR );
 }
 
 void test_paren( struct semantic* semantic, struct expr_test* test,
@@ -2009,7 +2009,7 @@ void test_upmost( struct semantic* semantic, struct result* result ) {
 inline void init_type_info( struct type_info* type, struct result* result ) {
    if ( result->func ) {
       if ( result->func->type == FUNC_ASPEC ) {
-         s_init_type_info_scalar( type, SPEC_ZINT );
+         s_init_type_info_scalar( type, SPEC_INT );
       }
       else {
          s_init_type_info_func( type, result->func );

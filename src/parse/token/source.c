@@ -614,8 +614,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "event", TK_EVENT },
          { "extspec", TK_EXTSPEC },
          { "false", TK_FALSE },
-         // Maybe we'll add this as a type later.
-         { "fixed", TK_RESERVED },
+         { "fixed", TK_FIXED },
          { "for", TK_FOR },
          { "foreach", TK_FOREACH },
          { "function", TK_FUNCTION },
@@ -634,6 +633,7 @@ void read_token( struct parse* parse, struct token* token ) {
          { "open", TK_OPEN },
          { "pickup", TK_PICKUP },
          { "private", TK_PRIVATE },
+         { "raw", TK_RAW },
          { "redreturn", TK_RED_RETURN },
          { "ref", TK_REF },
          { "respawn", TK_RESPAWN },
@@ -658,11 +658,6 @@ void read_token( struct parse* parse, struct token* token ) {
          { "while", TK_WHILE },
          { "whitereturn", TK_WHITE_RETURN },
          { "world", TK_WORLD },
-         { "zbool", TK_ZBOOL },
-         { "zfixed", TK_ZFIXED },
-         { "zint", TK_ZINT },
-         { "zraw", TK_ZRAW },
-         { "zstr", TK_ZSTR },
          // Terminator.
          { "\x7F", TK_END } };
       #define RESERVED_MAX ARRAY_SIZE( reserved )

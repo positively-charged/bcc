@@ -87,8 +87,7 @@ static const struct {
    { "event", TK_EVENT },
    { "extspec", TK_EXTSPEC },
    { "false", TK_FALSE },
-   // Maybe we'll add this as a type later.
-   { "fixed", TK_RESERVED },
+   { "fixed", TK_FIXED },
    { "for", TK_FOR },
    { "foreach", TK_FOREACH },
    { "function", TK_FUNCTION },
@@ -107,6 +106,7 @@ static const struct {
    { "open", TK_OPEN },
    { "pickup", TK_PICKUP },
    { "private", TK_PRIVATE },
+   { "raw", TK_RAW },
    { "redreturn", TK_RED_RETURN },
    { "ref", TK_REF },
    { "respawn", TK_RESPAWN },
@@ -131,11 +131,6 @@ static const struct {
    { "while", TK_WHILE },
    { "whitereturn", TK_WHITE_RETURN },
    { "world", TK_WORLD },
-   { "zbool", TK_ZBOOL },
-   { "zfixed", TK_ZFIXED },
-   { "zint", TK_ZINT },
-   { "zraw", TK_ZRAW },
-   { "zstr", TK_ZSTR },
    { NULL, TK_END }
 };
 
@@ -425,11 +420,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
 
       // 110
       ENTRY( "##", TKF_NONE ),
-      ENTRY( "zraw", TKF_KEYWORD ),
-      ENTRY( "zint", TKF_KEYWORD ),
-      ENTRY( "zfixed", TKF_KEYWORD ),
-      ENTRY( "zbool", TKF_KEYWORD ),
-      ENTRY( "zstr", TKF_KEYWORD ),
+      ENTRY( "raw", TKF_KEYWORD ),
+      ENTRY( "fixed", TKF_KEYWORD ),
       ENTRY( "cast", TKF_KEYWORD ),
       ENTRY( "assert", TKF_KEYWORD ),
       ENTRY( "ref", TKF_KEYWORD ),
@@ -573,11 +565,8 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HORZSPACE, "horizontal space" },
       { TK_PREP_HASHHASH, "`##`" },
       { TK_STRCPY, "`strcpy`" },
-      { TK_ZRAW, "`zraw`" },
-      { TK_ZINT, "`zint`" },
-      { TK_ZFIXED, "`zfixed`" },
-      { TK_ZBOOL, "`zbool`" },
-      { TK_ZSTR, "`zstr`" },
+      { TK_RAW, "`raw`" },
+      { TK_FIXED, "`fixed`" },
       { TK_CAST, "`cast`" },
       { TK_ASSERT, "`assert`" },
       { TK_REF, "`ref`" },
@@ -594,7 +583,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_NAMESPACE, "`namespace`" },
       { TK_UPMOST, "`upmost`" },
       { TK_USING, "`using`" }, };
-   STATIC_ASSERT( TK_TOTAL == 132 );
+   STATIC_ASSERT( TK_TOTAL == 129 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

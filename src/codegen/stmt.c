@@ -229,7 +229,7 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
 }
 
 void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
-   if ( stmt->cond->spec == SPEC_ZSTR ) {
+   if ( stmt->cond->spec == SPEC_STR ) {
       write_string_switch( codegen, stmt );
    }
    else {

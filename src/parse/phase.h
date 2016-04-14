@@ -131,20 +131,17 @@ enum tk {
 
    // 110
    TK_PREP_HASHHASH,
-   TK_ZRAW,
-   TK_ZINT,
-   TK_ZFIXED,
-   TK_ZBOOL,
-   TK_ZSTR,
+   TK_RAW,
+   TK_FIXED,
    TK_CAST,
    TK_ASSERT,
    TK_REF,
    TK_AUTO,
-
-   // 120
    TK_TYPEDEF,
    TK_FOREACH,
    TK_PRIVATE,
+
+   // 120
    TK_OBJCPY,
    TK_MSGBUILD,
    TK_EXTSPEC,
@@ -152,8 +149,6 @@ enum tk {
    TK_NULL,
    TK_SPECIAL,
    TK_NAMESPACE,
-
-   // 130
    TK_UPMOST,
    TK_USING,
 

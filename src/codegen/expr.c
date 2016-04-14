@@ -29,9 +29,9 @@ static void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void write_binary_int( struct codegen* codegen, struct result* result,
    struct binary* binary );
-static void write_binary_zfixed( struct codegen* codegen, struct result* result,
+static void write_binary_fixed( struct codegen* codegen, struct result* result,
    struct binary* binary );
-static void write_binary_zbool( struct codegen* codegen, struct result* result,
+static void write_binary_bool( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void write_binary_str( struct codegen* codegen, struct result* result,
    struct binary* binary );
@@ -77,7 +77,7 @@ static void inc_var( struct codegen* codegen, struct result* result,
    struct inc* inc, struct result* operand );
 static void inc_indexed( struct codegen* codegen, int storage, int index,
    bool do_inc );
-static void inc_zfixed( struct codegen* codegen, struct inc* inc,
+static void inc_fixed( struct codegen* codegen, struct inc* inc,
    struct result* operand );
 static void visit_cast( struct codegen* codegen, struct result* result,
    struct cast* cast );
@@ -254,17 +254,17 @@ void visit_operand( struct codegen* codegen, struct result* result,
 void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    switch ( binary->lside_spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
+   case SPEC_RAW:
+   case SPEC_INT:
       write_binary_int( codegen, result, binary );
       break;
-   case SPEC_ZFIXED:
-      write_binary_zfixed( codegen, result, binary );
+   case SPEC_FIXED:
+      write_binary_fixed( codegen, result, binary );
       break;
-   case SPEC_ZBOOL:
-      write_binary_zbool( codegen, result, binary );
+   case SPEC_BOOL:
+      write_binary_bool( codegen, result, binary );
       break;
-   case SPEC_ZSTR:
+   case SPEC_STR:
       write_binary_str( codegen, result, binary );
       break;
    default:
@@ -301,7 +301,7 @@ void write_binary_int( struct codegen* codegen, struct result* result,
    result->status = R_VALUE;
 }
 
-void write_binary_zfixed( struct codegen* codegen, struct result* result,
+void write_binary_fixed( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    push_operand( codegen, binary->lside );
    push_operand( codegen, binary->rside );
@@ -324,7 +324,7 @@ void write_binary_zfixed( struct codegen* codegen, struct result* result,
    result->status = R_VALUE;
 }
 
-void write_binary_zbool( struct codegen* codegen, struct result* result,
+void write_binary_bool( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    push_operand( codegen, binary->lside );
    push_operand( codegen, binary->rside );
@@ -451,7 +451,7 @@ void push_logical_operand( struct codegen* codegen,
    init_result( &result, true );
    result.skip_negate = true;
    visit_operand( codegen, &result, node );
-   if ( spec == SPEC_ZSTR ) {
+   if ( spec == SPEC_STR ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
    }
@@ -687,8 +687,8 @@ void inc_array( struct codegen* codegen, struct result* result,
          result->status = R_VALUE;
       }
    }
-   if ( inc->zfixed ) {
-      inc_zfixed( codegen, inc, operand );
+   if ( inc->fixed ) {
+      inc_fixed( codegen, inc, operand );
    }
    else {
       inc_element( codegen, operand->storage, operand->index, ( ! inc->dec ) );
@@ -742,8 +742,8 @@ void inc_var( struct codegen* codegen, struct result* result,
       push_indexed( codegen, operand->storage, operand->index );
       result->status = R_VALUE;
    }
-   if ( inc->zfixed ) {
-      inc_zfixed( codegen, inc, operand );
+   if ( inc->fixed ) {
+      inc_fixed( codegen, inc, operand );
    }
    else {
       inc_indexed( codegen, operand->storage, operand->index, ( ! inc->dec ) );
@@ -791,10 +791,10 @@ void inc_indexed( struct codegen* codegen, int storage, int index,
    c_pcd( codegen, code, index );
 }
 
-void inc_zfixed( struct codegen* codegen, struct inc* inc,
+void inc_fixed( struct codegen* codegen, struct inc* inc,
    struct result* operand ) {
-   enum { ZFIXED_WHOLE = 65536 };
-   c_pcd( codegen, PCD_PUSHNUMBER, ZFIXED_WHOLE );
+   enum { FIXED_WHOLE = 65536 };
+   c_pcd( codegen, PCD_PUSHNUMBER, FIXED_WHOLE );
    if ( operand->status == R_ARRAYINDEX ) {
       c_update_element( codegen, operand->storage, operand->index,
          ( inc->dec ? AOP_SUB : AOP_ADD ) );

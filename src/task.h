@@ -130,11 +130,11 @@ struct path {
 
 enum {
    SPEC_NONE,
-   SPEC_ZRAW,
-   SPEC_ZINT,
-   SPEC_ZFIXED,
-   SPEC_ZBOOL,
-   SPEC_ZSTR,
+   SPEC_RAW,
+   SPEC_INT,
+   SPEC_FIXED,
+   SPEC_BOOL,
+   SPEC_STR,
    SPEC_ENUM,
    SPEC_STRUCT,
    SPEC_NAME,
@@ -267,7 +267,7 @@ struct inc {
    struct pos pos;
    bool post;
    bool dec;
-   bool zfixed;
+   bool fixed;
 };
 
 struct cast {

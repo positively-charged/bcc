@@ -187,7 +187,7 @@ void save_constant( struct saver* saver, struct constant* constant ) {
    WF( saver, F_CONSTANT );
    save_object( saver, &constant->object );
    WN( saver, F_NAME, constant->name );
-   if ( constant->spec == SPEC_ZSTR ) {
+   if ( constant->spec == SPEC_STR ) {
       struct indexed_string* string = t_lookup_string( saver->task,
          constant->value );
       WS( saver, F_VALUESTRING, string->value );
@@ -534,7 +534,7 @@ void restore_constant( struct restorer* restorer ) {
       const char* value = RS( restorer, F_VALUESTRING );
       struct indexed_string* string = t_intern_string( restorer->task, value,
          strlen( value ) );
-      constant->spec = SPEC_ZSTR;
+      constant->spec = SPEC_STR;
       constant->value = string->index;
    }
    else {

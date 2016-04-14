@@ -113,20 +113,17 @@ bool p_is_dec( struct parse* parse ) {
    }
    else {
       switch ( parse->tk ) {
+      case TK_RAW:
       case TK_INT:
-      case TK_STR:
+      case TK_FIXED:
       case TK_BOOL:
+      case TK_STR:
       case TK_VOID:
       case TK_WORLD:
       case TK_GLOBAL:
       case TK_ENUM:
       case TK_STRUCT:
       case TK_FUNCTION:
-      case TK_ZRAW:
-      case TK_ZINT:
-      case TK_ZFIXED:
-      case TK_ZBOOL:
-      case TK_ZSTR:
       case TK_REF:
       case TK_AUTO:
       case TK_TYPEDEF:
@@ -594,27 +591,24 @@ void read_storage( struct parse* parse, struct dec* dec ) {
 void read_spec( struct parse* parse, struct dec* dec ) {
    dec->type_pos = parse->tk_pos;
    switch ( parse->tk ) {
+   case TK_RAW:
+      dec->spec = SPEC_RAW;
+      p_read_tk( parse );
+      break;
    case TK_INT:
-   case TK_STR:
+      dec->spec = SPEC_INT;
+      p_read_tk( parse );
+      break;
+   case TK_FIXED:
+      dec->spec = SPEC_FIXED;
+      p_read_tk( parse );
+      break;
    case TK_BOOL:
-   case TK_ZRAW:
-      dec->spec = SPEC_ZRAW;
+      dec->spec = SPEC_BOOL;
       p_read_tk( parse );
       break;
-   case TK_ZINT:
-      dec->spec = SPEC_ZINT;
-      p_read_tk( parse );
-      break;
-   case TK_ZFIXED:
-      dec->spec = SPEC_ZFIXED;
-      p_read_tk( parse );
-      break;
-   case TK_ZBOOL:
-      dec->spec = SPEC_ZBOOL;
-      p_read_tk( parse );
-      break;
-   case TK_ZSTR:
-      dec->spec = SPEC_ZSTR;
+   case TK_STR:
+      dec->spec = SPEC_STR;
       p_read_tk( parse );
       break;
    case TK_VOID:
@@ -1411,8 +1405,8 @@ void read_param( struct parse* parse, struct params* params ) {
    // Restrict type of script parameter.
    if ( params->script ) {
       bool valid_spec = (
-         param->spec == SPEC_ZINT ||
-         param->spec == SPEC_ZRAW );
+         param->spec == SPEC_INT ||
+         param->spec == SPEC_RAW );
       if ( ! valid_spec ) {
          p_diag( parse, DIAG_POS_ERR, &param->object.pos,
             "script parameter not of integer type" );
@@ -1438,23 +1432,20 @@ void read_param( struct parse* parse, struct params* params ) {
 void read_param_spec( struct parse* parse, struct param* param ) {
    int spec = SPEC_NONE;
    switch ( parse->tk ) {
-   case TK_ZINT:
-      spec = SPEC_ZINT;
-      break;
-   case TK_ZFIXED:
-      spec = SPEC_ZFIXED;
-      break;
-   case TK_ZBOOL:
-      spec = SPEC_ZBOOL;
-      break;
-   case TK_ZSTR:
-      spec = SPEC_ZSTR;
-      break;
-   case TK_ZRAW:
    case TK_INT:
-   case TK_STR:
+      spec = SPEC_INT;
+      break;
+   case TK_FIXED:
+      spec = SPEC_FIXED;
+      break;
    case TK_BOOL:
-      spec = SPEC_ZRAW;
+      spec = SPEC_BOOL;
+      break;
+   case TK_STR:
+      spec = SPEC_STR;
+      break;
+   case TK_RAW:
+      spec = SPEC_RAW;
       break;
    default:
       break;
@@ -1813,7 +1804,7 @@ void read_special( struct parse* parse ) {
    }
    // Special-number/function-index.
    struct func* func = alloc_func();
-   func->return_spec = SPEC_ZINT;
+   func->return_spec = SPEC_INT;
    p_test_tk( parse, TK_LIT_DECIMAL );
    int id = p_extract_literal_value( parse );
    p_read_tk( parse );

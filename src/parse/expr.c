@@ -438,7 +438,7 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    inc->pos = pos;
    inc->post = false;
    inc->dec = dec;
-   inc->zfixed = false;
+   inc->fixed = false;
    return inc;
 }
 
@@ -451,24 +451,24 @@ void read_cast( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
    int spec = SPEC_NONE;
    switch ( parse->tk ) {
-   case TK_ZRAW:
-      spec = SPEC_ZRAW;
+   case TK_RAW:
+      spec = SPEC_RAW;
       p_read_tk( parse );
       break;
-   case TK_ZINT:
-      spec = SPEC_ZINT;
+   case TK_INT:
+      spec = SPEC_INT;
       p_read_tk( parse );
       break;
-   case TK_ZFIXED:
-      spec = SPEC_ZFIXED;
+   case TK_FIXED:
+      spec = SPEC_FIXED;
       p_read_tk( parse );
       break;
-   case TK_ZBOOL:
-      spec = SPEC_ZBOOL;
+   case TK_BOOL:
+      spec = SPEC_BOOL;
       p_read_tk( parse );
       break;
-   case TK_ZSTR:
-      spec = SPEC_ZSTR;
+   case TK_STR:
+      spec = SPEC_STR;
       p_read_tk( parse );
       break;
    default:

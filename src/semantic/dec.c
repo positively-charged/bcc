@@ -131,7 +131,7 @@ static bool same_ref_implicit( struct ref* a, struct type_info* b );
 static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
-static bool compatible_zraw_spec( int spec );
+static bool compatible_raw_spec( int spec );
 static void present_ref( struct ref* ref, struct str* string,
    bool require_ampersand );
 static void present_spec( int spec, struct str* string );
@@ -214,9 +214,9 @@ void test_enumerator( struct semantic* semantic,
             "enumerator expression not constant" );
          s_bail( semantic );
       }
-      // The type of an enumerator is `zint`. Maybe, sometime later, we'll
+      // The type of an enumerator is `int`. Maybe, sometime later, we'll
       // allow the user to specify the type of an enumerator value.
-      if ( enumerator->initz->spec != SPEC_ZINT &&
+      if ( enumerator->initz->spec != SPEC_INT &&
          enumerator->initz->spec != SPEC_ENUM ) {
          s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
             "enumerator initializer of non-integer value" );
@@ -1106,8 +1106,8 @@ bool test_func_param( struct semantic* semantic,
       if ( expr.undef_erred ) {
          return false;
       }
-      if ( param->spec != SPEC_ZRAW &&
-         param->default_value->spec != SPEC_ZRAW ) {
+      if ( param->spec != SPEC_RAW &&
+         param->default_value->spec != SPEC_RAW ) {
          if ( param->default_value->spec != param->spec ) {
             default_value_mismatch( semantic, func, param, &expr );
             s_bail( semantic );
@@ -1124,6 +1124,7 @@ bool test_func_param( struct semantic* semantic,
 
 void default_value_mismatch( struct semantic* semantic, struct func* func,
    struct param* param, struct expr_test* expr ) {
+   s_diag( semantic, DIAG_POS, &param->default_value->pos, "mismatch" );
 /*
    struct str type;
    str_init( &type );
@@ -1202,7 +1203,7 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             "script number not a constant expression" );
          s_bail( semantic );
       }
-      script->named_script = ( script->number->spec == SPEC_ZSTR );
+      script->named_script = ( script->number->spec == SPEC_STR );
       if ( ! script->named_script ) {
          if ( script->number->value < SCRIPT_MIN_NUM ||
             script->number->value > SCRIPT_MAX_NUM ) {
@@ -1506,11 +1507,11 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
       return false;
    }
    // Specifier.
-   if ( a->spec == SPEC_ZRAW ) {
-      return compatible_zraw_spec( b->spec );
+   if ( a->spec == SPEC_RAW ) {
+      return compatible_raw_spec( b->spec );
    }
-   else if ( b->spec == SPEC_ZRAW ) {
-      return compatible_zraw_spec( a->spec );
+   else if ( b->spec == SPEC_RAW ) {
+      return compatible_raw_spec( a->spec );
    }
    else {
       return ( a->spec == b->spec );
@@ -1570,13 +1571,13 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       ( a->msgbuild == b->msgbuild );
 }
 
-bool compatible_zraw_spec( int spec ) {
+bool compatible_raw_spec( int spec ) {
    switch ( spec ) {
-   case SPEC_ZRAW:
-   case SPEC_ZINT:
-   case SPEC_ZFIXED:
-   case SPEC_ZBOOL:
-   case SPEC_ZSTR:
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
    case SPEC_ENUM:
       return true;
    }
@@ -1677,20 +1678,20 @@ void present_ref( struct ref* ref, struct str* string,
 
 void present_spec( int spec, struct str* string ) {
    switch ( spec ) {
-   case SPEC_ZRAW:
-      str_append( string, "zraw" );
+   case SPEC_RAW:
+      str_append( string, "raw" );
       break;
-   case SPEC_ZINT:
-      str_append( string, "zint" );
+   case SPEC_INT:
+      str_append( string, "int" );
       break;
-   case SPEC_ZFIXED:
-      str_append( string, "zfixed" );
+   case SPEC_FIXED:
+      str_append( string, "fixed" );
       break;
-   case SPEC_ZBOOL:
-      str_append( string, "zbool" );
+   case SPEC_BOOL:
+      str_append( string, "bool" );
       break;
-   case SPEC_ZSTR:
-      str_append( string, "zstr" );
+   case SPEC_STR:
+      str_append( string, "str" );
       break;
    case SPEC_VOID:
       str_append( string, "void" );
@@ -1715,19 +1716,19 @@ bool s_is_value_type( struct type_info* type ) {
 // now, only an integer key is possible.
 void s_iterate_type( struct type_info* type, struct type_iter* iter ) {
    if ( is_str_value_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, SPEC_ZINT );
-      s_init_type_info_scalar( &iter->value, SPEC_ZINT );
+      s_init_type_info_scalar( &iter->key, SPEC_INT );
+      s_init_type_info_scalar( &iter->value, SPEC_INT );
       iter->available = true;
    }
    else if ( is_array_ref_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, SPEC_ZINT );
+      s_init_type_info_scalar( &iter->key, SPEC_INT );
       subscript_array_type( type, &iter->value );
       iter->available = true;
    }
 }
 
 inline bool is_str_value_type( struct type_info* type ) {
-   return ( s_is_value_type( type ) && type->spec == SPEC_ZSTR );
+   return ( s_is_value_type( type ) && type->spec == SPEC_STR );
 }
 
 inline bool is_array_ref_type( struct type_info* type ) {
@@ -1802,5 +1803,5 @@ struct ref* dup_ref( struct ref* ref ) {
 
 bool is_onedim_int_array( struct type_info* type ) {
    return ( type->dim && ! type->dim->next && ! type->structure &&
-      ! type->ref && ( type->spec == SPEC_ZINT || type->spec == SPEC_ZRAW ) );
+      ! type->ref && ( type->spec == SPEC_INT || type->spec == SPEC_RAW ) );
 }
