@@ -154,6 +154,10 @@ static void visit_enumerator( struct codegen* codegen,
    struct result* result, struct enumerator* enumerator );
 static void visit_var( struct codegen* codegen, struct result* result,
    struct var* var );
+static void visit_private_ref_var( struct codegen* codegen,
+   struct result* result, struct var* var );
+static void visit_public_ref_var( struct codegen* codegen,
+   struct result* result, struct var* var );
 static void visit_param( struct codegen* codegen, struct result* result,
    struct param* param );
 static void visit_func( struct codegen* codegen, struct result* result,
@@ -1730,41 +1734,10 @@ void visit_var( struct codegen* codegen, struct result* result,
       result->ref = var->ref;
       result->structure = var->structure;
       if ( var->hidden ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, var->index );
-         if ( result->push ) {
-            if ( var->ref->type == REF_ARRAY ) {
-               c_pcd( codegen, PCD_DUP );
-               c_pcd( codegen, PCD_PUSHNUMBER, 1 );
-               c_pcd( codegen, PCD_ADD );
-               push_element( codegen, STORAGE_MAP,
-                  codegen->shared_array_index );
-               c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-               c_pcd( codegen, PCD_SWAP );
-               c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
-            }
-            push_element( codegen, STORAGE_MAP, codegen->shared_array_index );
-         }
-         result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
-         result->status = R_ARRAYINDEX;
+         visit_private_ref_var( codegen, result, var );
       }
       else {
-         if ( result->push ) {
-            push_indexed( codegen, var->storage, var->index );
-            if ( var->ref->type == REF_ARRAY ) {
-               c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-               push_indexed( codegen, var->storage, var->index + 1 );
-               c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
-            }
-            result->storage = STORAGE_MAP;
-            result->index = codegen->shared_array_index;
-            result->status = R_ARRAYINDEX;
-         }
-         else {
-            result->storage = var->storage;
-            result->index = var->index;
-            result->status = R_VAR;
-         }
+         visit_public_ref_var( codegen, result, var );
       }
    }
    // Structure variable.
@@ -1806,6 +1779,47 @@ void visit_var( struct codegen* codegen, struct result* result,
             result->status = R_VAR;
          }
       }
+   }
+}
+
+void visit_private_ref_var( struct codegen* codegen, struct result* result,
+   struct var* var ) {
+   c_pcd( codegen, PCD_PUSHNUMBER, var->index );
+   if ( result->push ) {
+      if ( var->ref->type == REF_ARRAY ) {
+         c_pcd( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+         c_pcd( codegen, PCD_ADD );
+         push_element( codegen, STORAGE_MAP,
+            codegen->shared_array_index );
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+      }
+      push_element( codegen, STORAGE_MAP, codegen->shared_array_index );
+   }
+   result->storage = STORAGE_MAP;
+   result->index = codegen->shared_array_index;
+   result->status = R_ARRAYINDEX;
+}
+
+void visit_public_ref_var( struct codegen* codegen, struct result* result,
+   struct var* var ) {
+   if ( result->push ) {
+      push_indexed( codegen, var->storage, var->index );
+      if ( var->ref->type == REF_ARRAY ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         push_indexed( codegen, var->storage, var->index + 1 );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+      }
+      result->storage = STORAGE_MAP;
+      result->index = codegen->shared_array_index;
+      result->status = R_ARRAYINDEX;
+   }
+   else {
+      result->storage = var->storage;
+      result->index = var->index;
+      result->status = R_VAR;
    }
 }
 
@@ -1923,6 +1937,10 @@ void push_element( struct codegen* codegen, int storage, int index ) {
    c_pcd( codegen, code, index );
 }
 
+void c_push_element( struct codegen* codegen, int storage, int index ) {
+   push_element( codegen, storage, index );
+}
+
 void c_update_indexed( struct codegen* codegen, int storage, int index,
    int op ) {
    static const int code[] = {
@@ -2004,4 +2022,33 @@ void c_update_element( struct codegen* codegen, int storage, int index,
    default: break;
    }
    c_pcd( codegen, code[ op * 4 + pos ], index );
+}
+
+void c_push_foreach_collection( struct codegen* codegen,
+   struct foreach_collection* collection, struct expr* expr ) {
+   struct result result;
+   init_result( &result, true );
+   visit_operand( codegen, &result, expr->root );
+   collection->ref = result.ref;
+   collection->structure = result.structure;
+   collection->dim = result.dim;
+   collection->storage = result.storage;
+   collection->index = result.index;
+   collection->diminfo_start = result.diminfo_start;
+   collection->base_pushed = ( result.status == R_ARRAYINDEX );
+   if ( result.dim ) {
+      collection->element_size_one_primitive =
+         ( result.dim->element_size == 1 );
+   }
+   else if ( result.ref ) {
+      collection->element_size_one_primitive =
+         ( result.ref->next && result.ref->next->type != REF_ARRAY );
+   }
+   else if ( result.structure ) {
+      collection->element_size_one_primitive =
+         ( result.structure->size == 1 );
+   }
+   else {
+      collection->element_size_one_primitive = true;
+   }
 }

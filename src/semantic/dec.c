@@ -944,11 +944,9 @@ void present_ref_element( struct initz_pres* pres, struct dim* dim,
 void refnotinit( struct semantic* semantic, struct initz_pres* pres,
    struct pos* pos ) {
    s_diag( semantic, DIAG_POS_ERR, pos,
-      "%s `%s` not initialized",
-      pres->member_last ? "member" : "element",
-      pres->output.value );
+      "`%s` not initialized", pres->output.value );
    s_diag( semantic, DIAG_POS, pos,
-      "a reference-type %s must be initialized explicitly",
+      "a reference-type %s must be initialized with a valid reference value",
       pres->member_last ? "member" : "element" );
    str_deinit( &pres->output );
 }
@@ -1435,7 +1433,7 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
       type->ref = &array->ref;
       type->structure = structure;
       type->enumeration = enumeration;
-      type->dim = dim;
+      // type->dim = dim;
       type->spec = spec;
       type->implicit_ref = true;
    }
@@ -1738,23 +1736,39 @@ inline bool is_array_ref_type( struct type_info* type ) {
 
 void subscript_array_type( struct type_info* type,
    struct type_info* element_type ) {
-   s_init_type_info( element_type, type->spec, NULL, NULL, type->structure,
-      type->enumeration, NULL );
    if ( type->dim ) {
-      element_type->dim = type->dim->next;
-      element_type->ref = type->ref;
+      s_init_type_info( element_type, type->spec, type->ref, type->dim->next,
+         type->structure, type->enumeration, NULL );
    }
    else if ( type->ref && type->ref->type == REF_ARRAY ) {
-      struct ref_array* part = ( struct ref_array* ) type->ref;
-      if ( part->dim_count > 1 ) {
-         struct ref_array* implicit_part =
+      s_init_type_info( element_type, type->spec, type->ref, NULL,
+         type->structure, type->enumeration, NULL );
+      struct ref_array* array = ( struct ref_array* ) type->ref;
+      if ( array->dim_count > 1 ) {
+         struct ref_array* implicit_array =
             &element_type->implicit_ref_part.array;
-         implicit_part->ref.next = part->ref.next;
-         implicit_part->ref.type = REF_ARRAY;
-         implicit_part->dim_count = part->dim_count - 1;
-         element_type->ref = &implicit_part->ref;
+         implicit_array->ref.next = array->ref.next;
+         implicit_array->ref.type = REF_ARRAY;
+         implicit_array->dim_count = array->dim_count - 1;
+         element_type->ref = &implicit_array->ref;
          element_type->implicit_ref = true;
       }
+      else if ( type->ref->next ) {
+         element_type->ref = element_type->ref->next;
+      }
+      else if ( type->structure ) {
+         struct ref_struct* implicit_ref =
+            &element_type->implicit_ref_part.structure;
+         implicit_ref->ref.next = NULL;
+         implicit_ref->ref.type = REF_STRUCTURE;
+         element_type->ref = &implicit_ref->ref;
+         element_type->structure = type->structure;
+         element_type->spec = SPEC_STRUCT;
+         element_type->implicit_ref = true;
+      }
+   }
+   else {
+      UNREACHABLE();
    }
 }
 
@@ -1776,6 +1790,7 @@ struct ref* dup_ref( struct ref* ref ) {
    size_t size = 0;
    switch ( ref->type ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;
+   case REF_STRUCTURE: size = sizeof( struct ref_struct ); break;
    default:
       UNREACHABLE()
       return NULL;

@@ -437,6 +437,13 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
 
 void foreach_mismatch( struct semantic* semantic, struct type_info* type,
    struct type_info* collection_type, struct pos* pos, const char* subject ) {
+
+struct dim* dim = collection_type->dim;
+while ( dim ) {
+   printf( "%d\n", dim->size );
+   dim = dim->next;
+}
+
    struct str type_s;
    str_init( &type_s );
    s_present_type( type, &type_s );
@@ -446,7 +453,7 @@ void foreach_mismatch( struct semantic* semantic, struct type_info* type,
    s_diag( semantic, DIAG_POS_ERR, pos,
       "%s/collection-%s type mismatch", subject, subject );
    s_diag( semantic, DIAG_POS, pos,
-      "%s %s, but %s collection-%s",
+      "`%s` %s, but `%s` collection-%s",
       type_s.value, subject, collection_type_s.value, subject );
    str_deinit( &collection_type_s );
    str_deinit( &type_s );

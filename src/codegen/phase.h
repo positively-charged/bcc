@@ -38,6 +38,17 @@ enum {
    SHAREDARRAYFIELD_TOTAL
 };
 
+struct foreach_collection {
+   struct ref* ref;
+   struct structure* structure;
+   struct dim* dim;
+   int storage;
+   int index;
+   int diminfo_start;
+   bool base_pushed;
+   bool element_size_one_primitive;
+};
+
 struct codegen {
    struct task* task;
    struct buffer* buffer_head;
@@ -127,5 +138,8 @@ void c_write_arg( struct codegen* codegen, int arg );
 void c_push_string( struct codegen* codegen, struct indexed_string* string );
 int c_alloc_script_var( struct codegen* codegen );
 void c_dealloc_last_script_var( struct codegen* codegen );
+void c_push_foreach_collection( struct codegen* codegen,
+   struct foreach_collection* collection, struct expr* expr );
+void c_push_element( struct codegen* codegen, int storage, int index );
 
 #endif
