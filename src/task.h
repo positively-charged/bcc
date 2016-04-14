@@ -576,6 +576,8 @@ struct var {
 
 struct param {
    struct object object;
+   struct ref* ref;
+   struct path* path;
    struct param* next;
    struct name* name;
    struct expr* default_value;

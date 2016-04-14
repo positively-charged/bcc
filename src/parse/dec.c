@@ -7,10 +7,23 @@
 #define MAX_GLOBAL_LOCATIONS 64
 #define SCRIPT_MAX_PARAMS 4
 
+enum {
+   AREA_VAR,
+   AREA_MEMBER,
+   AREA_FUNCRETURN,
+};
+
 struct ref_reading {
    struct ref* head;
    int storage;
    int storage_index;
+};
+
+struct spec_reading {
+   struct path* path;
+   struct pos pos;
+   int type;
+   int area;
 };
 
 struct params {
@@ -53,13 +66,15 @@ static void add_struct_member( struct parse* parse, struct dec* );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
-static void read_spec( struct parse* parse, struct dec* dec );
+static void init_spec_reading( struct spec_reading* spec, int area );
+static void read_spec( struct parse* parse, struct spec_reading* spec );
+static void read_name_spec( struct parse* parse, struct spec_reading* spec );
+static void missing_spec( struct parse* parse, struct spec_reading* spec );
 static void read_extended_spec( struct parse* parse, struct dec* dec );
-static void missing_type( struct parse* parse, struct dec* dec );
-static void read_named_type( struct parse* parse, struct dec* dec );
 static void init_ref( struct ref* ref, int type, struct pos* pos );
 static void prepend_ref( struct ref_reading* reading, struct ref* part );
-static void read_ref( struct parse* parse, struct dec* dec );
+static void init_ref_reading( struct ref_reading* reading );
+static void read_ref( struct parse* parse, struct ref_reading* reading );
 static void read_struct_ref( struct parse* parse,
    struct ref_reading* reading );
 static void read_ref_storage( struct parse* parse,
@@ -79,7 +94,6 @@ static void init_params( struct params* );
 static void read_params( struct parse* parse, struct params* );
 static void read_param( struct parse* parse, struct params* params );
 static struct param* alloc_param( void );
-static void read_param_spec( struct parse* parse, struct param* param );
 static void read_script_number( struct parse* parse, struct script* );
 static void read_script_param_paren( struct parse* parse,
    struct script* script, struct script_reading* reading );
@@ -497,7 +511,10 @@ void read_struct_member( struct parse* parse, struct dec* dec,
    member.name_offset = structure->body;
    member.vars = dec->vars;
    read_extended_spec( parse, &member );
-   read_ref( parse, &member );
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   member.ref = ref.head;
    while ( true ) {
       read_name( parse, &member );
       read_dim( parse, &member );
@@ -565,7 +582,10 @@ void read_var( struct parse* parse, struct dec* dec ) {
    else {
       read_storage( parse, dec );
       read_extended_spec( parse, dec );
-      read_ref( parse, dec );
+      struct ref_reading ref;
+      init_ref_reading( &ref );
+      read_ref( parse, &ref );
+      dec->ref = ref.head;
       read_instance_list( parse, dec );
       // check_useless( parse, dec );
    }
@@ -595,40 +615,69 @@ void read_storage( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_spec( struct parse* parse, struct dec* dec ) {
-   dec->type_pos = parse->tk_pos;
+void init_spec_reading( struct spec_reading* spec, int area ) {
+   spec->path = NULL;
+   spec->type = SPEC_NONE;
+   spec->area = area;
+}
+
+void read_spec( struct parse* parse, struct spec_reading* spec ) {
+   spec->pos = parse->tk_pos;
    switch ( parse->tk ) {
    case TK_RAW:
-      dec->spec = SPEC_RAW;
+      spec->type = SPEC_RAW;
       p_read_tk( parse );
       break;
    case TK_INT:
-      dec->spec = SPEC_INT;
+      spec->type = SPEC_INT;
       p_read_tk( parse );
       break;
    case TK_FIXED:
-      dec->spec = SPEC_FIXED;
+      spec->type = SPEC_FIXED;
       p_read_tk( parse );
       break;
    case TK_BOOL:
-      dec->spec = SPEC_BOOL;
+      spec->type = SPEC_BOOL;
       p_read_tk( parse );
       break;
    case TK_STR:
-      dec->spec = SPEC_STR;
+      spec->type = SPEC_STR;
       p_read_tk( parse );
       break;
    case TK_VOID:
-      dec->spec = SPEC_VOID;
+      spec->type = SPEC_VOID;
       p_read_tk( parse );
       break;
    case TK_ID:
    case TK_UPMOST:
-      read_named_type( parse, dec );
+      read_name_spec( parse, spec );
       break;
    default:
-      missing_type( parse, dec );
+      missing_spec( parse, spec );
+      p_bail( parse );
    }
+}
+
+void read_name_spec( struct parse* parse, struct spec_reading* spec ) {
+   spec->path = p_read_path( parse );
+   spec->type = SPEC_NAME;
+}
+
+void missing_spec( struct parse* parse, struct spec_reading* spec ) {
+   const char* subject;
+   switch ( spec->area ) {
+   case AREA_FUNCRETURN:
+      subject = "function return-type";
+      break;
+   case AREA_MEMBER:
+      subject = "struct-member type";
+      break;
+   default:
+      subject = "object type";
+      break;
+   }
+   p_unexpect_diag( parse );
+   p_unexpect_last_name( parse, NULL, subject );
 }
 
 void read_extended_spec( struct parse* parse, struct dec* dec ) {
@@ -642,40 +691,31 @@ void read_extended_spec( struct parse* parse, struct dec* dec ) {
       }
    }
    else {
-      read_spec( parse, dec );
+      struct spec_reading spec;
+      init_spec_reading( &spec, dec->read_func ?
+         AREA_FUNCRETURN : dec->area == DEC_MEMBER ?
+         AREA_MEMBER : AREA_VAR );
+      read_spec( parse, &spec );
+      dec->type_pos = spec.pos;
+      dec->spec = spec.type;
+      dec->type_path = spec.path;
    }
 }
 
-void missing_type( struct parse* parse, struct dec* dec ) {
-   const char* subject;
-   if ( dec->read_func ) {
-      subject = "function return-type";
-   }
-   else if ( dec->area == DEC_MEMBER ) {
-      subject = "struct-member type";
-   }
-   else {
-      subject = "object type";
-   }
-   p_unexpect_diag( parse );
-   p_unexpect_last_name( parse, NULL, subject );
-   p_bail( parse );
+void init_ref_reading( struct ref_reading* reading ) {
+   reading->head = NULL;
+   reading->storage = STORAGE_MAP;
+   reading->storage_index = 0;
 }
 
-void read_named_type( struct parse* parse, struct dec* dec ) {
-   dec->type_path = p_read_path( parse );
-   dec->spec = SPEC_NAME;
-}
-
-void read_ref( struct parse* parse, struct dec* dec ) {
-   struct ref_reading reading = { NULL, STORAGE_MAP, 0 };
+void read_ref( struct parse* parse, struct ref_reading* reading ) {
    // Read structure reference.
    switch ( parse->tk ) {
    case TK_GLOBAL:
    case TK_WORLD:
    case TK_SCRIPT:
    case TK_BIT_AND:
-      read_struct_ref( parse, &reading );
+      read_struct_ref( parse, reading );
       break;
    default:
       break;
@@ -684,10 +724,10 @@ void read_ref( struct parse* parse, struct dec* dec ) {
    while ( parse->tk == TK_BRACKET_L || parse->tk == TK_FUNCTION ) {
       switch ( parse->tk ) {
       case TK_BRACKET_L:
-         read_array_ref( parse, &reading );
+         read_array_ref( parse, reading );
          break;
       case TK_FUNCTION:
-         read_func_ref( parse, &reading );
+         read_func_ref( parse, reading );
          break;
       default:
          UNREACHABLE()
@@ -699,8 +739,6 @@ void read_ref( struct parse* parse, struct dec* dec ) {
          break;
       }
    }
-   // Done.
-   dec->ref = reading.head;
 }
 
 void init_ref( struct ref* ref, int type, struct pos* pos ) {
@@ -1233,7 +1271,10 @@ void read_func( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
    read_func_qual( parse, dec );
    read_extended_spec( parse, dec );
-   read_ref( parse, dec );
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   dec->ref = ref.head;
    read_name( parse, dec );
    struct func* func = mem_slot_alloc( sizeof( *func ) );
    t_init_object( &func->object, NODE_FUNC );
@@ -1359,12 +1400,13 @@ void init_params( struct params* params ) {
 } 
 
 void read_params( struct parse* parse, struct params* params ) {
-   if ( parse->tk == TK_VOID ) {
+   if ( parse->tk == TK_VOID && p_peek( parse ) == TK_PAREN_R ) {
       p_read_tk( parse );
-      return;
    }
-   while ( ! params->done ) {
-      read_param( parse, params );
+   else {
+      while ( ! params->done ) {
+         read_param( parse, params );
+      }
    }
 }
 
@@ -1372,7 +1414,17 @@ void read_param( struct parse* parse, struct params* params ) {
    struct pos pos = parse->tk_pos;
    struct param* param = alloc_param();
    param->object.pos = pos;
-   read_param_spec( parse, param );
+   // Specifier.
+   struct spec_reading spec;
+   init_spec_reading( &spec, AREA_VAR );
+   read_spec( parse, &spec );
+   param->path = spec.path;
+   param->spec = spec.type;
+   // Reference.
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   param->ref = ref.head;
    // Name not required for a parameter.
    if ( parse->tk == TK_ID ) {
       param->name = t_extend_name( parse->ns->body, parse->tk_text );
@@ -1415,6 +1467,7 @@ struct param* alloc_param( void ) {
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    t_init_object( &param->object, NODE_PARAM );
    param->spec = SPEC_NONE;
+   param->ref = NULL;
    param->next = NULL;
    param->name = NULL;
    param->default_value = NULL;
@@ -1422,37 +1475,6 @@ struct param* alloc_param( void ) {
    param->obj_pos = 0;
    param->used = false;
    return param;
-}
-
-void read_param_spec( struct parse* parse, struct param* param ) {
-   int spec = SPEC_NONE;
-   switch ( parse->tk ) {
-   case TK_INT:
-      spec = SPEC_INT;
-      break;
-   case TK_FIXED:
-      spec = SPEC_FIXED;
-      break;
-   case TK_BOOL:
-      spec = SPEC_BOOL;
-      break;
-   case TK_STR:
-      spec = SPEC_STR;
-      break;
-   case TK_RAW:
-      spec = SPEC_RAW;
-      break;
-   default:
-      break;
-   }
-   if ( spec == SPEC_NONE ) {
-      p_unexpect_diag( parse );
-      p_unexpect_name( parse, &parse->tk_pos, "parameter type" );
-      p_unexpect_last( parse, &parse->tk_pos, TK_PAREN_R );
-      p_bail( parse );
-   }
-   param->spec = spec;
-   p_read_tk( parse );
 }
 
 void read_bfunc( struct parse* parse, struct func* func ) {
@@ -1565,8 +1587,16 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
    }
    else {
-      read_spec( parse, dec );
-      read_ref( parse, dec );
+      struct spec_reading spec;
+      init_spec_reading( &spec, AREA_VAR );
+      read_spec( parse, &spec );
+      dec->type_pos = spec.pos;
+      dec->spec = spec.type;
+      dec->type_path = spec.path;
+      struct ref_reading ref;
+      init_ref_reading( &ref );
+      read_ref( parse, &ref );
+      dec->ref = ref.head;
    }
    read_name( parse, dec );
 }
