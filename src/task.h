@@ -577,12 +577,15 @@ struct var {
 struct param {
    struct object object;
    struct ref* ref;
+   struct structure* structure;
+   struct enumeration* enumeration;
    struct path* path;
    struct param* next;
    struct name* name;
    struct expr* default_value;
    int spec;
    int index;
+   int size;
    int obj_pos;
    bool used;
 };

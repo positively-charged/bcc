@@ -110,7 +110,7 @@ static void test_array_format_item( struct semantic* semantic,
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
-   struct result* result, struct result* required_result, int number );
+   struct type_info* type, struct type_info* param_type, int number );
 static void present_func( struct call_test* test, struct str* msg );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
@@ -1603,11 +1603,13 @@ void test_remaining_args( struct semantic* semantic,
       init_result( &result );
       test_nested_root( semantic, expr_test, &nested, &result, expr );
       if ( param ) {
-         struct result required_result;
-         init_result( &required_result );
-         required_result.spec = param->spec;
-         if ( ! same_type( &required_result, &result ) ) {
-            arg_mismatch( semantic, &expr->pos, &result, &required_result,
+         struct type_info type;
+         init_type_info( &type, &result );
+         struct type_info param_type;
+         s_init_type_info( &param_type, param->spec, param->ref, NULL,
+            param->structure, param->enumeration, NULL );
+         if ( ! s_same_type( &param_type, &type ) ) {
+            arg_mismatch( semantic, &expr->pos, &type, &param_type,
                test->num_args + 1 );
             s_bail( semantic );
          }
@@ -1619,24 +1621,20 @@ void test_remaining_args( struct semantic* semantic,
 }
 
 void arg_mismatch( struct semantic* semantic, struct pos* pos,
-   struct result* result, struct result* required_result, int number ) {
-   struct type_info arg_type;
-   init_type_info( &arg_type, result );
-   struct type_info param_type;
-   init_type_info( &param_type, required_result );
-   struct str arg_type_s;
-   str_init( &arg_type_s );
-   s_present_type( &arg_type, &arg_type_s );
+   struct type_info* type, struct type_info* param_type, int number ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_type( type, &type_s );
    struct str param_type_s;
    str_init( &param_type_s );
-   s_present_type( &param_type, &param_type_s );
+   s_present_type( param_type, &param_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
       "argument/parameter type mismatch (in argument %d)", number );
    s_diag( semantic, DIAG_POS, pos,
       "`%s` argument, but `%s` parameter",
-      arg_type_s.value, param_type_s.value );
+      type_s.value, param_type_s.value );
    str_deinit( &param_type_s );
-   str_deinit( &arg_type_s );
+   str_deinit( &type_s );
 }
 
 void present_func( struct call_test* test, struct str* msg ) {
@@ -1860,6 +1858,9 @@ void select_var( struct expr_test* test, struct result* result,
 
 void select_param( struct result* result, struct param* param ) {
    result->spec = param->spec;
+   result->ref = param->ref;
+   result->structure = param->structure;
+   result->enumeration = param->enumeration;
    result->complete = true;
    result->usable = true;
    result->assignable = true;

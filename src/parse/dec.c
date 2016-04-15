@@ -1374,6 +1374,8 @@ struct func* alloc_func( void ) {
    t_init_object( &func->object, NODE_FUNC );
    func->type = FUNC_ASPEC;
    func->ref = NULL;
+   func->structure = NULL;
+   func->enumeration = NULL;
    func->name = NULL;
    func->params = NULL;
    func->impl = NULL;
@@ -1466,12 +1468,15 @@ void read_param( struct parse* parse, struct params* params ) {
 struct param* alloc_param( void ) {
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    t_init_object( &param->object, NODE_PARAM );
-   param->spec = SPEC_NONE;
    param->ref = NULL;
+   param->structure = NULL;
+   param->enumeration = NULL;
    param->next = NULL;
    param->name = NULL;
    param->default_value = NULL;
+   param->spec = SPEC_NONE;
    param->index = 0;
+   param->size = 0;
    param->obj_pos = 0;
    param->used = false;
    return param;

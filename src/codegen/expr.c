@@ -1264,7 +1264,17 @@ void write_call_args( struct codegen* codegen, struct call* call ) {
    list_iter_init( &i, &call->args );
    struct param* param = call->func->params;
    while ( ! list_end( &i ) ) {
-      c_push_expr( codegen, list_data( &i ) );
+      struct result arg;
+      init_result( &arg, true );
+      struct expr* expr = list_data( &i );
+      visit_operand( codegen, &arg, expr->root );
+      if ( arg.dim ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, arg.diminfo_start );
+      }
+      else if ( arg.ref && arg.ref->type == REF_ARRAY ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      }
       list_next( &i );
       param = param->next;
    }
@@ -1310,7 +1320,9 @@ void call_user_func( struct codegen* codegen, struct call* call,
    }
    // Primitive-type result.
    else {
-      result->status = R_VALUE;
+      if ( call->func->return_spec != SPEC_VOID ) {
+         result->status = R_VALUE;
+      }
    }
 }
 
@@ -1825,13 +1837,38 @@ void visit_public_ref_var( struct codegen* codegen, struct result* result,
 
 void visit_param( struct codegen* codegen, struct result* result,
    struct param* param ) {
-   if ( result->push ) {
-      push_indexed( codegen, STORAGE_LOCAL, param->index );
-      result->status = R_VALUE;
+   // Reference parameter.
+   if ( param->ref ) {
+      result->ref = param->ref;
+      result->structure = param->structure;
+      if ( result->push ) {
+         push_indexed( codegen, STORAGE_LOCAL, param->index );
+         if ( param->ref->type == REF_ARRAY ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+            push_indexed( codegen, STORAGE_LOCAL, param->index + 1 );
+            c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+         }
+         result->storage = STORAGE_MAP;
+         result->index = codegen->shared_array_index;
+         result->status = R_ARRAYINDEX;
+      }
+      else {
+         result->storage = STORAGE_LOCAL;
+         result->index = param->index;
+         result->status = R_VAR;
+      }
    }
+   // Primitive parameter.
    else {
-      result->storage = STORAGE_LOCAL;
-      result->index = param->index;
+      if ( result->push ) {
+         push_indexed( codegen, STORAGE_LOCAL, param->index );
+         result->status = R_VALUE;
+      }
+      else {
+         result->storage = STORAGE_LOCAL;
+         result->index = param->index;
+         result->status = R_VAR;
+      }
    }
 }
 

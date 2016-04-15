@@ -116,6 +116,7 @@ static bool test_func_param( struct semantic* semantic,
 static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct expr_test* expr );
 static int get_param_number( struct func* func, struct param* target );
+static void calc_param_size( struct param* param );
 static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref );
 static void calc_struct_size( struct structure* structure );
@@ -1099,6 +1100,14 @@ bool test_func_paramlist( struct semantic* semantic, struct func* func ) {
 
 bool test_func_param( struct semantic* semantic,
    struct func* func, struct param* param ) {
+   if ( param->spec == SPEC_NAME ) {
+      struct var_test test;
+      init_var_test( &test, param->path );
+      resolve_name_spec( semantic, &test );
+      param->structure = test.structure;
+      param->enumeration = test.enumeration;
+      param->spec = test.spec;
+   }
    if ( param->default_value ) {
       struct expr_test expr;
       s_init_expr_test( &expr, NULL, NULL, true, false );
@@ -1119,6 +1128,7 @@ bool test_func_param( struct semantic* semantic,
    if ( param->name && param->name->object != &param->object ) {
       s_bind_name( semantic, param->name, &param->object );
    }
+   calc_param_size( param );
    return true;
 }
 
@@ -1247,6 +1257,10 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
 
 void s_calc_var_size( struct var* var ) {
    var->size = calc_size( var->dim, var->structure, var->ref );
+}
+
+void calc_param_size( struct param* param ) {
+   param->size = calc_size( NULL, NULL, param->ref );
 }
 
 int calc_size( struct dim* dim, struct structure* structure,

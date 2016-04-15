@@ -103,7 +103,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
       assign_nested_call_ids( codegen, impl->nested_funcs );
    }
    alloc_param_indexes( &record, func->params );
-   add_default_params( codegen, func, func->max_param, true );
+   add_default_params( codegen, func, record.count_param, true );
    c_write_block( codegen, impl->body );
    c_pcd( codegen, PCD_RETURNVOID );
    impl->size = record.size;
@@ -122,15 +122,25 @@ void init_func_record( struct func_record* record ) {
    record->start_index = 0;
    record->array_index = 0;
    record->size = 0;
+   record->count_param = 0;
    record->nested_func = false;
 }
 
 void alloc_param_indexes( struct func_record* func, struct param* param ) {
+   bool default_value_used = false;
    while ( param ) {
       param->index = func->start_index;
+      func->start_index += param->size;
+      func->size += param->size;
+      if ( param->default_value ) {
+         default_value_used = true;
+      }
+      param = param->next;
+   }
+   if ( default_value_used ) {
+      func->count_param = func->start_index;
       ++func->start_index;
       ++func->size;
-      param = param->next;
    }
 }
 
