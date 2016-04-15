@@ -699,6 +699,7 @@ struct func_intern {
 
       INTERN_FUNC_STR_LENGTH = INTERN_FUNC_STANDALONE_TOTAL,
       INTERN_FUNC_STR_AT,
+      INTERN_FUNC_ARRAY_SIZE,
       INTERN_FUNC_MEMBER_TOTAL
    } id;
 };
@@ -965,6 +966,7 @@ struct task {
    struct mnemonic* mnemonics;
    struct list runtime_asserts;
    struct name* root_name;
+   struct name* array_name;
 };
 
 #define DIAG_NONE 0

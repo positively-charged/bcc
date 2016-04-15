@@ -36,6 +36,17 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->mnemonics = NULL;
    list_init( &task->runtime_asserts );
    task->root_name = t_create_name();
+   task->array_name = t_create_name();
+   struct func_intern* impl = mem_alloc( sizeof( *impl ) );
+   impl->id = INTERN_FUNC_ARRAY_SIZE;
+   struct func* func = t_alloc_func();
+   func->object.resolved = true;
+   func->type = FUNC_INTERNAL;
+   func->impl = impl;
+   func->return_spec = SPEC_INT;
+   struct name* name = t_extend_name( task->array_name, ".size" );
+   func->name = name;
+   name->object = &func->object;
 }
 
 struct ns* t_alloc_ns( struct task* task, struct name* name ) {

@@ -136,6 +136,8 @@ static void visit_internal_call( struct codegen* codegen,
    struct result* result, struct call* call );
 static void write_executewait( struct codegen* codegen, struct call* call,
    bool named_impl );
+static void call_array_size( struct codegen* codegen, struct result* result,
+   struct call* call );
 static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_literal( struct codegen* codegen, struct result* result,
@@ -1021,6 +1023,9 @@ void visit_access( struct codegen* codegen, struct result* result,
       visit_enumerator( codegen, result,
          ( struct enumerator* ) access->rside );
    }
+   else if ( access->rside->type == NODE_FUNC ) {
+      *result = lside;
+   }
 }
 
 void access_structure_member( struct codegen* codegen,
@@ -1572,6 +1577,9 @@ void visit_internal_call( struct codegen* codegen, struct result* result,
       c_push_expr( codegen, list_head( &call->args ) );
       c_pcd( codegen, PCD_CALLFUNC, 2, 15 );
    }
+   else if ( impl->id == INTERN_FUNC_ARRAY_SIZE ) {
+      call_array_size( codegen, result, call );
+   }
 }
 
 void write_executewait( struct codegen* codegen, struct call* call,
@@ -1602,6 +1610,35 @@ void write_executewait( struct codegen* codegen, struct call* call,
    }
 }
 
+void call_array_size( struct codegen* codegen, struct result* result,
+   struct call* call ) {
+   struct result operand;
+   init_result( &operand, true );
+   visit_operand( codegen, &operand, call->operand );
+   if ( operand.status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_DROP );
+   }
+   if ( operand.dim ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, operand.dim->size );
+   }
+   else if ( operand.ref && operand.ref->type == REF_ARRAY ) {
+      struct ref_array* array = ( struct ref_array* ) operand.ref;
+      int dim_count = operand.ref_dim ? operand.ref_dim : array->dim_count;
+      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      if ( dim_count > 1 ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      if ( dim_count > 1 ) {
+         c_pcd( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+         c_pcd( codegen, PCD_ADD );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_DIVIDE );
+      }
+   }
+}
 
 void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node ) {

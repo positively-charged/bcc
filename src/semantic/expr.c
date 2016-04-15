@@ -1207,6 +1207,9 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    else if ( lside.ns ) {
       name = lside.ns->name;
    }
+   else if ( lside.dim || ( lside.ref && lside.ref->type == REF_ARRAY ) ) {
+      name = semantic->task->array_name;
+   }
    if ( ! name ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand does not support member access" );
