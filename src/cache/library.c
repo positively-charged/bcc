@@ -313,6 +313,7 @@ void save_func( struct saver* saver, struct func* func ) {
    WV( saver, F_RETURNSPEC, &func->return_spec );
    WV( saver, F_MINPARAM, &func->min_param );
    WV( saver, F_MAXPARAM, &func->max_param );
+   WV( saver, F_MSGBUILD, &func->msgbuild );
    WF( saver, F_END );
 }
 
@@ -343,8 +344,6 @@ void save_impl( struct saver* saver, struct func* func ) {
       WV( saver, F_OPCODE, &format->opcode );
       break;
    case FUNC_USER:
-      user = func->impl;
-      WV( saver, F_MSGBUILD, &user->msgbuild );
       break;
    case FUNC_INTERNAL:
       intern = func->impl;
@@ -709,6 +708,7 @@ void restore_func( struct restorer* restorer ) {
    RV( restorer, F_RETURNSPEC, &func->return_spec );
    RV( restorer, F_MINPARAM, &func->min_param );
    RV( restorer, F_MAXPARAM, &func->max_param );
+   RV( restorer, F_MSGBUILD, &func->msgbuild );
    RF( restorer, F_END );
    list_append( &restorer->ns->objects, func );
    list_append( &restorer->lib->objects, func );
@@ -746,7 +746,6 @@ void restore_impl( struct restorer* restorer, struct func* func ) {
       break;
    case FUNC_USER:
       user = t_alloc_func_user();
-      RV( restorer, F_MSGBUILD, &user->msgbuild );
       func->impl = user;
       break;
    case FUNC_INTERNAL:

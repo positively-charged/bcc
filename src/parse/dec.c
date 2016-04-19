@@ -576,8 +576,8 @@ void read_var( struct parse* parse, struct dec* dec ) {
    read_qual( parse, dec );
    if ( parse->tk == TK_AUTO ) {
       dec->spec = SPEC_AUTO;
-      read_auto_instance_list( parse, dec );
       p_read_tk( parse );
+      read_auto_instance_list( parse, dec );
    }
    else {
       read_storage( parse, dec );
@@ -1291,6 +1291,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = dec->private_visibility;
+   func->msgbuild = dec->msgbuild;
    // Parameter list:
    p_test_tk( parse, TK_PAREN_L );
    struct pos params_pos = parse->tk_pos;
@@ -1324,7 +1325,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->obj_pos = 0;
       impl->index_offset = 0;
       impl->nested = ( dec->area == DEC_LOCAL );
-      impl->msgbuild = dec->msgbuild;
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! parse->lib->imported ) {

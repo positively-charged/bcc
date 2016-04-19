@@ -123,6 +123,8 @@ static void write_jumpable_format_block( struct codegen* codegen,
    struct format_block_usage* usage );
 static void visit_array_format_item( struct codegen* codegen,
    struct format_item* item );
+static void visit_msgbuild_format_item( struct codegen* codegen,
+   struct format_item* item );
 static void visit_user_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_nested_userfunc_call( struct codegen* codegen,
@@ -1382,36 +1384,41 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
 
 void visit_format_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   c_pcd( codegen, PCD_BEGINPRINT );
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
-   struct node* node = list_data( &i );
-   // Format-block:
-   if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
-      visit_formatblock_arg( codegen, ( struct format_block_usage* ) node );
+   if ( call->func == codegen->task->append_func ) {
+      c_visit_format_item( codegen, list_head( &call->args ) );
    }
-   // Format-list:
    else {
-      c_visit_format_item( codegen, list_data( &i ) );
-   }
-   list_next( &i );
-   // Other arguments.
-   if ( call->func->max_param > 1 ) {
-      c_pcd( codegen, PCD_MOREHUDMESSAGE );
-      int param = 1;
-      while ( ! list_end( &i ) ) {
-         if ( param == call->func->min_param ) {
-            c_pcd( codegen, PCD_OPTHUDMESSAGE );
-         }
-         c_push_expr( codegen, list_data( &i ) );
-         ++param;
-         list_next( &i );
+      c_pcd( codegen, PCD_BEGINPRINT );
+      list_iter_t i;
+      list_iter_init( &i, &call->args );
+      struct node* node = list_data( &i );
+      // Format-block:
+      if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
+         visit_formatblock_arg( codegen, ( struct format_block_usage* ) node );
       }
-   }
-   struct func_format* format = call->func->impl;
-   c_pcd( codegen, format->opcode );
-   if ( call->func->return_spec != SPEC_VOID ) {
-      result->status = R_VALUE;
+      // Format-list:
+      else {
+         c_visit_format_item( codegen, list_data( &i ) );
+      }
+      list_next( &i );
+      // Other arguments.
+      if ( call->func->max_param > 1 ) {
+         c_pcd( codegen, PCD_MOREHUDMESSAGE );
+         int param = 1;
+         while ( ! list_end( &i ) ) {
+            if ( param == call->func->min_param ) {
+               c_pcd( codegen, PCD_OPTHUDMESSAGE );
+            }
+            c_push_expr( codegen, list_data( &i ) );
+            ++param;
+            list_next( &i );
+         }
+      }
+      struct func_format* format = call->func->impl;
+      c_pcd( codegen, format->opcode );
+      if ( call->func->return_spec != SPEC_VOID ) {
+         result->status = R_VALUE;
+      }
    }
 }
 
@@ -1491,7 +1498,9 @@ void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
          visit_array_format_item( codegen, item );
-         
+      }
+      else if ( item->cast == FCAST_MSGBUILD ) {
+         visit_msgbuild_format_item( codegen, item );
       }
       else {
          static const int casts[] = {
@@ -1504,7 +1513,7 @@ void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
             PCD_PRINTNAME,
             PCD_PRINTSTRING,
             PCD_PRINTHEX };
-         STATIC_ASSERT( FCAST_TOTAL == 10 );
+         STATIC_ASSERT( FCAST_TOTAL == 11 );
          c_push_expr( codegen, item->value );
          c_pcd( codegen, casts[ item->cast - 1 ] );
       }
@@ -1570,6 +1579,20 @@ void visit_array_format_item( struct codegen* codegen,
       }
    }
    c_pcd( codegen, code );
+}
+
+void visit_msgbuild_format_item( struct codegen* codegen,
+   struct format_item* item ) {
+   struct format_item_msgbuild* extra = item->extra;
+   if ( extra->func ) {
+      struct func_user* impl = extra->func->impl;
+      c_pcd( codegen, PCD_CALLDISCARD, impl->index );
+   }
+   else {
+      c_push_expr( codegen, item->value );
+      c_pcd( codegen, PCD_CALLSTACK );
+      c_pcd( codegen, PCD_DROP );
+   }
 }
 
 void visit_internal_call( struct codegen* codegen, struct result* result,

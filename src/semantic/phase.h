@@ -34,7 +34,6 @@ struct type_info {
    struct structure* structure;
    struct enumeration* enumeration;
    struct dim* dim;
-   struct func* func;
    int spec;
    union {
       struct ref_struct structure;
@@ -114,7 +113,10 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
    struct enumeration* enumeration, struct func* func );
 void s_init_type_info_scalar( struct type_info* type, int spec );
-void s_init_type_info_func( struct type_info* type, struct func* func );
+void s_init_type_info_func( struct type_info* type, struct ref* ref,
+   struct structure* structure, struct enumeration* enumeration,
+   struct param* params, int return_spec, int min_param, int max_param,
+   bool msgbuild );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_ref_type( struct type_info* type );

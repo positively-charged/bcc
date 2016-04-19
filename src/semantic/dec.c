@@ -1186,6 +1186,11 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    }
    struct stmt_test* prev = semantic->func_test;
    semantic->func_test = &test;
+   if ( func->msgbuild ) {
+      struct name* name = t_extend_name( semantic->ns->body, "append" );
+      semantic->task->append_func->name = name;
+      s_bind_name( semantic, name, &semantic->task->append_func->object );
+   }
    s_test_block( semantic, &test, impl->body );
    semantic->func_test = prev;
    impl->returns = test.returns;
@@ -1482,25 +1487,23 @@ void init_type_info( struct type_info* type ) {
    type->structure = NULL;
    type->enumeration = NULL;
    type->dim = NULL;
-   type->func = NULL;
    type->spec = SPEC_NONE;
    type->implicit_ref = false;
 }
 
-void s_init_type_info_func( struct type_info* type, struct func* func ) {
+void s_init_type_info_func( struct type_info* type, struct ref* ref,
+   struct structure* structure, struct enumeration* enumeration,
+   struct param* params, int return_spec, int min_param, int max_param,
+   bool msgbuild ) {
    struct ref_func* part = &type->implicit_ref_part.func;
-   part->ref.next = func->ref;
+   part->ref.next = ref;
    part->ref.type = REF_FUNCTION;
-   part->params = func->params;
-   part->min_param = func->min_param;
-   part->max_param = func->max_param;
-   part->msgbuild = false;
-   if ( func->type == FUNC_USER ) {
-      struct func_user* impl = func->impl;
-      part->msgbuild = impl->msgbuild;
-   }
-   s_init_type_info( type, func->return_spec, &part->ref, NULL,
-      func->structure, func->enumeration, func );
+   part->params = params;
+   part->min_param = min_param;
+   part->max_param = max_param;
+   part->msgbuild = msgbuild;
+   s_init_type_info( type, return_spec, &part->ref, NULL, structure,
+      enumeration, NULL );
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {

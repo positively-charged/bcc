@@ -47,6 +47,17 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    struct name* name = t_extend_name( task->array_name, ".size" );
    func->name = name;
    name->object = &func->object;
+
+   struct func_format* format_impl = mem_alloc( sizeof( *format_impl ) );
+   format_impl->opcode = 0;
+   func = t_alloc_func();
+   func->object.resolved = true;
+   func->type = FUNC_FORMAT;
+   func->impl = format_impl;
+   func->return_spec = SPEC_VOID;
+   func->min_param = 1;
+   func->max_param = 1;
+   task->append_func = func;
 }
 
 struct ns* t_alloc_ns( struct task* task, struct name* name ) {
@@ -739,6 +750,7 @@ struct func* t_alloc_func( void ) {
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;
+   func->msgbuild = false;
    return func;
 }
 
@@ -759,7 +771,6 @@ struct func_user* t_alloc_func_user( void ) {
    impl->obj_pos = 0;
    impl->index_offset = 0;
    impl->nested = false;
-   impl->msgbuild = false;
    return impl;
 }
 

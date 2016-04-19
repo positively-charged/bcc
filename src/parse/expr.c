@@ -744,7 +744,7 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    struct list args;
    list_init( &args );
    // Format list:
-   if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
+   if ( peek_format_cast( parse ) ) {
       list_append( &args, p_read_format_item( parse, true ) );
       if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
@@ -830,7 +830,6 @@ struct format_item* p_read_format_item( struct parse* parse, bool colon ) {
 }
 
 struct format_item* read_format_item( struct parse* parse, bool colon ) {
-   p_test_tk( parse, TK_ID );
    struct format_item* item = mem_alloc( sizeof( *item ) );
    item->node.type = NODE_FORMAT_ITEM;
    item->cast = FCAST_DECIMAL;
@@ -871,26 +870,31 @@ void init_format_cast( struct format_cast* cast, bool colon ) {
 
 void read_format_cast( struct parse* parse, struct format_cast* cast ) {
    cast->pos = parse->tk_pos;
-   switch ( parse->tk_text[ 0 ] ) {
-   case 'a': cast->type = FCAST_ARRAY; break;
-   case 'b': cast->type = FCAST_BINARY; break;
-   case 'c': cast->type = FCAST_CHAR; break;
-   case 'd':
-   case 'i': break;
-   case 'f': cast->type = FCAST_FIXED; break;
-   case 'k': cast->type = FCAST_KEY; break;
-   case 'l': cast->type = FCAST_LOCAL_STRING; break;
-   case 'n': cast->type = FCAST_NAME; break;
-   case 's': cast->type = FCAST_STRING; break;
-   case 'x': cast->type = FCAST_HEX; break;
-   default:
-      cast->unknown = true;
-      break;
+   if ( parse->tk == TK_MSGBUILD ) {
+      cast->type = FCAST_MSGBUILD;
    }
-   if ( cast->unknown || parse->tk_length != 1 ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "unknown format-cast `%s`", parse->tk_text );
-      p_bail( parse );
+   else {
+      switch ( parse->tk_text[ 0 ] ) {
+      case 'a': cast->type = FCAST_ARRAY; break;
+      case 'b': cast->type = FCAST_BINARY; break;
+      case 'c': cast->type = FCAST_CHAR; break;
+      case 'd':
+      case 'i': break;
+      case 'f': cast->type = FCAST_FIXED; break;
+      case 'k': cast->type = FCAST_KEY; break;
+      case 'l': cast->type = FCAST_LOCAL_STRING; break;
+      case 'n': cast->type = FCAST_NAME; break;
+      case 's': cast->type = FCAST_STRING; break;
+      case 'x': cast->type = FCAST_HEX; break;
+      default:
+         cast->unknown = true;
+         break;
+      }
+      if ( cast->unknown || parse->tk_length != 1 ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "unknown format-cast `%s`", parse->tk_text );
+         p_bail( parse );
+      }
    }
    p_read_tk( parse );
    // In a format block, the `:=` separator is used, because an identifier
@@ -906,7 +910,8 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
 }
 
 bool peek_format_cast( struct parse* parse ) {
-   return ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON );
+   return ( ( parse->tk == TK_ID || parse->tk == TK_MSGBUILD )
+      && p_peek( parse ) == TK_COLON );
 }
 
 void init_array_field( struct array_field* field ) {

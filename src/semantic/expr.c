@@ -107,6 +107,10 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
+static void test_msgbuild_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item );
+static void msgbuild_mismatch( struct semantic* semantic, struct pos* pos,
+   struct type_info* type, struct type_info* required_type );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
@@ -1370,6 +1374,13 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
          }
       }
    }
+   // Message-building function can only be called when building a message.
+   if ( operand.func && operand.func->msgbuild && semantic->func_test->func &&
+      ! semantic->func_test->func->msgbuild ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
+         "calling message-building function where no message is being built" );
+      s_bail( semantic );
+   }
    if ( operand.func ) {
       if ( operand.func->type == FUNC_USER ) {
          struct func_user* impl = operand.func->impl;
@@ -1531,6 +1542,9 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
       if ( item->cast == FCAST_ARRAY ) {
          test_array_format_item( semantic, test, item );
       }
+      else if ( item->cast == FCAST_MSGBUILD ) {
+         test_msgbuild_format_item( semantic, test, item );
+      }
       else {
          test_format_item( semantic, test, item );
       }
@@ -1587,6 +1601,59 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
          test_nested_root( semantic, test, &nested, &root, extra->length );
       }
    }
+}
+
+void test_msgbuild_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item ) {
+   struct expr_test nested;
+   s_init_expr_test( &nested,
+      test->stmt_test, test->format_block,
+      true, false );
+   struct result root;
+   init_result( &root );
+   test_nested_root( semantic, test, &nested, &root, item->value );
+   bool msgbuild = false;
+   if ( root.func ) {
+      msgbuild = root.func->msgbuild;
+   }
+   else if ( root.ref && root.ref->type == REF_FUNCTION ) {
+      struct ref_func* func = ( struct ref_func* ) root.ref;
+      msgbuild = func->msgbuild;
+   }
+   else {
+      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
+         "argument not an function" );
+      s_bail( semantic );
+   }
+   struct type_info type;
+   init_type_info( &type, &root );
+   struct type_info required_type;
+   s_init_type_info_func( &required_type, NULL, NULL, NULL, NULL,
+      SPEC_VOID, 0, 0, true );
+   if ( ! s_same_type( &required_type, &type ) ) {
+      msgbuild_mismatch( semantic, &item->value->pos, &type, &required_type );
+      s_bail( semantic );
+   }
+   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
+   extra->func = root.func;
+   item->extra = extra;
+}
+
+void msgbuild_mismatch( struct semantic* semantic, struct pos* pos,
+   struct type_info* type, struct type_info* required_type ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_type( type, &type_s );
+   struct str required_type_s;
+   str_init( &required_type_s );
+   s_present_type( required_type, &required_type_s );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "argument/required-function type mismatch" );
+   s_diag( semantic, DIAG_POS, pos,
+      "argument is `%s`, but a message-building function needs to be `%s`",
+      type_s.value, required_type_s.value );
+   str_deinit( &required_type_s );
+   str_deinit( &type_s );
 }
 
 void s_test_formatitemlist_stmt( struct semantic* semantic,
@@ -2113,7 +2180,11 @@ inline void init_type_info( struct type_info* type, struct result* result ) {
          s_init_type_info_scalar( type, SPEC_INT );
       }
       else {
-         s_init_type_info_func( type, result->func );
+         s_init_type_info_func( type, result->func->ref,
+            result->func->structure, result->func->enumeration,
+            result->func->params, result->func->return_spec,
+            result->func->min_param, result->func->max_param,
+            result->func->msgbuild );
       }
    }
    else {

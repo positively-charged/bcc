@@ -617,6 +617,7 @@ struct func {
    int min_param;
    int max_param;
    bool hidden;
+   bool msgbuild;
 };
 
 struct func_aspec {
@@ -649,6 +650,7 @@ struct format_item {
       FCAST_NAME,
       FCAST_STRING,
       FCAST_HEX,
+      FCAST_MSGBUILD,
       FCAST_TOTAL
    } cast;
    struct pos pos;
@@ -660,6 +662,10 @@ struct format_item {
 struct format_item_array {
    struct expr* offset;
    struct expr* length;
+};
+
+struct format_item_msgbuild {
+   struct func* func;
 };
 
 struct format_block_usage {
@@ -693,7 +699,6 @@ struct func_user {
    int obj_pos;
    int index_offset;
    bool nested;
-   bool msgbuild;
 };
 
 struct func_intern {
@@ -972,6 +977,7 @@ struct task {
    struct list runtime_asserts;
    struct name* root_name;
    struct name* array_name;
+   struct func* append_func;
 };
 
 #define DIAG_NONE 0
