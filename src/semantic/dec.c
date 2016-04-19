@@ -116,6 +116,8 @@ static bool test_func_param( struct semantic* semantic,
 static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct expr_test* expr );
 static int get_param_number( struct func* func, struct param* target );
+static void init_func_test( struct func_test* test, struct func* func,
+   struct list* labels );
 static void calc_param_size( struct param* param );
 static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref );
@@ -1176,22 +1178,19 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
          param = param->next;
       }
    }
-   struct stmt_test test;
-   s_init_stmt_test( &test, NULL );
-   test.func = func;
-   test.manual_scope = true;
-   test.labels = &impl->labels;
+   struct func_test test;
+   init_func_test( &test, func, &impl->labels );
    if ( ! impl->nested ) {
       semantic->topfunc_test = &test;
    }
-   struct stmt_test* prev = semantic->func_test;
+   struct func_test* prev = semantic->func_test;
    semantic->func_test = &test;
    if ( func->msgbuild ) {
       struct name* name = t_extend_name( semantic->ns->body, "append" );
       semantic->task->append_func->name = name;
       s_bind_name( semantic, name, &semantic->task->append_func->object );
    }
-   s_test_block( semantic, &test, impl->body );
+   s_test_body( semantic, &impl->body->node );
    semantic->func_test = prev;
    impl->returns = test.returns;
    if ( ! impl->nested ) {
@@ -1201,6 +1200,15 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    if ( ! impl->nested ) {
       s_pop_scope( semantic );
    }
+}
+
+void init_func_test( struct func_test* test, struct func* func,
+   struct list* labels ) {
+   test->func = func;
+   test->labels = labels;
+   test->nested_funcs = NULL;
+   test->returns = NULL;
+   test->script = ( func == NULL );
 }
 
 void s_test_script( struct semantic* semantic, struct script* script ) {
@@ -1246,14 +1254,11 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
       param->object.resolved = true;
       param = param->next;
    }
-   struct stmt_test test;
-   s_init_stmt_test( &test, NULL );
-   test.in_script = true;
-   test.manual_scope = true;
-   test.labels = &script->labels;
+   struct func_test test;
+   init_func_test( &test, NULL, &script->labels );
    semantic->topfunc_test = &test;
    semantic->func_test = semantic->topfunc_test;
-   s_test_stmt( semantic, &test, script->body );
+   s_test_body( semantic, script->body );
    script->nested_funcs = test.nested_funcs;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;

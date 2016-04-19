@@ -3,17 +3,20 @@
 
 #include "task.h"
 
-struct stmt_test {
-   struct stmt_test* parent;
+struct func_test {
    struct func* func;
    struct list* labels;
+   struct func* nested_funcs;
+   struct return_stmt* returns;
+   bool script;
+};
+
+struct stmt_test {
+   struct stmt_test* parent;
    struct switch_stmt* switch_stmt;
    struct jump* jump_break;
    struct jump* jump_continue;
-   struct func* nested_funcs;
-   struct return_stmt* returns;
    bool in_loop;
-   bool in_script;
    bool manual_scope;
 };
 
@@ -60,8 +63,8 @@ struct semantic {
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
-   struct stmt_test* topfunc_test;
-   struct stmt_test* func_test;
+   struct func_test* topfunc_test;
+   struct func_test* func_test;
    int depth;
    bool retest_nss;
    bool resolved_objects;
@@ -88,9 +91,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    struct type_info* result_type, struct expr* expr );
 void s_test_cond( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
-void s_test_top_block( struct semantic* semantic, struct stmt_test*, struct block* );
-void s_test_stmt( struct semantic* semantic, struct stmt_test*, struct node* );
-void s_test_block( struct semantic* semantic, struct stmt_test*, struct block* );
+void s_test_body( struct semantic* semantic, struct node* node );
 void s_add_scope( struct semantic* semantic );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );

@@ -2,6 +2,9 @@
 
 #include "phase.h"
 
+
+static void test_block( struct semantic* semantic, struct stmt_test* test,
+   struct block* block );
 static void test_block_item( struct semantic* semantic, struct stmt_test*, struct node* );
 static void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label );
@@ -12,6 +15,8 @@ static void test_default_case( struct semantic* semantic,
    struct stmt_test* test, struct case_label* label );
 static void test_label( struct semantic* semantic, struct stmt_test*, struct label* );
 static void test_assert( struct semantic* semantic, struct assert* assert );
+static void test_stmt( struct semantic* semantic, struct stmt_test* test,
+   struct node* node );
 static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
 static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
@@ -42,19 +47,27 @@ static void test_packed_expr( struct semantic* semantic, struct stmt_test*,
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->parent = parent;
-   test->func = NULL;
-   test->labels = NULL;
    test->switch_stmt = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
-   test->nested_funcs = NULL;
-   test->returns = NULL;
    test->in_loop = false;
-   test->in_script = false;
    test->manual_scope = false;
 }
 
-void s_test_block( struct semantic* semantic, struct stmt_test* test,
+void s_test_body( struct semantic* semantic, struct node* node ) {
+   struct stmt_test test;
+   s_init_stmt_test( &test, NULL );
+   test.manual_scope = true;
+   if ( node->type == NODE_BLOCK ) {
+      test_block( semantic, &test,
+         ( struct block* ) node );
+   }
+   else {
+      test_stmt( semantic, &test, node );
+   }
+}
+
+void test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block ) {
    if ( ! test->manual_scope ) {
       s_add_scope( semantic );
@@ -109,7 +122,7 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
          ( struct using_dirc* ) node );
       break;
    default:
-      s_test_stmt( semantic, test, node );
+      test_stmt( semantic, test, node );
    }
 }
 
@@ -235,11 +248,11 @@ void test_assert( struct semantic* semantic, struct assert* assert ) {
    }
 }
 
-void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
+void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
-      s_test_block( semantic, test, ( struct block* ) node );
+      test_block( semantic, test, ( struct block* ) node );
       break;
    case NODE_IF:
       test_if( semantic, test, ( struct if_stmt* ) node );
@@ -290,10 +303,10 @@ void test_if( struct semantic* semantic, struct stmt_test* test,
    s_test_cond( semantic, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   s_test_stmt( semantic, &body, stmt->body );
+   test_stmt( semantic, &body, stmt->body );
    if ( stmt->else_body ) {
       s_init_stmt_test( &body, test );
-      s_test_stmt( semantic, &body, stmt->else_body );
+      test_stmt( semantic, &body, stmt->else_body );
    }
 }
 
@@ -305,7 +318,7 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.switch_stmt = stmt;
-   s_test_stmt( semantic, &body, stmt->body );
+   test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
 }
 
@@ -317,7 +330,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_loop = true;
-   s_test_stmt( semantic, &body, stmt->body );
+   test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
@@ -358,7 +371,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_loop = true;
-   s_test_stmt( semantic, &body, stmt->body );
+   test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    s_pop_scope( semantic );
@@ -411,7 +424,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.in_loop = true;
-   s_test_stmt( semantic, &body, stmt->body );
+   test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    s_pop_scope( semantic );
@@ -490,11 +503,7 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
    struct script_jump* stmt ) {
    static const char* names[] = { "terminate", "restart", "suspend" };
    STATIC_ASSERT( ARRAY_SIZE( names ) == SCRIPT_JUMP_TOTAL );
-   struct stmt_test* target = test;
-   while ( target && ! target->in_script ) {
-      target = target->parent;
-   }
-   if ( ! target ) {
+   if ( ! semantic->func_test->script ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "`%s` outside script", names[ stmt->type ] );
       s_bail( semantic );
@@ -503,11 +512,8 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
 
 void test_return( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
-   struct stmt_test* target = test;
-   while ( target && ! target->func ) {
-      target = target->parent;
-   }
-   if ( ! target ) {
+   struct func* func = semantic->func_test->func;
+   if ( ! func ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "return statement outside function" );
       s_bail( semantic );
@@ -517,16 +523,15 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       struct expr_test expr;
       s_init_expr_test( &expr, true, false );
       s_test_expr_type( semantic, &expr, &type, stmt->return_value->expr );
-      if ( target->func->return_spec == SPEC_VOID ) {
+      if ( func->return_spec == SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
             "returning a value in void function" );
          s_bail( semantic );
       }
       // Return value must be of the same type as the return type.
       struct type_info return_type;
-      s_init_type_info( &return_type, target->func->return_spec,
-         target->func->ref, NULL, target->func->structure,
-         target->func->enumeration, NULL );
+      s_init_type_info( &return_type, func->return_spec, func->ref, NULL,
+         func->structure, func->enumeration, NULL );
       if ( ! s_same_type( &type, &return_type ) ) {
          return_mismatch( semantic, &type, &return_type,
             &stmt->return_value->expr->pos );
@@ -534,7 +539,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       }
    }
    else {
-      if ( target->func->return_spec != SPEC_VOID ) {
+      if ( func->return_spec != SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "missing return value" );
          s_bail( semantic );
