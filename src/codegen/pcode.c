@@ -20,7 +20,7 @@ static struct pcode pcode_info[] = {
    { PCD_LSPEC5DIRECT, 6 },
    { PCD_ADD, 0 },
    { PCD_SUBTRACT, 0 },
-   { PCD_MULIPLY, 0 },
+   { PCD_MULTIPLY, 0 },
    { PCD_DIVIDE, 0 },
    { PCD_MODULUS, 0 },
    { PCD_EQ, 0 },

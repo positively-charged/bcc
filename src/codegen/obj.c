@@ -154,7 +154,7 @@ void c_add_opc( struct codegen* codegen, int code ) {
       case PCD_RSHIFT:
       case PCD_ADD:
       case PCD_SUBTRACT:
-      case PCD_MULIPLY:
+      case PCD_MULTIPLY:
       case PCD_DIVIDE:
       case PCD_MODULUS:
          if ( codegen->immediate_count >= 2 ) {
@@ -194,7 +194,7 @@ void c_add_opc( struct codegen* codegen, int code ) {
       case PCD_RSHIFT: last->value = l >> r; break;
       case PCD_ADD: last->value = l + r; break;
       case PCD_SUBTRACT: last->value = l - r; break;
-      case PCD_MULIPLY: last->value = l * r; break;
+      case PCD_MULTIPLY: last->value = l * r; break;
       case PCD_DIVIDE: last->value = l / r; break;
       case PCD_MODULUS: last->value = l % r; break;
       default: break;

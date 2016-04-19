@@ -301,7 +301,7 @@ void write_binary_int( struct codegen* codegen, struct result* result,
    case BOP_SHIFT_R: code = PCD_RSHIFT; break;
    case BOP_ADD: code = PCD_ADD; break;
    case BOP_SUB: code = PCD_SUBTRACT; break;
-   case BOP_MUL: code = PCD_MULIPLY; break;
+   case BOP_MUL: code = PCD_MULTIPLY; break;
    case BOP_DIV: code = PCD_DIVIDE; break;
    case BOP_MOD: code = PCD_MODULUS; break;
    default: 
@@ -866,7 +866,7 @@ void subscript_array( struct codegen* codegen, struct subscript* subscript,
    c_push_expr( codegen, subscript->index );
    if ( lside->dim->element_size > 1 ) {
       c_pcd( codegen, PCD_PUSHNUMBER, lside->dim->element_size );
-      c_pcd( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_MULTIPLY );
    }
    if ( lside->status == R_ARRAYINDEX ) {
       c_pcd( codegen, PCD_ADD );
@@ -944,17 +944,17 @@ void subscript_array_reference( struct codegen* codegen,
       c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
       c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
       c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      c_pcd( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_MULTIPLY );
    }
    else if ( lside->ref->next ) {
       if ( lside->ref->next->type == REF_ARRAY ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 2 );
-         c_pcd( codegen, PCD_MULIPLY );
+         c_pcd( codegen, PCD_MULTIPLY );
       }
    }
    else if ( lside->structure ) {
       c_pcd( codegen, PCD_PUSHNUMBER, lside->structure->size );
-      c_pcd( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_MULTIPLY );
    }
    if ( lside->status == R_ARRAYINDEX ) {
       c_pcd( codegen, PCD_ADD );
@@ -2068,7 +2068,7 @@ void scale_offset( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_MULSCRIPTVAR, offset_var );
    }
    else {
-      c_pcd( codegen, PCD_MULIPLY );
+      c_pcd( codegen, PCD_MULTIPLY );
    }
 }
 
