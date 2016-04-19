@@ -1429,26 +1429,30 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
    // Number of arguments must be correct.
    if ( test->num_args < test->min_param ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "not enough arguments in function call" );
+         "not enough %sarguments in function call",
+         test->format_param ? "regular " : "" );
       struct str str;
       str_init( &str );
       present_func( test, &str );
       s_diag( semantic, DIAG_POS, &call->pos,
-         "%s needs %s%d argument%s", str.value,
+         "%s needs %s%d %sargument%s", str.value,
          test->min_param != test->max_param ? "at least " : "",
-         test->min_param, test->min_param != 1 ? "s" : "" );
+         test->min_param, test->format_param ? "regular " : "",
+         test->min_param != 1 ? "s" : "" );
       s_bail( semantic );
    }
    if ( test->num_args > test->max_param ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "too many arguments in function call" );
+         "too many %sarguments in function call",
+         test->format_param ? "regular " : "" );
       struct str str;
       str_init( &str );
       present_func( test, &str );
       s_diag( semantic, DIAG_POS, &call->pos,
-         "%s takes %s%d argument%s", str.value,
+         "%s takes %s%d %sargument%s", str.value,
          test->min_param != test->max_param ? "at most " : "",
-         test->max_param, test->max_param != 1 ? "s" : "" );
+         test->max_param, test->format_param ? "regular " : "",
+         test->max_param != 1 ? "s" : "" );
       s_bail( semantic );
    }
 }
@@ -1456,38 +1460,20 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
 void test_call_first_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    if ( test->format_param ) {
-      test_call_format_arg( semantic, expr_test, test );
+      if ( ! test->call->format_item ) {
+         s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
+            "function call missing format argument" );
+         s_bail( semantic );
+      }
+      test_format_item_list( semantic, expr_test, test->call->format_item );
    }
    else {
-      if ( ! list_end( test->i ) ) {
-         struct node* node = list_data( test->i );
-         if ( node->type == NODE_FORMAT_ITEM ) {
-            struct format_item* item = ( struct format_item* ) node;
-            s_diag( semantic, DIAG_POS_ERR, &item->pos,
-               "passing format-item to non-format function" );
-            s_bail( semantic );
-         }
+      if ( test->call->format_item ) {
+         s_diag( semantic, DIAG_POS_ERR, &test->call->format_item->pos,
+            "passing format-item to non-format function" );
+         s_bail( semantic );
       }
    }
-}
-
-void test_call_format_arg( struct semantic* semantic, struct expr_test* expr_test,
-   struct call_test* test ) {
-   list_iter_t* i = test->i;
-   struct node* node = NULL;
-   if ( ! list_end( i ) ) {
-      node = list_data( i );
-   }
-   if ( ! node || node->type != NODE_FORMAT_ITEM ) {
-      s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
-         "function call missing format argument" );
-      s_bail( semantic );
-   }
-   // Format-list:
-   test_format_item_list( semantic, expr_test, ( struct format_item* ) node );
-   list_next( i );
-   // A format-list counts as a single argument.
-   ++test->num_args;
 }
 
 void test_format_item_list( struct semantic* semantic, struct expr_test* test,

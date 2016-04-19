@@ -743,9 +743,9 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
    struct list args;
    list_init( &args );
-   // Format list:
+   struct format_item* format_item = NULL;
    if ( peek_format_cast( parse ) ) {
-      list_append( &args, read_format_item_list( parse ) );
+      format_item = read_format_item_list( parse );
       if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
          read_call_args( parse, reading, &args );
@@ -771,6 +771,7 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    call->operand = reading->node;
    call->func = NULL;
    call->nested_call = NULL;
+   call->format_item = format_item;
    call->args = args;
    reading->node = &call->node;
 }
@@ -814,7 +815,6 @@ struct format_item* read_format_item_list( struct parse* parse ) {
 
 struct format_item* read_format_item( struct parse* parse ) {
    struct format_item* item = mem_alloc( sizeof( *item ) );
-   item->node.type = NODE_FORMAT_ITEM;
    item->cast = FCAST_DECIMAL;
    item->pos = parse->tk_pos;
    item->next = NULL;
@@ -884,8 +884,8 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
 }
 
 bool peek_format_cast( struct parse* parse ) {
-   return ( ( parse->tk == TK_ID || parse->tk == TK_MSGBUILD )
-      && p_peek( parse ) == TK_COLON );
+   return ( ( parse->tk == TK_ID || parse->tk == TK_MSGBUILD ) &&
+      p_peek( parse ) == TK_COLON );
 }
 
 void init_array_field( struct array_field* field ) {

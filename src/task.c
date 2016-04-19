@@ -54,9 +54,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    func->object.resolved = true;
    func->type = FUNC_FORMAT;
    func->impl = format_impl;
-   func->return_spec = SPEC_VOID;
-   func->min_param = 1;
-   func->max_param = 1;
    task->append_func = func;
 }
 
@@ -746,7 +743,7 @@ struct func* t_alloc_func( void ) {
    func->name = NULL;
    func->params = NULL;
    func->impl = NULL;
-   func->return_spec = SPEC_NONE;
+   func->return_spec = SPEC_VOID;
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;
@@ -777,11 +774,15 @@ struct func_user* t_alloc_func_user( void ) {
 struct param* t_alloc_param( void ) {
    struct param* param = mem_slot_alloc( sizeof( *param ) );
    t_init_object( &param->object, NODE_PARAM );
-   param->spec = SPEC_NONE;
+   param->ref = NULL;
+   param->structure = NULL;
+   param->enumeration = NULL;
    param->next = NULL;
    param->name = NULL;
    param->default_value = NULL;
+   param->spec = SPEC_NONE;
    param->index = 0;
+   param->size = 0;
    param->obj_pos = 0;
    param->used = false;
    return param;

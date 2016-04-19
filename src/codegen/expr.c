@@ -115,6 +115,8 @@ static void visit_ded_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_format_call( struct codegen* codegen, struct result* result,
    struct call* call );
+static void visit_format_item( struct codegen* codegen,
+   struct format_item* item );
 static void visit_array_format_item( struct codegen* codegen,
    struct format_item* item );
 static void visit_msgbuild_format_item( struct codegen* codegen,
@@ -1379,19 +1381,17 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
 void visit_format_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
    if ( call->func == codegen->task->append_func ) {
-      c_visit_format_item( codegen, list_head( &call->args ) );
+      visit_format_item( codegen, call->format_item );
    }
    else {
       c_pcd( codegen, PCD_BEGINPRINT );
-      list_iter_t i;
-      list_iter_init( &i, &call->args );
-      struct node* node = list_data( &i );
-      c_visit_format_item( codegen, list_data( &i ) );
-      list_next( &i );
+      visit_format_item( codegen, call->format_item );
       // Other arguments.
-      if ( call->func->max_param > 1 ) {
+      if ( call->func->max_param > 0 ) {
          c_pcd( codegen, PCD_MOREHUDMESSAGE );
-         int param = 1;
+         list_iter_t i;
+         list_iter_init( &i, &call->args );
+         int param = 0;
          while ( ! list_end( &i ) ) {
             if ( param == call->func->min_param ) {
                c_pcd( codegen, PCD_OPTHUDMESSAGE );
@@ -1409,7 +1409,7 @@ void visit_format_call( struct codegen* codegen, struct result* result,
    }
 }
 
-void c_visit_format_item( struct codegen* codegen, struct format_item* item ) {
+void visit_format_item( struct codegen* codegen, struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
          visit_array_format_item( codegen, item );

@@ -190,9 +190,6 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
    case NODE_GOTO:
       visit_goto( codegen, ( struct goto_stmt* ) node );
       break;
-   case NODE_FORMAT_ITEM:
-      c_visit_format_item( codegen, ( struct format_item* ) node );
-      break;
    case NODE_PALTRANS:
       visit_paltrans( codegen, ( struct paltrans* ) node );
       break;

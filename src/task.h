@@ -36,6 +36,7 @@ struct pos {
 
 struct node {
    enum {
+      // 0
       NODE_NONE,
       NODE_LITERAL,
       NODE_UNARY,
@@ -49,7 +50,6 @@ struct node {
       // 10
       NODE_FOR,
       NODE_CALL,
-      NODE_FORMAT_ITEM,
       NODE_FUNC,
       NODE_ACCESS,
       NODE_PAREN,
@@ -57,8 +57,8 @@ struct node {
       NODE_CASE,
       NODE_CASE_DEFAULT,
       NODE_SWITCH,
-      // 20
       NODE_BLOCK,
+      // 20
       NODE_GOTO,
       NODE_GOTO_LABEL,
       NODE_VAR,
@@ -68,8 +68,8 @@ struct node {
       NODE_ENUMERATION,
       NODE_ENUMERATOR,
       NODE_CONSTANT,
-      // 30
       NODE_RETURN,
+      // 30
       NODE_PARAM,
       NODE_PALTRANS,
       NODE_ALIAS,
@@ -80,8 +80,8 @@ struct node {
       NODE_CONDITIONAL,
       NODE_STRCPY,
       NODE_LOGICAL,
-      // 40
       NODE_INC,
+      // 40
       NODE_FIXED_LITERAL,
       NODE_CAST,
       NODE_INLINE_ASM,
@@ -91,8 +91,8 @@ struct node {
       NODE_NULL,
       NODE_NAMESPACE,
       NODE_UPMOST,
-      // 50
       NODE_USING
+      // 50
    } type;
 };
 
@@ -373,6 +373,7 @@ struct call {
    struct node* operand;
    struct func* func;
    struct nested_call* nested_call;
+   struct format_item* format_item;
    struct list args;
 };
 
@@ -636,7 +637,6 @@ struct func_ded {
 };
 
 struct format_item {
-   struct node node;
    enum {
       FCAST_ARRAY,
       FCAST_BINARY,

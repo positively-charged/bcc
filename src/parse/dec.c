@@ -93,7 +93,6 @@ static void check_useless( struct parse* parse, struct dec* dec );
 static void init_params( struct params* );
 static void read_params( struct parse* parse, struct params* );
 static void read_param( struct parse* parse, struct params* params );
-static struct param* alloc_param( void );
 static void read_script_number( struct parse* parse, struct script* );
 static void read_script_param_paren( struct parse* parse,
    struct script* script, struct script_reading* reading );
@@ -1414,7 +1413,7 @@ void read_params( struct parse* parse, struct params* params ) {
 
 void read_param( struct parse* parse, struct params* params ) {
    struct pos pos = parse->tk_pos;
-   struct param* param = alloc_param();
+   struct param* param = t_alloc_param();
    param->object.pos = pos;
    // Specifier.
    struct spec_reading spec;
@@ -1463,23 +1462,6 @@ void read_param( struct parse* parse, struct params* params ) {
    else {
       params->done = true;
    }
-}
-
-struct param* alloc_param( void ) {
-   struct param* param = mem_slot_alloc( sizeof( *param ) );
-   t_init_object( &param->object, NODE_PARAM );
-   param->ref = NULL;
-   param->structure = NULL;
-   param->enumeration = NULL;
-   param->next = NULL;
-   param->name = NULL;
-   param->default_value = NULL;
-   param->spec = SPEC_NONE;
-   param->index = 0;
-   param->size = 0;
-   param->obj_pos = 0;
-   param->used = false;
-   return param;
 }
 
 void read_bfunc( struct parse* parse, struct func* func ) {
@@ -1534,9 +1516,6 @@ void read_bfunc( struct parse* parse, struct func* func ) {
       impl->opcode = p_extract_literal_value( parse );
       func->impl = impl;
       p_read_tk( parse );
-      // Implicit format paramter.
-      ++func->min_param;
-      ++func->max_param;
    }
    // Internal function.
    else {
@@ -1708,7 +1687,7 @@ void read_script_param_list( struct parse* parse,
 }
 
 void read_script_param( struct parse* parse, struct script_reading* reading ) {
-   struct param* param = alloc_param();
+   struct param* param = t_alloc_param();
    // Specifier.
    // NOTE: TK_ID-based specifiers are not currently allowed. Maybe implement
    // support for that since a user can create an alias to an `int` type via
