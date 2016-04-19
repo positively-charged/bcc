@@ -55,7 +55,6 @@ void c_write_block( struct codegen* codegen, struct block* stmt ) {
 
 void init_local_record( struct codegen* codegen,
    struct local_record* record ) {
-   record->format_block_usage = NULL;
    record->parent = NULL;
    if ( codegen->local_record ) {
       record->index = codegen->local_record->index;

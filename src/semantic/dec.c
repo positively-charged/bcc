@@ -155,7 +155,7 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    }
    // Test expression.
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, constant->value_node );
    if ( ! expr.undef_erred ) {
       if ( constant->value_node->folded ) {
@@ -205,7 +205,7 @@ void test_enumerator( struct semantic* semantic,
    // Test initializer.
    if ( enumerator->initz ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_init_expr_test( &expr, true, false );
       s_test_expr( semantic, &expr, enumerator->initz );
       if ( expr.undef_erred ) {
          return;
@@ -345,7 +345,7 @@ bool test_member_dim( struct semantic* semantic,
          s_bail( semantic );
       }
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_init_expr_test( &expr, true, false );
       s_test_expr( semantic, &expr, dim->size_node );
       if ( expr.undef_erred ) {
          return false;
@@ -495,7 +495,7 @@ bool test_dim( struct semantic* semantic, struct var* var ) {
    while ( dim ) {
       if ( dim->size_node ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, true, false );
+         s_init_expr_test( &expr, true, false );
          s_test_expr( semantic, &expr, dim->size_node );
          if ( expr.undef_erred ) {
             return false;
@@ -799,7 +799,7 @@ bool test_value( struct semantic* semantic, struct initz_test* test,
 bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
    struct type_info* type, struct value* value ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    struct type_info initz_type;
    s_test_expr_type( semantic, &expr, &initz_type, value->expr );
    if ( expr.undef_erred ) {
@@ -845,7 +845,7 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
    struct value* value ) {
    struct type_info type;
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    s_test_expr_type( semantic, &expr, &type, value->expr );
    if ( expr.undef_erred ) {
       return false;
@@ -978,7 +978,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    struct value* value = ( struct value* ) var->initial;
    struct type_info type;
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    s_test_expr_type( semantic, &expr, &type, value->expr );
    if ( var->is_constant_init && ! value->expr->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
@@ -1110,7 +1110,7 @@ bool test_func_param( struct semantic* semantic,
    }
    if ( param->default_value ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_init_expr_test( &expr, true, false );
       s_test_expr( semantic, &expr, param->default_value );
       if ( expr.undef_erred ) {
          return false;
@@ -1211,7 +1211,7 @@ void s_test_script( struct semantic* semantic, struct script* script ) {
 void test_script_number( struct semantic* semantic, struct script* script ) {
    if ( script->number ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, true, false );
+      s_init_expr_test( &expr, true, false );
       s_test_expr( semantic, &expr, script->number );
       if ( ! script->number->folded ) {
          s_diag( semantic, DIAG_POS_ERR, &script->number->pos,

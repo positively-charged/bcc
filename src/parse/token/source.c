@@ -505,17 +505,6 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       goto state_finish;
    }
-   else if ( ch == ':' ) {
-      ch = read_ch( parse );
-      if ( ch == '=' ) {
-         tk = TK_ASSIGN_COLON;
-         ch = read_ch( parse );
-      }
-      else {
-         tk = TK_COLON;
-      }
-      goto state_finish;
-   }
    else if ( ch == '\\' ) {
       struct pos pos = { parse->source->line, column,
          parse->source->file->id };
@@ -562,6 +551,7 @@ void read_token( struct parse* parse, struct token* token ) {
          ']', TK_BRACKET_R,
          '~', TK_BIT_NOT,
          '?', TK_QUESTION_MARK,
+         ':', TK_COLON,
          0 };
       int i = 0;
       while ( true ) {

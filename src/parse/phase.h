@@ -59,11 +59,10 @@ enum tk {
    TK_MOD,
    TK_SHIFT_L,
    TK_SHIFT_R,
-   TK_ASSIGN_COLON,
    TK_BREAK,
    TK_CASE,
-   // 50
    TK_CONST,
+   // 50
    TK_CONTINUE,
    TK_DEFAULT,
    TK_DO,
@@ -73,8 +72,8 @@ enum tk {
    TK_IF,
    TK_INT,
    TK_RETURN,
-   // 60
    TK_STATIC,
+   // 60
    TK_STR,
    TK_STRUCT,
    TK_SWITCH,
@@ -84,8 +83,8 @@ enum tk {
    TK_LIT_DECIMAL,
    TK_LIT_OCTAL,
    TK_LIT_HEX,
-   // 70
    TK_LIT_CHAR,
+   // 70
    TK_LIT_FIXED,
    TK_LIT_STRING,
    TK_HASH,    // #
@@ -95,8 +94,8 @@ enum tk {
    TK_UNTIL,
    TK_WORLD,
    TK_OPEN,
-   // 80
    TK_RESPAWN,
+   // 80
    TK_DEATH,
    TK_ENTER,
    TK_PICKUP,
@@ -106,8 +105,8 @@ enum tk {
    TK_LIGHTNING,
    TK_DISCONNECT,
    TK_UNLOADING,
-   // 90
    TK_CLIENTSIDE,
+   // 90
    TK_NET,
    TK_RESTART,
    TK_SUSPEND,
@@ -117,8 +116,8 @@ enum tk {
    TK_GOTO,
    TK_TRUE,
    TK_FALSE,
-   // 100
    TK_EVENT,
+   // 100
    TK_NL,
    TK_LIB,
    TK_LIB_END,
@@ -128,9 +127,8 @@ enum tk {
    TK_TAB,
    TK_ELLIPSIS,
    TK_HORZSPACE,
-
-   // 110
    TK_PREP_HASHHASH,
+   // 110
    TK_RAW,
    TK_FIXED,
    TK_CAST,
@@ -140,9 +138,8 @@ enum tk {
    TK_TYPEDEF,
    TK_FOREACH,
    TK_PRIVATE,
-
-   // 120
    TK_OBJCPY,
+   // 120
    TK_MSGBUILD,
    TK_EXTSPEC,
    TK_IN,
@@ -405,7 +402,6 @@ void p_test_preptk( struct parse* parse, enum tk type );
 void p_test_stream( struct parse* parse, enum tk type );
 void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
    bool need_block );
-struct format_item* p_read_format_item( struct parse* parse, bool colon );
 void p_skip_block( struct parse* parse );
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );

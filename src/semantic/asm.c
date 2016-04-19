@@ -258,7 +258,7 @@ void test_func_arg( struct semantic* semantic, struct test* test,
 
 void test_expr_arg( struct semantic* semantic, struct inline_asm_arg* arg ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, arg->value.expr );
    if ( ! arg->value.expr->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,

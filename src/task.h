@@ -50,15 +50,14 @@ struct node {
       NODE_FOR,
       NODE_CALL,
       NODE_FORMAT_ITEM,
-      NODE_FORMAT_BLOCK_USAGE,
       NODE_FUNC,
       NODE_ACCESS,
       NODE_PAREN,
       NODE_SUBSCRIPT,
       NODE_CASE,
       NODE_CASE_DEFAULT,
-      // 20
       NODE_SWITCH,
+      // 20
       NODE_BLOCK,
       NODE_GOTO,
       NODE_GOTO_LABEL,
@@ -68,8 +67,8 @@ struct node {
       NODE_STRUCTURE_MEMBER,
       NODE_ENUMERATION,
       NODE_ENUMERATOR,
-      // 30
       NODE_CONSTANT,
+      // 30
       NODE_RETURN,
       NODE_PARAM,
       NODE_PALTRANS,
@@ -80,8 +79,8 @@ struct node {
       NODE_PACKED_EXPR,
       NODE_CONDITIONAL,
       NODE_STRCPY,
-      // 40
       NODE_LOGICAL,
+      // 40
       NODE_INC,
       NODE_FIXED_LITERAL,
       NODE_CAST,
@@ -91,8 +90,8 @@ struct node {
       NODE_FOREACH,
       NODE_NULL,
       NODE_NAMESPACE,
-      // 50
       NODE_UPMOST,
+      // 50
       NODE_USING
    } type;
 };
@@ -416,7 +415,6 @@ struct expr {
 struct packed_expr {
    struct node node;
    struct expr* expr;
-   struct block* block;
 };
 
 struct jump {
@@ -668,14 +666,6 @@ struct format_item_msgbuild {
    struct func* func;
 };
 
-struct format_block_usage {
-   struct node node;
-   struct block* block;
-   struct format_block_usage* next;
-   struct c_point* point;
-   struct pos pos;
-};
-
 // Format functions are dedicated functions and have their first parameter
 // consisting of a list of format items.
 struct func_format {
@@ -748,7 +738,6 @@ struct label {
    struct pos pos;
    const char* name;
    struct goto_stmt* users;
-   struct block* format_block;
    bool defined;
 };
 
@@ -757,7 +746,6 @@ struct goto_stmt {
    int obj_pos;
    struct label* label;
    struct goto_stmt* next;
-   struct block* format_block;
    struct pos pos;
 };
 

@@ -38,7 +38,6 @@ static const struct {
    { "&=", TK_ASSIGN_BIT_AND },
    { "^=", TK_ASSIGN_BIT_XOR },
    { "|=", TK_ASSIGN_BIT_OR },
-   { ":=", TK_ASSIGN_COLON },
    { "==", TK_EQ },
    { "!=", TK_NEQ },
    { "!", TK_LOG_NOT },
@@ -482,7 +481,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ASSIGN_BIT_AND, "`&=`" },
       { TK_ASSIGN_BIT_XOR, "`^=`" },
       { TK_ASSIGN_BIT_OR, "`|=`" },
-      { TK_ASSIGN_COLON, "`:=`" },
       { TK_EQ, "`==`" },
       { TK_NEQ, "`!=`" },
       { TK_LOG_NOT, "`!`" },
@@ -583,7 +581,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_NAMESPACE, "`namespace`" },
       { TK_UPMOST, "`upmost`" },
       { TK_USING, "`using`" }, };
-   STATIC_ASSERT( TK_TOTAL == 129 );
+   STATIC_ASSERT( TK_TOTAL == 128 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

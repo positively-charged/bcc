@@ -7,7 +7,6 @@ struct stmt_test {
    struct stmt_test* parent;
    struct func* func;
    struct list* labels;
-   struct block* format_block;
    struct switch_stmt* switch_stmt;
    struct jump* jump_break;
    struct jump* jump_continue;
@@ -20,9 +19,6 @@ struct stmt_test {
 
 struct expr_test {
    jmp_buf bail;
-   struct stmt_test* stmt_test;
-   struct block* format_block;
-   struct format_block_usage* format_block_usage;
    bool result_required;
    bool has_string;
    bool undef_erred;
@@ -85,8 +81,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func );
 void s_test_local_var( struct semantic* semantic, struct var* );
 void s_test_foreach_var( struct semantic* semantic,
    struct type_info* collection_type, struct var* var );
-void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
-   struct block* format_block, bool result_required,
+void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign );
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
 void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
@@ -96,8 +91,6 @@ void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_top_block( struct semantic* semantic, struct stmt_test*, struct block* );
 void s_test_stmt( struct semantic* semantic, struct stmt_test*, struct node* );
 void s_test_block( struct semantic* semantic, struct stmt_test*, struct block* );
-void s_test_formatitemlist_stmt( struct semantic* semantic,
-   struct stmt_test* stmt_test, struct format_item* item );
 void s_add_scope( struct semantic* semantic );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );

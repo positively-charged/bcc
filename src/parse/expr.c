@@ -8,7 +8,6 @@ struct format_cast {
    int type;
    struct pos pos;
    bool unknown;
-   bool colon;
 };
 
 struct array_field {
@@ -35,8 +34,9 @@ static void read_post_inc( struct parse* parse, struct expr_reading* reading );
 static void read_call( struct parse* parse, struct expr_reading* reading );
 static void read_call_args( struct parse* parse, struct expr_reading* reading,
    struct list* args );
-static struct format_item* read_format_item( struct parse* parse, bool colon );
-static void init_format_cast( struct format_cast* cast, bool colon );
+static struct format_item* read_format_item_list( struct parse* parse );
+static struct format_item* read_format_item( struct parse* parse );
+static void init_format_cast( struct format_cast* cast );
 static void read_format_cast( struct parse* parse, struct format_cast* cast );
 static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
@@ -745,24 +745,7 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    list_init( &args );
    // Format list:
    if ( peek_format_cast( parse ) ) {
-      list_append( &args, p_read_format_item( parse, true ) );
-      if ( parse->tk == TK_SEMICOLON ) {
-         p_read_tk( parse );
-         read_call_args( parse, reading, &args );
-      }
-   }
-   // Format block:
-   else if ( parse->tk == TK_BRACE_L ) {
-      struct format_block_usage* usage = mem_alloc( sizeof( *usage ) );
-      usage->node.type = NODE_FORMAT_BLOCK_USAGE;
-      usage->block = NULL;
-      usage->next = NULL;
-      usage->point = NULL;
-      usage->pos = parse->tk_pos;
-      list_append( &args, usage );
-      p_read_tk( parse );
-      p_test_tk( parse, TK_BRACE_R );
-      p_read_tk( parse );
+      list_append( &args, read_format_item_list( parse ) );
       if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
          read_call_args( parse, reading, &args );
@@ -808,11 +791,11 @@ void read_call_args( struct parse* parse, struct expr_reading* reading,
    }
 }
 
-struct format_item* p_read_format_item( struct parse* parse, bool colon ) {
+struct format_item* read_format_item_list( struct parse* parse ) {
    struct format_item* head = NULL;
    struct format_item* tail;
    while ( true ) {
-      struct format_item* item = read_format_item( parse, colon );
+      struct format_item* item = read_format_item( parse );
       if ( head ) {
          tail->next = item;
       }
@@ -829,7 +812,7 @@ struct format_item* p_read_format_item( struct parse* parse, bool colon ) {
    }
 }
 
-struct format_item* read_format_item( struct parse* parse, bool colon ) {
+struct format_item* read_format_item( struct parse* parse ) {
    struct format_item* item = mem_alloc( sizeof( *item ) );
    item->node.type = NODE_FORMAT_ITEM;
    item->cast = FCAST_DECIMAL;
@@ -838,7 +821,7 @@ struct format_item* read_format_item( struct parse* parse, bool colon ) {
    item->value = NULL;
    item->extra = NULL;
    struct format_cast cast;
-   init_format_cast( &cast, colon );
+   init_format_cast( &cast );
    read_format_cast( parse, &cast );
    item->cast = cast.type;
    if ( item->cast == FCAST_ARRAY ) {
@@ -862,10 +845,9 @@ struct format_item* read_format_item( struct parse* parse, bool colon ) {
    return item;
 }
 
-void init_format_cast( struct format_cast* cast, bool colon ) {
+void init_format_cast( struct format_cast* cast ) {
    cast->unknown = false;
    cast->type = FCAST_DECIMAL;
-   cast->colon = colon;
 }
 
 void read_format_cast( struct parse* parse, struct format_cast* cast ) {
@@ -897,16 +879,8 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
       }
    }
    p_read_tk( parse );
-   // In a format block, the `:=` separator is used, because an identifier
-   // and a colon creates a goto-statement label.
-   if ( cast->colon ) {
-      p_test_tk( parse, TK_COLON );
-      p_read_tk( parse );
-   }
-   else {
-      p_test_tk( parse, TK_ASSIGN_COLON );
-      p_read_tk( parse );
-   }
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
 }
 
 bool peek_format_cast( struct parse* parse ) {
@@ -976,7 +950,7 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    // Array field.
    if ( peek_format_cast( parse ) ) {
       struct format_cast cast;
-      init_format_cast( &cast, true );
+      init_format_cast( &cast );
       read_format_cast( parse, &cast );
       if ( cast.type != FCAST_ARRAY ) {
          p_diag( parse, DIAG_POS_ERR, &cast.pos,

@@ -37,17 +37,13 @@ static void return_mismatch( struct semantic* semantic, struct type_info* type,
 static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
-static void test_format_item( struct semantic* semantic, struct stmt_test*,
-   struct format_item* );
 static void test_packed_expr( struct semantic* semantic, struct stmt_test*,
    struct packed_expr*, struct pos* );
-static void test_goto_in_format_block( struct semantic* semantic, struct list* );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->parent = parent;
    test->func = NULL;
    test->labels = NULL;
-   test->format_block = NULL;
    test->switch_stmt = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
@@ -73,9 +69,6 @@ void s_test_block( struct semantic* semantic, struct stmt_test* test,
    }
    if ( ! test->manual_scope ) {
       s_pop_scope( semantic );
-   }
-   if ( ! test->parent ) {
-      test_goto_in_format_block( semantic, test->labels );
    }
 }
 
@@ -134,7 +127,7 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
       s_bail( semantic );
    }
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, false );
+   s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, label->number );
    if ( ! label->number->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &label->number->pos,
@@ -222,14 +215,6 @@ void test_default_case( struct semantic* semantic, struct stmt_test* test,
 
 void test_label( struct semantic* semantic, struct stmt_test* test,
    struct label* label ) {
-   // The label might be inside a format block. Find this block.
-   struct stmt_test* target = test;
-   while ( target && ! target->format_block ) {
-      target = target->parent;
-   }
-   if ( target ) {
-      label->format_block = target->format_block;
-   }
 }
 
 void test_assert( struct semantic* semantic, struct assert* assert ) {
@@ -287,9 +272,6 @@ void s_test_stmt( struct semantic* semantic, struct stmt_test* test,
    case NODE_PALTRANS:
       test_paltrans( semantic, test, ( struct paltrans* ) node );
       break;
-   case NODE_FORMAT_ITEM:
-      test_format_item( semantic, test, ( struct format_item* ) node );
-      break;
    case NODE_PACKED_EXPR:
       test_packed_expr( semantic, test, ( struct packed_expr* ) node, NULL );
       break;
@@ -318,7 +300,7 @@ void test_if( struct semantic* semantic, struct stmt_test* test,
 void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    struct expr_test expr;
-   s_init_expr_test( &expr, NULL, NULL, true, true );
+   s_init_expr_test( &expr, true, true );
    s_test_expr( semantic, &expr, stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
@@ -353,7 +335,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
       struct node* node = list_data( &i );
       if ( node->type == NODE_EXPR ) {
          struct expr_test expr;
-         s_init_expr_test( &expr, NULL, NULL, false, false );
+         s_init_expr_test( &expr, false, false );
          s_test_expr( semantic, &expr, ( struct expr* ) node );
       }
       else {
@@ -369,7 +351,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    list_iter_init( &i, &stmt->post );
    while ( ! list_end( &i ) ) {
       struct expr_test expr;
-      s_init_expr_test( &expr, NULL, NULL, false, false );
+      s_init_expr_test( &expr, false, false );
       s_test_expr( semantic, &expr, list_data( &i ) );
       list_next( &i );
    }
@@ -394,7 +376,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    // Collection.
    struct type_info collection_type;
    struct expr_test expr;
-   s_init_expr_test( &expr, test, NULL, false, false );
+   s_init_expr_test( &expr, false, false );
    s_test_expr_type( semantic, &expr, &collection_type, stmt->collection );
    struct type_iter iter;
    s_iterate_type( &collection_type, &iter );
@@ -487,17 +469,6 @@ void test_break( struct semantic* semantic, struct stmt_test* test,
    }
    stmt->next = target->jump_break;
    target->jump_break = stmt;
-   // Jumping out of a format block is not allowed.
-   struct stmt_test* finish = target;
-   target = test;
-   while ( target != finish ) {
-      if ( target->format_block ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-            "leaving format block with a break statement" );
-         s_bail( semantic );
-      }
-      target = target->parent;
-   }
 }
 
 void test_continue( struct semantic* semantic, struct stmt_test* test,
@@ -513,16 +484,6 @@ void test_continue( struct semantic* semantic, struct stmt_test* test,
    }
    stmt->next = target->jump_continue;
    target->jump_continue = stmt;
-   struct stmt_test* finish = target;
-   target = test;
-   while ( target != finish ) {
-      if ( target->format_block ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-            "leaving format block with a continue statement" );
-         s_bail( semantic );
-      }
-      target = target->parent;
-   }
 }
 
 void test_script_jump( struct semantic* semantic, struct stmt_test* test,
@@ -537,16 +498,6 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "`%s` outside script", names[ stmt->type ] );
       s_bail( semantic );
-   }
-   struct stmt_test* finish = target;
-   target = test;
-   while ( target != finish ) {
-      if ( target->format_block ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-            "`%s` inside format block", names[ stmt->type ] );
-         s_bail( semantic );
-      }
-      target = target->parent;
    }
 }
 
@@ -564,7 +515,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    if ( stmt->return_value ) {
       struct type_info type;
       struct expr_test expr;
-      s_init_expr_test( &expr, test, NULL, true, false );
+      s_init_expr_test( &expr, true, false );
       s_test_expr_type( semantic, &expr, &type, stmt->return_value->expr );
       if ( target->func->return_spec == SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
@@ -589,16 +540,6 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
          s_bail( semantic );
       }
    }
-   struct stmt_test* finish = target;
-   target = test;
-   while ( target != finish ) {
-      if ( target->format_block ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-            "leaving format block with a return statement" );
-         s_bail( semantic );
-      }
-      target = target->parent;
-   }
    stmt->next = semantic->func_test->returns;
    semantic->func_test->returns = stmt;
 }
@@ -622,14 +563,6 @@ void return_mismatch( struct semantic* semantic, struct type_info* type,
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
-   struct stmt_test* target = test;
-   while ( target ) {
-      if ( target->format_block ) {
-         stmt->format_block = target->format_block;
-         break;
-      }
-      target = target->parent;
-   }
 }
 
 void test_paltrans( struct semantic* semantic, struct stmt_test* test,
@@ -657,85 +590,17 @@ void test_paltrans( struct semantic* semantic, struct stmt_test* test,
 
 void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
    struct expr_test arg;
-   s_init_expr_test( &arg, NULL, NULL, true, false );
+   s_init_expr_test( &arg, true, false );
    s_test_expr( semantic, &arg, expr );
-}
-
-void test_format_item( struct semantic* semantic, struct stmt_test* test,
-   struct format_item* item ) {
-   s_test_formatitemlist_stmt( semantic, test, item );
-   struct stmt_test* target = test;
-   while ( target && ! target->format_block ) {
-      target = target->parent;
-   }
-   if ( ! target ) {
-      s_diag( semantic, DIAG_POS_ERR, &item->pos,
-         "format item outside format block" );
-      s_bail( semantic );
-   }
 }
 
 void test_packed_expr( struct semantic* semantic, struct stmt_test* test,
    struct packed_expr* packed, struct pos* expr_pos ) {
    // Test expression.
    struct expr_test expr_test;
-   s_init_expr_test( &expr_test, test, packed->block, false, false );
+   s_init_expr_test( &expr_test, false, false );
    s_test_expr( semantic, &expr_test, packed->expr );
    if ( expr_pos ) {
       *expr_pos = packed->expr->pos;
-   }
-   // Test format block.
-   if ( packed->block ) {
-      struct stmt_test nested;
-      s_init_stmt_test( &nested, test );
-      nested.format_block = packed->block;
-      s_test_block( semantic, &nested, nested.format_block );
-      if ( ! expr_test.format_block_usage ) {
-         s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &packed->block->pos, "unused format block" );
-      }
-   }
-}
-
-void test_goto_in_format_block( struct semantic* semantic, struct list* labels ) {
-   list_iter_t i;
-   list_iter_init( &i, labels );
-   while ( ! list_end( &i ) ) {
-      struct label* label = list_data( &i );
-      if ( label->format_block ) {
-         if ( label->users ) {
-            struct goto_stmt* stmt = label->users;
-            while ( stmt ) {
-               if ( stmt->format_block != label->format_block ) {
-                  s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-                     "entering format block with a goto statement" );
-                  s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
-                     "point of entry is here" ); 
-                  s_bail( semantic );
-               }
-               stmt = stmt->next;
-            }
-         }
-         else {
-            // If a label is unused, the user might have used the syntax of a
-            // label to create a format-item.
-            s_diag( semantic, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-               &label->pos, "unused label in format block" );
-         }
-      }
-      else {
-         struct goto_stmt* stmt = label->users;
-         while ( stmt ) {
-            if ( stmt->format_block ) {
-               s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-                  "leaving format block with a goto statement" );
-               s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
-                  "destination of goto statement is here" );
-               s_bail( semantic );
-            }
-            stmt = stmt->next;
-         }
-      }
-      list_next( &i );
    }
 }

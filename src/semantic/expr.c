@@ -159,12 +159,8 @@ static bool same_type( struct result* a, struct result* b );
 static bool is_value_type( struct result* result );
 static bool is_ref_type( struct result* result );
 
-void s_init_expr_test( struct expr_test* test, struct stmt_test* stmt_test,
-   struct block* format_block, bool result_required,
+void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
-   test->stmt_test = stmt_test;
-   test->format_block = format_block;
-   test->format_block_usage = NULL;
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
@@ -202,7 +198,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
 
 void s_test_cond( struct semantic* semantic, struct expr* expr ) {
    struct expr_test test;
-   s_init_expr_test( &test, NULL, NULL, true, true );
+   s_init_expr_test( &test, true, true );
    struct result result;
    init_result( &result );
    test_root( semantic, &test, &result, expr );
@@ -1113,8 +1109,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       lside->ref_dim = array->dim_count;
    }
    struct expr_test index;
-   s_init_expr_test( &index, test->stmt_test, test->format_block, true,
-      test->suggest_paren_assign );
+   s_init_expr_test( &index, true, test->suggest_paren_assign );
    s_test_expr( semantic, &index, subscript->index );
    // Index must be of integer type.
    if ( ! ( subscript->index->spec == SPEC_RAW ||
@@ -1175,8 +1170,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
 void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    struct result* lside, struct result* result, struct subscript* subscript ) {
    struct expr_test index;
-   s_init_expr_test( &index, test->stmt_test, test->format_block, true,
-      test->suggest_paren_assign );
+   s_init_expr_test( &index, true, test->suggest_paren_assign );
    s_test_expr( semantic, &index, subscript->index );
    // Index must be of integer type.
    if ( ! ( subscript->index->spec == SPEC_RAW ||
@@ -1347,19 +1341,13 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
          s_bail( semantic );
       }
    }
-   // Latent function cannot be called in a function or a format block.
+   // Latent function cannot be called in a function.
    if ( operand.func && operand.func->type == FUNC_DED ) {
       struct func_ded* impl = operand.func->impl;
       if ( impl->latent ) {
-         bool erred = false;
-         struct stmt_test* stmt = expr_test->stmt_test;
-         while ( stmt && ! stmt->format_block ) {
-            stmt = stmt->parent;
-         }
-         if ( stmt || semantic->func_test->func ) {
+         if ( semantic->func_test->func ) {
             s_diag( semantic, DIAG_POS_ERR, &call->pos,
-               "calling latent function inside a %s",
-               stmt ? "format block" : "function" );
+               "calling latent function inside a function" );
             // Show educational note to user.
             if ( semantic->func_test->func ) {
                struct str str;
@@ -1479,13 +1467,6 @@ void test_call_first_arg( struct semantic* semantic,
                "passing format-item to non-format function" );
             s_bail( semantic );
          }
-         else if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
-            struct format_block_usage* usage =
-               ( struct format_block_usage* ) node;
-            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-               "passing format-block to non-format function" );
-            s_bail( semantic );
-         }
       }
    }
 }
@@ -1497,45 +1478,18 @@ void test_call_format_arg( struct semantic* semantic, struct expr_test* expr_tes
    if ( ! list_end( i ) ) {
       node = list_data( i );
    }
-   if ( ! node || ( node->type != NODE_FORMAT_ITEM &&
-      node->type != NODE_FORMAT_BLOCK_USAGE ) ) {
+   if ( ! node || node->type != NODE_FORMAT_ITEM ) {
       s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
          "function call missing format argument" );
       s_bail( semantic );
    }
-   // Format-block:
-   if ( node->type == NODE_FORMAT_BLOCK_USAGE ) {
-      if ( ! expr_test->format_block ) {
-         s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
-            "function call missing format-block" );
-         s_bail( semantic );
-      }
-      struct format_block_usage* usage = ( struct format_block_usage* ) node;
-      usage->block = expr_test->format_block;
-      // Attach usage to the end of the usage list.
-      struct format_block_usage* prev = expr_test->format_block_usage;
-      while ( prev && prev->next ) {
-         prev = prev->next;
-      }
-      if ( prev ) {
-         prev->next = usage;
-      }
-      else {
-         expr_test->format_block_usage = usage;
-      }
-      list_next( i );
-   }
    // Format-list:
-   else {
-      test_format_item_list( semantic, expr_test, ( struct format_item* ) node );
-      list_next( i );
-   }
-   // Both a format-block or a format-list count as a single argument.
+   test_format_item_list( semantic, expr_test, ( struct format_item* ) node );
+   list_next( i );
+   // A format-list counts as a single argument.
    ++test->num_args;
 }
 
-// This function handles a format-item found inside a function call,
-// and a free format-item, the one found in a format-block.
 void test_format_item_list( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
    while ( item ) {
@@ -1555,9 +1509,7 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
 void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
    struct expr_test nested;
-   s_init_expr_test( &nested,
-      test->stmt_test, test->format_block,
-      true, false );
+   s_init_expr_test( &nested, true, false );
    struct result root;
    init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
@@ -1566,9 +1518,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
 void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
    struct expr_test nested;
-   s_init_expr_test( &nested,
-      test->stmt_test, test->format_block,
-      false, false );
+   s_init_expr_test( &nested, false, false );
    // When using the array format-cast, accept an array as the result of the
    // expression.
    // nested.accept_array = true;
@@ -1588,15 +1538,11 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    // Test optional fields: offset and length.
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
-      s_init_expr_test( &nested,
-         test->stmt_test, test->format_block,
-         true, false );
+      s_init_expr_test( &nested, true, false );
       init_result( &root );
       test_nested_root( semantic, test, &nested, &root, extra->offset );
       if ( extra->length ) {
-         s_init_expr_test( &nested,
-            test->stmt_test, test->format_block,
-            true, false );
+         s_init_expr_test( &nested, true, false );
          init_result( &root );
          test_nested_root( semantic, test, &nested, &root, extra->length );
       }
@@ -1606,9 +1552,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
 void test_msgbuild_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item ) {
    struct expr_test nested;
-   s_init_expr_test( &nested,
-      test->stmt_test, test->format_block,
-      true, false );
+   s_init_expr_test( &nested, true, false );
    struct result root;
    init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
@@ -1656,24 +1600,13 @@ void msgbuild_mismatch( struct semantic* semantic, struct pos* pos,
    str_deinit( &type_s );
 }
 
-void s_test_formatitemlist_stmt( struct semantic* semantic,
-   struct stmt_test* stmt_test, struct format_item* item ) {
-   struct expr_test test;
-   s_init_expr_test( &test, stmt_test, NULL, true, false );
-   if ( setjmp( test.bail ) == 0 ) {
-      test_format_item_list( semantic, &test, item );
-   }
-}
-
 void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    struct param* param = test->params;
    while ( ! list_end( test->i ) ) {
       struct expr* expr = list_data( test->i );
       struct expr_test nested;
-      s_init_expr_test( &nested,
-         expr_test->stmt_test,
-         expr_test->format_block, true, false );
+      s_init_expr_test( &nested, true, false );
       struct result result;
       init_result( &result );
       test_nested_root( semantic, expr_test, &nested, &result, expr );

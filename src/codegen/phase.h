@@ -19,7 +19,6 @@ struct immediate {
 };
 
 struct local_record {
-   struct format_block_usage* format_block_usage;
    struct local_record* parent;
    int index;
    int func_size;

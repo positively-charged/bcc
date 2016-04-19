@@ -22,7 +22,6 @@ static void read_script_jump( struct parse* parse, struct stmt_reading* );
 static void read_return( struct parse* parse, struct stmt_reading* );
 static void read_goto( struct parse* parse, struct stmt_reading* );
 static void read_paltrans( struct parse* parse, struct stmt_reading* );
-static void read_format_item( struct parse* parse, struct stmt_reading* );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
 static void read_packed_expr( struct parse* parse, struct stmt_reading* );
@@ -193,7 +192,6 @@ struct label* alloc_label( const char* name, struct pos pos ) {
    label->pos = pos;
    label->users = NULL;
    label->point = NULL;
-   label->format_block = NULL;
    return label;
 }
 
@@ -250,13 +248,7 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading ) {
       }
       break;
    default:
-      // Format item in a format block:
-      if ( parse->tk == TK_ID && p_peek( parse ) == TK_ASSIGN_COLON ) {
-         read_format_item( parse, reading );
-      }
-      else {
-         read_packed_expr( parse, reading );
-      }
+      read_packed_expr( parse, reading );
    }
 }
 
@@ -565,7 +557,6 @@ void read_goto( struct parse* parse, struct stmt_reading* reading ) {
    stmt->next = label->users;
    label->users = stmt;
    stmt->obj_pos = 0;
-   stmt->format_block = NULL;
    stmt->pos = pos;
    reading->node = &stmt->node;
 }
@@ -654,13 +645,6 @@ void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    p_read_tk( parse ); 
 }
 
-void read_format_item( struct parse* parse, struct stmt_reading* reading ) {
-   struct format_item* item = p_read_format_item( parse, false );
-   reading->node = &item->node;
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
-}
-
 void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, false );
@@ -668,17 +652,8 @@ void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
    struct packed_expr* packed = mem_alloc( sizeof( *packed ) );
    packed->node.type = NODE_PACKED_EXPR;
    packed->expr = expr.output_node;
-   packed->block = NULL;
-   // With format block.
-   if ( parse->tk == TK_ASSIGN_COLON ) {
-      p_read_tk( parse );
-      read_block( parse, reading );
-      packed->block = reading->block_node;
-   }
-   else {
-      p_test_tk( parse, TK_SEMICOLON );
-      p_read_tk( parse );
-   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &packed->node;
 }
 
