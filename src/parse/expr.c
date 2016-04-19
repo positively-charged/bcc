@@ -964,6 +964,7 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    call->array_length = NULL;
    call->string = NULL;
    call->offset = NULL;
+   call->source = STRCPYSRC_STRING;
    call->obj = obj;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );

@@ -139,6 +139,11 @@ static void select_func( struct result* result, struct func* func );
 static void select_namespace( struct result* result, struct ns* ns );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
+static void test_objcpy( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct strcpy_call* call );
+static bool valid_objcpy_destination( struct result* dst );
+static void objcpy_mismatch( struct semantic* semantic, struct pos* pos,
+   struct type_info* destination, struct type_info* source );
 static bool is_onedim_intelem_array_ref( struct result* result );
 static bool is_int_value( struct result* result );
 static bool is_str_value( struct result* result );
@@ -1929,6 +1934,10 @@ void select_namespace( struct result* result, struct ns* ns ) {
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
+   if ( call->obj ) {
+      test_objcpy( semantic, test, result, call );
+      return;
+   }
    // Array.
    struct result arg;
    init_result( &arg );
@@ -1980,6 +1989,94 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    result->spec = SPEC_BOOL;
    result->complete = true;
    result->usable = true;
+}
+
+void test_objcpy( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct strcpy_call* call ) {
+   // Destination.
+   struct result destination;
+   init_result( &destination );
+   test_root( semantic, test, &destination, call->array );
+   if ( ! valid_objcpy_destination( &destination ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
+         "destination argument not an array or a structure" );
+      s_bail( semantic );
+   }
+   // Array-offset.
+   if ( call->array_offset ) {
+      struct result arg;
+      init_result( &arg );
+      test_root( semantic, test, &arg, call->array_offset );
+      if ( ! is_int_value( &arg ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->array_offset->pos,
+            "array-offset argument not an integer value" );
+         s_bail( semantic );
+      }
+      // Array-length.
+      if ( call->array_length ) {
+         init_result( &arg );
+         test_root( semantic, test, &arg, call->array_length );
+         if ( ! is_int_value( &arg ) ) {
+            s_diag( semantic, DIAG_POS_ERR, &call->array_length->pos,
+               "array-length argument not an integer value" );
+            s_bail( semantic );
+         }
+      }
+   }
+   // Source.
+   struct result source;
+   init_result( &source );
+   test_root( semantic, test, &source, call->string );
+   struct type_info destination_type;
+   init_type_info( &destination_type, &destination );
+   struct type_info source_type;
+   init_type_info( &source_type, &source );
+   if ( ! s_same_type( &destination_type, &source_type ) ) {
+      objcpy_mismatch( semantic, &call->string->pos, &destination_type,
+         &source_type );
+      s_bail( semantic );
+   }
+   // Source-offset.
+   if ( call->offset ) {
+      struct result arg;
+      init_result( &arg );
+      test_root( semantic, test, &arg, call->offset );
+      if ( ! is_int_value( &arg ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->offset->pos,
+            "source-offset argument not an integer value" );
+         s_bail( semantic );
+      }
+   }
+   result->spec = SPEC_BOOL;
+   result->complete = true;
+   result->usable = true;
+   if ( is_array_ref( &source ) ) {
+      call->source = STRCPYSRC_ARRAY;
+   }
+   else {
+      call->source = STRCPYSRC_STRUCTURE;
+   }
+}
+
+bool valid_objcpy_destination( struct result* dst ) {
+   return ( is_array_ref( dst ) || dst->structure );
+}
+
+void objcpy_mismatch( struct semantic* semantic, struct pos* pos,
+   struct type_info* destination, struct type_info* source ) {
+   struct str type_s;
+   str_init( &type_s );
+   s_present_type( destination, &type_s );
+   struct str source_type_s;
+   str_init( &source_type_s );
+   s_present_type( source, &source_type_s );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "source/destination type-mismatch" );
+   s_diag( semantic, DIAG_POS, pos,
+      "`%s` source, but `%s` destination",
+      source_type_s.value, type_s.value );
+   str_deinit( &type_s );
+   str_deinit( &source_type_s );
 }
 
 bool is_onedim_intelem_array_ref( struct result* result ) {

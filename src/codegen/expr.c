@@ -164,7 +164,19 @@ static void visit_param( struct codegen* codegen, struct result* result,
    struct param* param );
 static void visit_func( struct codegen* codegen, struct result* result,
    struct func* func );
-static void write_strcpy( struct codegen* codegen, struct result* result,
+static void visit_strcpy( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call );
+static void copy_str( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call );
+static void copy_array( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call );
+static void scale_offset( struct codegen* codegen, struct result* result,
+   int offset_var );
+static void push_array_size( struct codegen* codegen, struct result* result,
+   bool dim_info_pushed );
+static void copy_elements( struct codegen* codegen, struct result* dst,
+   struct result* src, int dst_ofs, int src_ofs, int length );
+static void copy_struct( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
 static void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren );
@@ -1618,26 +1630,7 @@ void call_array_size( struct codegen* codegen, struct result* result,
    if ( operand.status == R_ARRAYINDEX ) {
       c_pcd( codegen, PCD_DROP );
    }
-   if ( operand.dim ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, operand.dim->size );
-   }
-   else if ( operand.ref && operand.ref->type == REF_ARRAY ) {
-      struct ref_array* array = ( struct ref_array* ) operand.ref;
-      int dim_count = operand.ref_dim ? operand.ref_dim : array->dim_count;
-      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      if ( dim_count > 1 ) {
-         c_pcd( codegen, PCD_DUP );
-      }
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      if ( dim_count > 1 ) {
-         c_pcd( codegen, PCD_SWAP );
-         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
-         c_pcd( codegen, PCD_ADD );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-         c_pcd( codegen, PCD_DIVIDE );
-      }
-   }
+   push_array_size( codegen, &operand, false );
 }
 
 void visit_primary( struct codegen* codegen, struct result* result,
@@ -1664,7 +1657,7 @@ void visit_primary( struct codegen* codegen, struct result* result,
          ( struct name_usage* ) node );
       break;
    case NODE_STRCPY:
-      write_strcpy( codegen, result,
+      visit_strcpy( codegen, result,
          ( struct strcpy_call* ) node );
       break;
    case NODE_PAREN:
@@ -1922,11 +1915,31 @@ void visit_func( struct codegen* codegen, struct result* result,
    }
 }
 
-void write_strcpy( struct codegen* codegen, struct result* result,
+void visit_strcpy( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call ) {
+   switch ( call->source ) {
+   case STRCPYSRC_STRING:
+      copy_str( codegen, result, call );
+      break;
+   case STRCPYSRC_ARRAY:
+      copy_array( codegen, result, call );
+      break;
+   case STRCPYSRC_STRUCTURE:
+      copy_struct( codegen, result, call );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
+void copy_str( struct codegen* codegen, struct result* result,
    struct strcpy_call* call ) {
    struct result object;
    init_result( &object, false );
    visit_operand( codegen, &object, call->array->root );
+   if ( object.status != R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );;
+   }
    c_pcd( codegen, PCD_PUSHNUMBER, object.index );
    // Offset within the array.
    if ( call->array_offset ) {
@@ -1968,6 +1981,236 @@ void write_strcpy( struct codegen* codegen, struct result* result,
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
+}
+
+void copy_array( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call ) {
+   int dst_ofs = c_alloc_script_var( codegen );
+   int src_ofs = c_alloc_script_var( codegen );
+   int length = c_alloc_script_var( codegen );
+   int dim_info = 0;
+   // Evaluate destination.
+   struct result dst;
+   init_result( &dst, true );
+   visit_operand( codegen, &dst, call->array->root );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
+   if ( dst.ref && dst.ref->type == REF_ARRAY ) {
+      dim_info = c_alloc_script_var( codegen );
+      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+      c_push_element( codegen, dst.storage, dst.index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dim_info );
+   }
+   // Evaluate destination-offset.
+   if ( call->array_offset ) {
+      c_push_expr( codegen, call->array_offset );
+      c_pcd( codegen, PCD_DUP );
+      scale_offset( codegen, &dst, -1 );
+      c_pcd( codegen, PCD_ADDSCRIPTVAR, dst_ofs );
+      // Evaluate destination-length.
+      if ( call->array_length ) {
+         c_push_expr( codegen, call->array_length );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
+      }
+   }
+   // Evaluate source.
+   struct result src;
+   init_result( &src, true );
+   visit_operand( codegen, &src, call->string->root );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
+   if ( ! call->array_length ) {
+      push_array_size( codegen, &src, false );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
+   }
+   // Evaluate source-offset.
+   if ( call->offset ) {
+      c_push_expr( codegen, call->offset );
+      c_pcd( codegen, PCD_DUP );
+      scale_offset( codegen, &src, -1 );
+      c_pcd( codegen, PCD_ADDSCRIPTVAR, src_ofs );
+      // Check: source-offset >= 0
+      c_pcd( codegen, PCD_DUP );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_GE );
+      c_pcd( codegen, PCD_SWAP );
+      // Check: source-offset + length <= source-length
+      if ( call->array_length ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+         c_pcd( codegen, PCD_ADD );
+         push_array_size( codegen, &src, false );
+         c_pcd( codegen, PCD_LE );
+      }
+      else {
+         c_pcd( codegen, PCD_SUBSCRIPTVAR, length );
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         c_pcd( codegen, PCD_GT );
+      }
+      c_pcd( codegen, PCD_ANDLOGICAL );
+      if ( call->array_offset ) {
+         c_pcd( codegen, PCD_SWAP );
+      }
+   }
+   // Check: destination-offset >= 0
+   if ( call->array_offset ) {
+      c_pcd( codegen, PCD_DUP );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_GE );
+      // Check: length > 0
+      if ( call->array_length ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         c_pcd( codegen, PCD_GT );
+         c_pcd( codegen, PCD_ANDLOGICAL );
+      }
+      c_pcd( codegen, PCD_SWAP );
+   }
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+   if ( call->array_offset ) {
+      c_pcd( codegen, PCD_ADD );
+   }
+   // Check: length <= destination-length
+   // Check: destination-offset + length <= destination-length
+   if ( dst.ref && dst.ref->type == REF_ARRAY ) {
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, dim_info );
+      push_array_size( codegen, &dst, true );
+   }
+   else {
+      push_array_size( codegen, &dst, false );
+   }
+   c_pcd( codegen, PCD_LE );
+   if ( call->array_offset ) {
+      c_pcd( codegen, PCD_ANDLOGICAL );
+   }
+   if ( call->offset ) {
+      c_pcd( codegen, PCD_ANDLOGICAL );
+   }
+   if ( result->push ) {
+      c_pcd( codegen, PCD_DUP );
+   }
+   struct c_jump* fail_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
+   c_append_node( codegen, &fail_jump->node );
+   scale_offset( codegen, &dst, length );
+   copy_elements( codegen, &dst, &src, dst_ofs, src_ofs, length );
+   if ( fail_jump ) {
+      struct c_point* exit_point = c_create_point( codegen );
+      c_append_node( codegen, &exit_point->node );
+      fail_jump->point = exit_point;
+   }
+   if ( dst.ref && dst.ref->type == REF_ARRAY ) {
+      c_dealloc_last_script_var( codegen );
+   }
+   c_dealloc_last_script_var( codegen );
+   c_dealloc_last_script_var( codegen );
+   c_dealloc_last_script_var( codegen );
+   if ( result->push ) {
+      result->status = R_VALUE;
+   }
+}
+
+void scale_offset( struct codegen* codegen, struct result* result,
+   int offset_var ) {
+   if ( result->dim ) {
+      if ( result->dim->element_size > 1 ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, result->dim->element_size );
+      }
+   }
+   else if ( result->ref && result->ref->type == REF_ARRAY ) {
+      if ( result->structure ) {
+         if ( result->structure->size > 1 ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
+         }
+      }
+      //c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+      //c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+   }
+   else {
+      UNREACHABLE();
+   }
+   if ( offset_var != -1 ) {
+      c_pcd( codegen, PCD_MULSCRIPTVAR, offset_var );
+   }
+   else {
+      c_pcd( codegen, PCD_MULIPLY );
+   }
+}
+
+void push_array_size( struct codegen* codegen, struct result* result,
+   bool dim_info_pushed ) {
+   if ( result->dim ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, result->dim->size );
+   }
+   else if ( result->ref && result->ref->type == REF_ARRAY ) {
+      struct ref_array* array = ( struct ref_array* ) result->ref;
+      int dim_count = result->ref_dim ? result->ref_dim : array->dim_count;
+      if ( ! dim_info_pushed ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      }
+      if ( dim_count > 1 ) {
+         c_pcd( codegen, PCD_DUP );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+         c_pcd( codegen, PCD_ADD );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_DIVIDE );
+      }
+      else if ( result->structure ) {
+         if ( result->structure->size > 1 ) {
+            c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+            c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
+            c_pcd( codegen, PCD_DIVIDE );
+         }
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      }
+   }
+   else {
+      UNREACHABLE();
+   }
+}
+
+void copy_elements( struct codegen* codegen, struct result* dst,
+   struct result* src, int dst_ofs, int src_ofs, int length ) {
+   struct c_point* copy_point = c_create_point( codegen );
+   c_append_node( codegen, &copy_point->node );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, dst_ofs );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, src_ofs );
+   push_element( codegen, src->storage, src->index );
+   c_update_element( codegen, dst->storage, dst->index, AOP_NONE );
+   c_pcd( codegen, PCD_INCSCRIPTVAR, dst_ofs );
+   c_pcd( codegen, PCD_INCSCRIPTVAR, src_ofs );
+   c_pcd( codegen, PCD_DECSCRIPTVAR, length );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+   struct c_jump* cond_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &cond_jump->node );
+   cond_jump->point = copy_point;
+}
+
+void copy_struct( struct codegen* codegen, struct result* result,
+   struct strcpy_call* call ) {
+   int dst_ofs = c_alloc_script_var( codegen );
+   int src_ofs = c_alloc_script_var( codegen );
+   int length = c_alloc_script_var( codegen );
+   struct result dst;
+   init_result( &dst, true );
+   visit_operand( codegen, &dst, call->array->root );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
+   struct result src;
+   init_result( &src, true );
+   visit_operand( codegen, &src, call->string->root );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
+   c_pcd( codegen, PCD_PUSHNUMBER, dst.structure->size );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
+   copy_elements( codegen, &dst, &src, dst_ofs, src_ofs, length );
+   c_dealloc_last_script_var( codegen );
+   c_dealloc_last_script_var( codegen );
+   c_dealloc_last_script_var( codegen );
+   if ( result->push ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+      result->status = R_VALUE;
+   }
 }
 
 void visit_paren( struct codegen* codegen, struct result* result,
