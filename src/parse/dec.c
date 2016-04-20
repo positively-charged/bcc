@@ -222,12 +222,6 @@ void p_init_dec( struct dec* dec ) {
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
-   // At this time, visibility can be specified only for variables and
-   // functions.
-   if ( parse->tk == TK_PRIVATE ) {
-      dec->private_visibility = true;
-      p_read_tk( parse );
-   }
    if ( parse->tk == TK_STRUCT ) {
       read_struct( parse, dec );
    }
@@ -235,6 +229,12 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       read_enum( parse, dec );
    }
    else {
+      // At this time, visibility can be specified only for variables and
+      // functions.
+      if ( parse->tk == TK_PRIVATE ) {
+         dec->private_visibility = true;
+         p_read_tk( parse );
+      }
       if ( parse->tk == TK_FUNCTION ) {
          read_func( parse, dec );
       }
