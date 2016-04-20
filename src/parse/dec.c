@@ -64,10 +64,7 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
 void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
-static struct structure_member* create_struct_member( struct parse* parse,
-   struct dec* dec );
-static void append_struct_member( struct structure* structure,
-   struct structure_member* member );
+static struct structure_member* create_structure_member( struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
@@ -445,8 +442,8 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    while ( true ) {
       read_name( parse, &dec );
       read_dim( parse, &dec );
-      struct structure_member* member = create_struct_member( parse, &dec );
-      append_struct_member( structure, member );
+      struct structure_member* member = create_structure_member( &dec );
+      t_append_structure_member( structure, member );
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
       }
@@ -454,15 +451,14 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
          break;
       }
    }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    if ( dec.ref ) {
       structure->has_ref_member = true;
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
 }
 
-struct structure_member* create_struct_member( struct parse* parse,
-   struct dec* dec ) {
+struct structure_member* create_structure_member( struct dec* dec ) {
    struct structure_member* member = t_alloc_structure_member();
    member->object.pos = dec->name_pos;
    member->name = dec->name;
@@ -473,17 +469,6 @@ struct structure_member* create_struct_member( struct parse* parse,
    member->dim = dec->dim;
    member->spec = dec->spec;
    return member;
-}
-
-void append_struct_member( struct structure* structure,
-   struct structure_member* member ) {
-   if ( structure->member ) {
-      structure->member_tail->next = member;
-   }
-   else {
-      structure->member = member;
-   }
-   structure->member_tail = member;
 }
 
 void read_var( struct parse* parse, struct dec* dec ) {
