@@ -123,5 +123,10 @@ struct path* s_last_path_part( struct path* path );
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc );
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
    const char* object_name, struct pos* pos );
+bool s_is_scalar( struct type_info* type );
+bool s_is_str_value_type( struct type_info* type );
+void s_take_type_snapshot( struct type_info* type,
+   struct type_snapshot* snapshot );
+bool s_is_onedim_int_array( struct type_info* type );
 
 #endif
