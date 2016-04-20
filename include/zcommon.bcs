@@ -1,0 +1,1589 @@
+/*
+
+   The following declarations are based on the declarations found in the
+   zdefs.acs and zspecial.acs files, both shipped with the acc compiler.
+
+*/
+
+#library
+
+// Constants
+// ==========================================================================
+
+enum OFF = 0;
+enum ON = 1;
+
+enum NO = 0;
+enum YES = 1;
+
+enum LINE_FRONT = 0;
+enum LINE_BACK = 1;
+
+enum SIDE_FRONT = 0;
+enum SIDE_BACK = 1;
+
+enum {
+   TEXTURE_TOP,
+   TEXTURE_MIDDLE,
+   TEXTURE_BOTTOM
+}
+
+enum {
+   TEXFLAG_TOP = 1,
+   TEXFLAG_MIDDLE = 2,
+   TEXFLAG_BOTTOM = 4,
+   TEXFLAG_ADDOFFSET = 8
+}
+
+enum {
+   GAME_SINGLE_PLAYER,
+   GAME_NET_COOPERATIVE,
+   GAME_NET_DEATHMATCH,
+   GAME_TITLE_MAP
+}
+
+enum {
+   CLASS_FIGHTER,
+   CLASS_CLERIC,
+   CLASS_MAGE
+}
+
+enum {
+   SKILL_VERY_EASY,
+   SKILL_EASY,
+   SKILL_NORMAL,
+   SKILL_HARD,
+   SKILL_VERY_HARD
+}
+
+enum {
+   BLOCK_NOTHING,
+   BLOCK_CREATURES,
+   BLOCK_EVERYTHING,
+   BLOCK_RAILING,
+   BLOCK_PLAYERS
+}
+
+enum {
+   SCROLL,
+   CARRY,
+   SCROLL_AND_CARRY
+}
+
+enum {
+   MOD_UNKNOWN,
+   MOD_ROCKET = 5,
+   MOD_R_SPLASH,
+   MOD_PLASMARIFLE,
+   MOD_BFG_BOOM,
+   MOD_BFG_SPLASH,
+   MOD_CHAINSAW,
+   MOD_SSHOTGUN,
+   MOD_WATER,
+   MOD_SLIME,
+   MOD_LAVA,
+   MOD_CRUSH,
+   MOD_TELEFRAG,
+   MOD_FALLING,
+   MOD_SUICIDE,
+   MOD_BARREL,
+   MOD_EXIT,
+   MOD_SPLASH,
+   MOD_HIT,
+   MOD_RAILGUN,
+   MOD_ICE,
+   MOD_DISINTEGRATE,
+   MOD_POISON,
+   MOD_ELECTRIC
+}
+
+enum MOVIE_PLAYED = 0;
+enum MOVIE_PLAYED_NOVIDEO = 1;
+enum MOVIE_PLAYED_ABORTED = 2;
+enum MOVIE_FAILED = -1;
+
+enum {
+   PROP_FROZEN,
+   PROP_NOTARGET,
+   PROP_INSTANTWEAPONSWITCH,
+   PROP_FLY,
+   PROP_TOTALLYFROZEN,
+   PROP_INVULNERABILITY,
+   PROP_STRENGTH,
+   PROP_INVISIBILITY,
+   PROP_RADIATIONSUIT,
+   PROP_ALLMAP,
+   PROP_INFRARED,
+   PROP_WEAPONLEVEL2,
+   PROP_FLIGHT,
+   PROP_SPEED = 15,
+   PROP_BUDDHA
+}
+
+enum {
+   INPUT_OLDBUTTONS,
+   INPUT_BUTTONS,
+   INPUT_PITCH,
+   INPUT_YAW,
+   INPUT_ROLL,
+   INPUT_FORWARDMOVE,
+   INPUT_SIDEMOVE,
+   INPUT_UPMOVE
+}
+
+enum {
+   MODINPUT_OLDBUTTONS = 8,
+   MODINPUT_BUTTONS,
+   MODINPUT_PITCH,
+   MODINPUT_YAW,
+   MODINPUT_ROLL,
+   MODINPUT_FORWARDMOVE,
+   MODINPUT_SIDEMOVE,
+   MODINPUT_UPMOVE
+}
+
+enum BT_ATTACK = 0x1;
+enum BT_USE = 0x2;
+enum BT_JUMP = 0x4;
+enum BT_CROUCH = 0x8;
+enum BT_TURN180 = 0x10;
+enum BT_ALTATTACK = 0x20;
+enum BT_RELOAD = 0x40;
+enum BT_ZOOM = 0x80;
+enum BT_SPEED = 0x100;
+enum BT_STRAFE = 0x200;
+enum BT_MOVERIGHT = 0x400;
+enum BT_MOVELEFT = 0x800;
+enum BT_BACK = 0x1000;
+enum BT_FORWARD = 0x2000;
+enum BT_RIGHT = 0x4000;
+enum BT_LEFT = 0x8000;
+enum BT_LOOKUP = 0x10000;
+enum BT_LOOKDOWN = 0x20000;
+enum BT_MOVEUP = 0x40000;
+enum BT_MOVEDOWN = 0x80000;
+enum BT_SHOWSCORES = 0x100000;
+enum BT_USER1 = 0x200000;
+enum BT_USER2 = 0x400000;
+enum BT_USER3 = 0x800000;
+enum BT_USER4 = 0x1000000;
+
+enum {
+   CR_UNTRANSLATED = -1,
+   CR_BRICK,
+   CR_TAN,
+   CR_GRAY,
+   CR_GREY = CR_GRAY,
+   CR_GREEN,
+   CR_BROWN,
+   CR_GOLD,
+   CR_RED,
+   CR_BLUE,
+   CR_ORANGE,
+   CR_WHITE,
+   CR_YELLOW,
+   CR_BLACK = 12,
+   CR_LIGHTBLUE,
+   CR_CREAM,
+   CR_OLIVE,
+   CR_DARKGREEN,
+   CR_DARKRED,
+   CR_DARKBROWN,
+   CR_PURPLE,
+   CR_DARKGRAY,
+   CR_DARKGREY = CR_DARKGRAY,
+   CR_CYAN
+}
+
+enum HUDMSG_PLAIN = 0;
+enum HUDMSG_FADEOUT = 1;
+enum HUDMSG_TYPEON = 2;
+enum HUDMSG_FADEINOUT = 3;
+enum HUDMSG_LOG = 0x80000000;
+enum HUDMSG_COLORSTRING = 0x40000000;
+enum HUDMSG_ADDBLEND = 0x20000000;
+enum HUDMSG_ALPHA = 0x10000000;
+enum HUDMSG_NOWRAP = 0x8000000;
+enum HUDMSG_LAYER_OVERHUD = 0x0;
+enum HUDMSG_LAYER_UNDERHUD = 0x1000;
+enum HUDMSG_LAYER_OVERMAP = 0x2000;
+enum HUDMSG_NOTWITH3DVIEW = 0x10000;
+enum HUDMSG_NOTWITHFULLMAP = 0x20000;
+enum HUDMSG_NOTWITHOVERLAYMAP = 0x40000;
+
+enum {
+   MARINEWEAPON_DUMMY,
+   MARINEWEAPON_FIST,
+   MARINEWEAPON_BERSERKFIST,
+   MARINEWEAPON_CHAINSAW,
+   MARINEWEAPON_PISTOL,
+   MARINEWEAPON_SHOTGUN,
+   MARINEWEAPON_SUPERSHOTGUN,
+   MARINEWEAPON_CHAINGUN,
+   MARINEWEAPON_ROCKETLAUNCHER,
+   MARINEWEAPON_PLASMARIFLE,
+   MARINEWEAPON_RAILGUN,
+   MARINEWEAPON_BFG
+}
+
+enum {
+   APROP_HEALTH,
+   APROP_SPEED,
+   APROP_DAMAGE,
+   APROP_ALPHA,
+   APROP_RENDERSTYLE,
+   APROP_SEESOUND,
+   APROP_ATTACKSOUND,
+   APROP_PAINSOUND,
+   APROP_DEATHSOUND,
+   APROP_ACTIVESOUND,
+   APROP_AMBUSH,
+   APROP_INVULNERABLE,
+   APROP_JUMPZ,
+   APROP_CHASEGOAL,
+   APROP_FRIGHTENED,
+   APROP_GRAVITY,
+   APROP_FRIENDLY,
+   APROP_SPAWNHEALTH,
+   APROP_DROPPED,
+   APROP_NOTARGET,
+   APROP_SPECIES,
+   APROP_NAMETAG,
+   APROP_SCORE,
+   APROP_NOTRIGGER,
+   APROP_DAMAGEFACTOR,
+   APROP_MASTERTID,
+   APROP_TARGETTID,
+   APROP_TRACERTID,
+   APROP_WATERLEVEL,
+   APROP_SCALEX,
+   APROP_SCALEY,
+   APROP_DORMANT,
+   APROP_MASS,
+   APROP_ACCURACY,
+   APROP_STAMINA,
+   APROP_HEIGHT,
+   APROP_RADIUS,
+   APROP_REACTIONTIME,
+   APROP_MELEERANGE,
+   APROP_VIEWHEIGHT,
+   APROP_ATTACKZOFFSET,
+   APROP_STENCILCOLOR,
+   APROP_FRICTION,
+   APROP_DAMAGEMULTIPLIER
+}
+
+enum {
+   STYLE_NONE,
+   STYLE_NORMAL,
+   STYLE_FUZZY,
+   STYLE_SOULTRANS,
+   STYLE_OPTFUZZY,
+   STYLE_STENCIL,
+   STYLE_ADDSTENCIL,
+   STYLE_ADDSHADED,
+   STYLE_TRANSLUCENT = 64,
+   STYLE_ADD,
+   STYLE_SHADED,
+   STYLE_TRANSLUCENTSTENCIL,
+   STYLE_SHADOW,
+   STYLE_SUBTRACT
+}
+
+enum {
+   LEVELINFO_PAR_TIME,
+   LEVELINFO_CLUSTERNUM,
+   LEVELINFO_LEVELNUM,
+   LEVELINFO_TOTAL_SECRETS,
+   LEVELINFO_FOUND_SECRETS,
+   LEVELINFO_TOTAL_ITEMS,
+   LEVELINFO_FOUND_ITEMS,
+   LEVELINFO_TOTAL_MONSTERS,
+   LEVELINFO_KILLED_MONSTERS,
+   LEVELINFO_SUCK_TIME
+}
+
+enum {
+   PLAYERINFO_TEAM,
+   PLAYERINFO_AIMDIST,
+   PLAYERINFO_COLOR,
+   PLAYERINFO_GENDER,
+   PLAYERINFO_NEVERSWITCH,
+   PLAYERINFO_MOVEBOB,
+   PLAYERINFO_STILLBOB,
+   PLAYERINFO_PLAYERCLASS,
+   PLAYERINFO_FOV,
+   PLAYERINFO_DESIREDFOV
+}
+
+enum NOT_BOTTOM = 1;
+enum NOT_MIDDLE = 2;
+enum NOT_TOP = 4;
+enum NOT_FLOOR = 8;
+enum NOT_CEILING = 16;
+
+enum DAMAGE_PLAYERS = 1;
+enum DAMAGE_NONPLAYERS = 2;
+enum DAMAGE_IN_AIR = 4;
+enum DAMAGE_SUBCLASSES_PROTECT = 8;
+
+enum MRF_OLDEFFECTS = 0x0;
+enum MRF_ADDSTAMINA = 0x1;
+enum MRF_FULLHEALTH = 0x2;
+enum MRF_UNDOBYTOMEOFPOWER = 0x4;
+enum MRF_UNDOBYCHAOSDEVICE = 0x8;
+enum MRF_FAILNOTELEFRAG = 0x10;
+enum MRF_FAILNOLAUGH = 0x20;
+enum MRF_WHENINVULNERABLE = 0x40;
+enum MRF_LOSEACTUALWEAPON = 0x80;
+enum MRF_NEWTIDBEHAVIOUR = 0x100;
+enum MRF_UNDOBYDEATH = 0x200;
+enum MRF_UNDOBYDEATHFORCED = 0x400;
+enum MRF_UNDOBYDEATHSAVES = 0x800;
+
+enum {
+   T_ROCK1 = 41,
+   T_ROCK2,
+   T_ROCK3,
+   T_DIRT1,
+   T_DIRT2,
+   T_DIRT3,
+   T_DIRT4,
+   T_DIRT5,
+   T_DIRT6,
+   T_STAINEDGLASS1 = 54,
+   T_STAINEDGLASS2,
+   T_STAINEDGLASS3,
+   T_STAINEDGLASS4,
+   T_STAINEDGLASS5,
+   T_STAINEDGLASS6,
+   T_STAINEDGLASS7,
+   T_STAINEDGLASS8,
+   T_STAINEDGLASS9,
+   T_STAINEDGLASS0
+}
+
+enum {
+   T_NONE,
+   T_SHOTGUY,
+   T_CHAINGUY,
+   T_BARON,
+   T_ZOMBIE,
+   T_IMP,
+   T_ARACHNOTRON,
+   T_SPIDERMASTERMIND,
+   T_DEMON,
+   T_SPECTRE,
+   T_IMPFIREBALL,
+   T_CLIP,
+   T_SHELLS,
+   T_CACODEMON = 19,
+   T_REVENANT,
+   T_BRIDGE,
+   T_ARMORBONUS,
+   T_STIMPACK,
+   T_MEDKIT,
+   T_SOULSPHERE,
+   T_SHOTGUN = 27,
+   T_CHAINGUN,
+   T_ROCKETLAUNCHER,
+   T_PLASMAGUN,
+   T_BFG,
+   T_CHAINSAW,
+   T_SUPERSHOTGUN,
+   T_PLASMABOLT = 51,
+   T_TRACER = 53,
+   T_GREENARMOR = 68,
+   T_BLUEARMOR,
+   T_CELL = 75,
+   T_BLUEKEYCARD = 85,
+   T_REDKEYCARD,
+   T_YELLOWKEYCARD,
+   T_YELLOWSKULLKEY,
+   T_REDSKULLKEY,
+   T_BLUESKULLKEY,
+   T_TEMPLARGEFLAME = 98,
+   T_STEALTHBARON = 100,
+   T_STEALTHKNIGHT,
+   T_STEALTHZOMBIE,
+   T_STEALTHSHOTGUY,
+   T_LOSTSOUL = 110,
+   T_VILE,
+   T_MANCUBUS,
+   T_HELLKNIGHT,
+   T_CYBERDEMON,
+   T_PAINELEMENTAL,
+   T_WOLFSS,
+   T_STEALTHARACHNOTRON,
+   T_STEALTHVILE,
+   T_STEALTHCACODEMON,
+   T_STEALTHCHAINGUY,
+   T_STEALTHSERGEANT,
+   T_STEALTHIMP,
+   T_STEALTHMANCUBUS,
+   T_STEALTHREVENANT,
+   T_BARREL,
+   T_CACODEMONSHOT,
+   T_ROCKET,
+   T_BFGSHOT,
+   T_ARACHNOTRONPLASMA,
+   T_BLOOD,
+   T_PUFF,
+   T_MEGASPHERE,
+   T_INVULNERABILITY,
+   T_BERSERK,
+   T_INVISIBILITY,
+   T_IRONFEET,
+   T_COMPUTERMAP,
+   T_LIGHTAMP,
+   T_AMMOBOX,
+   T_ROCKETAMMO,
+   T_ROCKETBOX,
+   T_BATTERY,
+   T_SHELLBOX,
+   T_BACKPACK,
+   T_GUTS,
+   T_BLOODPOOL,
+   T_BLOODPOOL1,
+   T_BLOODPOOL2,
+   T_FLAMINGBARREL,
+   T_BRAINS,
+   T_SCRIPTEDMARINE,
+   T_HEALTHBONUS,
+   T_MANCUBUSSHOT,
+   T_BARONBALL
+}
+
+enum {
+   T_CLINK = 1,
+   T_MUMMYLEADER,
+   T_BEAST,
+   T_MUMMY,
+   T_KNIGHT = 6,
+   T_IMPLEADER,
+   T_MUMMYGHOST,
+   T_MUMMYLEADERGHOST,
+   T_WIMPYWANDAMMO = 11,
+   T_HEFTYWANDAMMO,
+   T_ITEMEGG = 14,
+   T_ITEMFLIGHT,
+   T_ITEMTELEPORT = 18,
+   T_WIZARD,
+   T_IRONLICH,
+   T_ITEMHEALTHPOTION = 23,
+   T_ITEMHEALTHFLASH,
+   T_ITEMHEALTHFLASK = T_ITEMHEALTHFLASH,
+   T_ITEMHEALTHFULL,
+   T_CROSSBOW = 27,
+   T_BLASTER,
+   T_PHOENIXROD,
+   T_SKULLROD,
+   T_MACE,
+   T_GAUNTLETS,
+   T_WIMPYCROSSBOWAMMO,
+   T_HEFTYCROSSBOWAMMO,
+   T_WIMPYMACEAMMO,
+   T_HEFTYMACEAMMO,
+   T_WIMPYBLASTERAMMO,
+   T_HEFTYBLASTERAMMO,
+   T_MORPHBLAST = 40,
+   T_SHIELD1 = 68,
+   T_SHIELD2,
+   T_ITEMTIMEBOMB = 72,
+   T_ITEMTORCH,
+   T_BLUEKEY = 85,
+   T_GREENKEY,
+   T_YELLOWKEY,
+   T_SOUND_WIND = 110,
+   T_SOUND_WATERFALL,
+   T_BEASTBALL = 120,
+   T_FEATHER,
+   T_CHICKEN,
+   T_VOLCANOBALL,
+   T_TINYVOLCANOBALL,
+   T_POD,
+   T_PODGENERATOR,
+   T_KNIGHTAXE,
+   T_KNIGHTBLOODAXE,
+   T_KNIGHTGHOST,
+   T_MUMMYHEAD = 131,
+   T_SNAKE,
+   T_ITEMINVULNERABILITY,
+   T_ITEMTOME,
+   T_ITEMINVISIBILITY,
+   T_ITEMBAGOFHOLDING,
+   T_ITEMALLMAP,
+   T_SNAKEPROJECTILE,
+   T_SNAKEPROJECTILEBIG,
+   T_WIZARDSHOT,
+   T_DSPARILTELEPORTDEST,
+   T_DSPARILONSERPENT,
+   T_DSPARILALONE,
+   T_SERPENTFIREBALL,
+   T_DSPARILBLUESHOT,
+   T_DSPARILWIZARDSPAWNER,
+   T_CROSSBOWMAINBLAST,
+   T_CROSSBOWMINIBLAST,
+   T_CROSSBOWPOWERBLAST,
+   T_VOLCANO,
+   T_POWERWANDMINIBLAST,
+   T_POWERWANDBIGGERBLAST,
+   T_DEATHBALL,
+   T_NOGRAVITYMACEBALL,
+   T_BOUNCYMACEBALL,
+   T_HEAVYMACEBALL,
+   T_RIPPER,
+   T_WIMPYSKULLRODAMMO,
+   T_HEFTYSKULLRODAMMO,
+   T_SKULLRODBLAST,
+   T_WIMPYPHOENIXRODAMMO,
+   T_HEFTYPHOENIXRODAMMO,
+   T_PHOENIXSHOT,
+   T_IRONLICHBLUESHOT,
+   T_WHIRLWIND,
+   T_REDTELEGLITTER,
+   T_BLUETELEGLITTER
+}
+
+enum {
+   T_CENTAUR = 1,
+   T_CENTAURLEADER,
+   T_DEMON1,
+   T_ETTIN,
+   T_FIREGARGOYLE,
+   T_WATERLURKER,
+   T_WATERLURKERLEADER,
+   T_WRAITH,
+   T_WRAITHBURIED,
+   T_FIREBALL1,
+   T_MANA1,
+   T_MANA2,
+   T_ITEMBOOTS,
+   T_ITEMPORK,
+   T_ITEMSUMMON = 16,
+   T_ITEMTPORTOTHER,
+   T_BISHOP = 19,
+   T_ICEGOLEM,
+   T_DRAGONSKINBRACERS = 22,
+   T_ITEMBOOSTMANA = 26,
+   T_FIGHTERAXE,
+   T_FIGHTERHAMMER,
+   T_FIGHTERSWORD1,
+   T_FIGHTERSWORD2,
+   T_FIGHTERSWORD3,
+   T_CLERICSTAFF,
+   T_CLERICHOLY1,
+   T_CLERICHOLY2,
+   T_CLERICHOLY3,
+   T_MAGESHARDS,
+   T_MAGESTAFF1,
+   T_MAGESTAFF2,
+   T_MAGESTAFF3,
+   T_ARROW = 50,
+   T_DART,
+   T_POISONDART,
+   T_RIPPERBALL,
+   T_BLADE = 64,
+   T_ICESHARD,
+   T_FLAME_SMALL,
+   T_FLAME_LARGE,
+   T_MESHARMOR,
+   T_FALCONSHIELD,
+   T_PLATINUMHELM,
+   T_AMULETOFWARDING,
+   T_ITEMFLECHETTE,
+   T_ITEMREPULSION = 74,
+   T_MANA3,
+   T_PUZZSKULL,
+   T_PUZZGEMBIG,
+   T_PUZZGEMRED,
+   T_PUZZGEMGREEN1,
+   T_PUZZGEMGREEN2,
+   T_PUZZGEMBLUE1,
+   T_PUZZGEMBLUE2,
+   T_PUZZBOOK1,
+   T_PUZZBOOK2,
+   T_METALKEY,
+   T_SMALLMETALKEY,
+   T_AXEKEY,
+   T_FIREKEY,
+   T_EMERALDKEY,
+   T_MACEKEY,
+   T_SILVERKEY,
+   T_RUSTYKEY,
+   T_HORNKEY,
+   T_SERPENTKEY,
+   T_WATERDRIP,
+   T_TEMPSMALLFLAME,
+   T_PERMSMALLFLAME,
+   T_PERMLARGEFLAME = 99,
+   T_DEMON_MASH,
+   T_DEMON2_MASH,
+   T_ETTIN_MASH,
+   T_CENTAUR_MASH,
+   T_THRUSTSPIKEUP,
+   T_THRUSTSPIKEDOWN,
+   T_FLESH_DRIP1,
+   T_FLESH_DRIP2,
+   T_SPARK_DRIP
+}
+
+enum ACTOR_NONE = 0x0;
+enum ACTOR_WORLD = 0x1;
+enum ACTOR_PLAYER = 0x2;
+enum ACTOR_BOT = 0x4;
+enum ACTOR_VOODOODOLL = 0x8;
+enum ACTOR_MONSTER = 0x10;
+enum ACTOR_ALIVE = 0x20;
+enum ACTOR_DEAD = 0x40;
+enum ACTOR_MISSILE = 0x80;
+enum ACTOR_GENERIC = 0x100;
+
+enum {
+   SECSEQ_FLOOR = 1,
+   SECSEQ_CEILING,
+   SECSEQ_FULLHEIGHT,
+   SECSEQ_INTERIOR
+}
+
+enum CHAN_AUTO = 0;
+enum CHAN_WEAPON = 1;
+enum CHAN_VOICE = 2;
+enum CHAN_ITEM = 3;
+enum CHAN_BODY = 4;
+enum CHAN_5 = 5;
+enum CHAN_6 = 6;
+enum CHAN_7 = 7;
+enum CHAN_LISTENERZ = 0x8;
+enum CHAN_MAYBE_LOCAL = 0x10;
+enum CHAN_UI = 0x20;
+enum CHAN_NOPAUSE = 0x40;
+
+enum ATTN_NONE = 0;
+enum ATTN_NORM = 1.0;
+enum ATTN_IDLE = 1.001;
+enum ATTN_STATIC = 3.0;
+
+enum {
+   SOUND_SEE,
+   SOUND_ATTACK,
+   SOUND_PAIN,
+   SOUND_DEATH,
+   SOUND_ACTIVE,
+   SOUND_USE,
+   SOUND_BOUNCE,
+   SOUND_WALLBOUNCE,
+   SOUND_CRUSHPAIN,
+   SOUND_HOWL
+}
+
+enum SDF_ABSANGLE = 0x1;
+enum SDF_PERMANENT = 0x2;
+
+enum AAPTR_DEFAULT = 0x0;
+enum AAPTR_NULL = 0x1;
+enum AAPTR_TARGET = 0x2;
+enum AAPTR_MASTER = 0x4;
+enum AAPTR_TRACER = 0x8;
+enum AAPTR_PLAYER_GETTARGET = 0x10;
+enum AAPTR_PLAYER_GETCONVERSATION = 0x20;
+enum AAPTR_PLAYER1 = 0x40;
+enum AAPTR_PLAYER2 = 0x80;
+enum AAPTR_PLAYER3 = 0x100;
+enum AAPTR_PLAYER4 = 0x200;
+enum AAPTR_PLAYER5 = 0x400;
+enum AAPTR_PLAYER6 = 0x800;
+enum AAPTR_PLAYER7 = 0x1000;
+enum AAPTR_PLAYER8 = 0x2000;
+enum AAPTR_FRIENDPLAYER = 0x4000;
+enum AAPTR_GET_LINETARGET = 0x8000;
+
+enum PTROP_UNSAFETARGET = 0x1;
+enum PTROP_UNSAFEMASTER = 0x2;
+enum PTROP_NOSAFEGUARDS = PTROP_UNSAFETARGET | PTROP_UNSAFEMASTER;
+
+enum {
+   ARMORINFO_CLASSNAME,
+   ARMORINFO_SAVEAMOUNT,
+   ARMORINFO_SAVEPERCENT,
+   ARMORINFO_MAXABSORB,
+   ARMORINFO_MAXFULLABSORB,
+   ARMORINFO_ACTUALSAVEAMOUNT,
+}
+
+enum SPAC_NONE = 0x0;
+enum SPAC_CROSS = 0x1;
+enum SPAC_USE = 0x2;
+enum SPAC_MCROSS = 0x4;
+enum SPAC_IMPACT = 0x8;
+enum SPAC_PUSH = 0x10;
+enum SPAC_PCROSS = 0x20;
+enum SPAC_ANYCROSS = 0x40;
+enum SPAC_MUSE = 0x80;
+enum SPAC_MPUSH = 0x100;
+enum SPAC_USEBACK = 0x200;
+
+enum TEAM_BLUE = 0;
+enum TEAM_RED = 1;
+enum NO_TEAM = 2;
+
+enum {
+   TPROP_NAME,
+   TPROP_SCORE,
+   TPROP_ISVALID,
+   TPROP_NUMPLAYERS,
+   TPROP_NUMLIVEPLAYERS,
+   TPROP_TEXTCOLOR,
+   TPROP_PLAYERSTARTNUM,
+   TPROP_SPREAD,
+   TPROP_CARRIER,
+   TPROP_ASSISTER,
+   TPROP_FRAGCOUNT,
+   TPROP_DEATHCOUNT,
+   TPROP_WINCOUNT,
+   TPROP_POINTCOUNT,
+   TPROP_RETURNTICS,
+   TPROP_TEAMITEM,
+   TPROP_WINNERTHEME,
+   TPROP_LOSERTHEME
+}
+
+enum {
+   IS_WAITINGFORPLAYERS,
+   IS_FIRSTCOUNTDOWN,
+   IS_INPROGRESS,
+   IS_BOSSFIGHT,
+   IS_WAVECOMPLETE,
+   IS_COUNDOWN
+}
+
+enum {
+   T_GRENADE = 216,
+   T_BFG10KSHOT,
+   T_DARKIMPFIREBALL,
+   T_CACOLANTERNSHOT,
+   T_ABADDONSHOT = 221
+}
+
+enum {
+   T_DARKIMP = 155,
+   T_BLOODDEMON,
+   T_SSGGUY,
+   T_HECTEBUS,
+   T_CACOLANTERN,
+   T_BELPHEGOR = 215,
+   T_ABADDON = 220
+}
+
+enum {
+   T_PISTOL = 162,
+   T_GRENADELAUNCHER,
+   T_RAILGUN,
+   T_BFG10000,
+   T_MINIGUN = 214
+}
+
+enum {
+   T_MAXHEALTHBONUS = 166,
+   T_MAXARMORBONUS,
+   T_REDARMOR
+}
+
+enum {
+   T_TURBOSPHERE = 169,
+   T_ANTIGRAVBELT,
+   T_TIMEFREEZER,
+   T_INFRAGOGGLES,
+   T_INFRATRACKER,
+   T_TRANSLUCENCY,
+   T_DOOMSPHERE,
+   T_RANDOMPOWERUP
+}
+
+enum {
+   T_BLUEFLAG = 177,
+   T_REDFLAG,
+   T_WHITEFLAG
+}
+
+enum {
+   T_STRENGTH = 180,
+   T_RAGE,
+   T_DRAIN,
+   T_SPREAD,
+   T_RESISTANCE,
+   T_REGENERATION,
+   T_PROSPERITY,
+   T_REFLECTION,
+   T_HIGHJUMP,
+   T_HASTE
+}
+
+enum {
+   EV_KEYDOWN = 1,
+   EV_KEYREPEAT,
+   EV_KEYUP,
+   EV_CHAR,
+   EV_MOUSEMOVE,
+   EV_LBUTTONDOWN,
+   EV_LBUTTONUP,
+   EV_LBUTTONDBLCLICK,
+   EV_MBUTTONDOWN,
+   EV_MBUTTONUP,
+   EV_MBUTTONDBLCLICK,
+   EV_RBUTTONDOWN,
+   EV_RBUTTONUP,
+   EV_RBUTTONDBLCLICK,
+   EV_WHEELDOWN,
+   EV_WHEELUP
+}
+
+enum GKM_SHIFT = 0x100;
+enum GKM_CTRL = 0x200;
+enum GKM_ALT = 0x400;
+enum GKM_LBUTTON = 0x800;
+enum GKM_MBUTTON = 0x1000;
+enum GKM_RBUTTON = 0x2000;
+
+enum {
+   GK_PGDN = 1,
+   GK_PGUP,
+   GK_HOME,
+   GK_END,
+   GK_LEFT,
+   GK_RIGHT,
+   GK_ALERT,
+   GK_BACKSPACE,
+   GK_TAB,
+   GK_LINEFEED,
+   GK_DOWN = GK_LINEFEED,
+   GK_VTAB,
+   GK_UP = GK_VTAB,
+   GK_FORMFEED,
+   GK_RETURN,
+   GK_F1,
+   GK_F2,
+   GK_F3,
+   GK_F4,
+   GK_F5,
+   GK_F6,
+   GK_F7,
+   GK_F8,
+   GK_F9,
+   GK_F10,
+   GK_F11,
+   GK_F12,
+   GK_DEL,
+   GK_ESCAPE,
+   GK_FREE1,
+   GK_FREE2,
+   GK_FREE3,
+   GK_CESCAPE
+}
+
+enum CHANGELEVEL_KEEPFACING = 0x1;
+enum CHANGELEVEL_RESETINVENTORY = 0x2;
+enum CHANGELEVEL_NOMONSTERS = 0x4;
+enum CHANGELEVEL_CHANGESKILL = 0x8;
+enum CHANGELEVEL_NOINTERMISSION = 0x10;
+enum CHANGELEVEL_RESETHEALTH = 0x20;
+enum CHANGELEVEL_PRERAISEWEAPON = 0x40;
+
+enum NO_CHANGE = 32767.0;
+
+enum SECF_SILENT = 0x1;
+enum SECF_NOFALLINGDAMAGE = 0x2;
+enum SECF_FLOORDROP = 0x4;
+enum SECF_NORESPAWN = 0x8;
+
+enum BLOCKF_CREATURES = 0x1;
+enum BLOCKF_MONSTERS = 0x2;
+enum BLOCKF_PLAYERS = 0x4;
+enum BLOCKF_FLOATERS = 0x8;
+enum BLOCKF_PROJECTILES = 0x10;
+enum BLOCKF_EVERYTHING = 0x20;
+enum BLOCKF_RAILING = 0x40;
+enum BLOCKF_USE = 0x80;
+enum BLOCKF_SIGHT = 0x100;
+enum BLOCKF_HITSCAN = 0x200;
+
+enum FOGP_DENSITY = 0;
+enum FOGP_OUTSIDEDENSITY = 1;
+enum FOGP_SKYFOG = 2;
+
+enum PRINTNAME_LEVELNAME = -1;
+enum PRINTNAME_LEVEL = -2;
+enum PRINTNAME_SKILL = -3;
+
+enum CSF_NOFAKEFLOORS = 0x1;
+enum CSF_NOBLOCKALL = 0x2;
+
+enum FHF_NORANDOMPUFFZ = 0x1;
+enum FHF_NOIMPACTDECAL = 0x2;
+
+enum {
+   GAMESTATE_UNSPECIFIED = -1,
+   GAMESTATE_WAITFORPLAYERS,
+   GAMESTATE_COUNTDOWN,
+   GAMESTATE_INPROGRESS,
+   GAMESTATE_INRESULTSEQUENCE
+}
+
+enum {
+   GAMEEVENT_PLAYERFRAGS,
+   GAMEEVENT_MEDALS,
+   GAMEEVENT_CAPTURES,
+   GAMEEVENT_TOUCHES,
+   GAMEEVENT_RETURNS,
+   GAMEEVENT_ROUND_STARTS,
+   GAMEEVENT_ROUND_ENDS,
+   GAMEEVENT_ROUND_ABORTED
+}
+
+enum {
+   MF_SPECIAL = 0x1,
+   MF_SOLID = 0x2,
+   MF_SHOOTABLE = 0x4,
+   MF_NOSECTOR = 0x8,
+   MF_NOBLOCKMAP = 0x10,
+   MF_AMBUSH = 0x20,
+   MF_JUSTHIT = 0x40,
+   MF_JUSTATTACKED = 0x80,
+   MF_SPAWNCEILING = 0x100,
+   MF_NOGRAVITY = 0x200,
+   MF_DROPOFF = 0x400,
+   MF_PICKUP = 0x800,
+   MF_NOCLIP = 0x1000,
+   MF_INCHASE = 0x2000,
+   MF_FLOAT = 0x4000,
+   MF_TELEPORT = 0x8000,
+   MF_MISSILE = 0x1_0000,
+   MF_DROPPED = 0x2_0000,
+   MF_SHADOW = 0x4_0000,
+   MF_NOBLOOD = 0x8_0000,
+   MF_CORPSE = 0x10_0000,
+   // The following two enumerators have the same value. Not sure if it's
+   // intentional or an error.
+   MF_INFLOAT = 0x20_0000,
+   MF_INBOUNCE = 0x20_0000,
+   MF_COUNTKILL = 0x40_0000,
+   MF_COUNTITEM = 0x80_0000,
+   MF_SKULLFLY = 0x100_0000,
+   MF_NOTDMATCH = 0x200_0000,
+   MF_SPAWNSOUNDSOURCE = 0x400_0000,
+   MF_FRIENDLY = 0x800_0000,
+   MF_UNMORPHED = 0x1000_0000,
+   MF_NOLIFTDROP = 0x2000_0000,
+   MF_STEALTH = 0x4000_0000,
+   MF_ICECORPSE = 0x8000_0000
+}
+
+enum {
+   ML_BLOCKING = 0x1,
+   ML_BLOCKMONSTERS = 0x2,
+   ML_TWOSIDED = 0x4,
+   ML_DONTPEGTOP = 0x8,
+   ML_DONTPEGBOTTOM = 0x10,
+   ML_SECRET = 0x20,
+   ML_SOUNDBLOCK = 0x40,
+   ML_DONTDRAW = 0x80,
+   ML_MAPPED = 0x100,
+   ML_REPEAT_SPECIAL = 0x200,
+   ML_ADDTRANS = 0x400,
+   ML_MONSTERSCANACTIVATE = 0x2000,
+   ML_BLOCK_PLAYERS = 0x4000,
+   ML_BLOCKEVERYTHING = 0x8000,
+   ML_ZONEBOUNDARY = 0x1_0000,
+   ML_RAILING = 0x2_0000,
+   ML_BLOCK_FLOATERS = 0x4_0000,
+   ML_CLIP_MIDTEX = 0x8_0000,
+   ML_WRAP_MIDTEX = 0x10_0000,
+   ML_3DMIDTEX = 0x20_0000,
+   ML_CHECKSWITCHRANGE = 0x40_0000,
+   ML_FIRSTSIDEONLY = 0x80_0000,
+   ML_BLOCKPROJECTILE = 0x100_0000,
+   ML_BLOCKUSE = 0x200_0000,
+   ML_BLOCKSIGHT = 0x400_0000,
+   ML_BLOCKHITSCAN = 0x800_0000
+}
+
+enum {
+   QF_RELATIVE = 0x1,
+   QF_SCALEDOWN = 0x2,
+   QF_SCALEUP = 0x4,
+   QF_MAX = 0x8,
+   QF_FULLINTENSITY = 0x10,
+   QF_WAVE = 0x20
+}
+
+enum {
+   WARPF_ABSOLUTEOFFSET = 0x1,
+   WARPF_ABSOLUTEANGLE = 0x2,
+   WARPF_USECALLERANGLE = 0x4,
+   WARPF_NOCHECKPOSITION = 0x8,
+   WARPF_INTERPOLATE = 0x10,
+   WARPF_WARPINTERPOLATION = 0x20,
+   WARPF_COPYINTERPOLATION = 0x40,
+   WARPF_STOP = 0x80,
+   WARPF_TOFLOOR = 0x100,
+   WARPF_TESTONLY = 0x200,
+   WARPF_ABSOLUTEPOSITION = 0x400,
+   WARPF_BOB = 0x800,
+   WARPF_MOVEPTR = 0x1000,
+   WARPF_USEPTR = 0x2000
+}
+
+enum DB_ORDER_DESC = false;
+enum DB_ORDER_ASC = true;
+
+enum {
+   TM_SECOND,
+   TM_MINUTE,
+   TM_HOUR,
+   TM_DAY,
+   TM_MONTH,
+   TM_YEAR,
+   TM_WEEKDAY
+}
+
+enum INT_MIN = -INT_MAX - 1;
+enum INT_MAX = 2147483647;
+
+// Functions
+// ==========================================================================
+
+// Action specials
+// Tail format: = <action-special-number> , <script-callable>
+function int Polyobj_StartLine( int, int, int, int ) = 1, 0;
+function int Polyobj_RotateLeft( int, int, int ) = 2, 1;
+function int Polyobj_RotateRight( int, int, int ) = 3, 1;
+function int Polyobj_Move( int, int, int, int ) = 4, 1;
+function int Polyobj_ExplicitLine( int, int, int, int, int ) = 5, 0;
+function int Polyobj_MoveTimes8( int, int, int, int ) = 6, 1;
+function int Polyobj_DoorSwing( int, int, int, int ) = 7, 1;
+function int Polyobj_DoorSlide( int, int, int, int, int ) = 8, 1;
+function int Line_Horizon() = 9, 0;
+function int Door_Close( int, int, int = 0 ) = 10, 1;
+function int Door_Open( int, int, int = 0 ) = 11, 1;
+function int Door_Raise( int, int, int, int = 0 ) = 12, 1;
+function int Door_LockedRaise( int, int, int, int, int = 0 ) = 13, 1;
+function int Door_Animated( int, int, int, int = 0 ) = 14, 1;
+function int Autosave() = 15, 1;
+function int Transfer_WallLight( int, int ) = 16, 0;
+function int Thing_Raise( int ) = 17, 1;
+function int StartConversation( int, int = 0 ) = 18, 1;
+function int Thing_Stop( int ) = 19, 1;
+function int Floor_LowerByValue( int, int, int ) = 20, 1;
+function int Floor_LowerToLowest( int, int ) = 21, 1;
+function int Floor_LowerToNearest( int, int ) = 22, 1;
+function int Floor_RaiseByValue( int, int, int ) = 23, 1;
+function int Floor_RaiseToHighest( int, int ) = 24, 1;
+function int Floor_RaiseToNearest( int, int ) = 25, 1;
+function int Stairs_BuildDown( int, int, int, int, int ) = 26, 1;
+function int Stairs_BuildUp( int, int, int, int, int ) = 27, 1;
+function int Floor_RaiseAndCrush( int, int, int, int = 0 ) = 28, 1;
+function int Pillar_Build( int, int, int ) = 29, 1;
+function int Pillar_Open( int, int, int, int ) = 30, 1;
+function int Stairs_BuildDownSync( int, int, int, int ) = 31, 1;
+function int Stairs_BuildUpSync( int, int, int, int ) = 32, 1;
+function int ForceField() = 33, 1;
+function int ClearForceField( int ) = 34, 1;
+function int Floor_RaiseByValueTimes8( int, int, int ) = 35, 1;
+function int Floor_LowerByValueTimes8( int, int, int ) = 36, 1;
+function int Floor_MoveToValue( int, int, int, int = 0 ) = 37, 1;
+function int Ceiling_Waggle( int, int, int, int, int ) = 38, 1;
+function int Teleport_ZombieChanger( int, int ) = 39, 1;
+function int Ceiling_LowerByValue( int, int, int ) = 40, 1;
+function int Ceiling_RaiseByValue( int, int, int ) = 41, 1;
+function int Ceiling_CrushAndRaise( int, int, int, int = 0 ) = 42, 1;
+function int Ceiling_LowerAndCrush( int, int, int, int = 0 ) = 43, 1;
+function int Ceiling_CrushStop( int ) = 44, 1;
+function int Ceiling_CrushRaiseAndStay( int, int, int, int = 0 ) = 45, 1;
+function int Floor_CrushStop( int ) = 46, 1;
+function int Ceiling_MoveToValue( int, int, int, int = 0 ) = 47, 1;
+function int Sector_Attach3dMidTex( int, int, int ) = 48, 0;
+function int GlassBreak( int = 0 ) = 49, 1;
+function int ExtraFloor_LightOnly( int, int ) = 50, 0;
+function int Sector_SetLink( int, int, int, int ) = 51, 1;
+function int Scroll_Wall( int, int, int, int, int ) = 52, 1;
+function int Line_SetTextureOffset( int, int, int, int, int ) = 53, 1;
+function int Sector_ChangeFlags( int, int, int ) = 54, 1;
+function int Line_SetBlocking( int, int, int ) = 55, 1;
+function int Line_SetTextureScale( int, int, int, int, int ) = 56, 1;
+function int Sector_SetPortal( int, int, int, int, int ) = 57, 0;
+function int Sector_CopyScroller( int, int ) = 58, 0;
+function int Polyobj_Or_MoveToSpot( int, int, int ) = 59, 1;
+function int Plat_PerpetualRaise( int, int, int ) = 60, 1;
+function int Plat_Stop( int ) = 61, 1;
+function int Plat_DownWaitUpStay( int, int, int ) = 62, 1;
+function int Plat_DownByValue( int, int, int, int ) = 63, 1;
+function int Plat_UpWaitDownStay( int, int, int ) = 64, 1;
+function int Plat_UpByValue( int, int, int, int ) = 65, 1;
+function int Floor_LowerInstant( int, int, int ) = 66, 1;
+function int Floor_RaiseInstant( int, int, int ) = 67, 1;
+function int Floor_MoveToValueTimes8( int, int, int, int ) = 68, 1;
+function int Ceiling_MoveToValueTimes8( int, int, int, int ) = 69, 1;
+function int Teleport( int, int = 0, int = 0 ) = 70, 1;
+function int Teleport_NoFog( int, int = 0, int = 0, int = 0 ) = 71, 1;
+function int ThrustThing( int, int, int = 0, int = 0 ) = 72, 1;
+function int DamageThing( int, int = 0 ) = 73, 1;
+function int Teleport_NewMap( int, int, int = 0 ) = 74, 1;
+function int Teleport_EndGame() = 75, 1;
+function int TeleportOther( int, int, int ) = 76, 1;
+function int TeleportGroup( int, int, int, int, int ) = 77, 1;
+function int TeleportInSector( int, int, int, int, int = 0 ) = 78, 1;
+function int Thing_SetConversation( int, int ) = 79, 1;
+function int Acs_Execute( int, int, int = 0, int = 0, int = 0 ) = 80, 1;
+function int Acs_Suspend( int, int ) = 81, 1;
+function int Acs_Terminate( int, int ) = 82, 1;
+function int Acs_LockedExecute( int, int, int, int, int ) = 83, 1;
+function int Acs_ExecuteWithResult( int, int = 0, int = 0, int = 0,
+   int = 0 ) = 84, 1;
+function int Acs_LockedExecuteDoor( int, int, int, int, int ) = 85, 1;
+function int Polyobj_MoveToSpot( int, int, int ) = 86, 1;
+function int Polyobj_Stop( int ) = 87, 1;
+function int Polyobj_MoveTo( int, int, int, int ) = 88, 1;
+function int Polyobj_Or_MoveTo( int, int, int, int ) = 89, 1;
+function int Polyobj_Or_RotateLeft( int, int, int ) = 90, 1;
+function int Polyobj_Or_RotateRight( int, int, int ) = 91, 1;
+function int Polyobj_Or_Move( int, int, int, int ) = 92, 1;
+function int Polyobj_Or_MoveTimes8( int, int, int, int ) = 93, 1;
+function int Pillar_BuildAndCrush( int, int, int, int, int = 0 ) = 94, 1;
+function int FloorAndCeiling_LowerByValue( int, int, int ) = 95, 1;
+function int FloorAndCeiling_RaiseByValue( int, int, int ) = 96, 1;
+function int Ceiling_LowerAndCrushDist( int, int, int, int = 0,
+   int = 0 ) = 97, 1;
+function int Sector_SetTranslucent( int, int, int, int ) = 98, 1;
+function int Floor_RaiseAndCrushDoom( int, int, int, int = 0 ) = 99, 1;
+function int Scroll_Texture_Left( int, int = 0 ) = 100, 0;
+function int Scroll_Texture_Right( int, int = 0 ) = 101, 0;
+function int Scroll_Texture_Up( int, int = 0 ) = 102, 0;
+function int Scroll_Texture_Down( int, int = 0 ) = 103, 0;
+function int Light_ForceLightning( int ) = 109, 1;
+function int Light_RaiseByValue( int, int ) = 110, 1;
+function int Light_LowerByValue( int, int ) = 111, 1;
+function int Light_ChangeToValue( int, int ) = 112, 1;
+function int Light_Fade( int, int, int ) = 113, 1;
+function int Light_Glow( int, int, int, int ) = 114, 1;
+function int Light_Flicker( int, int, int ) = 115, 1;
+function int Light_Strobe( int, int, int, int, int ) = 116, 1;
+function int Light_Stop( int ) = 117, 1;
+function int Plane_Copy( int, int, int, int, int ) = 118, 0;
+function int Thing_Damage( int, int, int = 0 ) = 119, 1;
+function int Radius_Quake( int, int, int, int, int ) = 120, 1;
+function int Line_SetIdentification( int, int, int, int, int ) = 121, 0;
+function int Thing_Move( int, int, int = 0 ) = 125, 1;
+function int Thing_SetSpecial( int, int, int, int, int ) = 127, 1;
+function int ThrustThingZ( int, int, int, int ) = 128, 1;
+function int UsePuzzleItem() = 129, 0;
+function int Thing_Activate( int ) = 130, 1;
+function int Thing_Deactivate( int ) = 131, 1;
+function int Thing_Remove( int ) = 132, 1;
+function int Thing_Destroy( int, int = 0 ) = 133, 1;
+function int Thing_Projectile( int, int, int, int, int ) = 134, 1;
+function int Thing_Spawn( int, int, int, int = 0 ) = 135, 1;
+function int Thing_ProjectileGravity( int, int, int, int, int ) = 136, 1;
+function int Thing_SpawnNoFog( int, int, int, int = 0 ) = 137, 1;
+function int Floor_Waggle( int, int, int, int, int ) = 138, 1;
+function int Thing_SpawnFacing( int, int, int = 0, int = 0 ) = 139, 1;
+function int Sector_ChangeSound( int, int ) = 140, 1;
+function int Player_SetTeam( int ) = 145, 1;
+function int Team_Score( int, int ) = 152, 1;
+function int Team_GivePoints( int, int, int ) = 153, 1;
+function int Teleport_NoStop( int, int, int = 0 ) = 154, 1;
+function int SetGlobalFogParameter( int, int ) = 157, 1;
+function int Fs_Excute( int, int = 0, int = 0, int = 0 ) = 158, 1;
+function int Sector_SetPlaneReflection( int, int, int ) = 159, 1;
+function int Sector_Set3dFloor( int, int, int, int, int ) = 160, 0;
+function int Sector_SetContents( int, int, int ) = 161, 0;
+function int Ceiling_CrushAndRaiseDist( int, int, int, int, int = 0 ) = 168, 1;
+function int Generic_Crusher2( int, int, int, int, int ) = 169, 1;
+function int Sector_SetCeilingScale2( int, int, int ) = 170, 1;
+function int Sector_SetFloorScale2( int, int, int ) = 171, 1;
+function int Plat_UpNearestWaitDownStay( int, int, int ) = 172, 1;
+function int NoiseAlert( int, int ) = 173, 1;
+function int SendToCommunicator( int, int, int, int ) = 174, 1;
+function int Thing_ProjectileIntercept( int, int, int, int, int ) = 175, 1;
+function int Thing_ChangeTid( int, int ) = 176, 1;
+function int Thing_Hate( int, int, int = 0 ) = 177, 1;
+function int Thing_ProjectileAimed( int, int, int, int, int = 0 ) = 178, 1;
+function int ChangeSkill( int ) = 179, 1;
+function int Thing_SetTranslation( int, int ) = 180, 1;
+function int Plane_Align( int, int, int ) = 181, 0;
+function int Line_Mirror() = 182, 0;
+function int Line_AlignCeiling( int, int ) = 183, 1;
+function int Line_AlignFloor( int, int ) = 184, 1;
+function int Sector_SetRotation( int, int, int ) = 185, 1;
+function int Sector_SetCeilingPanning( int, int, int, int, int ) = 186, 1;
+function int Sector_SetFloorPanning( int, int, int, int, int ) = 187, 1;
+function int Sector_SetCeilingScale( int, int, int, int, int ) = 188, 1;
+function int Sector_SetFloorScale( int, int, int, int, int ) = 189, 1;
+function int Static_Init( int, int, int, int ) = 190, 0;
+function int SetPlayerProperty( int, int, int ) = 191, 1;
+function int Ceiling_LowerToHighestFloor( int, int ) = 192, 1;
+function int Ceiling_LowerInstant( int, int, int ) = 193, 1;
+function int Ceiling_RaiseInstant( int, int, int ) = 194, 1;
+function int Ceiling_CrushRaiseAndStayA( int, int, int, int,
+   int = 0 ) = 195, 1;
+function int Ceiling_CrushAndRaiseA( int, int, int, int, int = 0 ) = 196, 1;
+function int Ceiling_CrushAndRaiseSilentA( int, int, int, int,
+   int = 0 ) = 197, 1;
+function int Ceiling_RaiseByValueTimes8( int, int, int ) = 198, 1;
+function int Ceiling_LowerByValueTImes8( int, int, int ) = 199, 1;
+function int Generic_Floor( int, int, int, int, int ) = 200, 1;
+function int Generic_Ceiling( int, int, int, int, int ) = 201, 1;
+function int Generic_Door( int, int, int, int, int ) = 202, 1;
+function int Generic_Lift( int, int, int, int, int ) = 203, 1;
+function int Generic_Stairs( int, int, int, int, int ) = 204, 1;
+function int Generic_Crusher( int, int, int, int, int ) = 205, 1;
+function int Plat_DownWaitUpStayLip( int, int, int, int, int = 0 ) = 206, 1;
+function int Plat_PerpetualRaiseLip( int, int, int, int ) = 207, 1;
+function int TranslucentLine( int, int, int = 0 ) = 208, 1;
+function int Transfer_Heights( int, int ) = 209, 0;
+function int Transfer_FloorLight( int ) = 210, 0;
+function int Transfer_CeilingLight( int ) = 211, 0;
+function int Sector_SetColor( int, int, int, int, int = 0 ) = 212, 1;
+function int Sector_SetFade( int, int, int, int ) = 213, 1;
+function int Sector_SetDamage( int, int, int ) = 214, 1;
+function int Teleport_Line( int, int ) = 215, 1;
+function int Sector_SetGravity( int, int, int ) = 216, 1;
+function int Stairs_BuildUpDoom( int, int, int, int, int ) = 217, 1;
+function int Sector_SetWind( int, int, int, int ) = 218, 1;
+function int Sector_SetFriction( int, int ) = 219, 1;
+function int Sector_SetCurrent( int, int, int, int ) = 220, 1;
+function int Scroll_Texture_Both( int, int, int, int, int ) = 221, 1;
+function int Scroll_Texture_Model( int, int ) = 222, 0;
+function int Scroll_Floor( int, int, int, int ) = 223, 1;
+function int Scroll_Ceiling( int, int, int, int ) = 224, 1;
+function int Scroll_Texture_Offsets( int ) = 225, 0;
+function int Acs_ExecuteAlways( int, int, int = 0, int = 0, int = 0 ) = 226, 1;
+function int PointPush_SetForce( int, int, int, int ) = 227, 0;
+function int Plat_RaiseAndStayTx0( int, int, int = 0 ) = 228, 1;
+function int Thing_SetGoal( int, int, int, int = 0 ) = 229, 1;
+function int Plat_UpByValueStayTx( int, int, int ) = 230, 1;
+function int Plat_ToggleCeiling( int ) = 231, 1;
+function int Light_StrobeDoom( int, int, int ) = 232, 1;
+function int Light_MinNeighbor( int ) = 233, 1;
+function int Light_MaxNeighbor( int ) = 234, 1;
+function int Floor_TransferTrigger( int ) = 235, 1;
+function int Floor_TransferNumeric( int ) = 236, 1;
+function int ChangeCamera( int, int, int ) = 237, 1;
+function int Floor_RaiseToLowestCeiling( int, int ) = 238, 1;
+function int Floor_RaiseByValueTxTy( int, int, int ) = 239, 1;
+function int Floor_RaiseByTexture( int, int ) = 240, 1;
+function int Floor_LowerToLowestTxTy( int, int ) = 241, 1;
+function int Floor_LowerToHighest( int, int, int ) = 242, 1;
+function int Exit_Normal( int ) = 243, 1;
+function int Exit_Secret( int ) = 244, 1;
+function int Elevator_RaiseToNearest( int, int ) = 245, 1;
+function int Elevator_MoveToFloor( int, int ) = 246, 1;
+function int Elevator_LowerToNearest( int, int ) = 247, 1;
+function int HealThing( int, int = 0 ) = 248, 1;
+function int Door_CloseWaitOpen( int, int, int, int = 0 ) = 249, 1;
+function int Floor_Donut( int, int, int ) = 250, 1;
+function int FloorAndCeiling_LowerRaise( int, int, int, int = 0 ) = 251, 1;
+function int Ceiling_RaiseToNearest( int, int ) = 252, 1;
+function int Ceiling_LowerToLowest( int, int ) = 253, 1;
+function int Ceiling_LowerToFloor( int, int ) = 254, 1;
+function int Ceiling_CrushRaiseAndStaySilA( int, int, int, int,
+   int = 0 ) = 255, 1;
+
+// Extension functions
+// Tail format: -= <function-index>
+function int GetLineUdmfInt( int, str ) -= 1;
+function fixed GetLineUdmfFixed( int, str ) -= 2;
+function int GetThingUdmfInt( int, str ) -= 3;
+function fixed GetThingUdmfFixed( int, str ) -= 4;
+function int GetSectorUdmfInt( int, str ) -= 5;
+function fixed GetSectorUdmfFixed( int, str ) -= 6;
+function int GetSideUdmfInt( int, bool, str ) -= 7;
+function fixed GetSideUdmfFixed( int, bool, str ) -= 8;
+function fixed GetActorVelX( int ) -= 9;
+function fixed GetActorVelY( int ) -= 10;
+function fixed GetActorVelZ( int ) -= 11;
+function bool SetActivator( int, int = AAPTR_DEFAULT ) -= 12;
+function bool SetActivatorToTarget( int ) -= 13;
+function fixed GetActorViewHeight( int ) -= 14;
+function int GetChar( str, int ) -= 15;
+function int GetAirSupply( int ) -= 16;
+function bool SetAirSupply( int, int ) -= 17;
+function void SetSkyScrollSpeed( int, fixed ) -= 18;
+function int GetArmorType( str, int ) -= 19;
+function int SpawnSpotForced( str, int, int = 0, int = 0 ) -= 20;
+function int SpawnSpotFacingForced( str, int, int = 0 ) -= 21;
+function bool CheckActorProperty( int, int, raw ) -= 22;
+function bool SetActorVelocity( int, fixed, fixed, fixed, bool, bool ) -= 23;
+function void SetUserVariable( int, str, raw ) -= 24;
+function raw GetUserVariable( int, str ) -= 25;
+function void Radius_Quake2( int, int, int, int, int, str ) -= 26;
+function bool CheckActorClass( int, str ) -= 27;
+function void SetUserArray( int, str, int, raw ) -= 28;
+function raw GetUserArray( int, str, int ) -= 29;
+function void SoundSequenceOnActor( int, str ) -= 30;
+function void SoundSequenceOnSector( int, str, int ) -= 31;
+function void SoundSequenceOnPolyobj( int, str ) -= 32;
+function fixed GetPolyobjX( int ) -= 33;
+function fixed GetPolyobjY( int ) -= 34;
+function bool CheckSight( int, int, int ) -= 35;
+function int SpawnForced( str, fixed, fixed, fixed, int = 0, int = 0 ) -= 36;
+function void AnnouncerSound( str, int ) -= 37;
+function bool SetPointer( int, int, int = 0, int = 0 ) -= 38;
+function bool Acs_NamedExecute( str, int, raw = 0, raw = 0, raw = 0 ) -= 39;
+function bool Acs_NamedSuspend( str, int ) -= 40;
+function bool Acs_NamedTerminate( str, int ) -= 41;
+function bool Acs_NamedLockedExecute( str, int, raw, raw, int ) -= 42;
+function bool Acs_NamedLockedExecuteDoor( str, int, raw, raw, int ) -= 43;
+function int Acs_NamedExecuteWithResult( str, raw = 0, raw = 0, raw = 0,
+   raw = 0 ) -= 44;
+function bool Acs_NamedExecuteAlways( str, int, raw = 0, raw = 0,
+   raw = 0 ) -= 45;
+function int UniqueTid( int = 0, int = 0 ) -= 46;
+function bool IsTidUsed( int ) -= 47;
+function int Sqrt( int ) -= 48;
+function fixed FixedSqrt( fixed ) -= 49;
+function int VectorLength( int, int ) -= 50;
+function void SetHudClipRect( int, int, int, int, int = 0 ) -= 51;
+function void SetHudWrapWidth( int ) -= 52;
+function bool SetCVar( str, int ) -= 53;
+function int GetUserCVar( int, str ) -= 54;
+function bool SetUserCVar( int, str, int ) -= 55;
+function str GetCVarString( str ) -= 56;
+function bool SetCVarString( str, str ) -= 57;
+function str GetUserCVarString( int, str ) -= 58;
+function bool SetUserCVarString( int, str, str ) -= 59;
+function void LineAttack( int, fixed, fixed, int, str, str, fixed,
+   int = 0 ) -= 60;
+function void PlaySound( int, str, int = 0, fixed = 0.0, bool = false,
+   fixed = 0.0 ) -= 61;
+function void StopSound( int, int ) -= 62;
+function int Strcmp( str, str, int = 0 ) -= 63;
+function int Stricmp( str, str, int = 0 ) -= 64;
+function int Strcasecmp( str, str, int = 0 ) -= 64;
+function str StrLeft( str, int ) -= 65;
+function str StrRight( str, int ) -= 66;
+function str StrMid( str, int, int ) -= 67;
+function str GetActorClass( int ) -= 68;
+function str GetWeapon() -= 69;
+function void SoundVolume( int, int, fixed ) -= 70;
+function void PlayActorSound( int, int, int = 0, fixed = 0.0, bool = false,
+   fixed = 0.0 ) -= 71;
+function int SpawnDecal( int, str, int = 0, fixed = 0.0, fixed = 0.0,
+   fixed = 0.0 ) -= 72;
+function bool CheckFont( str ) -= 73;
+function int DropItem( int, str, int = 0, int = 0 ) -= 74;
+function bool CheckFlag( int, str ) -= 75;
+function void SetLineActivation( int, int ) -= 76;
+function int GetLineActivation( int ) -= 77;
+function int GetActorPowerupTics( int, str ) -= 78;
+function void ChangeActorAngle( int, fixed, bool = false ) -= 79;
+function void ChangeActorPitch( int, fixed, bool = false ) -= 80;
+function int GetArmorInfo( int ) -= 81;
+function void DropInventory( int, str ) -= 82;
+function bool PickActor( int, fixed, fixed, fixed, int, int = MF_SHOOTABLE,
+   int = ML_BLOCKEVERYTHING | ML_BLOCKHITSCAN, bool = false ) -= 83;
+function bool IsPointerEqual( int, int, int = 0, int = 0 ) -= 84;
+function bool CanRaiseActor( int ) -= 85;
+function void SetActorTeleFog( int, str, str ) -= 86;
+function int SwapActorTeleFog( int ) -= 87;
+function void SetActorRoll( int, fixed ) -= 88;
+function void ChangeActorRoll( int, fixed, bool = false ) -= 89;
+function fixed GetActorRoll( int ) -= 90;
+// NOTE: The default values given here are not correct. The engine already
+// provides the correct values. Set the default parameters to zero so the
+// compiler doesn't pass the default values. Figure out a better way to
+// specify the minimum number of arguments.
+function bool QuakeEx( int, int, int, int, int, int, int, str, int = 0,
+   fixed = 0.0, fixed = 0.0, fixed = 0.0 ) -= 91;
+function bool Warp( int, fixed, fixed, fixed, fixed, int, str = "",
+   bool = false, fixed = 0.0, fixed = 0.0, fixed = 0.0 ) -= 92;
+function bool ResetMap() -= 100;
+function bool PlayerIsSpectator( int ) -= 101;
+function int ConsolePlayerNumber() -= 102;
+function int GetTeamProperty( int, int ) -= 103;
+function int GetPlayerLivesLeft( int ) -= 104;
+function bool SetPlayerLivesLeft( int, int ) -= 105;
+function bool KickFromGame( int, str ) -= 106;
+function int GetGamemodeState() -= 107;
+function void SetDBEntry( str, str, int ) -= 108;
+function int GetDBEntry( str, str ) -= 109;
+function void SetDBEntryString( str, str, str ) -= 110;
+function str GetDBEntryString( str, str ) -= 111;
+function void IncrementDBEntry( str, str, int ) -= 112;
+function bool PlayerIsLoggedIn( int ) -= 113;
+function str GetPlayerAccountName( int ) -= 114;
+function int SortDBEntries( str, int, int, bool ) -= 115;
+function int CountDBResults( int ) -= 116;
+function void FreeDBResults( int ) -= 117;
+function str GetDBResultKeyString( int, int ) -= 118;
+function str GetDBResultValueString( int, int ) -= 119;
+function int GetDBResultValue( int, int ) -= 120;
+function int GetDBEntryRank( str, str, bool ) -= 121;
+function int RequestScriptPuke( int, int = 0, int = 0, int = 0,
+   int = 0 ) -= 122;
+function void BeginDBTransaction() -= 123;
+function void EndDBTransaction() -= 124;
+function int GetDBEntries( str ) -= 125;
+function int NamedRequestScriptPuke( str, int = 0, int = 0, int = 0,
+   int = 0 ) -= 126;
+function int SystemTime() -= 127;
+function int GetTimeProperty( int, int, bool = false ) -= 128;
+function str Strftime( int, str, bool = false ) -= 129;
+function int GetTeamScore( int ) -= 19620;
+function void SetTeamScore( int, int ) -= 19621;
+
+// Dedicated functions
+// Tail format: += <opcode> , <is-latent>
+function void Delay( int ) += 55, 1;
+function int Random( int, int ) += 57, 0;
+function int ThingCount( int, int = 0 ) += 59, 0;
+function void TagWait( int ) += 61, 1;
+function void PolyWait( int ) += 63, 1;
+function void ChangeFloor( int, str ) += 65, 0;
+function void ChangeCeiling( int, str ) += 67, 0;
+function int LineSide() += 80, 0;
+function void ScriptWait( int ) += 81, 1;
+function void ClearLineSpecial() += 83, 0;
+function int PlayerCount() += 90, 0;
+function int GameType() += 91, 0;
+function int GameSkill() += 92, 0;
+function int Timer() += 93, 0;
+function void SectorSound( str, int ) += 94, 0;
+function void AmbientSound( str, int ) += 95, 0;
+function void SoundSequence( str ) += 96, 0;
+function void SetLineTexture( int, int, int, str ) += 97, 0;
+function void SetLineBlocking( int, int ) += 98, 0;
+function void SetLineSpecial( int, int, int = 0, int = 0, int = 0, int = 0,
+   int = 0 ) += 99, 0;
+function void ThingSound( int, str, int ) += 100, 0;
+function void ActivatorSound( str, int ) += 102, 0;
+function void LocalAmbientSound( str, int ) += 103, 0;
+function void SetLineMonsterBlocking( int, int ) += 104, 0;
+function bool IsMultiplayer() += 118, 0;
+function int PlayerTeam() += 119, 0;
+function int PlayerHealth() += 120, 0;
+function int PlayerArmorPoints() += 121, 0;
+function int PlayerFrags() += 122, 0;
+function int BlueCount() += 124, 0;
+function int BlueTeamCount() += 124, 0;
+function int RedCount() += 125, 0;
+function int RedTeamCount() += 125, 0;
+function int BlueScore() += 126, 0;
+function int BlueTeamScore() += 126, 0;
+function int RedScore() += 127, 0;
+function int RedTeamScore() += 127, 0;
+function bool IsOneFlagCtf() += 128, 0;
+function int GetInvasionWave() += 129, 0;
+function int GetInvasionState() += 130, 0;
+function void Music_Change( str, int ) += 132, 0;
+function void ConsoleCommand( str, int = 0, int = 0 ) += 134, 0;
+function bool SinglePlayer() += 135, 0;
+function fixed FixedMul( fixed, fixed ) += 136, 0;
+function fixed FixedDiv( fixed, fixed ) += 137, 0;
+function void SetGravity( fixed ) += 138, 0;
+function void SetAirControl( fixed ) += 140, 0;
+function void ClearInventory() += 142, 0;
+function void GiveInventory( str, int ) += 143, 0;
+function void TakeInventory( str, int ) += 145, 0;
+function int CheckInventory( str ) += 147, 0;
+function int Spawn( str, fixed, fixed, fixed, int = 0, int = 0 ) += 149, 0;
+function int SpawnSpot( str, int, int = 0, int = 0 ) += 151, 0;
+function void SetMusic( str, int = 0, int = 0 ) += 153, 0;
+function void LocalSetMusic( str, int = 0, int = 0 ) += 155, 0;
+function void SetFont( str ) += 165, 0;
+function void SetThingSpecial( int, int, int = 0, raw = 0, raw = 0, raw = 0,
+   raw = 0 ) += 180, 0;
+function void FadeTo( int, int, int, fixed, fixed ) += 190, 0;
+function void FadeRange( int, int, int, fixed, int, int, int, fixed,
+   fixed ) += 191, 0;
+function void CancelFade() += 192, 0;
+function int PlayMovie( str ) += 193, 0;
+function void SetFloorTrigger( int, int, int, raw = 0, raw = 0, raw = 0,
+   raw = 0, raw = 0 ) += 194, 0;
+function void SetCeilingTrigger( int, int, int, raw = 0, raw = 0, raw = 0,
+   raw = 0, raw = 0 ) += 195, 0;
+function fixed GetActorX( int ) += 196, 0;
+function fixed GetActorY( int ) += 197, 0;
+function fixed GetActorZ( int ) += 198, 0;
+function fixed Sin( fixed ) += 220, 0;
+function fixed Cos( fixed ) += 221, 0;
+function fixed VectorAngle( fixed, fixed ) += 222, 0;
+function bool CheckWeapon( str ) += 223, 0;
+function bool SetWeapon( str ) += 224, 0;
+function void SetMarineWeapon( int, int ) += 244, 0;
+function void SetActorProperty( int, int, raw ) += 245, 0;
+function raw GetActorProperty( int, int ) += 246, 0;
+function int PlayerNumber() += 247, 0;
+function int ActivatorTid() += 248, 0;
+function void SetMarineSprite( int, str ) += 249, 0;
+function int GetScreenWidth() += 250, 0;
+function int GetScreenHeight() += 251, 0;
+function void Thing_Projectile2( int, int, int, int, int, int, int ) += 252, 0;
+function int StrLen( str ) += 253, 0;
+function void SetHudSize( int, int, bool ) += 254, 0;
+function int GetCvar( str ) += 255, 0;
+function void SetResultValue( int ) += 257, 0;
+function int GetLineRowOffset() += 258, 0;
+function fixed GetActorFloorZ( int ) += 259, 0;
+function fixed GetActorAngle( int ) += 260, 0;
+function fixed GetSectorFloorZ( int, int, int ) += 261, 0;
+function fixed GetSectorCeilingZ( int, int, int ) += 262, 0;
+function int GetSigilPieces() += 264, 0;
+function int GetLevelInfo( int ) += 265, 0;
+function void ChangeSky( str, str ) += 266, 0;
+function bool PlayerInGame( int ) += 267, 0;
+function bool PlayerIsBot( int ) += 268, 0;
+function void SetCameraToTexture( int, str, int ) += 269, 0;
+function int GetAmmoCapacity( str ) += 271, 0;
+function void SetAmmoCapacity( str, int ) += 272, 0;
+function void SetActorAngle( int, fixed ) += 276, 0;
+function void SpawnProjectile( int, str, int, int, int, int, int ) += 280, 0;
+function int GetSectorLightLevel( int ) += 281, 0;
+function fixed GetActorCeilingZ( int ) += 282, 0;
+function bool SetActorPosition( int, fixed, fixed, fixed, bool ) += 283, 0;
+function void ClearActorInventory( int ) += 284, 0;
+function void GiveActorInventory( int, str, int ) += 285, 0;
+function void TakeActorInventory( int, str, int ) += 286, 0;
+function int CheckActorInventory( int, str ) += 287, 0;
+function int ThingCountName( str, int ) += 288, 0;
+function int SpawnSpotFacing( str, int, int = 0 ) += 289, 0;
+function int PlayerClass( int ) += 290, 0;
+function int GetPlayerInfo( int, int ) += 326, 0;
+function void ChangeLevel( str, int, int, int = 0 ) += 327, 0;
+function void SectorDamage( int, int, str, str, int ) += 328, 0;
+function void ReplaceTextures( str, str, int = 0 ) += 329, 0;
+function fixed GetActorPitch( int ) += 331, 0;
+function void SetActorPitch( int, fixed ) += 332, 0;
+function int SetActorState( int, str, bool = false ) += 334, 0;
+function int Thing_Damage2( int, int, str ) += 335, 0;
+function int UseInventory( str ) += 336, 0;
+function int UseActorInventory( int, str ) += 337, 0;
+function bool CheckActorCeilingTexture( int, str ) += 338, 0;
+function bool CheckActorFloorTexture( int, str ) += 339, 0;
+function int GetActorLightLevel( int ) += 340, 0;
+function void SetMugShotState( str ) += 341, 0;
+function int ThingCountSector( str, int, int ) += 342, 0;
+function int ThingCountNameSector( str, int, int ) += 343, 0;
+function int CheckPlayerCamera( int ) += 344, 0;
+function int MorphActor( int, str = "", str = "", int = 0, int = 0, str = "",
+   str = "" ) += 345, 0;
+function int UnmorphActor( int, int = 0 ) += 346, 0;
+function int GetPlayerInput( int, int ) += 347, 0;
+function int ClassifyActor( int ) += 348, 0;
+function void NamedScriptWait( str ) += 361, 1;
+
+// Format functions
+// Tail format: *= <terminating-opcode>
+function void Print() *= 86;
+function void PrintBold() *= 101;
+function void HudMessage( int, int, int, int, int, int, fixed = 0.0,
+   fixed = 0.0, fixed = 0.0 ) *= 161;
+function void HudMessageBold( int, int, int, int, int, int, fixed = 0.0,
+   fixed = 0.0, fixed = 0.0 ) *= 162;
+function void Log() *= 270;
+function str StrParam() *= 352;
+
+// Internal functions
+// Tail format: /= <function-id>
+function void Acs_ExecuteWait( int, int = 0, raw = 0, raw = 0, raw = 0 ) /= 0;
+function void Acs_NamedExecuteWait( int, int = 0, raw = 0, raw = 0,
+   raw = 0 ) /= 1;
