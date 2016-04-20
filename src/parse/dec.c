@@ -53,16 +53,17 @@ static void read_enum_def( struct parse* parse, struct dec* dec );
 static struct enumerator* alloc_enumerator( void );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
-static void read_struct( struct parse* parse, struct dec* );
-static struct structure* alloc_structure( struct pos* pos );
+static void read_struct( struct parse* parse, struct dec* dec );
 static void read_struct_name( struct parse* parse,
    struct structure* structure );
 static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
-void read_struct_member( struct parse* parse, struct dec* dec,
+void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
-static void test_struct_member( struct parse* parse, struct dec* dec );
-static void add_struct_member( struct parse* parse, struct dec* );
+static struct structure_member* create_struct_member( struct parse* parse,
+   struct dec* dec );
+static void append_struct_member( struct structure* structure,
+   struct structure_member* member );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
@@ -197,8 +198,7 @@ void p_init_dec( struct dec* dec ) {
    dec->area = DEC_TOP;
    dec->structure = NULL;
    dec->enumeration = NULL;
-   dec->type_make = NULL;
-   dec->type_path = NULL;
+   dec->path = NULL;
    dec->ref = NULL;
    dec->name = NULL;
    dec->name_offset = NULL;
@@ -218,6 +218,7 @@ void p_init_dec( struct dec* dec ) {
    dec->leave = false;
    dec->read_func = false;
    dec->msgbuild = false;
+   dec->extended_spec = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -412,11 +413,14 @@ struct constant* alloc_constant( void ) {
 }
 
 void read_struct( struct parse* parse, struct dec* dec ) {
-   struct structure* structure = alloc_structure( &parse->tk_pos );
+   struct structure* structure = t_alloc_structure();
+   structure->object.pos = parse->tk_pos;
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
    read_struct_name( parse, structure );
    read_struct_body( parse, dec, structure );
+   dec->structure = structure;
+   dec->spec = SPEC_STRUCT;
    // Nested struct is in the same scope as the parent struct.
    if ( dec->vars ) {
       list_append( dec->vars, structure );
@@ -426,9 +430,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns->objects, structure );
       list_append( &parse->lib->objects, structure );
    }
-   dec->structure = structure;
-   dec->spec = SPEC_STRUCT;
-   if ( dec->leave && structure->anon ) {
+   if ( structure->anon && ! dec->extended_spec ) {
       p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
          "unnamed and unused struct" );
       p_diag( parse, DIAG_POS, &structure->object.pos,
@@ -448,26 +450,6 @@ void read_struct( struct parse* parse, struct dec* dec ) {
          "a nested struct must not have a name specified" );
       p_bail( parse );
    }
-   STATIC_ASSERT( DEC_TOTAL == 4 );
-   if ( dec->area == DEC_FOR ) {
-      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
-         "struct in for-loop initialization" );
-      p_bail( parse );
-   }
-}
-
-struct structure* alloc_structure( struct pos* pos ) {
-   struct structure* structure = mem_alloc( sizeof( *structure ) );
-   t_init_object( &structure->object, NODE_STRUCTURE );
-   structure->object.pos = *pos;
-   structure->name = NULL;
-   structure->body = NULL;
-   structure->member = NULL;
-   structure->member_tail = NULL;
-   structure->size = 0;
-   structure->anon = false;
-   structure->has_ref_member = false;
-   return structure;
 }
 
 void read_struct_name( struct parse* parse, struct structure* structure ) {
@@ -487,38 +469,33 @@ void read_struct_body( struct parse* parse, struct dec* dec,
    structure->body = t_extend_name( structure->name, "." );
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
-   if ( parse->tk == TK_BRACE_R ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "empty struct" );
-      p_diag( parse, DIAG_POS, &parse->tk_pos,
-         "a struct must have at least one member" );
-      p_bail( parse );
-   }
-   while ( parse->tk != TK_BRACE_R ) {
+   while ( true ) {
       read_struct_member( parse, dec, structure );
+      if ( parse->tk == TK_BRACE_R ) {
+         p_read_tk( parse );
+         break;
+      }
    }
-   p_test_tk( parse, TK_BRACE_R );
-   p_read_tk( parse );
 }
 
-void read_struct_member( struct parse* parse, struct dec* dec,
+void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure ) {
-   struct dec member;
-   p_init_dec( &member );
-   member.area = DEC_MEMBER;
-   member.type_make = structure;
-   member.name_offset = structure->body;
-   member.vars = dec->vars;
-   read_extended_spec( parse, &member );
+   struct dec dec;
+   p_init_dec( &dec );
+   dec.area = DEC_MEMBER;
+   dec.name_offset = structure->body;
+   dec.vars = parent_dec->vars;
+   read_extended_spec( parse, &dec );
    struct ref_reading ref;
    init_ref_reading( &ref );
    read_ref( parse, &ref );
-   member.ref = ref.head;
+   dec.ref = ref.head;
+   // Instance list.
    while ( true ) {
-      read_name( parse, &member );
-      read_dim( parse, &member );
-      test_struct_member( parse, &member );
-      add_struct_member( parse, &member );
+      read_name( parse, &dec );
+      read_dim( parse, &dec );
+      struct structure_member* member = create_struct_member( parse, &dec );
+      append_struct_member( structure, member );
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
       }
@@ -526,49 +503,36 @@ void read_struct_member( struct parse* parse, struct dec* dec,
          break;
       }
    }
-   if ( member.ref ) {
+   if ( dec.ref ) {
       structure->has_ref_member = true;
    }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
 }
 
-void test_struct_member( struct parse* parse, struct dec* dec ) {
-   test_storage( parse, dec );
-   if ( dec->spec == SPEC_VOID ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "struct-member of void type" );
-      p_bail( parse );
-   }
-   if ( dec->initz.specified ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
-         "initializing a struct-member" );
-      p_bail( parse );
-   }
-} 
-
-void add_struct_member( struct parse* parse, struct dec* dec ) {
-   struct structure_member* member = mem_alloc( sizeof( *member ) );
-   t_init_object( &member->object, NODE_STRUCTURE_MEMBER );
+struct structure_member* create_struct_member( struct parse* parse,
+   struct dec* dec ) {
+   struct structure_member* member = t_alloc_structure_member();
    member->object.pos = dec->name_pos;
    member->name = dec->name;
    member->ref = dec->ref;
    member->structure = dec->structure;
    member->enumeration = dec->enumeration;
-   member->type_path = dec->type_path;
+   member->path = dec->path;
    member->dim = dec->dim;
-   member->next = NULL;
    member->spec = dec->spec;
-   member->offset = 0;
-   member->size = 0;
-   member->diminfo_start = 0;
-   if ( dec->type_make->member ) {
-      dec->type_make->member_tail->next = member;
+   return member;
+}
+
+void append_struct_member( struct structure* structure,
+   struct structure_member* member ) {
+   if ( structure->member ) {
+      structure->member_tail->next = member;
    }
    else {
-      dec->type_make->member = member;
+      structure->member = member;
    }
-   dec->type_make->member_tail = member;
+   structure->member_tail = member;
 }
 
 void read_var( struct parse* parse, struct dec* dec ) {
@@ -682,6 +646,7 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
 void read_extended_spec( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_EXTSPEC ) {
       p_read_tk( parse );
+      dec->extended_spec = true;
       if ( parse->tk == TK_STRUCT ) {
          read_struct( parse, dec );
       }
@@ -697,7 +662,7 @@ void read_extended_spec( struct parse* parse, struct dec* dec ) {
       read_spec( parse, &spec );
       dec->type_pos = spec.pos;
       dec->spec = spec.type;
-      dec->type_path = spec.path;
+      dec->path = spec.path;
    }
 }
 
@@ -1055,7 +1020,7 @@ void add_type_alias( struct parse* parse, struct dec* dec ) {
    alias->ref = dec->ref;
    alias->structure = dec->structure;
    alias->enumeration = dec->enumeration;
-   alias->path = dec->type_path;
+   alias->path = dec->path;
    alias->dim = dec->dim;
    alias->spec = dec->spec;
    if ( dec->area == DEC_TOP ) {
@@ -1175,7 +1140,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->ref = dec->ref;
    var->structure = dec->structure;
    var->enumeration = dec->enumeration;
-   var->type_path = dec->type_path;
+   var->type_path = dec->path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
    var->value = NULL;
@@ -1197,22 +1162,6 @@ struct var* alloc_var( struct dec* dec ) {
 }
 
 void test_storage( struct parse* parse, struct dec* dec ) {
-   if ( dec->area == DEC_MEMBER ) {
-      if ( dec->storage.specified ) {
-         p_diag( parse, DIAG_POS_ERR, &dec->storage.pos,
-            "%s-storage specified for struct-member",
-            get_storage_name( dec->storage.type ) );
-         p_diag( parse, DIAG_POS, &dec->storage.pos,
-            "storage of struct-members must not be explicitly specified",
-            get_storage_name( dec->storage.type ) );
-         p_bail( parse );
-      }
-      if ( dec->storage_index.specified ) {
-         p_diag( parse, DIAG_POS_ERR, &dec->storage_index.pos,
-            "storage-number specified for struct-member" );
-         p_bail( parse );
-      }
-   }
    if ( ! dec->storage.specified ) {
       // Variable found at region scope, or a static local variable, has map
       // storage.
@@ -1282,7 +1231,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->ref = dec->ref;
    func->structure = dec->structure;
    func->enumeration = dec->enumeration;
-   func->path = dec->type_path;
+   func->path = dec->path;
    func->name = dec->name;
    func->params = NULL;
    func->impl = NULL;
@@ -1576,7 +1525,7 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
       read_spec( parse, &spec );
       dec->type_pos = spec.pos;
       dec->spec = spec.type;
-      dec->type_path = spec.path;
+      dec->path = spec.path;
       struct ref_reading ref;
       init_ref_reading( &ref );
       read_ref( parse, &ref );

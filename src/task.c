@@ -675,7 +675,7 @@ struct structure_member* t_alloc_structure_member( void ) {
    member->ref = NULL;
    member->structure = NULL;
    member->enumeration = NULL;
-   member->type_path = NULL;
+   member->path = NULL;
    member->dim = NULL;
    member->next = NULL;
    member->spec = SPEC_NONE;

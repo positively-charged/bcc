@@ -277,7 +277,7 @@ void test_member( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
       if ( member->spec == SPEC_NAME ) {
          struct var_test test;
-         init_var_test( &test, member->type_path );
+         init_var_test( &test, member->path );
          resolve_name_spec( semantic, &test );
          member->structure = test.structure;
          member->enumeration = test.enumeration;
@@ -295,6 +295,11 @@ void test_member( struct semantic* semantic, struct structure* structure,
 
 bool test_member_spec( struct semantic* semantic,
    struct structure_member* member ) {
+   if ( member->spec == SPEC_VOID ) {
+      s_diag( semantic, DIAG_POS_ERR, &member->object.pos,
+         "struct-member of void type" );
+      s_bail( semantic );
+   }
 /*
    if ( member->type_path ) {
       if ( ! member->structure ) {

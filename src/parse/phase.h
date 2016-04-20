@@ -271,9 +271,8 @@ struct dec {
    struct pos name_pos;
    struct pos static_qual_pos;
    struct structure* structure;
-   struct structure* type_make;
    struct enumeration* enumeration;
-   struct path* type_path;
+   struct path* path;
    struct ref* ref;
    struct name* name;
    struct name* name_offset;
@@ -302,6 +301,7 @@ struct dec {
    bool leave;
    bool read_func;
    bool msgbuild;
+   bool extended_spec;
 };
 
 struct stmt_reading {

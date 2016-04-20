@@ -175,7 +175,7 @@ struct structure_member {
    struct ref* ref;
    struct structure* structure;
    struct enumeration* enumeration;
-   struct path* type_path;
+   struct path* path;
    struct dim* dim;
    struct structure_member* next;
    int spec;

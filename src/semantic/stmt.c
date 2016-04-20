@@ -351,8 +351,17 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
          s_init_expr_test( &expr, false, false );
          s_test_expr( semantic, &expr, ( struct expr* ) node );
       }
-      else {
+      else if ( node->type == NODE_VAR ) {
          s_test_local_var( semantic, ( struct var* ) node );
+      }
+      else if ( node->type == NODE_STRUCTURE ) {
+         struct structure* structure = ( struct structure* ) node;
+         s_diag( semantic, DIAG_POS_ERR, &structure->object.pos,
+            "struct in for-loop initialization" );
+         s_bail( semantic );
+      }
+      else {
+         UNREACHABLE();
       }
       list_next( &i );
    }
