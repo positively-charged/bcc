@@ -419,6 +419,13 @@ void read_struct( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
    read_struct_name( parse, structure );
    read_struct_body( parse, dec, structure );
+   if ( structure->anon && ! dec->extended_spec ) {
+      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
+         "unnamed and unused struct" );
+      p_diag( parse, DIAG_POS, &structure->object.pos,
+         "a struct must have a name or be used as an object type" );
+      p_bail( parse );
+   }
    dec->structure = structure;
    dec->spec = SPEC_STRUCT;
    // Nested struct is in the same scope as the parent struct.
@@ -429,26 +436,6 @@ void read_struct( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &structure->object );
       list_append( &parse->ns->objects, structure );
       list_append( &parse->lib->objects, structure );
-   }
-   if ( structure->anon && ! dec->extended_spec ) {
-      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
-         "unnamed and unused struct" );
-      p_diag( parse, DIAG_POS, &structure->object.pos,
-         "a struct must have a name or be used as an object type" );
-      p_bail( parse );
-   }
-   // NOTE: This comment is outdated. [04/06/2015]
-   // Don't allow nesting of named structs for now. Maybe later, nested
-   // struct support like in C++ will be added. Here is potential syntax
-   // for specifying a nested struct, when creating a variable:
-   // struct region.struct.my_struct var1;
-   // struct upmost.struct.my_struct var2;
-   if ( ! structure->anon && dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
-         "named, nested struct" );
-      p_diag( parse, DIAG_POS, &structure->object.pos,
-         "a nested struct must not have a name specified" );
-      p_bail( parse );
    }
 }
 
