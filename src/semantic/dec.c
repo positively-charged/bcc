@@ -71,6 +71,7 @@ static bool test_initz( struct semantic* semantic, struct var* var );
 static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
+static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
 static void assign_inferred_type( struct var* var, struct type_info* type );
 static void init_initz_test( struct initz_test* test,
@@ -519,14 +520,6 @@ bool test_dim( struct semantic* semantic, struct var* var ) {
          }
          dim->size = dim->size_node->value;
       }
-      else {
-         // Only the first dimension can have an implicit size.
-         if ( dim != var->dim ) {
-            s_diag( semantic, DIAG_POS_ERR, &dim->pos,
-               "implicit size in subsequent dimension" );
-            s_bail( semantic );
-         }
-      }
       dim = dim->next;
    }
    return true;
@@ -548,6 +541,10 @@ bool test_initz( struct semantic* semantic, struct var* var ) {
          refnotinit_var( semantic, var );
          s_bail( semantic );
       }
+   }
+   // All dimensions of implicit length need to have a length.
+   if ( var->dim ) {
+      confirm_dim_length( semantic, var );
    }
    return true;
 }
@@ -588,10 +585,6 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
          ( struct multi_value* ) var->initial );
       if ( ! resolved ) {
          return false;
-      }
-      // Update size of implicit dimension.
-      if ( var->dim && ! var->dim->size_node ) {
-         var->dim->size = test.count;
       }
    }
    else {
@@ -663,6 +656,10 @@ bool test_multi_value_array( struct semantic* semantic,
       }
       ++test->count;
       initial = initial->next;
+   }
+   // Update size of implicit dimension.
+   if ( ! test->dim->size_node && test->count > test->dim->size ) {
+      test->dim->size = test->count;
    }
    // All reference-type elements must be initialized.
    if ( test->count < test->dim->size ) {
@@ -973,6 +970,28 @@ bool test_imported_object_initz( struct var* var ) {
       }
    }
    return true;
+}
+
+void confirm_dim_length( struct semantic* semantic, struct var* var ) {
+   struct dim* dim = var->dim;
+   // The first dimension of a world array or a global array does not need to
+   // have a concrete length.
+   switch ( var->storage ) {
+   case STORAGE_WORLD:
+   case STORAGE_GLOBAL:
+      dim = dim->next;
+      break;
+   default:
+      break;
+   }
+   while ( dim ) {
+      if ( dim->size == 0 ) {
+         s_diag( semantic, DIAG_POS_ERR, &dim->pos,
+            "missing initialization of dimension of implicit length" );
+         s_bail( semantic );
+      }
+      dim = dim->next;
+   }
 }
 
 void test_auto_var( struct semantic* semantic, struct var* var ) {

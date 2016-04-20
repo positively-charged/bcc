@@ -5,7 +5,7 @@ namespace TestNs {
       int a;
       int b;
    }
-   private enum a = 44 + 4;
+   enum a = 44 + 4;
 }
 
 using TestNs;
@@ -116,6 +116,7 @@ function void ShowNumber( int[] n ) {
    // - offset + length <= destination-length
 
    Print( msgbuild: Show );
+   Print( i: ar[ 1 ][ 0 ].a );
 }
 
 /*
@@ -136,3 +137,8 @@ function msgbuild void Show() {
 function msgbuild void ShowSomething( str s ) {
    append( s: s );
 }
+
+TestT ar[][] = {
+   { { 1, 2 }, { 4, }, { 4 } },
+   { { 3 } }
+};

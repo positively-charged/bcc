@@ -1029,18 +1029,6 @@ void test_var( struct parse* parse, struct dec* dec ) {
          get_storage_name( dec->storage.type ) );
       p_bail( parse );
    }
-   // Initializer needs to be present when the size of the initial dimension
-   // is implicit. Global and world arrays are an exception, unless they are
-   // multi-dimensional.
-   if ( ! dec->initz.specified ) {
-      if ( dec->dim && ! dec->dim->size_node && ( (
-         dec->storage.type != STORAGE_WORLD &&
-         dec->storage.type != STORAGE_GLOBAL ) || dec->dim->next ) ) {
-         p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
-            "missing initialization of implicit dimension" );
-         p_bail( parse );
-      }
-   }
 }
 
 void add_var( struct parse* parse, struct dec* dec ) {
