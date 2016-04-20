@@ -50,7 +50,12 @@ struct script_reading {
 static bool peek_dec_beginning_with_id( struct parse* parse );
 static void read_enum( struct parse* parse, struct dec* );
 static void read_enum_def( struct parse* parse, struct dec* dec );
-static struct enumerator* alloc_enumerator( void );
+static void read_enum_name( struct parse* parse,
+   struct enumeration* enumeration );
+static void read_enum_body( struct parse* parse,
+   struct enumeration* enumeration );
+static void read_enumerator( struct parse* parse,
+   struct enumeration* enumeration, struct name* name_offset );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static struct constant* alloc_constant( void );
 static void read_struct( struct parse* parse, struct dec* dec );
@@ -223,11 +228,11 @@ void p_init_dec( struct dec* dec ) {
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
-   if ( parse->tk == TK_STRUCT ) {
-      read_struct( parse, dec );
-   }
-   else if ( parse->tk == TK_ENUM ) {
+   if ( parse->tk == TK_ENUM ) {
       read_enum( parse, dec );
+   }
+   else if ( parse->tk == TK_STRUCT ) {
+      read_struct( parse, dec );
    }
    else {
       // At this time, visibility can be specified only for variables and
@@ -259,6 +264,7 @@ void read_enum( struct parse* parse, struct dec* dec ) {
    else {
       p_unexpect_diag( parse );
       p_unexpect_item( parse, NULL, TK_BRACE_L );
+      p_unexpect_name( parse, NULL, "enumeration name" );
       p_unexpect_last_name( parse, NULL, "name of constant" );
       p_bail( parse );
    }
@@ -271,56 +277,39 @@ void read_enum( struct parse* parse, struct dec* dec ) {
 }
 
 void read_enum_def( struct parse* parse, struct dec* dec ) {
-   struct name* name = NULL;
-   struct name* name_offset = parse->ns->body;
-   struct pos name_pos = parse->tk_pos;
+   struct enumeration* enumeration = t_alloc_enumeration();
+   enumeration->object.pos = dec->type_pos;
+   read_enum_name( parse, enumeration );
+   read_enum_body( parse, enumeration );
+   dec->enumeration = enumeration;
+   dec->spec = SPEC_ENUM;
+   if ( dec->vars ) {
+      list_append( dec->vars, enumeration );
+   }
+   else {
+      p_add_unresolved( parse, &enumeration->object );
+      list_append( &parse->ns->objects, enumeration );
+      list_append( &parse->lib->objects, enumeration );
+   }
+}
+
+void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
    if ( parse->tk == TK_ID ) {
-      name = t_extend_name( parse->ns->body, parse->tk_text );
-      name_offset = t_extend_name( name, "." );
+      enumeration->name = t_extend_name( parse->ns->body, parse->tk_text );
+      enumeration->object.pos = parse->tk_pos;
       p_read_tk( parse );
    }
+}
+
+void read_enum_body( struct parse* parse, struct enumeration* enumeration ) {
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
-   if ( parse->tk == TK_BRACE_R ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "empty enum" );
-      p_diag( parse, DIAG_POS, &dec->type_pos,
-         "an enum must have at least one enumerator" );
-      p_bail( parse );
+   struct name* name_offset = parse->ns->body;
+   if ( enumeration->name ) {
+      name_offset = t_extend_name( enumeration->name, "." );
    }
-   struct enumerator* head = NULL;
-   struct enumerator* tail;
    while ( true ) {
-      if ( parse->tk != TK_ID ) {
-         p_unexpect_diag( parse );
-         p_unexpect_name( parse, NULL, "an enumerator" );
-         p_unexpect_last( parse, NULL, TK_BRACE_R );
-         p_bail( parse );
-      }
-      struct enumerator* enumerator = alloc_enumerator();
-      enumerator->object.pos = parse->tk_pos;
-      enumerator->name = t_extend_name( name_offset, parse->tk_text );
-      p_read_tk( parse );
-      if ( parse->tk == TK_ASSIGN ) {
-         p_read_tk( parse );
-         struct expr_reading value;
-         p_init_expr_reading( &value, true, false, false, true );
-         p_read_expr( parse, &value );
-         enumerator->initz = value.output_node;
-      }
-      if ( head ) {
-         tail->next = enumerator;
-      }
-      else {
-         head = enumerator;
-      }
-      tail = enumerator;
-      if ( parse->tk != TK_COMMA && parse->tk != TK_BRACE_R ) {
-         p_unexpect_diag( parse );
-         p_unexpect_item( parse, NULL, TK_COMMA );
-         p_unexpect_last( parse, NULL, TK_BRACE_R );
-         p_bail( parse );
-      }
+      read_enumerator( parse, enumeration, name_offset );
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
          if ( parse->tk == TK_BRACE_R ) {
@@ -333,45 +322,34 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
    p_test_tk( parse, TK_BRACE_R );
    p_read_tk( parse );
-   struct enumeration* set = mem_alloc( sizeof( *set ) );
-   t_init_object( &set->object, NODE_ENUMERATION );
-   set->object.pos = name_pos;
-   set->head = head;
-   set->name = name;
-   set->hidden = dec->private_visibility;
-   // TODO: Clean up.
-   struct enumerator* enumerator = set->head;
-   while ( enumerator ) {
-      enumerator->enumeration = set;
-      enumerator = enumerator->next;
-   }
-   if ( dec->vars ) {
-      list_append( dec->vars, set );
-   }
-   else {
-      p_add_unresolved( parse, &set->object );
-      list_append( &parse->ns->objects, set );
-      list_append( &parse->lib->objects, set );
-   }
-   dec->spec = SPEC_ENUM;
-   dec->enumeration = set;
-/*
-   if ( dec->area == DEC_MEMBER ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "enum inside struct" );
-      p_bail( parse );
-   }
-*/
 }
 
-struct enumerator* alloc_enumerator( void ) {
-   struct enumerator* enumerator = mem_alloc( sizeof( *enumerator ) );
-   t_init_object( &enumerator->object, NODE_ENUMERATOR );
-   enumerator->name = NULL;
-   enumerator->next = NULL;
-   enumerator->initz = NULL;
-   enumerator->value = 0;
-   return enumerator;
+void read_enumerator( struct parse* parse, struct enumeration* enumeration,
+   struct name* name_offset ) {
+   if ( parse->tk != TK_ID ) {
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, "enumerator" );
+      p_bail( parse );
+   }
+   struct enumerator* enumerator = t_alloc_enumerator();
+   enumerator->object.pos = parse->tk_pos;
+   enumerator->name = t_extend_name( name_offset, parse->tk_text );
+   enumerator->enumeration = enumeration;
+   p_read_tk( parse );
+   if ( parse->tk == TK_ASSIGN ) {
+      p_read_tk( parse );
+      struct expr_reading value;
+      p_init_expr_reading( &value, true, false, false, true );
+      p_read_expr( parse, &value );
+      enumerator->initz = value.output_node;
+   }
+   t_append_enumerator( enumeration, enumerator );
+   if ( ! ( parse->tk == TK_COMMA || parse->tk == TK_BRACE_R ) ) {
+      p_unexpect_diag( parse );
+      p_unexpect_item( parse, NULL, TK_COMMA );
+      p_unexpect_last( parse, NULL, TK_BRACE_R );
+      p_bail( parse );
+   }
 }
 
 void read_manifest_constant( struct parse* parse, struct dec* dec ) {
