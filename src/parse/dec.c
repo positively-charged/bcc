@@ -57,7 +57,6 @@ static void read_enum_body( struct parse* parse,
 static void read_enumerator( struct parse* parse,
    struct enumeration* enumeration, struct name* name_offset );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
-static struct constant* alloc_constant( void );
 static void read_struct( struct parse* parse, struct dec* dec );
 static void read_struct_name( struct parse* parse,
    struct structure* structure );
@@ -354,10 +353,10 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration,
 
 void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_ID );
-   struct constant* constant = alloc_constant();
+   struct constant* constant = t_alloc_constant();
    constant->object.pos = parse->tk_pos;
    constant->name = t_extend_name( parse->ns->body, parse->tk_text );
-   constant->hidden = dec->private_visibility;
+   constant->hidden = false;
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );
@@ -365,6 +364,8 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_init_expr_reading( &value, true, false, false, true );
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    if ( dec->vars ) {
       list_append( dec->vars, constant );
    }
@@ -373,21 +374,6 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns->objects, constant );
       list_append( &parse->lib->objects, constant );
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
-   dec->leave = true;
-}
-
-struct constant* alloc_constant( void ) {
-   struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
-   t_init_object( &constant->object, NODE_CONSTANT );
-   constant->name = NULL;
-   constant->next = NULL;
-   constant->value = 0;
-   constant->value_node = NULL;
-   constant->hidden = false;
-   constant->lib_id = 0;
-   return constant;
 }
 
 void read_struct( struct parse* parse, struct dec* dec ) {
