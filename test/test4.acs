@@ -1,0 +1,138 @@
+#import "zcommon.bcs"
+
+namespace TestNs {
+   struct TestT {
+      int a;
+      int b;
+   }
+   private enum a = 44 + 4;
+}
+
+using TestNs;
+
+int v = 3;
+
+script 1 open {
+   TestT[][]& function() f = a;
+   TestT[][] r = f();
+   Print( i: r[ 3 ][ 3 ].b );
+   r[ v ][ v ].b = 2222;
+   Print( i: r[ v ][ v ].b );
+   f();
+   f();
+   f();
+   // f = a;
+   //Print( i: f()[ 2 ].b );
+   enum T { a, b }
+   T a = T.a;
+   Print( i: N.S.CONSTANT_2 );
+   static TestT numbers[ 30 ][ 40 ];// = { 1, 2, 3 };
+   numbers[ 3 ][ 28 ].b = 123;
+   foreach ( auto k, v in numbers[ 3 ] ) {
+      Print( i: ++k, s: " ", i: v.b );
+      // Print( i: ++k, s: " ", i: v );
+   }
+   foreach ( int k, v in "abc" ) {
+      foreach ( int v2 in "ab" ) {
+         Print( i: ++k, s: " ", c: v2 );
+      // Print( i: ++k, s: " ", i: v );
+      }
+   }
+   static int numbers2[ 20 ];
+   //numbers2[ 0 ] = 1;
+   numbers2[ 1 ] = 2;
+   numbers2[ 2 ] = 3;
+   ShowNumber( numbers2 );
+}
+
+function TestT[][] a() {
+   static TestT a[ 10 ][ 10 ];
+   static TestT b[ 20 ][ 20 ];
+   static bool init = false;
+   if ( ! init ) {
+      a[ v ][ v ].a = 123;
+      a[ v ][ v ].b = 123;
+      b[ v ][ v ].b = 321;
+      init = true;
+   }
+   TestT[][] r = a;
+   print( s: "a: ", i: r[ v ][ v ].b );
+   return r;
+}
+
+TestT t;
+Test3T t3 = { t };
+
+extspec struct {
+   extspec enum {
+      T_A,
+      T_B,
+   } t;
+   Test2T t2[ 10 ];
+} aa[ 10 ] = { { T_B } };
+
+enum TT2 {
+   a
+}
+
+struct Test2T {
+   int a;
+   int b;
+   // TestT& t;
+   Test3T t3;
+}
+
+struct Test3T {
+   TestT t4;
+}
+
+TestT ttt[ 10 ];
+TestT[] r = ttt;
+
+//#define a
+//#line 33333 "aaa"
+#import "test2.acs"
+#import "test3.acs"
+
+enum aaaa = "bcd";
+enum aaaa2 = aaaa;
+
+function void ShowNumber( int[] n ) {
+   //static int a[ 7 ];
+   //static int b[ 7 ];
+   //a[ 2 ] = 123;
+   //a[ 3 ] = 321;
+   static TestT a[ 10 ];
+   static TestT b[ 10 ];
+   b[ 9 ].a = 123;
+   TestT[] r = a;
+   Print( i: objcpy( a: r, b ) );
+   Print( i: a[ 9 ].a );
+   //ShowNumbers( n );
+   //Print( i: a[ 1 ] );
+   //Print( i: a[ 6 ] );
+   // - determine source length
+   // - compare source length against length
+   // - offset + length <= destination-length
+
+   Print( msgbuild: Show );
+}
+
+/*
+function void ShowNumbers( int[] n ) {
+   str s = "";
+   for ( int i = 0; i < n.size(); ++i ) {
+      s = s + StrParam( i: n[ i ], s: "-" );
+   }
+   Print( s: s );
+} */
+
+function msgbuild void Show() {
+   for ( int i = 0; i < 10; ++i ) {
+      ShowSomething( "Hello, World!" );
+   }
+}
+
+function msgbuild void ShowSomething( str s ) {
+   append( s: s );
+}

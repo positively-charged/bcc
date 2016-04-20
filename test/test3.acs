@@ -1,0 +1,50 @@
+#library "test3"
+//#include "zcommon.acs"
+
+namespace N {
+   namespace S {
+      enum CONSTANT_2 = CONSTANT_1;
+   }
+   namespace S2 {
+      enum CONSTANT_1 = 123;
+   }
+
+   enum ss = constant_1;
+      using S2: CONSTANT_1;
+}
+int b;
+//struct S { int a; };
+
+function void f() {}
+int abc;
+//#include "test5.bcs"
+//#include "test6.bcs"
+
+#ifdef a
+*
+#endif
+/*
+
+#library "test3"
+
+int xx;
+int xx2;
+
+void f( int,bool ) {}
+
+struct abc {
+   int a[ 10 ][ 10 ];
+   struct {
+      int v;
+   } b;
+};
+
+enum {
+   a, b, c
+};
+
+enum d = 23;
+enum e = "ab";
+
+#import "test2.acs"
+*/
