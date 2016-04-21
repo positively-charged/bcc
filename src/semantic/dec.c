@@ -571,8 +571,8 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    }
    else {
       struct type_info type;
-      s_init_type_info( &type, var->spec, var->ref, var->dim, var->structure,
-         var->enumeration, NULL );
+      s_init_type_info_decayless( &type, var->ref, var->structure,
+         var->enumeration, var->dim, var->spec );
       bool resolved = test_value( semantic, &test, &type,
          ( struct value* ) var->initial );
       if ( ! resolved ) {
@@ -677,8 +677,8 @@ bool test_multi_value_array_child( struct semantic* semantic,
    }
    else {
       struct type_info type;
-      s_init_type_info( &type, test->spec, test->ref, test->dim->next,
-         test->structure, test->enumeration, NULL );
+      s_init_type_info_decayless( &type, test->ref, test->structure,
+         test->enumeration, test->dim->next, test->spec );
       return test_value( semantic, test, &type,
          ( struct value* ) initial );
    }
@@ -744,8 +744,8 @@ bool test_multi_value_struct_child( struct semantic* semantic,
    }
    else {
       struct type_info type;
-      s_init_type_info( &type, member->spec, member->ref, member->dim,
-         member->structure, member->enumeration, NULL );
+      s_init_type_info_decayless( &type, member->ref, member->structure,
+         member->enumeration, member->dim, member->spec );
       return test_value( semantic, test, &type,
          ( struct value* ) initial );
    }
@@ -856,7 +856,10 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
       }
    }
    else {
-      dim->size = string->length + 1;
+      // Update size of implicit dimension.
+      if ( string->length + 1 > dim->size ) {
+         dim->size = string->length + 1;
+      }
    }
    value->string_initz = true;
    return true;

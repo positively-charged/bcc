@@ -64,6 +64,17 @@ void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    }
 }
 
+void s_init_type_info_decayless( struct type_info* type, struct ref* ref,
+   struct structure* structure, struct enumeration* enumeration,
+   struct dim* dim, int spec ) {
+   type->ref = ref;
+   type->structure = structure;
+   type->enumeration = enumeration;
+   type->dim = dim;
+   type->spec = spec;
+   type->implicit_ref = false;
+}
+
 void init_type_info( struct type_info* type ) {
    type->ref = NULL;
    type->structure = NULL;

@@ -106,6 +106,9 @@ void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
 void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
    struct dim* dim, struct structure* structure,
    struct enumeration* enumeration, struct func* func );
+void s_init_type_info_decayless( struct type_info* type, struct ref* ref,
+   struct structure* structure, struct enumeration* enumeration,
+   struct dim* dim, int spec );
 void s_init_type_info_scalar( struct type_info* type, int spec );
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
