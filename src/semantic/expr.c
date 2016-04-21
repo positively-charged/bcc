@@ -7,7 +7,7 @@ struct result {
    struct enumeration* enumeration;
    struct structure* structure;
    struct dim* dim;
-   struct ns* ns;
+   struct object* object;
    int ref_dim;
    int spec;
    int value;
@@ -89,9 +89,10 @@ static void test_subscript_str( struct semantic* semantic,
 static bool is_array_ref( struct result* result );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
-static bool is_struct_ref( struct result* result );
+static bool is_array( struct result* result );
+static bool is_struct( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
-   struct object* object );
+   struct result* lside );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
 static void init_call_test( struct call_test* test );
@@ -132,15 +133,12 @@ static void select_constant( struct result* result,
    struct constant* constant );
 static void select_enumerator( struct result* result,
    struct enumerator* enumerator );
-static void select_enumeration( struct result* result,
-   struct enumeration* enumeration );
 static void select_var( struct expr_test* test, struct result* result,
    struct var* var );
 static void select_param( struct result* result, struct param* param );
 static void select_member( struct expr_test* test, struct result* result,
    struct structure_member* member );
 static void select_func( struct result* result, struct func* func );
-static void select_namespace( struct result* result, struct ns* ns );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
@@ -245,7 +243,7 @@ void init_result( struct result* result ) {
    result->enumeration = NULL;
    result->structure = NULL;
    result->dim = NULL;
-   result->ns = NULL;
+   result->object = NULL;
    result->ref_dim = 0;
    result->spec = SPEC_NONE;
    result->value = 0;
@@ -1201,19 +1199,21 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    init_result( &lside );
    test_suffix( semantic, test, &lside, access->lside );
    struct name* name = NULL;
-   if ( is_struct_ref( &lside ) ) {
+   if ( is_struct( &lside ) ) {
       name = lside.structure->name;
    }
-   else if ( ! lside.usable && lside.enumeration ) {
-      name = lside.enumeration->name;
+   else if ( lside.object && lside.object->node.type == NODE_ENUMERATION ) {
+      struct enumeration* enumeration = ( struct enumeration* ) lside.object;
+      name = enumeration->name;
    }
-   else if ( lside.ns ) {
-      name = lside.ns->name;
+   else if ( lside.object && lside.object->node.type == NODE_NAMESPACE ) {
+      struct ns* ns = ( struct ns* ) lside.object;
+      name = ns->name;
    }
-   else if ( lside.dim || ( lside.ref && lside.ref->type == REF_ARRAY ) ) {
+   else if ( is_array( &lside ) ) {
       name = semantic->task->array_name;
    }
-   if ( ! name ) {
+   else {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand does not support member access" );
       s_bail( semantic );
@@ -1221,7 +1221,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct name* member_name = t_extend_name( name, "." );
    member_name = t_extend_name( member_name, access->name );
    if ( ! member_name->object ) {
-      unknown_member( semantic, access, name->object );
+      unknown_member( semantic, access, &lside );
       s_bail( semantic );
    }
    if ( ! member_name->object->resolved &&
@@ -1240,35 +1240,35 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    access->rside = &member_name->object->node;
 }
 
-bool is_struct_ref( struct result* result ) {
-   bool explicit_ref = ( ! result->dim && result->ref &&
-      result->ref->type == REF_STRUCTURE && result->spec == SPEC_STRUCT );
-   bool implicit_ref = ( ! result->dim && ! result->ref &&
-      result->spec == SPEC_STRUCT );
-   return ( explicit_ref || implicit_ref );
+bool is_array( struct result* result ) {
+   return ( result->dim || ( result->ref && result->ref->type == REF_ARRAY ) );
+}
+
+bool is_struct( struct result* result ) {
+   bool ref = ( result->ref && result->ref->type == REF_STRUCTURE );
+   return ( ! result->dim && ( ref || result->spec == SPEC_STRUCT ) );
 }
 
 void unknown_member( struct semantic* semantic, struct access* access,
-   struct object* object ) {
-   if ( object->node.type == NODE_STRUCTURE ) {
-      struct structure* type = ( struct structure* ) object;
-      if ( type->anon ) {
+   struct result* lside ) {
+   if ( is_struct( lside ) ) {
+      if ( lside->structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of anonymous struct", access->name );
-         s_bail( semantic );
       }
       else {
          struct str str;
          str_init( &str );
-         t_copy_name( type->name, false, &str );
+         t_copy_name( lside->structure->name, false, &str );
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of struct `%s`", access->name,
             str.value );
          str_deinit( &str );
       }
    }
-   else if ( object->node.type == NODE_ENUMERATION ) {
-      struct enumeration* enumeration = ( struct enumeration* ) object;
+   else if ( lside->object &&
+      lside->object->node.type == NODE_ENUMERATION ) {
+      struct enumeration* enumeration = ( struct enumeration* ) lside->object;
       struct str str;
       str_init( &str );
       t_copy_name( enumeration->name, false, &str );
@@ -1277,10 +1277,16 @@ void unknown_member( struct semantic* semantic, struct access* access,
          str.value );
       str_deinit( &str );
    }
-   else if ( object->node.type == NODE_NAMESPACE ) {
-      s_unknown_ns_object( semantic,
-         ( struct ns* ) object, access->name, &access->pos );
-      s_bail( semantic );
+   else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
+      s_unknown_ns_object( semantic, ( struct ns* ) lside->object,
+         access->name, &access->pos );
+   }
+   else if ( is_array( lside ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "`%s` not a property of an array", access->name );
+   }
+   else {
+      UNREACHABLE();
    }
 }
 
@@ -1760,10 +1766,6 @@ void select_object( struct expr_test* test, struct result* result,
       select_enumerator( result,
          ( struct enumerator* ) object );
       break;
-   case NODE_ENUMERATION:
-      select_enumeration( result,
-         ( struct enumeration* ) object );
-      break;
    case NODE_VAR:
       select_var( test, result,
          ( struct var* ) object );
@@ -1780,9 +1782,9 @@ void select_object( struct expr_test* test, struct result* result,
       select_func( result,
          ( struct func* ) object );
       break;
+   case NODE_ENUMERATION:
    case NODE_NAMESPACE:
-      select_namespace( result,
-         ( struct ns* ) object );
+      result->object = object;
       break;
    default:
       break;
@@ -1805,11 +1807,6 @@ void select_enumerator( struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-}
-
-void select_enumeration( struct result* result,
-   struct enumeration* enumeration ) {
-   result->enumeration = enumeration;
 }
 
 void select_var( struct expr_test* test, struct result* result,
@@ -1912,10 +1909,6 @@ void select_func( struct result* result, struct func* func ) {
    result->func = func;
    result->usable = true;
    result->complete = true;
-}
-
-void select_namespace( struct result* result, struct ns* ns ) {
-   result->ns = ns;
 }
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
@@ -2090,7 +2083,7 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_upmost( struct semantic* semantic, struct result* result ) {
-   result->ns = semantic->lib->upmost_ns;
+   result->object = &semantic->lib->upmost_ns->object;
 }
 
 inline void init_type_info( struct type_info* type, struct result* result ) {
