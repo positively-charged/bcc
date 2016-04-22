@@ -297,7 +297,6 @@ struct dec {
    int spec;
    bool private_visibility;
    bool static_qual;
-   bool typedef_qual;
    bool leave;
    bool read_func;
    bool msgbuild;

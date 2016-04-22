@@ -120,6 +120,7 @@ void bind_namespace_object( struct semantic* semantic,
    struct object* object ) {
    switch ( object->node.type ) {
       struct constant* constant;
+      struct type_alias* type_alias;
       struct var* var;
       struct func* func;
    case NODE_CONSTANT:
@@ -133,6 +134,10 @@ void bind_namespace_object( struct semantic* semantic,
    case NODE_STRUCTURE:
       bind_structure( semantic,
          ( struct structure* ) object );
+      break;
+   case NODE_TYPE_ALIAS:
+      type_alias = ( struct type_alias* ) object;
+      s_bind_name( semantic, type_alias->name, &type_alias->object );
       break;
    case NODE_VAR:
       var = ( struct var* ) object;
@@ -500,6 +505,10 @@ void test_namespace_object( struct semantic* semantic,
       s_test_struct( semantic,
          ( struct structure* ) object );
       break;
+   case NODE_TYPE_ALIAS:
+      s_test_type_alias( semantic,
+         ( struct type_alias* ) object );
+      break;
    case NODE_VAR:
       s_test_var( semantic,
          ( struct var* ) object );
@@ -514,6 +523,9 @@ void test_namespace_object( struct semantic* semantic,
       break;
    default:
       UNREACHABLE();
+      if ( semantic->trigger_err ) {
+         s_bail( semantic );
+      }
    }
 }
 

@@ -65,6 +65,8 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
 void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
+static void read_typedef( struct parse* parse, struct dec* dec );
+static void finish_typedef( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
@@ -115,7 +117,6 @@ static void init_initial( struct initial*, bool );
 static struct value* alloc_value( void );
 static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
-static void add_type_alias( struct parse* parse, struct dec* dec );
 static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void add_var( struct parse* parse, struct dec* );
 static struct var* alloc_var( struct dec* dec );
@@ -215,7 +216,6 @@ void p_init_dec( struct dec* dec ) {
    dec->spec = SPEC_NONE;
    dec->private_visibility = false;
    dec->static_qual = false;
-   dec->typedef_qual = false;
    dec->leave = false;
    dec->read_func = false;
    dec->msgbuild = false;
@@ -229,6 +229,9 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    }
    else if ( parse->tk == TK_STRUCT ) {
       read_struct( parse, dec );
+   }
+   else if ( parse->tk == TK_TYPEDEF ) {
+      read_typedef( parse, dec );
    }
    else {
       // At this time, visibility can be specified only for variables and
@@ -472,6 +475,49 @@ struct structure_member* create_structure_member( struct dec* dec ) {
    return member;
 }
 
+void read_typedef( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_TYPEDEF );
+   p_read_tk( parse );
+   read_extended_spec( parse, dec );
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   dec->ref = ref.head;
+   while ( true ) {
+      read_name( parse, dec );
+      read_dim( parse, dec );
+      finish_typedef( parse, dec );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
+}
+
+void finish_typedef( struct parse* parse, struct dec* dec ) {
+   struct type_alias* alias = mem_alloc( sizeof( *alias ) );
+   t_init_object( &alias->object, NODE_TYPE_ALIAS );
+   alias->object.pos = dec->name_pos;
+   alias->name = dec->name;
+   alias->ref = dec->ref;
+   alias->structure = dec->structure;
+   alias->enumeration = dec->enumeration;
+   alias->path = dec->path;
+   alias->dim = dec->dim;
+   alias->spec = dec->spec;
+   if ( dec->area == DEC_TOP ) {
+      p_add_unresolved( parse, &alias->object );
+      list_append( &parse->ns->objects, alias );
+   }
+   else {
+      list_append( dec->vars, alias );
+   }
+}
+
 void read_var( struct parse* parse, struct dec* dec ) {
    read_qual( parse, dec );
    if ( parse->tk == TK_AUTO ) {
@@ -497,10 +543,6 @@ void read_qual( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_STATIC ) {
       dec->static_qual = true;
       dec->static_qual_pos = parse->tk_pos;
-      p_read_tk( parse );
-   }
-   else if ( parse->tk == TK_TYPEDEF ) {
-      dec->typedef_qual = true;
       p_read_tk( parse );
    }
 }
@@ -762,13 +804,8 @@ void read_instance( struct parse* parse, struct dec* dec ) {
    read_name( parse, dec );
    read_dim( parse, dec );
    read_init( parse, dec );
-   if ( dec->typedef_qual ) {
-      add_type_alias( parse, dec );
-   }
-   else {
-      test_var( parse, dec );
-      add_var( parse, dec );
-   }
+   test_var( parse, dec );
+   add_var( parse, dec );
 }
 
 void read_storage_index( struct parse* parse, struct dec* dec ) {
@@ -942,30 +979,6 @@ struct value* alloc_value( void ) {
    value->index = 0;
    value->string_initz = false;
    return value;
-}
-
-void add_type_alias( struct parse* parse, struct dec* dec ) {
-   if ( dec->initz.specified ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
-         "initializing a typedef" );
-      p_bail( parse );
-   }
-   struct type_alias* alias = mem_alloc( sizeof( *alias ) );
-   t_init_object( &alias->object, NODE_TYPE_ALIAS );
-   alias->object.pos = dec->name_pos;
-   alias->name = dec->name;
-   alias->ref = dec->ref;
-   alias->structure = dec->structure;
-   alias->enumeration = dec->enumeration;
-   alias->path = dec->path;
-   alias->dim = dec->dim;
-   alias->spec = dec->spec;
-   if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse, &alias->object );
-   }
-   else {
-      list_append( dec->vars, alias );
-   }
 }
 
 void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
