@@ -131,5 +131,7 @@ bool s_is_str_value_type( struct type_info* type );
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot );
 bool s_is_onedim_int_array( struct type_info* type );
+bool s_is_int_value( struct type_info* type );
+struct alias* s_alloc_alias( void );
 
 #endif

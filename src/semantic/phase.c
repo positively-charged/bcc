@@ -20,6 +20,8 @@ static void bind_namespace_object( struct semantic* semantic,
    struct object* object );
 static void bind_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
+static void bind_structure( struct semantic* semantic,
+   struct structure* structure );
 static void show_private_objects( struct semantic* semantic );
 static void hide_private_objects( struct semantic* semantic );
 static void perform_usings( struct semantic* semantic );
@@ -47,6 +49,7 @@ static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
+static bool implicitly_imported( struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct name* name,
    struct object* object );
 static struct object* get_nsobject( struct ns* ns, const char* object_name );
@@ -117,7 +120,6 @@ void bind_namespace_object( struct semantic* semantic,
    struct object* object ) {
    switch ( object->node.type ) {
       struct constant* constant;
-      struct structure* structure;
       struct var* var;
       struct func* func;
    case NODE_CONSTANT:
@@ -129,8 +131,8 @@ void bind_namespace_object( struct semantic* semantic,
          ( struct enumeration* ) object );
       break;
    case NODE_STRUCTURE:
-      structure = ( struct structure* ) object;
-      s_bind_name( semantic, structure->name, &structure->object );
+      bind_structure( semantic,
+         ( struct structure* ) object );
       break;
    case NODE_VAR:
       var = ( struct var* ) object;
@@ -158,6 +160,15 @@ void bind_enumeration( struct semantic* semantic,
    while ( enumerator ) {
       s_bind_name( semantic, enumerator->name, &enumerator->object );
       enumerator = enumerator->next;
+   }
+}
+
+void bind_structure( struct semantic* semantic, struct structure* structure ) {
+   s_bind_name( semantic, structure->name, &structure->object );
+   struct structure_member* member = structure->member;
+   while ( member ) {
+      s_bind_name( semantic, member->name, &member->object );
+      member = member->next;
    }
 }
 
@@ -688,26 +699,31 @@ void dupname_err( struct semantic* semantic, struct name* name,
    struct str str;
    str_init( &str );
    t_copy_name( name, false, &str );
-   if ( object->node.type == NODE_STRUCTURE ) {
-      s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &object->pos, "duplicate struct `%s`", str.value );
-      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &name->object->pos, "struct already found here" );
-   }
-   else if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
-      s_diag( semantic, DIAG_ERR | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &object->pos, "duplicate struct-member `%s`", str.value );
-      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &name->object->pos, "struct-member already found here",
-         str.value );
+   if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
+      s_diag( semantic, DIAG_POS_ERR, &object->pos,
+         "duplicate struct member `%s`", str.value );
+      s_diag( semantic, DIAG_POS, &name->object->pos,
+         "struct member already found here", str.value );
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &object->pos,
-         "duplicate name `%s`", str.value );
-      s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &name->object->pos, "name already used here", str.value );
+         "duplicate name `%s`%s", str.value,
+         implicitly_imported( object ) ?
+            " (implicitly imported)" : ""  );
+      s_diag( semantic, DIAG_POS,
+         &name->object->pos, "name already used here%s",
+         implicitly_imported( name->object ) ?
+            " (implicitly imported)" : "" );
    }
    s_bail( semantic );
+}
+
+bool implicitly_imported( struct object* object ) {
+   if ( object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) object;
+      return alias->implicit;
+   }
+   return false;
 }
 
 void add_sweep_name( struct semantic* semantic, struct name* name,
@@ -791,4 +807,12 @@ bool is_compiletime_object( struct object* object ) {
          return false;
       }
    }
+}
+
+struct alias* s_alloc_alias( void ) {
+   struct alias* alias = mem_alloc( sizeof( *alias ) );
+   t_init_object( &alias->object, NODE_ALIAS );
+   alias->target = NULL;
+   alias->implicit = false;
+   return alias;
 }

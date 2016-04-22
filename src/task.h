@@ -790,6 +790,7 @@ struct script {
 struct alias {
    struct object object;
    struct object* target;
+   bool implicit;
 };
 
 struct constant {

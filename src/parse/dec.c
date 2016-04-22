@@ -403,6 +403,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
 void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
       structure->name = t_extend_name( parse->ns->body, parse->tk_text );
+      structure->object.pos = parse->tk_pos;
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
@@ -998,12 +999,6 @@ void test_var( struct parse* parse, struct dec* dec ) {
       p_bail( parse );
    }
    test_storage( parse, dec );
-   // Variable must have a type.
-   if ( dec->spec == SPEC_VOID ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
-         "variable of void type" );
-      p_bail( parse );
-   }
    // Cannot place multi-value variable in scalar portion of storage, where
    // a slot can hold only a single value.
    // TODO: Come up with syntax to navigate the array portion of storage,

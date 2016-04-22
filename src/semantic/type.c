@@ -415,3 +415,9 @@ bool s_is_onedim_int_array( struct type_info* type ) {
    return ( type->dim && ! type->dim->next && ! type->structure &&
       ! type->ref && ( type->spec == SPEC_INT || type->spec == SPEC_RAW ) );
 }
+
+bool s_is_int_value( struct type_info* type ) {
+   struct type_info required_type;
+   s_init_type_info_scalar( &required_type, SPEC_INT );
+   return s_same_type( &required_type, type );
+}

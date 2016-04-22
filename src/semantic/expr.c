@@ -127,18 +127,17 @@ static void test_string_usage( struct expr_test* test, struct result* result,
 static void test_boolean( struct result* result, struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
-static void select_object( struct expr_test* test, struct result* result,
-   struct object* object );
+static void select_object( struct result* result, struct object* object );
 static void select_constant( struct result* result,
    struct constant* constant );
 static void select_enumerator( struct result* result,
    struct enumerator* enumerator );
-static void select_var( struct expr_test* test, struct result* result,
-   struct var* var );
+static void select_var( struct result* result, struct var* var );
 static void select_param( struct result* result, struct param* param );
-static void select_member( struct expr_test* test, struct result* result,
+static void select_member( struct result* result,
    struct structure_member* member );
 static void select_func( struct result* result, struct func* func );
+static void select_alias( struct result* result, struct alias* alias );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
@@ -1236,7 +1235,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   select_object( test, result, member_name->object );
+   select_object( result, member_name->object );
    access->rside = &member_name->object->node;
 }
 
@@ -1558,7 +1557,7 @@ void test_msgbuild_format_item( struct semantic* semantic,
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
-         "argument not an function" );
+         "argument not a function" );
       s_bail( semantic );
    }
    struct type_info type;
@@ -1732,7 +1731,7 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct object* object = s_search_object( semantic, usage->text );
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
-      select_object( test, result, object );
+      select_object( result, object );
       usage->object = &object->node;
    }
    // Object not found or isn't valid.
@@ -1755,8 +1754,7 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_object( struct expr_test* test, struct result* result,
-   struct object* object ) {
+void select_object( struct result* result, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
       select_constant( result, 
@@ -1767,7 +1765,7 @@ void select_object( struct expr_test* test, struct result* result,
          ( struct enumerator* ) object );
       break;
    case NODE_VAR:
-      select_var( test, result,
+      select_var( result,
          ( struct var* ) object );
       break;
    case NODE_PARAM:
@@ -1775,7 +1773,7 @@ void select_object( struct expr_test* test, struct result* result,
          ( struct param* ) object );
       break;
    case NODE_STRUCTURE_MEMBER:
-      select_member( test, result,
+      select_member( result,
          ( struct structure_member* ) object );
       break;
    case NODE_FUNC:
@@ -1785,6 +1783,10 @@ void select_object( struct expr_test* test, struct result* result,
    case NODE_ENUMERATION:
    case NODE_NAMESPACE:
       result->object = object;
+      break;
+   case NODE_ALIAS:
+      select_alias( result,
+         ( struct alias* ) object );
       break;
    default:
       break;
@@ -1809,8 +1811,7 @@ void select_enumerator( struct result* result,
    result->usable = true;
 }
 
-void select_var( struct expr_test* test, struct result* result,
-   struct var* var ) {
+void select_var( struct result* result, struct var* var ) {
    result->data_origin = var;
    result->ref = var->ref;
    result->structure = var->structure;
@@ -1858,8 +1859,7 @@ void select_param( struct result* result, struct param* param ) {
    param->used = true;
 }
 
-void select_member( struct expr_test* test, struct result* result,
-   struct structure_member* member ) {
+void select_member( struct result* result, struct structure_member* member ) {
    result->ref = member->ref;
    result->structure = member->structure;
    result->enumeration = member->enumeration;
@@ -1909,6 +1909,10 @@ void select_func( struct result* result, struct func* func ) {
    result->func = func;
    result->usable = true;
    result->complete = true;
+}
+
+void select_alias( struct result* result, struct alias* alias ) {
+   select_object( result, alias->target );
 }
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,

@@ -55,6 +55,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    func->type = FUNC_FORMAT;
    func->impl = format_impl;
    task->append_func = func;
+   func->name = t_extend_name( task->root_name, ".append" );
 }
 
 struct ns* t_alloc_ns( struct task* task, struct name* name ) {
