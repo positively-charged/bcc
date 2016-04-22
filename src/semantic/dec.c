@@ -65,12 +65,14 @@ struct value_index_alloc {
 
 static void test_enumerator( struct semantic* semantic,
    struct enumeration_test* test, struct enumerator* enumerator );
-static void test_struct_name( struct semantic* semantic, struct structure* type );
-static bool test_struct_body( struct semantic* semantic, struct structure* type );
+static bool test_struct_name( struct semantic* semantic,
+   struct structure* structure );
+static bool test_struct_body( struct semantic* semantic,
+   struct structure* structure );
 static void test_member( struct semantic* semantic,
    struct structure* structure, struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
-   struct structure* structure, struct structure_member* member );
+   struct structure_member* member );
 static bool test_member_ref( struct semantic* semantic,
    struct structure_member* member );
 static bool test_member_name( struct semantic* semantic,
@@ -288,26 +290,29 @@ void test_enumerator( struct semantic* semantic,
    enumerator->object.resolved = true;
 }
 
-void s_test_struct( struct semantic* semantic, struct structure* type ) {
-   test_struct_name( semantic, type );
-   bool resolved = test_struct_body( semantic, type );
-   if ( resolved ) {
-      calc_struct_size( type );
-      type->object.resolved = true;
+void s_test_struct( struct semantic* semantic, struct structure* structure ) {
+   structure->object.resolved =
+      test_struct_name( semantic, structure ) &&
+      test_struct_body( semantic, structure );
+   if ( structure->object.resolved ) {
+      calc_struct_size( structure );
    }
 }
 
-void test_struct_name( struct semantic* semantic, struct structure* type ) {
-   if ( type->name->object != &type->object ) {
-      s_bind_name( semantic, type->name, &type->object );
+bool test_struct_name( struct semantic* semantic,
+   struct structure* structure ) {
+   if ( semantic->in_localscope ) {
+      s_bind_name( semantic, structure->name, &structure->object );
    }
+   return true;
 }
 
-bool test_struct_body( struct semantic* semantic, struct structure* type ) {
-   struct structure_member* member = type->member;
+bool test_struct_body( struct semantic* semantic,
+   struct structure* structure ) {
+   struct structure_member* member = structure->member;
    while ( member ) {
       if ( ! member->object.resolved ) {
-         test_member( semantic, type, member );
+         test_member( semantic, structure, member );
          if ( ! member->object.resolved ) {
             return false;
          }
@@ -320,13 +325,18 @@ bool test_struct_body( struct semantic* semantic, struct structure* type ) {
 void test_member( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    member->object.resolved =
-      test_member_spec( semantic, structure, member ) &&
+      test_member_spec( semantic, member ) &&
       test_member_ref( semantic, member ) &&
       test_member_name( semantic, member ) &&
       test_member_dim( semantic, member );
+   if ( member->object.resolved ) {
+      if ( member->structure && member->structure->has_ref_member ) {
+         structure->has_ref_member = true;
+      }
+   }
 }
 
-bool test_member_spec( struct semantic* semantic, struct structure* structure,
+bool test_member_spec( struct semantic* semantic,
    struct structure_member* member ) {
    if ( member->spec == SPEC_NAME ) {
       struct name_spec_test test;
@@ -345,9 +355,6 @@ bool test_member_spec( struct semantic* semantic, struct structure* structure,
       s_bail( semantic );
    }
    if ( member->spec == SPEC_STRUCT ) {
-      if ( member->structure->has_ref_member ) {
-         structure->has_ref_member = true;
-      }
       return member->structure->object.resolved;
    }
    else if ( member->spec == SPEC_ENUM ) {
