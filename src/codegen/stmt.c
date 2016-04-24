@@ -96,6 +96,9 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
       write_assert( codegen,
          ( struct assert* ) node );
       break;
+   case NODE_CONSTANT:
+   case NODE_ENUMERATION:
+      break;
    default:
       c_write_stmt( codegen, node );
       break;

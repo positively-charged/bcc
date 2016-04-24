@@ -19,6 +19,7 @@
 
 enum {
    // 0
+   F_BASETYPE,
    F_COLUMN,
    F_CONSTANT,
    F_DIM,
@@ -28,8 +29,8 @@ enum {
    F_ENUMERATION,
    F_ENUMERATOR,
    F_FILEMAP,
-   F_FILEPATH,
    // 10
+   F_FILEPATH,
    F_FUNC,
    F_HASREFMEMBER,
    F_ID,
@@ -39,8 +40,8 @@ enum {
    F_LINE,
    F_MAXPARAM,
    F_MINPARAM,
-   F_MSGBUILD,
    // 20
+   F_MSGBUILD,
    F_NAME,
    F_NAMEPOS,
    F_NAMESPACE,
@@ -50,8 +51,8 @@ enum {
    F_PARAM,
    F_POS,
    F_REF,
-   F_RETURNSPEC,
    // 30
+   F_RETURNSPEC,
    F_SCRIPTCALLABLE,
    F_SIZE,
    F_SPEC,
@@ -61,8 +62,8 @@ enum {
    F_STRUCTUREMEMBER,
    F_TYPE,
    F_VALUE,
-   F_VALUESTRING,
    // 40
+   F_VALUESTRING,
    F_VAR,
    F_UNREACHABLE
 };
@@ -201,6 +202,7 @@ void save_constant( struct saver* saver, struct constant* constant ) {
 
 void save_enum( struct saver* saver, struct enumeration* enumeration ) {
    WF( saver, F_ENUMERATION );
+   save_object( saver, &enumeration->object );
    if ( enumeration->name ) {
       WN( saver, F_NAME, enumeration->name );
    }
@@ -213,6 +215,7 @@ void save_enum( struct saver* saver, struct enumeration* enumeration ) {
       WF( saver, F_END );
       enumerator = enumerator->next;
    }
+   WV( saver, F_BASETYPE, &enumeration->base_type );
    WF( saver, F_END );
 }
 
@@ -548,6 +551,7 @@ void restore_constant( struct restorer* restorer ) {
 void restore_enum( struct restorer* restorer ) {
    RF( restorer, F_ENUMERATION );
    struct enumeration* enumeration = t_alloc_enumeration();
+   restore_object( restorer, &enumeration->object, NODE_ENUMERATION );
    struct name* name_offset = restorer->ns->body;
    if ( f_peek( restorer->r ) == F_NAME ) {
       enumeration->name = t_extend_name( restorer->ns->body,
@@ -563,6 +567,7 @@ void restore_enum( struct restorer* restorer ) {
       RF( restorer, F_END );
       t_append_enumerator( enumeration, enumerator );
    }
+   RV( restorer, F_BASETYPE, &enumeration->base_type );
    RF( restorer, F_END );
    list_append( &restorer->ns->objects, enumeration );
    list_append( &restorer->lib->objects, enumeration );

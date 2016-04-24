@@ -80,7 +80,7 @@ void s_decay( struct type_info* type ) {
    }
    // Enumeration type.
    else if ( ! type->ref && type->enumeration ) {
-      type->spec = SPEC_INT;
+      type->spec = type->enumeration->base_type;
    }
 }
 

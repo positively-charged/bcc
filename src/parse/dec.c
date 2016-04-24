@@ -49,8 +49,11 @@ struct script_reading {
 
 static bool peek_dec_beginning_with_id( struct parse* parse );
 static void read_enum( struct parse* parse, struct dec* );
+static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
 static void read_enum_name( struct parse* parse,
+   struct enumeration* enumeration );
+static void read_enum_base_type( struct parse* parse,
    struct enumeration* enumeration );
 static void read_enum_body( struct parse* parse,
    struct enumeration* enumeration );
@@ -253,8 +256,7 @@ void read_enum( struct parse* parse, struct dec* dec ) {
    dec->type_pos = parse->tk_pos;
    p_test_tk( parse, TK_ENUM );
    p_read_tk( parse );
-   if ( ( parse->tk == TK_ID && p_peek( parse ) == TK_BRACE_L ) ||
-      parse->tk == TK_BRACE_L ) {
+   if ( is_enum_def( parse ) ) {
       read_enum_def( parse, dec );
    }
    else if ( parse->tk == TK_ID ) {
@@ -263,6 +265,7 @@ void read_enum( struct parse* parse, struct dec* dec ) {
    else {
       p_unexpect_diag( parse );
       p_unexpect_item( parse, NULL, TK_BRACE_L );
+      p_unexpect_item( parse, NULL, TK_COLON );
       p_unexpect_name( parse, NULL, "enumeration name" );
       p_unexpect_last_name( parse, NULL, "name of constant" );
       p_bail( parse );
@@ -275,10 +278,17 @@ void read_enum( struct parse* parse, struct dec* dec ) {
    }
 }
 
+inline bool is_enum_def( struct parse* parse ) {
+   return parse->tk == TK_BRACE_L || parse->tk == TK_COLON ||
+      ( parse->tk == TK_ID && ( p_peek( parse ) == TK_BRACE_L ||
+         p_peek( parse ) == TK_COLON ) );
+}
+
 void read_enum_def( struct parse* parse, struct dec* dec ) {
    struct enumeration* enumeration = t_alloc_enumeration();
    enumeration->object.pos = dec->type_pos;
    read_enum_name( parse, enumeration );
+   read_enum_base_type( parse, enumeration );
    read_enum_body( parse, enumeration );
    dec->enumeration = enumeration;
    dec->spec = SPEC_ENUM;
@@ -297,6 +307,34 @@ void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
       enumeration->name = t_extend_name( parse->ns->body, parse->tk_text );
       enumeration->object.pos = parse->tk_pos;
       p_read_tk( parse );
+   }
+}
+
+void read_enum_base_type( struct parse* parse,
+   struct enumeration* enumeration ) {
+   if ( parse->tk == TK_COLON ) {
+      p_read_tk( parse );
+      switch ( parse->tk ) {
+      case TK_INT:
+         p_read_tk( parse );
+         break;
+      case TK_FIXED:
+         enumeration->base_type = SPEC_FIXED;
+         p_read_tk( parse );
+         break;
+      case TK_BOOL:
+         enumeration->base_type = SPEC_BOOL;
+         p_read_tk( parse );
+         break;
+      case TK_STR:
+         enumeration->base_type = SPEC_STR;
+         p_read_tk( parse );
+         break;
+      default:
+         p_unexpect_diag( parse );
+         p_unexpect_last_name( parse, NULL, "base type" );
+         p_bail( parse );
+      }
    }
 }
 

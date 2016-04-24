@@ -64,7 +64,8 @@ struct value_index_alloc {
 };
 
 static void test_enumerator( struct semantic* semantic,
-   struct enumeration_test* test, struct enumerator* enumerator );
+   struct enumeration_test* test, struct enumeration* enumeration,
+   struct enumerator* enumerator );
 static bool test_struct_name( struct semantic* semantic,
    struct structure* structure );
 static bool test_struct_body( struct semantic* semantic,
@@ -235,7 +236,7 @@ void s_test_enumeration( struct semantic* semantic,
    }
    // Test unresolved enumerators.
    while ( enumerator ) {
-      test_enumerator( semantic, &test, enumerator );
+      test_enumerator( semantic, &test, enumeration, enumerator );
       if ( ! enumerator->object.resolved ) {
          return;
       }
@@ -244,17 +245,18 @@ void s_test_enumeration( struct semantic* semantic,
    enumeration->object.resolved = true;
 }
 
-void test_enumerator( struct semantic* semantic,
-   struct enumeration_test* test, struct enumerator* enumerator ) {
+void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
+   struct enumeration* enumeration, struct enumerator* enumerator ) {
    // Test name.
    if ( semantic->in_localscope ) {
       s_bind_name( semantic, enumerator->name, &enumerator->object );
    }
    // Test initializer.
    if ( enumerator->initz ) {
+      struct type_info type;
       struct expr_test expr;
       s_init_expr_test( &expr, true, false );
-      s_test_expr( semantic, &expr, enumerator->initz );
+      s_test_expr_type( semantic, &expr, &type, enumerator->initz );
       if ( expr.undef_erred ) {
          return;
       }
@@ -263,17 +265,22 @@ void test_enumerator( struct semantic* semantic,
             "enumerator expression not constant" );
          s_bail( semantic );
       }
-      // The type of an enumerator is `int`. Maybe, sometime later, we'll
-      // allow the user to specify the type of an enumerator value.
-      if ( enumerator->initz->spec != SPEC_INT &&
-         enumerator->initz->spec != SPEC_ENUM ) {
-         s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
-            "enumerator initializer of non-integer value" );
+      struct type_info base_type;
+      s_init_type_info_scalar( &base_type, enumeration->base_type );
+      if ( ! s_same_type( &type, &base_type ) ) {
+         s_type_mismatch( semantic, "enumerator", &type,
+            "enumeration-base", &base_type, &enumerator->object.pos );
          s_bail( semantic );
       }
       test->value = enumerator->initz->value;
    }
    else {
+      // Non-integer base types require an explicit initializer.
+      if ( enumeration->base_type != SPEC_INT ) {
+         s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,
+            "missing initializer for enumerator of non-integer type" );
+         s_bail( semantic );
+      }
       // Check for integer overflow.
       if ( test->value == INT_MAX ) {
          s_diag( semantic, DIAG_POS_ERR, &enumerator->object.pos,

@@ -150,6 +150,8 @@ static void visit_name_usage( struct codegen* codegen, struct result* result,
    struct name_usage* usage );
 static void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant );
+static void push_constant( struct codegen* codegen, struct result* result,
+   int spec, int value );
 static void visit_enumerator( struct codegen* codegen,
    struct result* result, struct enumerator* enumerator );
 static void visit_var( struct codegen* codegen, struct result* result,
@@ -1676,18 +1678,24 @@ void visit_name_usage( struct codegen* codegen, struct result* result,
 
 void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, constant->value );
-   if ( codegen->task->library_main->importable && constant->value_node &&
-      constant->value_node->has_str ) {
-      c_pcd( codegen, PCD_TAGSTRING );
+   push_constant( codegen, result, constant->spec, constant->value );
+}
+
+void push_constant( struct codegen* codegen, struct result* result,
+   int spec, int value ) {
+   if ( spec == SPEC_STR ) {
+      c_push_string( codegen, t_lookup_string( codegen->task, value ) );
+   }
+   else {
+      c_pcd( codegen, PCD_PUSHNUMBER, value );
    }
    result->status = R_VALUE;
 }
 
 void visit_enumerator( struct codegen* codegen, struct result* result,
    struct enumerator* enumerator ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, enumerator->value );
-   result->status = R_VALUE;
+   push_constant( codegen, result, enumerator->enumeration->base_type,
+      enumerator->value );
 }
 
 void visit_var( struct codegen* codegen, struct result* result,
