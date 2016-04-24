@@ -255,7 +255,7 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
    if ( enumerator->initz ) {
       struct type_info type;
       struct expr_test expr;
-      s_init_expr_test( &expr, true, false );
+      s_init_expr_test_enumerator( &expr, enumeration );
       s_test_expr_type( semantic, &expr, &type, enumerator->initz );
       if ( expr.undef_erred ) {
          return;

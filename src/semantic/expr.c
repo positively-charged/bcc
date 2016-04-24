@@ -154,10 +154,19 @@ static bool is_ref_type( struct result* result );
 
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
+   test->name_offset = NULL;
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
    test->suggest_paren_assign = suggest_paren_assign;
+}
+
+void s_init_expr_test_enumerator( struct expr_test* test,
+   struct enumeration* enumeration ) {
+   s_init_expr_test( test, true, false );
+   if ( enumeration->name ) {
+      test->name_offset = t_extend_name( enumeration->name, "." );
+   }
 }
 
 void s_test_expr( struct semantic* semantic, struct expr_test* test,
@@ -1696,7 +1705,14 @@ void test_boolean( struct result* result, struct boolean* boolean ) {
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage ) {
-   struct object* object = s_search_object( semantic, usage->text );
+   struct object* object = NULL;
+   if ( test->name_offset ) {
+      struct name* name = t_extend_name( test->name_offset, usage->text );
+      object = name->object;
+   }
+   if ( ! object ) {
+      object = s_search_object( semantic, usage->text );
+   }
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
       select_object( result, object );

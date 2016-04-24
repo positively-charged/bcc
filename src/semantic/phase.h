@@ -22,6 +22,7 @@ struct stmt_test {
 
 struct expr_test {
    jmp_buf bail;
+   struct name* name_offset;
    bool result_required;
    bool has_string;
    bool undef_erred;
@@ -86,6 +87,8 @@ void s_test_foreach_var( struct semantic* semantic,
    struct type_info* collection_type, struct var* var );
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign );
+void s_init_expr_test_enumerator( struct expr_test* test,
+   struct enumeration* enumeration );
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
 void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    struct type_info* result_type, struct expr* expr );
