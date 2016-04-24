@@ -296,7 +296,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "}", TKF_NONE ),
       ENTRY( ".", TKF_NONE ),
       ENTRY( "++", TKF_NONE ),
-
       // 10
       ENTRY( "--", TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
@@ -308,7 +307,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "+=", TKF_NONE ),
       ENTRY( "-=", TKF_NONE ),
       ENTRY( "*=", TKF_NONE ),
-
       // 20
       ENTRY( "/=", TKF_NONE ),
       ENTRY( "%=", TKF_NONE ),
@@ -320,7 +318,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "==", TKF_NONE ),
       ENTRY( "!=", TKF_NONE ),
       ENTRY( "!", TKF_NONE ),
-
       // 30
       ENTRY( "&&", TKF_NONE ),
       ENTRY( "||", TKF_NONE ),
@@ -332,7 +329,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "<=", TKF_NONE ),
       ENTRY( ">", TKF_NONE ),
       ENTRY( ">=", TKF_NONE ),
-
       // 40
       ENTRY( "+", TKF_NONE ),
       ENTRY( "-", TKF_NONE ),
@@ -341,12 +337,10 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "%", TKF_NONE ),
       ENTRY( "<<", TKF_NONE ),
       ENTRY( ">>", TKF_NONE ),
-      ENTRY( ":=", TKF_NONE ),
       ENTRY( "break", TKF_KEYWORD ),
       ENTRY( "case", TKF_KEYWORD ),
-
-      // 50
       ENTRY( "const", TKF_KEYWORD ),
+      // 50
       ENTRY( "continue", TKF_KEYWORD ),
       ENTRY( "default", TKF_KEYWORD ),
       ENTRY( "do", TKF_KEYWORD ),
@@ -356,9 +350,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "if", TKF_KEYWORD ),
       ENTRY( "int", TKF_KEYWORD ),
       ENTRY( "return", TKF_KEYWORD ),
-
-      // 60
       ENTRY( "static", TKF_KEYWORD ),
+      // 60
       ENTRY( "str", TKF_KEYWORD ),
       ENTRY( "struct", TKF_KEYWORD ),
       ENTRY( "switch", TKF_KEYWORD ),
@@ -368,9 +361,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
-
-      // 70
       ENTRY( BLANK, TKF_NONE ),
+      // 70
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( "#", TKF_NONE ),
@@ -380,9 +372,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "until", TKF_KEYWORD ),
       ENTRY( "world", TKF_KEYWORD ),
       ENTRY( "open", TKF_KEYWORD ),
-
-      // 80
       ENTRY( "respawn", TKF_KEYWORD ),
+      // 80
       ENTRY( "death", TKF_KEYWORD ),
       ENTRY( "enter", TKF_KEYWORD ),
       ENTRY( "pickup", TKF_KEYWORD ),
@@ -392,9 +383,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "lightning", TKF_KEYWORD ),
       ENTRY( "disconnect", TKF_KEYWORD ),
       ENTRY( "unloading", TKF_KEYWORD ),
-
-      // 90
       ENTRY( "clientside", TKF_KEYWORD ),
+      // 90
       ENTRY( "net", TKF_KEYWORD ),
       ENTRY( "restart", TKF_KEYWORD ),
       ENTRY( "suspend", TKF_KEYWORD ),
@@ -404,9 +394,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "goto", TKF_KEYWORD ),
       ENTRY( "true", TKF_KEYWORD ),
       ENTRY( "false", TKF_KEYWORD ),
-
-      // 100
       ENTRY( "event", TKF_KEYWORD ),
+      // 100
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
@@ -416,32 +405,27 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "\t", TKF_KEYWORD ),
       ENTRY( "...", TKF_KEYWORD ),
       ENTRY( " ", TKF_NONE ),
-
-      // 110
       ENTRY( "##", TKF_NONE ),
+      // 110
       ENTRY( "raw", TKF_KEYWORD ),
       ENTRY( "fixed", TKF_KEYWORD ),
       ENTRY( "cast", TKF_KEYWORD ),
       ENTRY( "assert", TKF_KEYWORD ),
       ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
-
-      // 120
       ENTRY( "typedef", TKF_KEYWORD ),
       ENTRY( "foreach", TKF_KEYWORD ),
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "objcpy", TKF_KEYWORD ),
+      // 120
       ENTRY( "msgbuild", TKF_KEYWORD ),
       ENTRY( "extspec", TKF_KEYWORD ),
       ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
       ENTRY( "special", TKF_KEYWORD ),
       ENTRY( "namespace", TKF_KEYWORD ),
-
-      // 130
       ENTRY( "upmost", TKF_KEYWORD ),
       ENTRY( "using", TKF_KEYWORD ),
-
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
       ENTRY( BLANK, TKF_NONE )
