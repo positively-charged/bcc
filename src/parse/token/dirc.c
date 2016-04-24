@@ -838,3 +838,9 @@ void p_confirm_ifdircs_closed( struct parse* parse ) {
       p_bail( parse );
    }
 }
+
+void p_define_imported_macro( struct parse* parse ) {
+   struct macro* macro = alloc_macro( parse );
+   macro->name = "__imported__";
+   add_macro( parse, macro );
+}

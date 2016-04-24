@@ -437,6 +437,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    lib->imported = true;
    parse->ns = lib->upmost_ns;
    p_clear_macros( parse );
+   p_define_imported_macro( parse );
    p_read_tk( parse );
    p_read_lib( parse );
    // An imported library must have a #library directive.
