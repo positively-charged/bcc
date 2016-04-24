@@ -103,17 +103,14 @@ void s_diag( struct semantic* semantic, int flags, ... );
 void s_bail( struct semantic* semantic );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
-void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
-   struct dim* dim, struct structure* structure,
-   struct enumeration* enumeration, struct func* func );
-void s_init_type_info_decayless( struct type_info* type, struct ref* ref,
+void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct dim* dim, int spec );
-void s_init_type_info_scalar( struct type_info* type, int spec );
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct param* params, int return_spec, int min_param, int max_param,
    bool msgbuild );
+void s_init_type_info_scalar( struct type_info* type, int spec );
 bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_ref_type( struct type_info* type );
@@ -134,5 +131,9 @@ bool s_is_onedim_int_array( struct type_info* type );
 bool s_is_int_value( struct type_info* type );
 struct alias* s_alloc_alias( void );
 void s_test_type_alias( struct semantic* semantic, struct type_alias* alias );
+void s_decay( struct type_info* type );
+void s_type_mismatch( struct semantic* semantic, const char* label_a,
+   struct type_info* type_a, const char* label_b, struct type_info* type_b,
+   struct pos* pos );
 
 #endif

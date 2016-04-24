@@ -142,7 +142,7 @@ static bool test_value( struct semantic* semantic, struct initz_test* test,
    struct type_info* type, struct value* value );
 static bool test_scalar_initz( struct semantic* semantic,
    struct initz_test* test, struct type_info* type, struct value* value );
-static void initz_mismatch_diag( struct semantic* semantic,
+static void initz_mismatch( struct semantic* semantic,
    struct initz_test* test, struct type_info* initz_type,
    struct type_info* type, struct pos* pos );
 static bool test_string_initz( struct semantic* semantic, struct dim* dim,
@@ -598,8 +598,8 @@ void merge_ref( struct semantic* semantic, struct name_spec_test* test,
    else if ( ref->type == REF_STRUCTURE ) {
       if ( alias->dim ) {
          struct type_info type;
-         s_init_type_info( &type, alias->spec, alias->ref, alias->dim,
-            alias->structure, alias->enumeration, NULL );
+         s_init_type_info( &type, alias->ref, alias->structure,
+            alias->enumeration, alias->dim, alias->spec );
          struct type_snapshot snapshot;
          s_take_type_snapshot( &type, &snapshot );
          if ( ref == test->ref ) {
@@ -805,7 +805,7 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    }
    else {
       struct type_info type;
-      s_init_type_info_decayless( &type, var->ref, var->structure,
+      s_init_type_info( &type, var->ref, var->structure,
          var->enumeration, var->dim, var->spec );
       bool resolved = test_value( semantic, &test, &type,
          ( struct value* ) var->initial );
@@ -831,9 +831,6 @@ void init_initz_test( struct initz_test* test, struct initz_test* parent,
    test->count = 0;
    test->constant = constant;
    test->has_string = false;
-   if ( structure ) {
-      test->member = structure->member;
-   }
 }
 
 void init_root_initz_test( struct initz_test* test, struct var* var ) {
@@ -911,7 +908,7 @@ bool test_multi_value_array_child( struct semantic* semantic,
    }
    else {
       struct type_info type;
-      s_init_type_info_decayless( &type, test->ref, test->structure,
+      s_init_type_info( &type, test->ref, test->structure,
          test->enumeration, test->dim->next, test->spec );
       return test_value( semantic, test, &type,
          ( struct value* ) initial );
@@ -931,6 +928,7 @@ void refnotinit_array( struct semantic* semantic, struct initz_test* test,
 
 bool test_multi_value_struct( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value ) {
+   test->member = test->structure->member;
    struct initial* initial = multi_value->body;
    while ( initial ) {
       if ( ! initial->tested ) {
@@ -978,7 +976,7 @@ bool test_multi_value_struct_child( struct semantic* semantic,
    }
    else {
       struct type_info type;
-      s_init_type_info_decayless( &type, member->ref, member->structure,
+      s_init_type_info( &type, member->ref, member->structure,
          member->enumeration, member->dim, member->spec );
       return test_value( semantic, test, &type,
          ( struct value* ) initial );
@@ -1031,8 +1029,7 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
       s_bail( semantic );
    }
    if ( ! s_same_type( type, &initz_type ) ) {
-      initz_mismatch_diag( semantic, test, &initz_type, type,
-         &value->expr->pos );
+      initz_mismatch( semantic, test, &initz_type, type, &value->expr->pos );
       s_bail( semantic );
    }
    if ( expr.has_string ) {
@@ -1041,24 +1038,10 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
    return true;
 }
 
-void initz_mismatch_diag( struct semantic* semantic, struct initz_test* test,
+void initz_mismatch( struct semantic* semantic, struct initz_test* test,
    struct type_info* initz_type, struct type_info* type, struct pos* pos ) {
-   struct str initz_type_s;
-   str_init( &initz_type_s );
-   s_present_type( initz_type, &initz_type_s );
-   struct str type_s;
-   str_init( &type_s );
-   s_present_type( type, &type_s );
-   const char* object =
-      test->dim ? "element" :
-      test->member ? "struct-member" : "variable";
-   s_diag( semantic, DIAG_POS_ERR, pos,
-      "initializer/%s type mismatch", object );
-   s_diag( semantic, DIAG_POS, pos,
-      "`%s` initializer, but `%s` %s", initz_type_s.value,
-      type_s.value, object );
-   str_deinit( &type_s );
-   str_deinit( &initz_type_s );
+   s_type_mismatch( semantic, "initializer", initz_type, test->dim ?
+      "element" : ( test->member ? "struct-member" : "variable" ), type, pos );
 }
 
 bool test_string_initz( struct semantic* semantic, struct dim* dim,
@@ -1426,7 +1409,7 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
          return false;
       }
       struct type_info param_type;
-      s_init_type_info_decayless( &param_type, param->ref, param->structure,
+      s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, param->spec );
       if ( ! s_same_type( &param_type, &type ) ) {
          default_value_mismatch( semantic, func, param, &param_type, &type,
@@ -1447,9 +1430,9 @@ void default_value_mismatch( struct semantic* semantic, struct func* func,
    str_init( &param_type_s );
    s_present_type( param_type, &param_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
-      "type mismatch (in parameter %d): "
-      "`%s` default-value, but `%s` parameter",
-      get_param_number( func, param ), type_s.value, param_type_s.value );
+      "default-value type (`%s`) different from parameter type (`%s`) "
+      "(in parameter %d)", type_s.value, param_type_s.value,
+      get_param_number( func, param ) );
    str_deinit( &type_s );
    str_deinit( &param_type_s );
 }

@@ -2,69 +2,25 @@
 
 #include "phase.h"
 
-static void init_type_info( struct type_info* type );
-static bool same_ref_implicit( struct ref* a, struct type_info* b );
 static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
+static bool same_spec( int a, int b );
 static bool compatible_raw_spec( int spec );
+static bool same_dim( struct dim* a, struct dim* b );
+static void present_extended_spec( struct structure* structure,
+   struct enumeration* enumeration, int spec, struct str* string );
+static void present_spec( int spec, struct str* string );
 static void present_ref( struct ref* ref, struct str* string,
    bool require_ampersand );
-static void present_spec( int spec, struct str* string );
+static void present_dim( struct type_info* type, struct str* string );
+static void present_param_list( struct param* param, struct str* string );
 static bool is_array_ref_type( struct type_info* type );
 static void subscript_array_type( struct type_info* type,
    struct type_info* element_type );
 static struct ref* dup_ref( struct ref* ref );
 
-void s_init_type_info( struct type_info* type, int spec, struct ref* ref,
-   struct dim* dim, struct structure* structure,
-   struct enumeration* enumeration, struct func* func ) {
-   init_type_info( type );
-   // Array type.
-   if ( dim ) {
-      // Implicitly convert to reference-to-array.
-      struct ref_array* array = &type->implicit_ref_part.array;
-      array->ref.next = ref;
-      array->ref.type = REF_ARRAY;
-      array->dim_count = 0;
-      struct dim* count_dim = dim;
-      while ( count_dim ) {
-         ++array->dim_count;
-         count_dim = count_dim->next;
-      }
-      type->ref = &array->ref;
-      type->structure = structure;
-      type->enumeration = enumeration;
-      // type->dim = dim;
-      type->spec = spec;
-      type->implicit_ref = true;
-   }
-   // Reference type.
-   else if ( ref ) {
-      type->ref = ref;
-      type->structure = structure;
-      type->enumeration = enumeration;
-      type->spec = spec;
-   }
-   // Structure type.
-   else if ( structure ) {
-      // Implicitly convert to reference-to-struct.
-      struct ref_struct* implicit_ref = &type->implicit_ref_part.structure;
-      implicit_ref->ref.next = NULL;
-      implicit_ref->ref.type = REF_STRUCTURE;
-      type->ref = &implicit_ref->ref;
-      type->structure = structure;
-      type->spec = SPEC_STRUCT;
-      type->implicit_ref = true;
-   }
-   // Primitive type.
-   else {
-      type->enumeration = enumeration;
-      type->spec = spec;
-   }
-}
-
-void s_init_type_info_decayless( struct type_info* type, struct ref* ref,
+void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct dim* dim, int spec ) {
    type->ref = ref;
@@ -75,61 +31,66 @@ void s_init_type_info_decayless( struct type_info* type, struct ref* ref,
    type->implicit_ref = false;
 }
 
-void init_type_info( struct type_info* type ) {
-   type->ref = NULL;
-   type->structure = NULL;
-   type->enumeration = NULL;
-   type->dim = NULL;
-   type->spec = SPEC_NONE;
-   type->implicit_ref = false;
-}
-
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct param* params, int return_spec, int min_param, int max_param,
    bool msgbuild ) {
-   struct ref_func* part = &type->implicit_ref_part.func;
-   part->ref.next = ref;
-   part->ref.type = REF_FUNCTION;
-   part->params = params;
-   part->min_param = min_param;
-   part->max_param = max_param;
-   part->msgbuild = msgbuild;
-   s_init_type_info( type, return_spec, &part->ref, NULL, structure,
-      enumeration, NULL );
+   s_init_type_info( type, ref, structure, enumeration, NULL, return_spec );
+   // NOTE: At this time, I don't see where in the compiler a distinction needs
+   // to be made between a function and a reference-to-function. So decay a
+   // function into reference-to-function at all times.
+   struct ref_func* func = &type->implicit_ref_part.func;
+   func->ref.next = type->ref;
+   func->ref.type = REF_FUNCTION;
+   func->params = params;
+   func->min_param = min_param;
+   func->max_param = max_param;
+   func->msgbuild = msgbuild;
+   type->ref = &func->ref;
+   type->implicit_ref = true;
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {
-   s_init_type_info( type, spec, NULL, NULL, NULL, NULL, NULL );
+   s_init_type_info( type, NULL, NULL, NULL, NULL, spec );
+}
+
+void s_decay( struct type_info* type ) {
+   // Array type.
+   if ( ! type->ref && type->dim ) {
+      struct ref_array* array = &type->implicit_ref_part.array;
+      array->ref.next = type->ref;
+      array->ref.type = REF_ARRAY;
+      array->dim_count = 0;
+      struct dim* count_dim = type->dim;
+      while ( count_dim ) {
+         ++array->dim_count;
+         count_dim = count_dim->next;
+      }
+      type->ref = &array->ref;
+      type->dim = NULL;
+      type->implicit_ref = true;
+   }
+   // Structure type.
+   else if ( ! type->ref && type->structure ) {
+      struct ref_struct* implicit_ref = &type->implicit_ref_part.structure;
+      implicit_ref->ref.next = NULL;
+      implicit_ref->ref.type = REF_STRUCTURE;
+      type->ref = &implicit_ref->ref;
+      type->implicit_ref = true;
+   }
+   // Enumeration type.
+   else if ( ! type->ref && type->enumeration ) {
+      type->spec = SPEC_INT;
+   }
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
-   // Reference.
-   if ( ! same_ref( a->ref, b->ref ) ) {
-      return false;
-   }
-   // Structure.
-   if ( a->structure != b->structure ) {
-      return false;
-   }
-   // Enumeration.
-   if ( a->enumeration && a->enumeration != b->enumeration ) {
-      return false;
-   }
-   // Specifier.
-   if ( a->spec == SPEC_RAW ) {
-      return compatible_raw_spec( b->spec );
-   }
-   else if ( b->spec == SPEC_RAW ) {
-      return compatible_raw_spec( a->spec );
-   }
-   else {
-      return ( a->spec == b->spec );
-   }
-}
-
-bool same_ref_implicit( struct ref* a, struct type_info* b ) {
-      return false;
+   return same_ref( a->ref, b->ref ) &&
+      ( a->structure == b->structure ) && (
+         ( ( a->spec == SPEC_ENUM || b->spec == SPEC_ENUM ) &&
+            a->enumeration == b->enumeration ) ||
+         ( same_spec( a->spec, b->spec ) ) ) &&
+      same_dim( a->dim, b->dim );
 }
 
 bool same_ref( struct ref* a, struct ref* b ) {
@@ -181,6 +142,18 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       ( a->msgbuild == b->msgbuild );
 }
 
+bool same_spec( int a, int b ) {
+   if ( a == SPEC_RAW ) {
+      return compatible_raw_spec( b );
+   }
+   else if ( b == SPEC_RAW ) {
+      return compatible_raw_spec( a );
+   }
+   else {
+      return ( a == b );
+   }
+}
+
 bool compatible_raw_spec( int spec ) {
    switch ( spec ) {
    case SPEC_RAW:
@@ -194,27 +167,28 @@ bool compatible_raw_spec( int spec ) {
    return false;
 }
 
+bool same_dim( struct dim* a, struct dim* b ) {
+   while ( a && b && a->size == b->size ) {
+      a = a->next;
+      b = b->next;
+   }
+   return ( a == NULL && b == NULL );
+}
+
 void s_present_type( struct type_info* type, struct str* string ) {
-/*
-   if ( type->ref ) {
-      switch ( type->ref->type ) {
-      case REF_ARRAY:
-         str_append( string, "array-reference" );
-         break;
-      case REF_FUNCTION:
-         str_append( string, "function-reference" );
-         break;
-      default:
-         str_append( string, "reference" );
-         break;
-      }
-   } */
-   // Specifier.
-   if ( type->enumeration ) {
-      if ( type->enumeration->name ) {
+   present_extended_spec( type->structure, type->enumeration, type->spec,
+      string );
+   present_ref( type->ref, string, false );
+   present_dim( type, string );
+}
+
+void present_extended_spec( struct structure* structure,
+   struct enumeration* enumeration, int spec, struct str* string ) {
+   if ( spec == SPEC_ENUM ) {
+      if ( enumeration->name ) {
          struct str name;
          str_init( &name );
-         t_copy_name( type->enumeration->name, false, &name );
+         t_copy_name( enumeration->name, false, &name );
          str_append( string, name.value );
          str_deinit( &name );
       }
@@ -222,67 +196,20 @@ void s_present_type( struct type_info* type, struct str* string ) {
          str_append( string, "anonymous-enum" );
       }
    }
-   else if ( type->structure ) {
-      if ( type->structure->anon ) {
+   else if ( spec == SPEC_STRUCT ) {
+      if ( structure->anon ) {
          str_append( string, "anonymous-struct" );
       }
       else {
          struct str name;
          str_init( &name );
-         t_copy_name( type->structure->name, true, &name );
+         t_copy_name( structure->name, true, &name );
          str_append( string, name.value );
          str_deinit( &name );
       }
    }
    else {
-      present_spec( type->spec, string );
-   }
-   // Reference.
-   present_ref( type->ref, string, false );
-}
-
-void present_ref( struct ref* ref, struct str* string,
-   bool require_ampersand ) {
-   if ( ref ) {
-      present_ref( ref->next, string, true );
-      if ( ref->type == REF_ARRAY ) {
-         struct ref_array* part = ( struct ref_array* ) ref;
-         for ( int i = 0; i < part->dim_count; ++i ) {
-            str_append( string, "[]" );
-         }
-         if ( require_ampersand ) {
-            str_append( string, "&" );
-         }
-      }
-      else if ( ref->type == REF_STRUCTURE ) {
-         str_append( string, "&" );
-      }
-      else if ( ref->type == REF_FUNCTION ) {
-         struct ref_func* func = ( struct ref_func* ) ref;
-         str_append( string, " " );
-         str_append( string, "function" );
-         str_append( string, "(" );
-         struct param* param = func->params;
-         while ( param ) {
-            present_spec( param->spec, string );
-            param = param->next;
-            if ( param ) {
-               str_append( string, "," );
-               str_append( string, " " );
-            }
-         }
-         str_append( string, ")" );
-         if ( func->msgbuild ) {
-            str_append( string, " " );
-            str_append( string, "msgbuild" );
-         }
-         if ( require_ampersand ) {
-            str_append( string, "&" );
-         }
-      }
-      else {
-         UNREACHABLE()
-      }
+      present_spec( spec, string );
    }
 }
 
@@ -307,6 +234,69 @@ void present_spec( int spec, struct str* string ) {
       str_append( string, "void" );
    default:
       break;
+   }
+}
+
+void present_ref( struct ref* ref, struct str* string,
+   bool require_ampersand ) {
+   if ( ref ) {
+      present_ref( ref->next, string, true );
+      if ( ref->type == REF_ARRAY ) {
+         struct ref_array* part = ( struct ref_array* ) ref;
+         for ( int i = 0; i < part->dim_count; ++i ) {
+            str_append( string, "[]" );
+         }
+         if ( require_ampersand ) {
+            str_append( string, "&" );
+         }
+      }
+      else if ( ref->type == REF_STRUCTURE ) {
+         str_append( string, "&" );
+      }
+      else if ( ref->type == REF_FUNCTION ) {
+         struct ref_func* func = ( struct ref_func* ) ref;
+         str_append( string, " " );
+         str_append( string, "function" );
+         str_append( string, "(" );
+         present_param_list( func->params, string );
+         str_append( string, ")" );
+         if ( func->msgbuild ) {
+            str_append( string, " " );
+            str_append( string, "msgbuild" );
+         }
+         if ( require_ampersand ) {
+            str_append( string, "&" );
+         }
+      }
+      else {
+         UNREACHABLE()
+      }
+   }
+}
+
+void present_dim( struct type_info* type, struct str* string ) {
+   if ( type->dim ) {
+      str_append( string, " array" );
+      struct dim* dim = type->dim;
+      while ( dim ) {
+         char text[ 11 + 2 ];
+         snprintf( text, sizeof( text ), "[%d]", dim->size );
+         str_append( string, text );
+         dim = dim->next;
+      }
+   }
+}
+
+void present_param_list( struct param* param, struct str* string ) {
+   while ( param ) {
+      present_extended_spec( param->structure, param->enumeration, param->spec,
+         string );
+      present_ref( param->ref, string, false );
+      param = param->next;
+      if ( param ) {
+         str_append( string, "," );
+         str_append( string, " " );
+      }
    }
 }
 
@@ -348,12 +338,13 @@ inline bool is_array_ref_type( struct type_info* type ) {
 void subscript_array_type( struct type_info* type,
    struct type_info* element_type ) {
    if ( type->dim ) {
-      s_init_type_info( element_type, type->spec, type->ref, type->dim->next,
-         type->structure, type->enumeration, NULL );
+      s_init_type_info( element_type, type->ref, type->structure,
+         type->enumeration, type->dim->next, type->spec );
+      s_decay( element_type );
    }
    else if ( type->ref && type->ref->type == REF_ARRAY ) {
-      s_init_type_info( element_type, type->spec, type->ref, NULL,
-         type->structure, type->enumeration, NULL );
+      s_init_type_info( element_type, type->ref, type->structure,
+         type->enumeration, NULL, type->spec );
       struct ref_array* array = ( struct ref_array* ) type->ref;
       if ( array->dim_count > 1 ) {
          struct ref_array* implicit_array =

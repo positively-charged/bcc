@@ -39,7 +39,7 @@ static void test_operand( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_binary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct binary* binary );
-static bool perform_bop( struct binary* binary, struct result* operand,
+static bool perform_bop( struct binary* binary, struct type_info* operand,
    struct result* result );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
@@ -110,8 +110,6 @@ static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_msgbuild_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
-static void msgbuild_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* type, struct type_info* required_type );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
@@ -143,8 +141,6 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static bool valid_objcpy_destination( struct result* dst );
-static void objcpy_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* destination, struct type_info* source );
 static bool is_onedim_intelem_array_ref( struct result* result );
 static bool is_int_value( struct result* result );
 static bool is_str_value( struct result* result );
@@ -182,11 +178,8 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
       struct result result;
       init_result( &result );
       test_root( semantic, test, &result, expr );
-      // Reveal enumeration type.
-      if ( result.enumeration ) {
-         result.spec = SPEC_ENUM;
-      }
       init_type_info( result_type, &result );
+      s_decay( result_type );
    }
    else {
       test->undef_erred = true;
@@ -297,12 +290,18 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
          "right operand unusable" );
       s_bail( semantic );
    }
-   if ( ! same_type( &lside, &rside ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "left operand and right operand of different type" );
+   struct type_info lside_type;
+   struct type_info rside_type;
+   init_type_info( &lside_type, &lside );
+   init_type_info( &rside_type, &rside );
+   s_decay( &lside_type );
+   s_decay( &rside_type );
+   if ( ! s_same_type( &lside_type, &rside_type ) ) {
+      s_type_mismatch( semantic, "left-operand", &lside_type,
+         "right-operand", &rside_type, &binary->pos );
       s_bail( semantic );
    }
-   if ( ! perform_bop( binary, &lside, result ) ) {
+   if ( ! perform_bop( binary, &lside_type, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
          "invalid binary operation" );
       s_bail( semantic );
@@ -313,10 +312,10 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_bop( struct binary* binary, struct result* operand,
+bool perform_bop( struct binary* binary, struct type_info* operand,
    struct result* result ) {
    // Value type.
-   if ( is_value_type( operand ) ) {
+   if ( s_is_value_type( operand ) ) {
       int spec = SPEC_NONE;
       switch ( binary->op ) {
       case BOP_EQ:
@@ -506,7 +505,6 @@ bool can_convert_to_boolean( struct result* operand ) {
       case SPEC_FIXED:
       case SPEC_BOOL:
       case SPEC_STR:
-      case SPEC_ENUM:
          return true;
       default:
          return false;
@@ -577,30 +575,14 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "right operand unusable" );
       s_bail( semantic );
    }
-   if ( lside.enumeration ) {
-      lside.spec = SPEC_ENUM;
-   }
-   if ( rside.enumeration ) {
-      rside.spec = SPEC_ENUM;
-   }
    struct type_info lside_type;
-   init_type_info( &lside_type, &lside );
    struct type_info rside_type;
+   init_type_info( &lside_type, &lside );
    init_type_info( &rside_type, &rside );
+   s_decay( &rside_type );
    if ( ! s_same_type( &lside_type, &rside_type ) ) {
-      struct str lside_type_s;
-      str_init( &lside_type_s );
-      s_present_type( &lside_type, &lside_type_s );
-      struct str rside_type_s;
-      str_init( &rside_type_s );
-      s_present_type( &rside_type, &rside_type_s );
-      s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-         "left-operand/right-operand type mismatch" );
-      s_diag( semantic, DIAG_POS, &assign->pos,
-         "`%s` left-operand, but `%s` right-operand", lside_type_s.value,
-         rside_type_s.value );
-      str_deinit( &lside_type_s );
-      str_deinit( &rside_type_s );
+      s_type_mismatch( semantic, "left-operand", &lside_type,
+         "right-operand", &rside_type, &assign->pos );
       s_bail( semantic );
    }
    if ( ! perform_assign( assign, &lside, result ) ) {
@@ -744,6 +726,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    result->ref = right.ref;
    result->structure = right.structure;
+   result->enumeration = right.enumeration;
    result->dim = right.dim;
    result->spec = right.spec;
    result->complete = true;
@@ -1039,7 +1022,7 @@ bool valid_cast( struct cast* cast, struct result* operand ) {
 void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    struct type_info cast_type;
-   s_init_type_info( &cast_type, cast->spec, NULL, NULL, NULL, NULL, NULL );
+   s_init_type_info( &cast_type, NULL, NULL, NULL, NULL, cast->spec );
    struct type_info operand_type;
    init_type_info( &operand_type, operand );
    struct str cast_type_s;
@@ -1124,6 +1107,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    }
    result->ref = lside->ref;
    result->structure = lside->structure;
+   result->enumeration = lside->enumeration;
    result->dim = lside->dim;
    result->ref_dim = lside->ref_dim;
    result->spec = lside->spec;
@@ -1562,33 +1546,18 @@ void test_msgbuild_format_item( struct semantic* semantic,
    }
    struct type_info type;
    init_type_info( &type, &root );
+   s_decay( &type );
    struct type_info required_type;
-   s_init_type_info_func( &required_type, NULL, NULL, NULL, NULL,
-      SPEC_VOID, 0, 0, true );
+   s_init_type_info_func( &required_type,
+      NULL, NULL, NULL, NULL, SPEC_VOID, 0, 0, true );
    if ( ! s_same_type( &required_type, &type ) ) {
-      msgbuild_mismatch( semantic, &item->value->pos, &type, &required_type );
+      s_type_mismatch( semantic, "argument", &type,
+         "required", &required_type, &item->value->pos );
       s_bail( semantic );
    }
    struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
    extra->func = root.func;
    item->extra = extra;
-}
-
-void msgbuild_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* type, struct type_info* required_type ) {
-   struct str type_s;
-   str_init( &type_s );
-   s_present_type( type, &type_s );
-   struct str required_type_s;
-   str_init( &required_type_s );
-   s_present_type( required_type, &required_type_s );
-   s_diag( semantic, DIAG_POS_ERR, pos,
-      "argument/required-function type mismatch" );
-   s_diag( semantic, DIAG_POS, pos,
-      "argument is `%s`, but a message-building function needs to be `%s`",
-      type_s.value, required_type_s.value );
-   str_deinit( &required_type_s );
-   str_deinit( &type_s );
 }
 
 void test_remaining_args( struct semantic* semantic,
@@ -1603,10 +1572,11 @@ void test_remaining_args( struct semantic* semantic,
       test_nested_root( semantic, expr_test, &nested, &result, expr );
       if ( param ) {
          struct type_info type;
-         init_type_info( &type, &result );
          struct type_info param_type;
-         s_init_type_info( &param_type, param->spec, param->ref, NULL,
-            param->structure, param->enumeration, NULL );
+         init_type_info( &type, &result );
+         s_init_type_info( &param_type, param->ref, param->structure,
+            param->enumeration, NULL, param->spec );
+         s_decay( &type );
          if ( ! s_same_type( &param_type, &type ) ) {
             arg_mismatch( semantic, &expr->pos, &type, &param_type,
                test->num_args + 1 );
@@ -1628,10 +1598,8 @@ void arg_mismatch( struct semantic* semantic, struct pos* pos,
    str_init( &param_type_s );
    s_present_type( param_type, &param_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
-      "argument/parameter type mismatch (in argument %d)", number );
-   s_diag( semantic, DIAG_POS, pos,
-      "`%s` argument, but `%s` parameter",
-      type_s.value, param_type_s.value );
+      "argument type (`%s`) different from parameter type (`%s`) "
+      "(in argument %d)", type_s.value, param_type_s.value, number );
    str_deinit( &param_type_s );
    str_deinit( &type_s );
 }
@@ -1804,7 +1772,7 @@ void select_constant( struct result* result, struct constant* constant ) {
 void select_enumerator( struct result* result,
    struct enumerator* enumerator ) {
    result->enumeration = enumerator->enumeration;
-   result->spec = SPEC_INT;
+   result->spec = SPEC_ENUM;
    result->value = enumerator->value;
    result->folded = true;
    result->complete = true;
@@ -1840,9 +1808,6 @@ void select_var( struct result* result, struct var* var ) {
       if ( ! result->structure ) {
          result->complete = true;
          result->assignable = true;
-         if ( result->spec == SPEC_ENUM ) {
-            result->spec = SPEC_INT;
-         }
       }
    }
    var->used = true;
@@ -1884,9 +1849,6 @@ void select_member( struct result* result, struct structure_member* member ) {
       if ( ! result->structure ) {
          result->complete = true;
          result->assignable = true;
-         if ( result->spec == SPEC_ENUM ) {
-            result->spec = SPEC_INT;
-         }
       }
    }
 }
@@ -2011,12 +1973,14 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    init_result( &source );
    test_root( semantic, test, &source, call->string );
    struct type_info destination_type;
-   init_type_info( &destination_type, &destination );
    struct type_info source_type;
+   init_type_info( &destination_type, &destination );
    init_type_info( &source_type, &source );
-   if ( ! s_same_type( &destination_type, &source_type ) ) {
-      objcpy_mismatch( semantic, &call->string->pos, &destination_type,
-         &source_type );
+   s_decay( &destination_type );
+   s_decay( &source_type );
+   if ( ! s_same_type( &source_type, &destination_type ) ) {
+      s_type_mismatch( semantic, "source", &source_type,
+         "destination", &destination_type, &call->string->pos );
       s_bail( semantic );
    }
    // Source-offset.
@@ -2043,23 +2007,6 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
 
 bool valid_objcpy_destination( struct result* dst ) {
    return ( is_array_ref( dst ) || dst->structure );
-}
-
-void objcpy_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* destination, struct type_info* source ) {
-   struct str type_s;
-   str_init( &type_s );
-   s_present_type( destination, &type_s );
-   struct str source_type_s;
-   str_init( &source_type_s );
-   s_present_type( source, &source_type_s );
-   s_diag( semantic, DIAG_POS_ERR, pos,
-      "source/destination type-mismatch" );
-   s_diag( semantic, DIAG_POS, pos,
-      "`%s` source, but `%s` destination",
-      source_type_s.value, type_s.value );
-   str_deinit( &type_s );
-   str_deinit( &source_type_s );
 }
 
 bool is_onedim_intelem_array_ref( struct result* result ) {
@@ -2090,7 +2037,7 @@ void test_upmost( struct semantic* semantic, struct result* result ) {
    result->object = &semantic->lib->upmost_ns->object;
 }
 
-inline void init_type_info( struct type_info* type, struct result* result ) {
+void init_type_info( struct type_info* type, struct result* result ) {
    if ( result->func ) {
       if ( result->func->type == FUNC_ASPEC ) {
          s_init_type_info_scalar( type, SPEC_INT );
@@ -2104,8 +2051,8 @@ inline void init_type_info( struct type_info* type, struct result* result ) {
       }
    }
    else {
-      s_init_type_info( type, result->spec, result->ref, result->dim,
-         result->structure, result->enumeration, NULL );
+      s_init_type_info( type, result->ref, result->structure,
+         result->enumeration, result->dim, result->spec );
    }
 }
 

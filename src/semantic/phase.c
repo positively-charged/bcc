@@ -828,3 +828,19 @@ struct alias* s_alloc_alias( void ) {
    alias->implicit = false;
    return alias;
 }
+
+void s_type_mismatch( struct semantic* semantic, const char* label_a,
+   struct type_info* type_a, const char* label_b, struct type_info* type_b,
+   struct pos* pos ) {
+   struct str string_a;
+   str_init( &string_a );
+   s_present_type( type_a, &string_a );
+   struct str string_b;
+   str_init( &string_b );
+   s_present_type( type_b, &string_b );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "%s type (`%s`) different from %s type (`%s`)",
+      label_a, string_a.value, label_b, string_b.value );
+   str_deinit( &string_a );
+   str_deinit( &string_b );
+}
