@@ -5,6 +5,10 @@
 
 */
 
+#ifndef __IMPORTED__
+   #error you must #import this file
+#endif
+
 #library
 
 // Constants

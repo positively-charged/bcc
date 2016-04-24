@@ -195,7 +195,7 @@ void read_error( struct parse* parse, struct pos* pos ) {
    struct str message;
    str_init( &message );
    while ( parse->token->type != TK_NL ) {
-//      output_token( parse, &message );
+      str_append( &message, parse->token->text );
       p_read_stream( parse );
    }
    p_diag( parse, DIAG_POS_ERR | DIAG_CUSTOM, pos, message.value );
