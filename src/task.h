@@ -76,7 +76,7 @@ struct node {
       NODE_BOOLEAN,
       NODE_NAME_USAGE,
       NODE_SCRIPT,
-      NODE_PACKED_EXPR,
+      NODE_EXPR_STMT,
       NODE_CONDITIONAL,
       NODE_STRCPY,
       NODE_LOGICAL,
@@ -415,7 +415,6 @@ struct expr {
 };
 
 struct packed_expr {
-   struct node node;
    struct expr* expr;
    struct func* msgbuild_func;
 };
@@ -516,6 +515,11 @@ struct foreach_stmt {
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;
+};
+
+struct expr_stmt {
+   struct node node;
+   struct packed_expr* packed_expr;
 };
 
 struct dim {

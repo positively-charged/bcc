@@ -38,7 +38,7 @@ static void visit_paltrans( struct codegen* codegen, struct paltrans* );
 static void visit_script_jump( struct codegen* codegen, struct script_jump* );
 static void visit_label( struct codegen* codegen, struct label* );
 static void visit_goto( struct codegen* codegen, struct goto_stmt* );
-static void visit_packed_expr( struct codegen* codegen, struct packed_expr* );
+static void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt );
 
 void c_write_block( struct codegen* codegen, struct block* stmt ) {
    struct local_record record;
@@ -196,8 +196,9 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
    case NODE_PALTRANS:
       visit_paltrans( codegen, ( struct paltrans* ) node );
       break;
-   case NODE_PACKED_EXPR:
-      visit_packed_expr( codegen, ( struct packed_expr* ) node );
+   case NODE_EXPR_STMT:
+      visit_expr_stmt( codegen,
+         ( struct expr_stmt* ) node );
       break;
    case NODE_INLINE_ASM:
       p_visit_inline_asm( codegen,
@@ -744,6 +745,6 @@ void visit_goto( struct codegen* codegen, struct goto_stmt* stmt ) {
    jump->point = stmt->label->point;
 }
 
-void visit_packed_expr( struct codegen* codegen, struct packed_expr* stmt ) {
-   c_visit_expr( codegen, stmt->expr );
+void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt ) {
+   c_visit_expr( codegen, stmt->packed_expr->expr );
 }
