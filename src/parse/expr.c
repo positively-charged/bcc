@@ -860,9 +860,9 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
       case 'a': cast->type = FCAST_ARRAY; break;
       case 'b': cast->type = FCAST_BINARY; break;
       case 'c': cast->type = FCAST_CHAR; break;
-      case 'd':
-      case 'i': break;
+      case 'd': cast->type = FCAST_DECIMAL; break;
       case 'f': cast->type = FCAST_FIXED; break;
+      case 'i': cast->type = FCAST_RAW; break;
       case 'k': cast->type = FCAST_KEY; break;
       case 'l': cast->type = FCAST_LOCAL_STRING; break;
       case 'n': cast->type = FCAST_NAME; break;

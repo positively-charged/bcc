@@ -649,6 +649,7 @@ struct format_item {
       FCAST_CHAR,
       FCAST_DECIMAL,
       FCAST_FIXED,
+      FCAST_RAW,
       FCAST_KEY,
       FCAST_LOCAL_STRING,
       FCAST_NAME,

@@ -1425,12 +1425,13 @@ void visit_format_item( struct codegen* codegen, struct format_item* item ) {
             PCD_PRINTCHARACTER,
             PCD_PRINTNUMBER,
             PCD_PRINTFIXED,
+            PCD_PRINTNUMBER,
             PCD_PRINTBIND,
             PCD_PRINTLOCALIZED,
             PCD_PRINTNAME,
             PCD_PRINTSTRING,
             PCD_PRINTHEX };
-         STATIC_ASSERT( FCAST_TOTAL == 11 );
+         STATIC_ASSERT( FCAST_TOTAL == 12 );
          c_push_expr( codegen, item->value );
          c_pcd( codegen, casts[ item->cast - 1 ] );
       }

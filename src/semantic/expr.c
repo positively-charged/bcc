@@ -105,9 +105,11 @@ static void test_call_format_arg( struct semantic* semantic,
 static void test_format_item_list( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_format_item( struct semantic* semantic,
-   struct expr_test* expr_test, struct format_item* item );
+   struct expr_test* test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
+static void test_int_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct expr* arg );
 static void test_msgbuild_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_msgbuild_arg( struct semantic* semantic,
@@ -116,7 +118,8 @@ static void test_msgbuild_arg( struct semantic* semantic,
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* type, struct type_info* param_type, int number );
+   struct type_info* type, const char* from, struct type_info* required_type,
+   const char* where, int number );
 static void present_func( struct call_test* test, struct str* msg );
 static void add_nested_call( struct func* func, struct call* call );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
@@ -1504,44 +1507,89 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
 
 void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
-   struct expr_test nested;
-   s_init_expr_test( &nested, true, false );
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, test, &nested, &root, item->value );
+   struct result result;
+   init_result( &result );
+   struct expr_test nested_test;
+   s_init_expr_test( &nested_test, true, false );
+   test_nested_root( semantic, test, &nested_test, &result, item->value );
+   int spec = SPEC_INT;
+   switch ( item->cast ) {
+   case FCAST_BINARY:
+   case FCAST_CHAR:
+   case FCAST_DECIMAL:
+   case FCAST_NAME:
+   case FCAST_HEX:
+      break;
+   case FCAST_FIXED:
+      spec = SPEC_FIXED;
+      break;
+   case FCAST_RAW:
+      spec = SPEC_RAW;
+      break;
+   case FCAST_KEY:
+   case FCAST_LOCAL_STRING:
+   case FCAST_STRING:
+      spec = SPEC_STR;
+      break;
+   default:
+      UNREACHABLE();
+   }
+   struct type_info type;
+   init_type_info( &type, &result );
+   s_decay( &type );
+   struct type_info required_type;
+   s_init_type_info_scalar( &required_type, spec );
+   if ( ! s_same_type( &type, &required_type ) ) {
+      s_type_mismatch( semantic, "argument", &type,
+         "required", &required_type, &item->value->pos );
+      s_bail( semantic );
+   }
 }
 
 void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
    struct expr_test nested;
    s_init_expr_test( &nested, false, false );
-   // When using the array format-cast, accept an array as the result of the
-   // expression.
-   // nested.accept_array = true;
    struct result root;
    init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
-   if ( ! root.dim ) {
-      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
-         "argument not an array" );
+   struct type_info type;
+   init_type_info( &type, &root );
+   s_decay( &type );
+   static struct ref_array array = {
+      { NULL, { 0, 0, 0 }, REF_ARRAY }, 1, 0, 0 };
+   struct type_info required_type;
+   s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL, SPEC_INT );
+   if ( ! s_same_type( &type, &required_type ) ) {
+      s_type_mismatch( semantic, "argument", &type,
+         "required", &required_type, &item->value->pos );
       s_bail( semantic );
    }
-   if ( root.dim->next ) {
-      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
-         "array argument not of single dimension" );
-      s_bail( semantic );
-   }
-   // Test optional fields: offset and length.
    if ( item->extra ) {
       struct format_item_array* extra = item->extra;
-      s_init_expr_test( &nested, true, false );
-      init_result( &root );
-      test_nested_root( semantic, test, &nested, &root, extra->offset );
+      test_int_arg( semantic, test, extra->offset );
       if ( extra->length ) {
-         s_init_expr_test( &nested, true, false );
-         init_result( &root );
-         test_nested_root( semantic, test, &nested, &root, extra->length );
+         test_int_arg( semantic, test, extra->length );
       }
+   }
+}
+
+void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
+   struct expr* arg ) {
+   struct expr_test nested_expr_test;
+   s_init_expr_test( &nested_expr_test, true, false );
+   struct result root;
+   init_result( &root );
+   test_nested_root( semantic, expr_test, &nested_expr_test, &root, arg );
+   struct type_info type;
+   init_type_info( &type, &root );
+   s_decay( &type );
+   struct type_info required_type;
+   s_init_type_info_scalar( &required_type, SPEC_INT );
+   if ( ! s_same_type( &type, &required_type ) ) {
+      s_type_mismatch( semantic, "argument", &type,
+         "required", &required_type, &arg->pos );
+      s_bail( semantic );
    }
 }
 
@@ -1573,11 +1621,6 @@ void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
    struct result root;
    init_result( &root );
    test_nested_root( semantic, expr_test, &nested, &root, item->value );
-   if ( ! ( root.func || ( root.ref && root.ref->type == REF_FUNCTION ) ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
-         "argument not a function" );
-      s_bail( semantic );
-   }
    struct type_info type;
    init_type_info( &type, &root );
    s_decay( &type );
@@ -1621,8 +1664,8 @@ void test_remaining_args( struct semantic* semantic,
             param->enumeration, NULL, param->spec );
          s_decay( &type );
          if ( ! s_same_type( &param_type, &type ) ) {
-            arg_mismatch( semantic, &expr->pos, &type, &param_type,
-               test->num_args + 1 );
+            arg_mismatch( semantic, &expr->pos, &type,
+               "parameter", &param_type, "argument", test->num_args + 1 );
             s_bail( semantic );
          }
          param = param->next;
@@ -1633,17 +1676,18 @@ void test_remaining_args( struct semantic* semantic,
 }
 
 void arg_mismatch( struct semantic* semantic, struct pos* pos,
-   struct type_info* type, struct type_info* param_type, int number ) {
+   struct type_info* type, const char* from, struct type_info* required_type,
+   const char* where, int number ) {
    struct str type_s;
    str_init( &type_s );
    s_present_type( type, &type_s );
-   struct str param_type_s;
-   str_init( &param_type_s );
-   s_present_type( param_type, &param_type_s );
+   struct str required_type_s;
+   str_init( &required_type_s );
+   s_present_type( required_type, &required_type_s );
    s_diag( semantic, DIAG_POS_ERR, pos,
-      "argument type (`%s`) different from parameter type (`%s`) "
-      "(in argument %d)", type_s.value, param_type_s.value, number );
-   str_deinit( &param_type_s );
+      "argument type (`%s`) different from %s type (`%s`) (in %s %d)",
+      type_s.value, from, required_type_s.value, where, number );
+   str_deinit( &required_type_s );
    str_deinit( &type_s );
 }
 
