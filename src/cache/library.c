@@ -566,6 +566,7 @@ void restore_enum( struct restorer* restorer ) {
       restore_object( restorer, &enumerator->object, NODE_ENUMERATOR );
       enumerator->name = t_extend_name( enumeration->body,
          RS( restorer, F_NAME ) );
+      enumerator->enumeration = enumeration;
       RV( restorer, F_VALUE, &enumerator->value );
       RF( restorer, F_END );
       t_append_enumerator( enumeration, enumerator );
