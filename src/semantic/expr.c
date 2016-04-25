@@ -174,9 +174,9 @@ void s_init_expr_test_enumerator( struct expr_test* test,
    }
 }
 
-void s_init_expr_test_stmt( struct expr_test* test,
-   struct func* msgbuild_func ) {
-   s_init_expr_test( test, false, false );
+void s_init_expr_test_packed( struct expr_test* test,
+   struct func* msgbuild_func, bool result_required ) {
+   s_init_expr_test( test, result_required, false );
    test->msgbuild_func = msgbuild_func;
 }
 

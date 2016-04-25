@@ -90,8 +90,8 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign );
 void s_init_expr_test_enumerator( struct expr_test* test,
    struct enumeration* enumeration );
-void s_init_expr_test_stmt( struct expr_test* test,
-   struct func* msgbuild_func );
+void s_init_expr_test_packed( struct expr_test* test,
+   struct func* msgbuild_func, bool result_required );
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
 void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    struct type_info* result_type, struct expr* expr );

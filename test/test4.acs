@@ -122,7 +122,11 @@ function void ShowNumber( int[] n ) {
    }
    enum d = "ac";
    Print( s: BaseT.c + d );
-   Print() msgbuild {
+   Print( s: OneTimeMsgBuild() );
+}
+
+function str OneTimeMsgBuild() {
+   return StrParam() msgbuild {
       foreach ( auto ch in "one-time msgbuild function" ) {
          append( c: ch == ' ' ? '.' : ch );
       }

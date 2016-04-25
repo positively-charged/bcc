@@ -34,8 +34,8 @@ static void test_return( struct semantic* semantic, struct stmt_test*,
 static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
-static void test_packed_expr( struct semantic* semantic, struct stmt_test*,
-   struct packed_expr*, struct pos* );
+static void test_packed_expr( struct semantic* semantic,
+   struct type_info* type, struct packed_expr* packed );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->parent = parent;
@@ -260,7 +260,8 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
       test_paltrans( semantic, test, ( struct paltrans* ) node );
       break;
    case NODE_PACKED_EXPR:
-      test_packed_expr( semantic, test, ( struct packed_expr* ) node, NULL );
+      test_packed_expr( semantic, NULL,
+         ( struct packed_expr* ) node );
       break;
    case NODE_INLINE_ASM:
       p_test_inline_asm( semantic, test,
@@ -479,9 +480,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    }
    if ( stmt->return_value ) {
       struct type_info type;
-      struct expr_test expr;
-      s_init_expr_test( &expr, true, false );
-      s_test_expr_type( semantic, &expr, &type, stmt->return_value->expr );
+      test_packed_expr( semantic, &type, stmt->return_value );
       if ( func->return_spec == SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
             "returning a value in void function" );
@@ -541,16 +540,19 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
    s_test_expr( semantic, &arg, expr );
 }
 
-void test_packed_expr( struct semantic* semantic, struct stmt_test* test,
-   struct packed_expr* packed, struct pos* expr_pos ) {
+void test_packed_expr( struct semantic* semantic, struct type_info* type,
+   struct packed_expr* packed ) {
    if ( packed->msgbuild_func ) {
       s_test_func( semantic, packed->msgbuild_func );
    }
    struct expr_test expr_test;
-   s_init_expr_test_stmt( &expr_test, packed->msgbuild_func );
-   s_test_expr( semantic, &expr_test, packed->expr );
-   if ( expr_pos ) {
-      *expr_pos = packed->expr->pos;
+   s_init_expr_test_packed( &expr_test, packed->msgbuild_func,
+      ( type != NULL ) );
+   if ( type ) {
+      s_test_expr_type( semantic, &expr_test, type, packed->expr );
+   }
+   else {
+      s_test_expr( semantic, &expr_test, packed->expr );
    }
    if ( packed->msgbuild_func ) {
       struct func_user* impl = packed->msgbuild_func->impl;
