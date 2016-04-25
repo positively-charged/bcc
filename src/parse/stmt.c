@@ -25,6 +25,8 @@ static void read_paltrans( struct parse* parse, struct stmt_reading* );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
 static void read_packed_expr( struct parse* parse, struct stmt_reading* );
+static void read_onetime_msgbuild_func( struct parse* parse,
+   struct stmt_reading* reading, struct packed_expr* packed_expr );
 static struct label* alloc_label( const char*, struct pos );
 static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
@@ -652,9 +654,36 @@ void read_packed_expr( struct parse* parse, struct stmt_reading* reading ) {
    struct packed_expr* packed = mem_alloc( sizeof( *packed ) );
    packed->node.type = NODE_PACKED_EXPR;
    packed->expr = expr.output_node;
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
+   packed->msgbuild_func = NULL;
+   if ( parse->tk == TK_MSGBUILD ) {
+      read_onetime_msgbuild_func( parse, reading, packed );
+   }
+   else if ( parse->tk == TK_SEMICOLON ) {
+      p_read_tk( parse );
+   }
+   else {
+      p_unexpect_diag( parse );
+      p_unexpect_item( parse, NULL, TK_MSGBUILD );
+      p_unexpect_last( parse, NULL, TK_SEMICOLON );
+      p_bail( parse );
+   }
    reading->node = &packed->node;
+}
+
+void read_onetime_msgbuild_func( struct parse* parse,
+   struct stmt_reading* reading, struct packed_expr* packed_expr ) {
+   p_test_tk( parse, TK_MSGBUILD );
+   p_read_tk( parse );
+   read_block( parse, reading );
+   struct func_user* impl = t_alloc_func_user();
+   impl->body = reading->block_node;
+   impl->nested = true;
+   struct func* func = t_alloc_func();
+   func->object.pos = impl->body->pos;
+   func->type = FUNC_USER;
+   func->impl = impl;
+   func->msgbuild = true;
+   packed_expr->msgbuild_func = func;
 }
 
 void read_assert( struct parse* parse, struct stmt_reading* reading ) {

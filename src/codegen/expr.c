@@ -1501,7 +1501,12 @@ void visit_array_format_item( struct codegen* codegen,
 void visit_msgbuild_format_item( struct codegen* codegen,
    struct format_item* item ) {
    struct format_item_msgbuild* extra = item->extra;
-   if ( extra->func ) {
+   if ( extra->call ) {
+      struct result result;
+      init_result( &result, true );
+      visit_nested_userfunc_call( codegen, &result, extra->call );
+   }
+   else if ( extra->func ) {
       struct func_user* impl = extra->func->impl;
       c_pcd( codegen, PCD_CALLDISCARD, impl->index );
    }

@@ -1311,7 +1311,7 @@ bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_name( struct semantic* semantic, struct func* func ) {
-   if ( semantic->in_localscope ) {
+   if ( func->name && semantic->in_localscope ) {
       s_bind_name( semantic, func->name, &func->object );
    }
    return true;

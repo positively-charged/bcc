@@ -417,6 +417,7 @@ struct expr {
 struct packed_expr {
    struct node node;
    struct expr* expr;
+   struct func* msgbuild_func;
 };
 
 struct jump {
@@ -665,6 +666,7 @@ struct format_item_array {
 
 struct format_item_msgbuild {
    struct func* func;
+   struct call* call;
 };
 
 // Format functions are dedicated functions and have their first parameter
@@ -1025,5 +1027,7 @@ struct var* t_alloc_var( void );
 struct func* t_alloc_func( void );
 struct func_user* t_alloc_func_user( void );
 struct param* t_alloc_param( void );
+struct format_item* t_alloc_format_item( void );
+struct call* t_alloc_call( void );
 
 #endif

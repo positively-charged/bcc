@@ -109,12 +109,16 @@ static void test_format_item( struct semantic* semantic,
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_msgbuild_format_item( struct semantic* semantic,
-   struct expr_test* test, struct format_item* item );
+   struct expr_test* expr_test, struct format_item* item );
+static void test_msgbuild_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct format_item* item,
+   struct format_item_msgbuild* extra );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct type_info* type, struct type_info* param_type, int number );
 static void present_func( struct call_test* test, struct str* msg );
+static void add_nested_call( struct func* func, struct call* call );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_literal( struct result* result, struct literal* literal );
@@ -155,6 +159,7 @@ static bool is_ref_type( struct result* result );
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
    test->name_offset = NULL;
+   test->msgbuild_func = NULL;
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
@@ -167,6 +172,12 @@ void s_init_expr_test_enumerator( struct expr_test* test,
    if ( enumeration->name ) {
       test->name_offset = t_extend_name( enumeration->name, "." );
    }
+}
+
+void s_init_expr_test_stmt( struct expr_test* test,
+   struct func* msgbuild_func ) {
+   s_init_expr_test( test, false, false );
+   test->msgbuild_func = msgbuild_func;
 }
 
 void s_test_expr( struct semantic* semantic, struct expr_test* test,
@@ -1371,13 +1382,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       if ( operand.func->type == FUNC_USER ) {
          struct func_user* impl = operand.func->impl;
          if ( impl->nested ) {
-            struct nested_call* nested = mem_alloc( sizeof( *nested ) );
-            nested->next = impl->nested_calls;
-            nested->id = 0;
-            nested->prologue_jump = NULL;
-            nested->return_point = NULL;
-            impl->nested_calls = call;
-            call->nested_call = nested;
+            add_nested_call( operand.func, call );
          }
       }
       result->ref = operand.func->ref;
@@ -1459,9 +1464,16 @@ void test_call_first_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    if ( test->format_param ) {
       if ( ! test->call->format_item ) {
-         s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
-            "function call missing format argument" );
-         s_bail( semantic );
+         if ( expr_test->msgbuild_func ) {
+            struct format_item* item = t_alloc_format_item();
+            item->cast = FCAST_MSGBUILD;
+            test->call->format_item = item;
+         }
+         else {
+            s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
+               "function call missing format argument" );
+            s_bail( semantic );
+         }
       }
       test_format_item_list( semantic, expr_test, test->call->format_item );
    }
@@ -1534,21 +1546,34 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_msgbuild_format_item( struct semantic* semantic,
-   struct expr_test* test, struct format_item* item ) {
+   struct expr_test* expr_test, struct format_item* item ) {
+   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
+   extra->func = expr_test->msgbuild_func;
+   extra->call = NULL;
+   item->extra = extra;
+   if ( item->value ) {
+      test_msgbuild_arg( semantic, expr_test, item, extra ); 
+   }
+   if ( extra->func ) {
+      struct func_user* impl = extra->func->impl;
+      if ( impl->nested ) {
+         struct call* call = t_alloc_call();
+         call->func = extra->func;
+         ++impl->usage;
+         add_nested_call( extra->func, call ); 
+         extra->call = call;
+      }
+   }
+}
+
+void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
+   struct format_item* item, struct format_item_msgbuild* extra ) {
    struct expr_test nested;
    s_init_expr_test( &nested, true, false );
    struct result root;
    init_result( &root );
-   test_nested_root( semantic, test, &nested, &root, item->value );
-   bool msgbuild = false;
-   if ( root.func ) {
-      msgbuild = root.func->msgbuild;
-   }
-   else if ( root.ref && root.ref->type == REF_FUNCTION ) {
-      struct ref_func* func = ( struct ref_func* ) root.ref;
-      msgbuild = func->msgbuild;
-   }
-   else {
+   test_nested_root( semantic, expr_test, &nested, &root, item->value );
+   if ( ! ( root.func || ( root.ref && root.ref->type == REF_FUNCTION ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
          "argument not a function" );
       s_bail( semantic );
@@ -1564,9 +1589,18 @@ void test_msgbuild_format_item( struct semantic* semantic,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
    }
-   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
    extra->func = root.func;
-   item->extra = extra;
+}
+
+void add_nested_call( struct func* func, struct call* call ) {
+   struct func_user* impl = func->impl;
+   struct nested_call* nested = mem_alloc( sizeof( *nested ) );
+   nested->next = impl->nested_calls;
+   nested->id = 0;
+   nested->prologue_jump = NULL;
+   nested->return_point = NULL;
+   impl->nested_calls = call;
+   call->nested_call = nested;
 }
 
 void test_remaining_args( struct semantic* semantic,

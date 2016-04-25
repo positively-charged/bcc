@@ -118,10 +118,15 @@ function void ShowNumber( int[] n ) {
    Print( msgbuild: Show );
    Print( i: ar[ 1 ][ 0 ].a );
    enum BaseT : str {
-      a = "", b = "as", c = "advb"
+      a = "a", b = "as", c = b
    }
    enum d = "ac";
    Print( s: BaseT.c + d );
+   Print() msgbuild {
+      foreach ( auto ch in "one-time msgbuild function" ) {
+         append( c: ch == ' ' ? '.' : ch );
+      }
+   }
 }
 
 /*
@@ -147,3 +152,6 @@ TestT ar[][] = {
    { { 1, 2 }, { 4, }, { 4 } },
    { { 3 } }
 };
+
+#region
+#endregion

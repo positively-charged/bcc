@@ -543,11 +543,21 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
 
 void test_packed_expr( struct semantic* semantic, struct stmt_test* test,
    struct packed_expr* packed, struct pos* expr_pos ) {
-   // Test expression.
+   if ( packed->msgbuild_func ) {
+      s_test_func( semantic, packed->msgbuild_func );
+   }
    struct expr_test expr_test;
-   s_init_expr_test( &expr_test, false, false );
+   s_init_expr_test_stmt( &expr_test, packed->msgbuild_func );
    s_test_expr( semantic, &expr_test, packed->expr );
    if ( expr_pos ) {
       *expr_pos = packed->expr->pos;
+   }
+   if ( packed->msgbuild_func ) {
+      struct func_user* impl = packed->msgbuild_func->impl;
+      if ( ! impl->usage ) {
+         s_diag( semantic, DIAG_POS | DIAG_WARN,
+            &packed->msgbuild_func->object.pos,
+            "one-time message-building function not used" );
+      }
    }
 }

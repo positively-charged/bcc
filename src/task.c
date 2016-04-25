@@ -789,3 +789,23 @@ struct param* t_alloc_param( void ) {
    param->used = false;
    return param;
 }
+
+struct format_item* t_alloc_format_item( void ) {
+   struct format_item* item = mem_alloc( sizeof( *item ) );
+   item->cast = FCAST_DECIMAL;
+   item->next = NULL;
+   item->value = NULL;
+   item->extra = NULL;
+   return item;
+}
+
+struct call* t_alloc_call( void ) {
+   struct call* call = mem_alloc( sizeof( *call ) );
+   call->node.type = NODE_CALL;
+   call->operand = NULL;
+   call->func = NULL;
+   call->nested_call = NULL;
+   call->format_item = NULL;
+   list_init( &call->args );
+   return call;
+}
