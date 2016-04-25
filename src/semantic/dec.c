@@ -1239,6 +1239,9 @@ void assign_inferred_type( struct var* var, struct type_info* type ) {
    var->enumeration = snapshot.enumeration;
    var->dim = snapshot.dim;
    var->spec = snapshot.spec;
+   if ( var->enumeration ) {
+      var->spec = SPEC_ENUM;
+   }
 }
 
 void s_test_local_var( struct semantic* semantic, struct var* var ) {
