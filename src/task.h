@@ -146,6 +146,7 @@ struct enumeration {
    struct enumerator* head;
    struct enumerator* tail;
    struct name* name;
+   struct name* body;
    int base_type;
    bool hidden;
 };

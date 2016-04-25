@@ -58,7 +58,7 @@ static void read_enum_base_type( struct parse* parse,
 static void read_enum_body( struct parse* parse,
    struct enumeration* enumeration );
 static void read_enumerator( struct parse* parse,
-   struct enumeration* enumeration, struct name* name_offset );
+   struct enumeration* enumeration );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static void read_struct( struct parse* parse, struct dec* dec );
 static void read_struct_name( struct parse* parse,
@@ -305,8 +305,12 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
 void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
    if ( parse->tk == TK_ID ) {
       enumeration->name = t_extend_name( parse->ns->body, parse->tk_text );
+      enumeration->body = t_extend_name( enumeration->name, "." );
       enumeration->object.pos = parse->tk_pos;
       p_read_tk( parse );
+   }
+   else {
+      enumeration->body = parse->ns->body;
    }
 }
 
@@ -341,12 +345,8 @@ void read_enum_base_type( struct parse* parse,
 void read_enum_body( struct parse* parse, struct enumeration* enumeration ) {
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
-   struct name* name_offset = parse->ns->body;
-   if ( enumeration->name ) {
-      name_offset = t_extend_name( enumeration->name, "." );
-   }
    while ( true ) {
-      read_enumerator( parse, enumeration, name_offset );
+      read_enumerator( parse, enumeration );
       if ( parse->tk == TK_COMMA ) {
          p_read_tk( parse );
          if ( parse->tk == TK_BRACE_R ) {
@@ -361,8 +361,7 @@ void read_enum_body( struct parse* parse, struct enumeration* enumeration ) {
    p_read_tk( parse );
 }
 
-void read_enumerator( struct parse* parse, struct enumeration* enumeration,
-   struct name* name_offset ) {
+void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
    if ( parse->tk != TK_ID ) {
       p_unexpect_diag( parse );
       p_unexpect_last_name( parse, NULL, "enumerator" );
@@ -370,7 +369,7 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration,
    }
    struct enumerator* enumerator = t_alloc_enumerator();
    enumerator->object.pos = parse->tk_pos;
-   enumerator->name = t_extend_name( name_offset, parse->tk_text );
+   enumerator->name = t_extend_name( enumeration->body, parse->tk_text );
    enumerator->enumeration = enumeration;
    p_read_tk( parse );
    if ( parse->tk == TK_ASSIGN ) {

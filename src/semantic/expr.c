@@ -170,7 +170,7 @@ void s_init_expr_test_enumerator( struct expr_test* test,
    struct enumeration* enumeration ) {
    s_init_expr_test( test, true, false );
    if ( enumeration->name ) {
-      test->name_offset = t_extend_name( enumeration->name, "." );
+      test->name_offset = enumeration->body;
    }
 }
 

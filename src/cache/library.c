@@ -552,17 +552,20 @@ void restore_enum( struct restorer* restorer ) {
    RF( restorer, F_ENUMERATION );
    struct enumeration* enumeration = t_alloc_enumeration();
    restore_object( restorer, &enumeration->object, NODE_ENUMERATION );
-   struct name* name_offset = restorer->ns->body;
    if ( f_peek( restorer->r ) == F_NAME ) {
       enumeration->name = t_extend_name( restorer->ns->body,
          RS( restorer, F_NAME ) );
-      name_offset = t_extend_name( enumeration->name, "." );
+      enumeration->body = t_extend_name( enumeration->name, "." );
+   }
+   else {
+      enumeration->body = restorer->ns->body;
    }
    while ( f_peek( restorer->r ) == F_ENUMERATOR ) {
       RF( restorer, F_ENUMERATOR );
       struct enumerator* enumerator = t_alloc_enumerator();
       restore_object( restorer, &enumerator->object, NODE_ENUMERATOR );
-      enumerator->name = t_extend_name( name_offset, RS( restorer, F_NAME ) );
+      enumerator->name = t_extend_name( enumeration->body,
+         RS( restorer, F_NAME ) );
       RV( restorer, F_VALUE, &enumerator->value );
       RF( restorer, F_END );
       t_append_enumerator( enumeration, enumerator );
