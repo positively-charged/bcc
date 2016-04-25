@@ -744,16 +744,14 @@ struct label {
    struct c_point* point;
    struct pos pos;
    const char* name;
-   struct goto_stmt* users;
-   bool defined;
 };
 
 struct goto_stmt {
    struct node node;
    int obj_pos;
    struct label* label;
-   struct goto_stmt* next;
-   struct pos pos;
+   const char* label_name;
+   struct pos label_name_pos;
 };
 
 struct script {

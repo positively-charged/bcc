@@ -1246,12 +1246,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       func->impl = impl;
       // Only read the function body when it is needed.
       if ( ! parse->lib->imported ) {
-         struct stmt_reading body;
-         p_init_stmt_reading( &body, &impl->labels );
-         parse->local_vars = &impl->vars;
-         p_read_top_stmt( parse, &body, true );
-         impl->body = body.block_node;
-         parse->local_vars = NULL;
+         p_read_func_body( parse, func );
       }
       else {
          p_skip_block( parse );
@@ -1381,6 +1376,16 @@ void read_param( struct parse* parse, struct params* params ) {
    else {
       params->done = true;
    }
+}
+
+void p_read_func_body( struct parse* parse, struct func* func ) {
+   struct func_user* impl = func->impl;
+   struct stmt_reading body;
+   p_init_stmt_reading( &body, &impl->labels );
+   parse->local_vars = &impl->vars;
+   p_read_top_stmt( parse, &body, true );
+   impl->body = body.block_node;
+   parse->local_vars = NULL;
 }
 
 void read_bfunc( struct parse* parse, struct func* func ) {

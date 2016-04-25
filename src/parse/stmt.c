@@ -21,6 +21,7 @@ static void read_jump( struct parse* parse, struct stmt_reading* );
 static void read_script_jump( struct parse* parse, struct stmt_reading* );
 static void read_return( struct parse* parse, struct stmt_reading* );
 static void read_goto( struct parse* parse, struct stmt_reading* );
+static struct goto_stmt* alloc_goto_stmt( void );
 static void read_paltrans( struct parse* parse, struct stmt_reading* );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
@@ -30,7 +31,7 @@ static void read_packed_expr( struct parse* parse,
    struct stmt_reading* reading );
 static void read_onetime_msgbuild_func( struct parse* parse,
    struct stmt_reading* reading, struct packed_expr* packed_expr );
-static struct label* alloc_label( const char*, struct pos );
+static struct label* alloc_label( const char* name, struct pos* pos );
 static struct import* read_single_import( struct parse* parse );
 static struct import_item* read_selected_import_items( struct parse* parse );
 static struct import_item* read_import_item( struct parse* parse );
@@ -59,20 +60,6 @@ void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
    }
    else {
       read_stmt( parse, reading );
-   }
-   // All goto statements need to refer to valid labels.
-   if ( reading->node->type == NODE_BLOCK ) {
-      list_iter_t i;
-      list_iter_init( &i, reading->labels );
-      while ( ! list_end( &i ) ) {
-         struct label* label = list_data( &i );
-         if ( ! label->defined ) {
-            p_diag( parse, DIAG_POS_ERR, &label->pos,
-               "label `%s` not found", label->name );
-            p_bail( parse );
-         }
-         list_next( &i );
-      }
    }
 }
 
@@ -156,48 +143,21 @@ void read_default_case( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_label( struct parse* parse, struct stmt_reading* reading ) {
-   struct label* label = NULL;
-   list_iter_t i;
-   list_iter_init( &i, reading->labels );
-   while ( ! list_end( &i ) ) {
-      struct label* prev = list_data( &i );
-      if ( strcmp( prev->name, parse->tk_text ) == 0 ) {
-         label = prev;
-         break;
-      }
-      list_next( &i );
-   }
-   if ( label ) {
-      if ( label->defined ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "duplicate label `%s`", parse->tk_text );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &label->pos,
-            "label already found here" );
-         p_bail( parse );
-      }
-      else {
-         label->defined = true;
-         label->pos = parse->tk_pos;
-      }
-   }
-   else {
-      label = alloc_label( parse->tk_text, parse->tk_pos );
-      label->defined = true;
-      list_append( reading->labels, label );
-   }
+   struct label* label = alloc_label( parse->tk_text, &parse->tk_pos );
+   list_append( reading->labels, label );
+   p_test_tk( parse, TK_ID );
    p_read_tk( parse );
+   p_test_tk( parse, TK_COLON );
    p_read_tk( parse );
    reading->node = &label->node;
 }
 
-struct label* alloc_label( const char* name, struct pos pos ) {
+struct label* alloc_label( const char* name, struct pos* pos ) {
    struct label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_GOTO_LABEL;
-   label->name = name;
-   label->defined = false;
-   label->pos = pos;
-   label->users = NULL;
    label->point = NULL;
+   label->pos = *pos;
+   label->name = name;
    return label;
 }
 
@@ -537,35 +497,25 @@ void read_return( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_goto( struct parse* parse, struct stmt_reading* reading ) {
-   struct pos pos = parse->tk_pos;
+   struct goto_stmt* stmt = alloc_goto_stmt();
+   p_test_tk( parse, TK_GOTO );
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
-   struct label* label = NULL;
-   list_iter_t i;
-   list_iter_init( &i, reading->labels );
-   while ( ! list_end( &i ) ) {
-      struct label* prev = list_data( &i );
-      if ( strcmp( prev->name, parse->tk_text ) == 0 ) {
-         label = prev;
-         break;
-      }
-      list_next( &i );
-   }
-   if ( ! label ) {
-      label = alloc_label( parse->tk_text, parse->tk_pos );
-      list_append( reading->labels, label );
-   }
+   stmt->label_name = parse->tk_text;
+   stmt->label_name_pos = parse->tk_pos;
    p_read_tk( parse );
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
+   reading->node = &stmt->node;
+}
+
+struct goto_stmt* alloc_goto_stmt( void ) {
    struct goto_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_GOTO;
-   stmt->label = label;
-   stmt->next = label->users;
-   label->users = stmt;
    stmt->obj_pos = 0;
-   stmt->pos = pos;
-   reading->node = &stmt->node;
+   stmt->label = NULL;
+   stmt->label_name = NULL;
+   return stmt;
 }
 
 void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
@@ -686,16 +636,15 @@ void read_onetime_msgbuild_func( struct parse* parse,
    struct stmt_reading* reading, struct packed_expr* packed_expr ) {
    p_test_tk( parse, TK_MSGBUILD );
    p_read_tk( parse );
-   read_block( parse, reading );
    struct func_user* impl = t_alloc_func_user();
-   impl->body = reading->block_node;
    impl->nested = true;
    struct func* func = t_alloc_func();
-   func->object.pos = impl->body->pos;
    func->type = FUNC_USER;
    func->impl = impl;
    func->msgbuild = true;
    packed_expr->msgbuild_func = func;
+   p_read_func_body( parse, func );
+   func->object.pos = impl->body->pos;
 }
 
 void read_assert( struct parse* parse, struct stmt_reading* reading ) {

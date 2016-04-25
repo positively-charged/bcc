@@ -38,6 +38,7 @@ static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void test_packed_expr( struct semantic* semantic,
    struct type_info* type, struct packed_expr* packed_expr );
+static void check_dup_label( struct semantic* semantic );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->parent = parent;
@@ -55,6 +56,7 @@ void s_test_body( struct semantic* semantic, struct node* node ) {
    if ( node->type == NODE_BLOCK ) {
       test_block( semantic, &test,
          ( struct block* ) node );
+      check_dup_label( semantic );
    }
    else {
       test_stmt( semantic, &test, node );
@@ -511,6 +513,21 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
+   list_iter_t i;
+   list_iter_init( &i, semantic->func_test->labels );
+   while ( ! list_end( &i ) ) {
+      struct label* label = list_data( &i );
+      if ( strcmp( label->name, stmt->label_name ) == 0 ) {
+         stmt->label = label;
+         break;
+      }
+      list_next( &i );
+   }
+   if ( ! stmt->label ) {
+      s_diag( semantic, DIAG_POS_ERR, &stmt->label_name_pos,
+         "label `%s` not found", stmt->label_name );
+      s_bail( semantic );
+   }
 }
 
 void test_paltrans( struct semantic* semantic, struct stmt_test* test,
@@ -566,6 +583,27 @@ void test_packed_expr( struct semantic* semantic, struct type_info* type,
          s_diag( semantic, DIAG_POS | DIAG_WARN,
             &packed_expr->msgbuild_func->object.pos,
             "one-time message-building function not used" );
+      }
+   }
+}
+
+void check_dup_label( struct semantic* semantic ) {
+   list_iter_t i;
+   list_iter_init( &i, semantic->func_test->labels );
+   while ( ! list_end( &i ) ) {
+      struct label* label = list_data( &i );
+      list_next( &i );
+      list_iter_t k = i;
+      while ( ! list_end( &k ) ) {
+         struct label* other_label = list_data( &k );
+         if ( strcmp( label->name, other_label->name ) == 0 ) {
+            s_diag( semantic, DIAG_POS_ERR, &label->pos,
+               "duplicate label `%s`", label->name );
+            s_diag( semantic, DIAG_POS, &other_label->pos,
+               "label already found here" );
+            s_bail( semantic );
+         }
+         list_next( &k );
       }
    }
 }
