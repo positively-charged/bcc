@@ -394,7 +394,6 @@ void read_libdefine( struct parse* parse ) {
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
    constant->value = 0;
-   constant->lib_id = parse->lib->id;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->ns->objects, constant );
 }

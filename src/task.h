@@ -148,7 +148,6 @@ struct enumeration {
    struct name* name;
    struct name* body;
    int base_type;
-   bool hidden;
 };
 
 struct enumerator {
@@ -803,11 +802,8 @@ struct constant {
    struct object object;
    struct name* name;
    struct expr* value_node;
-   struct constant* next;
    int spec;
    int value;
-   int lib_id;
-   bool hidden;
 };
 
 struct indexed_string {

@@ -393,7 +393,6 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    struct constant* constant = t_alloc_constant();
    constant->object.pos = parse->tk_pos;
    constant->name = t_extend_name( parse->ns->body, parse->tk_text );
-   constant->hidden = false;
    p_read_tk( parse );
    p_test_tk( parse, TK_ASSIGN );
    p_read_tk( parse );

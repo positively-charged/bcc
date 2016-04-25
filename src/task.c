@@ -617,11 +617,8 @@ struct constant* t_alloc_constant( void ) {
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
    t_init_object( &constant->object, NODE_CONSTANT );
    constant->name = NULL;
-   constant->next = NULL;
    constant->value = 0;
    constant->value_node = NULL;
-   constant->hidden = false;
-   constant->lib_id = 0;
    return constant;
 }
 
@@ -633,7 +630,6 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->name = NULL;
    enumeration->body = NULL;
    enumeration->base_type = SPEC_INT;
-   enumeration->hidden = false;
    return enumeration;
 }
 
