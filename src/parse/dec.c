@@ -1380,10 +1380,12 @@ void p_read_func_body( struct parse* parse, struct func* func ) {
    struct func_user* impl = func->impl;
    struct stmt_reading body;
    p_init_stmt_reading( &body, &impl->labels );
+   // TODO: Remove `parse.local_vars` fields.
+   struct list* prev_local_vars = parse->local_vars;
    parse->local_vars = &impl->vars;
    p_read_top_stmt( parse, &body, true );
    impl->body = body.block_node;
-   parse->local_vars = NULL;
+   parse->local_vars = prev_local_vars;
 }
 
 void read_bfunc( struct parse* parse, struct func* func ) {
