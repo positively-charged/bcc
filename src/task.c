@@ -639,6 +639,7 @@ struct enumerator* t_alloc_enumerator( void ) {
    enumerator->name = NULL;
    enumerator->next = NULL;
    enumerator->initz = NULL;
+   enumerator->enumeration = NULL;
    enumerator->value = 0;
    return enumerator;
 }
