@@ -699,8 +699,8 @@ void t_append_structure_member( struct structure* structure,
 struct dim* t_alloc_dim( void ) {
    struct dim* dim = mem_alloc( sizeof( *dim ) );
    dim->next = NULL;
-   dim->size_node = NULL;
-   dim->size = 0;
+   dim->length_node = NULL;
+   dim->length = 0;
    dim->element_size = 0;
    return dim;
 }

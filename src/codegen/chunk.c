@@ -678,7 +678,7 @@ void do_aini_sharedarray( struct codegen* codegen ) {
          if ( var->dim ) {
             struct dim* dim = var->dim;
             while ( dim ) {
-               c_add_int( codegen, dim->size * dim->element_size );
+               c_add_int( codegen, dim->length * dim->element_size );
                dim = dim->next;
             }
          }
@@ -690,7 +690,7 @@ void do_aini_sharedarray( struct codegen* codegen ) {
             if ( member->dim ) {
                struct dim* dim = member->dim;
                while ( dim ) {
-                  c_add_int( codegen, dim->size * dim->element_size );
+                  c_add_int( codegen, dim->length * dim->element_size );
                   dim = dim->next;
                }
             }

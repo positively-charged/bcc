@@ -109,7 +109,7 @@ static void init_dim_test( struct dim_test* test, struct dim* dim,
 static void test_dim_list( struct semantic* semantic, struct dim_test* test );
 static bool test_dim( struct semantic* semantic, struct dim_test* test,
    struct dim* dim );
-static bool test_dim_size( struct semantic* semantic, struct dim_test* test,
+static bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    struct dim* dim );
 static bool test_var_initz( struct semantic* semantic, struct var* var );
 static void refnotinit_var( struct semantic* semantic, struct var* var );
@@ -705,44 +705,44 @@ void test_dim_list( struct semantic* semantic, struct dim_test* test ) {
 
 bool test_dim( struct semantic* semantic, struct dim_test* test,
    struct dim* dim ) {
-   if ( test->member && ! dim->size_node ) {
+   if ( test->member && ! dim->length_node ) {
       s_diag( semantic, DIAG_POS_ERR, &dim->pos,
          "dimension of implicit length in struct member" );
       s_bail( semantic );
    }
-   if ( dim->size_node && dim->size == 0 ) {
-      return test_dim_size( semantic, test, dim );
+   if ( dim->length_node && dim->length == 0 ) {
+      return test_dim_length( semantic, test, dim );
    }
    else {
       return true;
    }
 }
 
-bool test_dim_size( struct semantic* semantic, struct dim_test* test,
+bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    struct dim* dim ) {
    struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, dim->size_node );
+   s_test_expr_type( semantic, &expr, &type, dim->length_node );
    if ( expr.undef_erred ) {
       return false;
    }
    if ( ! s_is_int_value( &type ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
+      s_diag( semantic, DIAG_POS_ERR, &dim->length_node->pos,
          "dimension length of non-integer type" );
       s_bail( semantic );
    }
-   if ( ! dim->size_node->folded ) {
-      s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
+   if ( ! dim->length_node->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &dim->length_node->pos,
          "non-constant dimension length" );
       s_bail( semantic );
    }
-   if ( dim->size_node->value <= 0 ) {
-      s_diag( semantic, DIAG_POS_ERR, &dim->size_node->pos,
+   if ( dim->length_node->value <= 0 ) {
+      s_diag( semantic, DIAG_POS_ERR, &dim->length_node->pos,
          "dimension length <= 0" );
       s_bail( semantic );
    }
-   dim->size = dim->size_node->value;
+   dim->length = dim->length_node->value;
    return true;
 }
 
@@ -875,12 +875,12 @@ bool test_multi_value_array( struct semantic* semantic,
       ++test->count;
       initial = initial->next;
    }
-   // Update size of implicit dimension.
-   if ( ! test->dim->size_node && test->count > test->dim->size ) {
-      test->dim->size = test->count;
+   // Update length of implicit dimension.
+   if ( ! test->dim->length_node && test->count > test->dim->length ) {
+      test->dim->length = test->count;
    }
    // All reference-type elements must be initialized.
-   if ( test->count < test->dim->size ) {
+   if ( test->count < test->dim->length ) {
       if ( test->ref || ( test->structure &&
          test->structure->has_ref_member ) ) {
          refnotinit_array( semantic, test, multi_value );
@@ -894,8 +894,8 @@ bool test_multi_value_array_child( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial ) {
    // Make sure there is an element to initialize.
-   if ( ! ( test->dim && ( ! test->dim->size_node ||
-      test->count < test->dim->size ) ) ) {
+   if ( ! ( test->dim && ( ! test->dim->length_node ||
+      test->count < test->dim->length ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &multi_value->pos,
          "too many values in brace initializer" );
       s_bail( semantic );
@@ -1070,17 +1070,17 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
    }
    struct indexed_string* string = t_lookup_string( semantic->task,
       value->expr->value );
-   if ( dim->size_node ) {
-      if ( string->length >= dim->size ) {
+   if ( dim->length_node ) {
+      if ( string->length >= dim->length ) {
          s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
             "string initializer too long" );
          s_bail( semantic );
       }
    }
    else {
-      // Update size of implicit dimension.
-      if ( string->length + 1 > dim->size ) {
-         dim->size = string->length + 1;
+      // Update length of implicit dimension.
+      if ( string->length + 1 > dim->length ) {
+         dim->length = string->length + 1;
       }
    }
    value->string_initz = true;
@@ -1166,13 +1166,13 @@ void refnotinit( struct semantic* semantic, struct initz_pres* pres,
 bool test_imported_object_initz( struct var* var ) {
    if ( var->dim ) {
       // TODO: Add error checking.
-      if ( ! var->dim->size_node && ! var->dim->size ) {
+      if ( ! var->dim->length_node && ! var->dim->length ) {
          struct multi_value* multi_value =
             ( struct multi_value* ) var->initial;
          struct initial* initial = multi_value->body;
          while ( initial ) {
             initial = initial->next;
-            ++var->dim->size;
+            ++var->dim->length;
          }
       }
    }
@@ -1192,7 +1192,7 @@ void confirm_dim_length( struct semantic* semantic, struct var* var ) {
       break;
    }
    while ( dim ) {
-      if ( dim->size == 0 ) {
+      if ( dim->length == 0 ) {
          s_diag( semantic, DIAG_POS_ERR, &dim->pos,
             "missing initialization of dimension of implicit length" );
          s_bail( semantic );
@@ -1605,7 +1605,7 @@ int calc_size( struct dim* dim, struct structure* structure,
    // Array.
    if ( dim ) {
       dim->element_size = calc_size( dim->next, structure, ref );
-      return ( dim->size * dim->element_size );
+      return ( dim->length * dim->element_size );
    }
    // Reference.
    else if ( ref ) {
@@ -1699,7 +1699,7 @@ void alloc_value_index( struct value_index_alloc* alloc,
                ( struct multi_value* ) initial, type, dim->next );
             // Skip elements not specified.
             int used = alloc->index - index;
-            alloc->index += ( dim->next->size *
+            alloc->index += ( dim->next->length *
                dim->next->element_size ) - used;
          }
          else {
@@ -1714,7 +1714,7 @@ void alloc_value_index( struct value_index_alloc* alloc,
       else {
          alloc->value->index = alloc->index;
          if ( alloc->value->string_initz ) {
-            alloc->index += dim->next->size;
+            alloc->index += dim->next->length;
          }
          else {
             ++alloc->index;
@@ -1738,7 +1738,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
                member->structure, member->dim );
             // Skip elements not specified.
             int used = alloc->index - index;
-            alloc->index += ( member->dim->size *
+            alloc->index += ( member->dim->length *
                member->dim->element_size ) - used;
          }
          else {
@@ -1753,7 +1753,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
       else {
          alloc->value->index = alloc->index;
          if ( alloc->value->string_initz ) {
-            alloc->index += member->dim->size;
+            alloc->index += member->dim->length;
          }
          else {
             ++alloc->index;

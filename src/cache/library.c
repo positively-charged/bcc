@@ -285,7 +285,7 @@ void save_ref( struct saver* saver, struct ref* ref ) {
 void save_dim( struct saver* saver, struct dim* dim ) {
    while ( dim ) {
       WF( saver, F_DIM );
-      WV( saver, F_SIZE, &dim->size );
+      WV( saver, F_SIZE, &dim->length );
       WV( saver, F_ELEMENTSIZE, &dim->element_size );
       save_pos( saver, &dim->pos ); 
       WF( saver, F_END );
@@ -675,7 +675,7 @@ struct dim* restore_dim( struct restorer* restorer ) {
    while ( f_peek( restorer->r ) == F_DIM ) {
       struct dim* dim = t_alloc_dim();
       RF( restorer, F_DIM );
-      RV( restorer, F_SIZE, &dim->size );
+      RV( restorer, F_SIZE, &dim->length );
       RV( restorer, F_ELEMENTSIZE, &dim->element_size );
       restore_pos( restorer, &dim->pos );
       RF( restorer, F_END );

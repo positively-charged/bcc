@@ -596,7 +596,7 @@ void foreach_array( struct codegen* codegen, struct foreach_stmt* stmt,
    // -----------------------------------------------------------------------
    c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset_var );
    c_pcd( codegen, PCD_PUSHNUMBER,
-      collection->dim->size * collection->dim->element_size );
+      collection->dim->length * collection->dim->element_size );
    c_pcd( codegen, PCD_LT );
    struct c_jump* element_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &element_jump->node );

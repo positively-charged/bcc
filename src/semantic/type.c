@@ -168,7 +168,7 @@ bool compatible_raw_spec( int spec ) {
 }
 
 bool same_dim( struct dim* a, struct dim* b ) {
-   while ( a && b && a->size == b->size ) {
+   while ( a && b && a->length == b->length ) {
       a = a->next;
       b = b->next;
    }
@@ -280,7 +280,7 @@ void present_dim( struct type_info* type, struct str* string ) {
       struct dim* dim = type->dim;
       while ( dim ) {
          char text[ 11 + 2 ];
-         snprintf( text, sizeof( text ), "[%d]", dim->size );
+         snprintf( text, sizeof( text ), "[%d]", dim->length );
          str_append( string, text );
          dim = dim->next;
       }

@@ -2089,7 +2089,7 @@ void scale_offset( struct codegen* codegen, struct result* result,
 void push_array_size( struct codegen* codegen, struct result* result,
    bool dim_info_pushed ) {
    if ( result->dim ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, result->dim->size );
+      c_pcd( codegen, PCD_PUSHNUMBER, result->dim->length );
    }
    else if ( result->ref && result->ref->type == REF_ARRAY ) {
       struct ref_array* array = ( struct ref_array* ) result->ref;

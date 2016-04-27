@@ -1125,9 +1125,9 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside->dim && lside->dim->size && subscript->index->folded ) {
+   if ( lside->dim && lside->dim->length && subscript->index->folded ) {
       warn_bounds_violation( semantic, subscript, "dimension-length",
-         lside->dim->size );
+         lside->dim->length );
    }
    // Populate @lside with information about array reference.
    if ( ! lside->dim && lside->ref_dim == 0 ) {

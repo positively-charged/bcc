@@ -524,9 +524,8 @@ struct expr_stmt {
 
 struct dim {
    struct dim* next;
-   // Number of elements.
-   struct expr* size_node;
-   int size;
+   struct expr* length_node;
+   int length;
    int element_size;
    struct pos pos;
 };

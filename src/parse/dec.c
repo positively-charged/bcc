@@ -889,8 +889,8 @@ void read_dim( struct parse* parse, struct dec* dec ) {
    while ( parse->tk == TK_BRACKET_L ) {
       struct dim* dim = mem_alloc( sizeof( *dim ) );
       dim->next = NULL;
-      dim->size_node = NULL;
-      dim->size = 0;
+      dim->length_node = NULL;
+      dim->length = 0;
       dim->element_size = 0;
       dim->pos = parse->tk_pos;
       p_read_tk( parse );
@@ -901,7 +901,7 @@ void read_dim( struct parse* parse, struct dec* dec ) {
          struct expr_reading size;
          p_init_expr_reading( &size, false, false, false, true );
          p_read_expr( parse, &size );
-         dim->size_node = size.output_node;
+         dim->length_node = size.output_node;
          p_test_tk( parse, TK_BRACKET_R );
          p_read_tk( parse );
       }
