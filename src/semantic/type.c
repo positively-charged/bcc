@@ -56,7 +56,7 @@ void s_init_type_info_scalar( struct type_info* type, int spec ) {
 
 void s_decay( struct type_info* type ) {
    // Array type.
-   if ( ! type->ref && type->dim ) {
+   if ( type->dim ) {
       struct ref_array* array = &type->implicit_ref_part.array;
       array->ref.next = type->ref;
       array->ref.type = REF_ARRAY;
