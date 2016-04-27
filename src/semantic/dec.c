@@ -116,6 +116,7 @@ static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
+static bool test_var_finish( struct semantic* semantic, struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
 static void assign_inferred_type( struct var* var, struct type_info* type );
 static void init_initz_test( struct initz_test* test,
@@ -472,7 +473,8 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
          test_var_ref( semantic, var ) &&
          test_var_name( semantic, var ) &&
          test_var_dim( semantic, var ) &&
-         test_var_initz( semantic, var );
+         test_var_initz( semantic, var ) &&
+         test_var_finish( semantic, var );
    }
 }
 
@@ -1199,6 +1201,17 @@ void confirm_dim_length( struct semantic* semantic, struct var* var ) {
       }
       dim = dim->next;
    }
+}
+
+bool test_var_finish( struct semantic* semantic, struct var* var ) {
+   if ( semantic->func_test != semantic->topfunc_test &&
+      ( var->dim || ( ! var->ref && var->structure ) ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "%s declared inside nested function", var->dim ?
+            "array" : "struct variable" );
+      s_bail( semantic );
+   }
+   return true;
 }
 
 void test_auto_var( struct semantic* semantic, struct var* var ) {
