@@ -642,6 +642,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
       s_diag( semantic, DIAG_WARN | DIAG_POS, &assign->pos,
          "assignment operation not in parentheses" );
    }
+   assign->spec = lside.spec;
 }
 
 bool perform_assign( struct assign* assign, struct result* lside,

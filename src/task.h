@@ -340,6 +340,7 @@ struct assign {
    struct node* lside;
    struct node* rside;
    struct pos pos;
+   int spec;
 };
 
 struct conditional {

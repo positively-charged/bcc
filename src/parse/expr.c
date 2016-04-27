@@ -340,6 +340,7 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
       assign->lside = reading->node;
       assign->rside = NULL;
       assign->pos = parse->tk_pos;
+      assign->spec = SPEC_NONE;
       p_read_tk( parse );
       read_op( parse, reading );
       assign->rside = reading->node;

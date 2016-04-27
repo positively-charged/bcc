@@ -51,6 +51,14 @@ static void visit_assign( struct codegen* codegen, struct result* result,
    struct assign* assign );
 static void assign_array_reference( struct codegen* codegen,
    struct assign* assign, struct result* lside, struct result* result );
+static void assign_fixed( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result );
+static void assign_fixed_mul( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result );
+static void assign_str( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result );
+static void assign_str_add( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result );
 static void assign_value( struct codegen* codegen, struct assign* assign,
    struct result* lside, struct result* result );
 static void visit_conditional( struct codegen* codegen,
@@ -479,6 +487,12 @@ void visit_assign( struct codegen* codegen, struct result* result,
    if ( lside.ref && lside.ref->type == REF_ARRAY ) {
       assign_array_reference( codegen, assign, &lside, result );
    }
+   else if ( assign->spec == SPEC_FIXED ) {
+      assign_fixed( codegen, assign, &lside, result );
+   }
+   else if ( assign->spec == SPEC_STR ) {
+      assign_str( codegen, assign, &lside, result );
+   }
    else {
       assign_value( codegen, assign, &lside, result );
    }
@@ -542,6 +556,115 @@ void assign_array_reference( struct codegen* codegen, struct assign* assign,
          result->index = rside.index;
          result->status = R_ARRAYINDEX;
       }
+   }
+}
+
+void assign_fixed( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result ) {
+   switch ( assign->op ) {
+   case AOP_NONE:
+   case AOP_ADD:
+   case AOP_SUB:
+      assign_value( codegen, assign, lside, result );
+      break;
+   case AOP_MUL:
+   case AOP_DIV:
+      assign_fixed_mul( codegen, assign, lside, result );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
+void assign_fixed_mul( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result ) {
+   if ( lside->status == R_ARRAYINDEX ) {
+      if ( result->push ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+   }
+   if ( lside->status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_DUP );
+      c_push_element( codegen, lside->storage, lside->index );
+   }
+   else {
+      push_indexed( codegen, lside->storage, lside->index );
+   }
+   push_operand( codegen, assign->rside );
+   if ( assign->op == AOP_MUL ) {
+      c_pcd( codegen, PCD_FIXEDMUL );
+   }
+   else {
+      c_pcd( codegen, PCD_FIXEDDIV );
+   }
+   if ( lside->status == R_VAR ) {
+      if ( result->push ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+   }
+   if ( lside->status == R_ARRAYINDEX ) {
+      c_update_element( codegen, lside->storage, lside->index, AOP_NONE );
+   }
+   else {
+      c_update_indexed( codegen, lside->storage, lside->index, AOP_NONE );
+   }
+   if ( result->push ) {
+      if ( lside->status == R_ARRAYINDEX ) {
+         c_push_element( codegen, lside->storage, lside->index );
+      }
+      result->status = R_VALUE;
+   }
+}
+
+void assign_str( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result ) {
+   switch ( assign->op ) {
+   case AOP_NONE:
+      assign_value( codegen, assign, lside, result );
+      break;
+   case AOP_ADD:
+      assign_str_add( codegen, assign, lside, result );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
+void assign_str_add( struct codegen* codegen, struct assign* assign,
+   struct result* lside, struct result* result ) {
+   if ( lside->status == R_ARRAYINDEX ) {
+      if ( result->push ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+   }
+   c_pcd( codegen, PCD_BEGINPRINT );
+   if ( lside->status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_DUP );
+      c_push_element( codegen, lside->storage, lside->index );
+   }
+   else {
+      push_indexed( codegen, lside->storage, lside->index );
+   }
+   c_pcd( codegen, PCD_PRINTSTRING );
+   push_operand( codegen, assign->rside );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   c_pcd( codegen, PCD_SAVESTRING );
+   if ( lside->status == R_VAR ) {
+      if ( result->push ) {
+         c_pcd( codegen, PCD_DUP );
+      }
+   }
+   if ( lside->status == R_ARRAYINDEX ) {
+      c_update_element( codegen, lside->storage, lside->index, AOP_NONE );
+   }
+   else {
+      c_update_indexed( codegen, lside->storage, lside->index, AOP_NONE );
+   }
+   if ( result->push ) {
+      if ( lside->status == R_ARRAYINDEX ) {
+         c_push_element( codegen, lside->storage, lside->index );
+      }
+      result->status = R_VALUE;
    }
 }
 
