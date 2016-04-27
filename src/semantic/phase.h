@@ -142,5 +142,6 @@ void s_decay( struct type_info* type );
 void s_type_mismatch( struct semantic* semantic, const char* label_a,
    struct type_info* type_a, const char* label_b, struct type_info* type_b,
    struct pos* pos );
+void s_test_nested_func( struct semantic* semantic, struct func* func );
 
 #endif

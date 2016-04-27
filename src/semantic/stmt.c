@@ -98,7 +98,8 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
       s_test_struct( semantic, ( struct structure* ) node );
       break;
    case NODE_FUNC:
-      s_test_func( semantic, ( struct func* ) node );
+      s_test_nested_func( semantic,
+         ( struct func* ) node );
       break;
    case NODE_CASE:
       test_case( semantic, test, ( struct case_label* ) node );
@@ -566,7 +567,7 @@ void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
 void test_packed_expr( struct semantic* semantic, struct type_info* type,
    struct packed_expr* packed_expr ) {
    if ( packed_expr->msgbuild_func ) {
-      s_test_func( semantic, packed_expr->msgbuild_func );
+      s_test_nested_func( semantic, packed_expr->msgbuild_func );
    }
    struct expr_test expr_test;
    s_init_expr_test_packed( &expr_test, packed_expr->msgbuild_func,

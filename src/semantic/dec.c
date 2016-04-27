@@ -173,8 +173,6 @@ static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct type_info* param_type,
    struct type_info* type, struct pos* pos );
 static int get_param_number( struct func* func, struct param* target );
-static bool test_after_param_list( struct semantic* semantic,
-   struct func* func );
 static void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases );
 static void bind_builtin_aliases( struct semantic* semantic,
@@ -1322,9 +1320,7 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
 
 bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    s_add_scope( semantic );
-   bool resolved =
-      test_param_list( semantic, func ) &&
-      test_after_param_list( semantic, func );
+   bool resolved = test_param_list( semantic, func );
    s_pop_scope( semantic );
    return resolved;
 }
@@ -1458,31 +1454,17 @@ int get_param_number( struct func* func, struct param* target ) {
    return number;
 }
 
-bool test_after_param_list( struct semantic* semantic, struct func* func ) {
-   // Test body of a nested function here. The body of a namespace function
-   // is tested elsewhere.
-   if ( semantic->topfunc_test && func->type == FUNC_USER ) {
-      s_test_func_body( semantic, func );
-      struct func_user* impl = func->impl;
-      impl->next_nested = semantic->topfunc_test->nested_funcs;
-      semantic->topfunc_test->nested_funcs = func;
-   }
-   return true;
-}
-
 void s_test_func_body( struct semantic* semantic, struct func* func ) {
    struct builtin_aliases builtin_aliases;
    init_builtin_aliases( semantic, func, &builtin_aliases );
    struct func_user* impl = func->impl;
-   if ( ! impl->nested ) {
-      s_add_scope( semantic );
-      struct param* param = func->params;
-      while ( param ) {
-         if ( param->name ) {
-            s_bind_name( semantic, param->name, &param->object );
-         }
-         param = param->next;
+   s_add_scope( semantic );
+   struct param* param = func->params;
+   while ( param ) {
+      if ( param->name ) {
+         s_bind_name( semantic, param->name, &param->object );
       }
+      param = param->next;
    }
    struct func_test test;
    init_func_test( &test, func, &impl->labels );
@@ -1498,8 +1480,8 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    if ( ! impl->nested ) {
       impl->nested_funcs = test.nested_funcs;
       semantic->topfunc_test = NULL;
-      s_pop_scope( semantic );
    }
+   s_pop_scope( semantic );
    deinit_builtin_aliases( semantic, &builtin_aliases );
 }
 
@@ -1543,6 +1525,16 @@ void init_func_test( struct func_test* test, struct func* func,
    test->nested_funcs = NULL;
    test->returns = NULL;
    test->script = ( func == NULL );
+}
+
+void s_test_nested_func( struct semantic* semantic, struct func* func ) {
+   s_test_func( semantic, func );
+   if ( func->type == FUNC_USER ) {
+      s_test_func_body( semantic, func );
+      struct func_user* impl = func->impl;
+      impl->next_nested = semantic->topfunc_test->nested_funcs;
+      semantic->topfunc_test->nested_funcs = func;
+   }
 }
 
 void s_test_script( struct semantic* semantic, struct script* script ) {
