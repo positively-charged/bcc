@@ -66,6 +66,7 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->free_sweep = NULL;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
+   s_init_type_info_scalar( &semantic->type_int, SPEC_INT );
    semantic->depth = 0;
    semantic->retest_nss = false;
    semantic->resolved_objects = false;

@@ -67,6 +67,7 @@ struct semantic {
    struct sweep* free_sweep;
    struct func_test* topfunc_test;
    struct func_test* func_test;
+   struct type_info type_int;
    int depth;
    bool retest_nss;
    bool resolved_objects;

@@ -13,7 +13,7 @@ struct result {
    int value;
    bool complete;
    bool usable;
-   bool assignable;
+   bool modifiable;
    bool folded;
    bool in_paren;
 };
@@ -21,7 +21,6 @@ struct result {
 struct call_test {
    struct func* func;
    struct call* call;
-   list_iter_t* i;
    struct param* params;
    int min_param;
    int max_param;
@@ -81,8 +80,10 @@ static void test_suffix( struct semantic* semantic, struct expr_test* test,
 static void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct subscript* subscript );
 static void test_subscript_array( struct semantic* semantic,
-   struct expr_test* test, struct result* lside, struct result* result,
+   struct expr_test* test, struct result* result, struct result* lside,
    struct subscript* subscript );
+static void warn_bounds_violation( struct semantic* semantic,
+   struct subscript* subscript, const char* subject, int upper_bound );
 static void test_subscript_str( struct semantic* semantic,
    struct expr_test* test, struct result* lside, struct result* result,
    struct subscript* subscript );
@@ -95,12 +96,13 @@ static void unknown_member( struct semantic* semantic, struct access* access,
    struct result* lside );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
-static void init_call_test( struct call_test* test );
-static void test_call_args( struct semantic* semantic,
-   struct expr_test* expr_test, struct call_test* test );
-static void test_call_first_arg( struct semantic* semantic,
-   struct expr_test* expr_test, struct call_test* test );
+static void init_call_test( struct call_test* test, struct call* call );
+static void test_call_operand( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct call* call,
+   struct result* operand );
 static void test_call_format_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct call* call );
+static void test_call_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void test_format_item_list( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
@@ -115,13 +117,15 @@ static void test_msgbuild_format_item( struct semantic* semantic,
 static void test_msgbuild_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item,
    struct format_item_msgbuild* extra );
+static void add_nested_call( struct func* func, struct call* call );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct type_info* type, const char* from, struct type_info* required_type,
    const char* where, int number );
 static void present_func( struct call_test* test, struct str* msg );
-static void add_nested_call( struct func* func, struct call* call );
+static void test_call_func( struct semantic* semantic, struct call_test* test,
+   struct call* call );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_literal( struct result* result, struct literal* literal );
@@ -251,6 +255,13 @@ void test_nested_root( struct semantic* semantic, struct expr_test* parent,
    }
 }
 
+void test_nested_expr( struct semantic* semantic, struct expr_test* parent,
+   struct result* result, struct expr* expr ) {
+   struct expr_test test;
+   s_init_expr_test( &test, true, false );
+   test_nested_root( semantic, parent, &test, result, expr );
+}
+
 void init_result( struct result* result ) {
    result->func = NULL;
    result->data_origin = NULL;
@@ -264,7 +275,7 @@ void init_result( struct result* result ) {
    result->value = 0;
    result->complete = false;
    result->usable = false;
-   result->assignable = false;
+   result->modifiable = false;
    result->folded = false;
    result->in_paren = false;
 }
@@ -585,7 +596,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, assign->lside );
-   if ( ! lside.assignable ) {
+   if ( ! lside.modifiable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "cannot assign to left operand" );
       s_bail( semantic );
@@ -741,10 +752,16 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    struct result right;
    init_result( &right );
    test_operand( semantic, test, &right, cond->right );
-   if ( ! same_type( &middle, &right ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
-         "%s operand and right operand of different type",
-         cond->middle ? "middle" : "left" );
+   struct type_info middle_type;
+   init_type_info( &middle_type, &middle );
+   s_decay( &middle_type );
+   struct type_info right_type;
+   init_type_info( &right_type, &right );
+   s_decay( &right_type );
+   if ( ! s_same_type( &middle_type, &right_type ) ) {
+      s_type_mismatch( semantic, cond->middle ?
+         "middle-operand" : "left-operand", &middle_type, "right-operand",
+         &right_type, &cond->pos );
       s_bail( semantic );
    }
    result->ref = right.ref;
@@ -754,12 +771,6 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    result->spec = right.spec;
    result->complete = true;
    result->usable = ( right.spec != SPEC_VOID );
-   if ( ! result->dim && result->ref ) {
-      if ( result->ref->type == REF_ARRAY ) {
-         struct ref_array* part = ( struct ref_array* ) result->ref;
-         result->ref_dim = part->dim_count;
-      }
-   }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
       result->value = left.value ? middle.value : right.value;
@@ -916,6 +927,7 @@ void fold_unary_minus( struct result* operand, struct result* result ) {
 void fold_logical_not( struct semantic* semantic, struct result* operand,
    struct result* result ) {
    switch ( operand->spec ) {
+      struct indexed_string* string;
    case SPEC_RAW:
    case SPEC_INT:
    case SPEC_FIXED:
@@ -923,12 +935,11 @@ void fold_logical_not( struct semantic* semantic, struct result* operand,
       result->value = ( ! operand->value );
       result->folded = true;
       break;
-   case SPEC_STR: {
-      struct indexed_string* string = t_lookup_string( semantic->task,
-         operand->value );
+   case SPEC_STR:
+      string = t_lookup_string( semantic->task, operand->value );
       result->value = ( string->length == 0 );
       result->folded = true;
-      break; } 
+      break;
    default:
       break;
    }
@@ -939,7 +950,7 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result operand;
    init_result( &operand );
    test_operand( semantic, test, &operand, inc->operand );
-   if ( ! operand.assignable ) {
+   if ( ! operand.modifiable ) {
       s_diag( semantic, DIAG_POS_ERR, &inc->pos,
          "operand cannot be %s", inc->dec ?
             "decremented" : "incremented" );
@@ -1031,13 +1042,7 @@ bool valid_cast( struct cast* cast, struct result* operand ) {
    }
    // Reference type.
    else {
-      switch ( cast->spec ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-         return true;
-      default:
-         return false;
-      }
+      return false;
    }
 }
 
@@ -1089,10 +1094,10 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    init_result( &lside );
    test_suffix( semantic, test, &lside, subscript->lside );
    if ( is_array_ref( &lside ) ) {
-      test_subscript_array( semantic, test, &lside, result, subscript );
+      test_subscript_array( semantic, test, result, &lside, subscript );
    }
    else if ( lside.spec == SPEC_STR ) {
-      test_subscript_str( semantic, test, &lside, result, subscript );
+      test_subscript_str( semantic, test, result, &lside, subscript );
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
@@ -1106,92 +1111,105 @@ bool is_array_ref( struct result* result ) {
 }
 
 void test_subscript_array( struct semantic* semantic, struct expr_test* test,
-   struct result* lside, struct result* result, struct subscript* subscript ) {
-   if ( lside->ref && lside->ref->type == REF_ARRAY && lside->ref_dim == 0  ) {
-      struct ref_array* array = ( struct ref_array* ) lside->ref;
-      lside->ref_dim = array->dim_count;
-   }
-   struct expr_test index;
-   s_init_expr_test( &index, true, test->suggest_paren_assign );
-   s_test_expr( semantic, &index, subscript->index );
+   struct result* result, struct result* lside, struct subscript* subscript ) {
+   struct result index;
+   init_result( &index );
+   test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
-   if ( ! ( subscript->index->spec == SPEC_RAW ||
-      subscript->index->spec == SPEC_INT ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "index of non-integer type" );
+   struct type_info type;
+   init_type_info( &type, &index );
+   s_decay( &type );
+   if ( ! s_same_type( &type, &semantic->type_int ) ) {
+      s_type_mismatch( semantic, "index", &type,
+         "required", &semantic->type_int, &subscript->index->pos );
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside->dim && lside->dim->size && subscript->index->folded && (
-      subscript->index->value < 0 ||
-      subscript->index->value >= lside->dim->size ) ) {
-      s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
-         "index out of bounds" );
+   if ( lside->dim && lside->dim->size && subscript->index->folded ) {
+      warn_bounds_violation( semantic, subscript, "dimension-length",
+         lside->dim->size );
    }
-   result->ref = lside->ref;
-   result->structure = lside->structure;
-   result->enumeration = lside->enumeration;
-   result->dim = lside->dim;
-   result->ref_dim = lside->ref_dim;
-   result->spec = lside->spec;
-   result->usable = true;
-   result->complete = true;
-   // Move past the current dimension.
-   bool reached_element = false;
-   if ( result->dim ) {
-      result->dim = result->dim->next;
-      reached_element = ( result->dim == NULL );
+   // Populate @lside with information about array reference.
+   if ( ! lside->dim && lside->ref_dim == 0 ) {
+      struct ref_array* array = ( struct ref_array* ) lside->ref;
+      lside->ref_dim = array->dim_count;
    }
-   else {
-      --result->ref_dim;
-      if ( result->ref_dim == 0 ) {
-         result->ref = result->ref->next;
-         reached_element = true;
-      }
-   }
-   // When all dimensions are tested, propogate properties of array element.
-   if ( reached_element ) {
-      // Reference element.
-      if ( result->ref ) {
-         if ( result->ref->type == REF_ARRAY ) {
-            struct ref_array* part = ( struct ref_array* ) result->ref;
-            result->ref_dim = part->dim_count;
-         }
-         result->assignable = true;
-         result->complete = true;
-         result->usable = true;
+   // Move on to array element:
+   // Sub-array.
+   if ( ( lside->dim && lside->dim->next ) || lside->ref_dim > 1 ) {
+      result->ref = lside->ref;
+      result->structure = lside->structure;
+      result->enumeration = lside->enumeration;
+      result->spec = lside->spec;
+      if ( lside->dim ) {
+         result->dim = lside->dim->next;
       }
       else {
-         // Scalar element.
-         if ( result->spec != SPEC_STRUCT ) {
-            result->assignable = true;
-            result->complete = true;
-         }
+         result->ref_dim = lside->ref_dim - 1;
       }
+   }
+   // Reference element.
+   else if ( ( lside->dim && lside->ref ) ||
+      ( lside->ref_dim == 1 && lside->ref->next ) ) {
+      result->structure = lside->structure;
+      result->enumeration = lside->enumeration;
+      result->spec = lside->spec;
+      if ( lside->dim ) {
+         result->ref = lside->ref;
+      }
+      else {
+         result->ref = lside->ref->next;
+      }
+      result->modifiable = true;
+   }
+   // Structure element.
+   else if ( lside->structure ) {
+      result->structure = lside->structure;
+      result->spec = lside->spec;
+   }
+   // Primitive element.
+   else {
+      result->enumeration = lside->enumeration;
+      result->spec = lside->spec;
+      result->modifiable = true;
+   }
+   result->usable = true;
+   result->complete = true;
+}
+
+void warn_bounds_violation( struct semantic* semantic,
+   struct subscript* subscript, const char* subject, int upper_bound ) {
+   if ( subscript->index->value < 0 ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
+         "index out-of-bounds: index (%d) < 0", subscript->index->value );
+   }
+   else if ( subscript->index->value >= upper_bound ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
+         "index out-of-bounds: index (%d) >= %s (%d)",
+         subscript->index->value, subject, upper_bound );
    }
 }
 
 void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    struct result* lside, struct result* result, struct subscript* subscript ) {
-   struct expr_test index;
-   s_init_expr_test( &index, true, test->suggest_paren_assign );
-   s_test_expr( semantic, &index, subscript->index );
+   struct result index;
+   init_result( &index );
+   test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
-   if ( ! ( subscript->index->spec == SPEC_RAW ||
-      subscript->index->spec == SPEC_INT ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "index of non-integer type" );
+   struct type_info type;
+   init_type_info( &type, &index );
+   s_decay( &type );
+   if ( ! s_same_type( &type, &semantic->type_int ) ) {
+      s_type_mismatch( semantic, "index", &type,
+         "required", &semantic->type_int, &subscript->index->pos );
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
    if ( lside->folded && subscript->index->folded ) {
       struct indexed_string* string = t_lookup_string( semantic->task,
          lside->value );
-      if ( subscript->index->value < 0 ||
-         subscript->index->value >= string->length ) {
-         s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
-            "index out of bounds" );
-      }
+      warn_bounds_violation( semantic, subscript, "string-length",
+         string->length );
    }
    result->spec = SPEC_INT;
    result->complete = true;
@@ -1315,79 +1333,17 @@ void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
 
 void test_call( struct semantic* semantic, struct expr_test* expr_test,
    struct result* result, struct call* call ) {
-   struct call_test test;
-   init_call_test( &test );
-   test.call = call;
-   // Test operand.
    struct result operand;
-   init_result( &operand );
-   test_suffix( semantic, expr_test, &operand, call->operand );
-   if ( operand.func ) {
-      test.func = operand.func;
-      test.params = operand.func->params;
-      test.min_param = operand.func->min_param;
-      test.max_param = operand.func->max_param;
-      test.format_param = ( operand.func->type == FUNC_FORMAT );
-   }
-   else if ( operand.ref && operand.ref->type == REF_FUNCTION ) {
-      struct ref_func* func = ( struct ref_func* ) operand.ref;
-      test.params = func->params;
-      test.min_param = func->min_param;
-      test.max_param = func->max_param;
-   }
-   else {
-      s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "operand not a function" );
-      s_bail( semantic );
-   }
+   struct call_test test;
+   init_call_test( &test, call );
+   test_call_operand( semantic, expr_test, &test, call, &operand );
+   test_call_format_arg( semantic, expr_test, &test, call );
    test_call_args( semantic, expr_test, &test );
-   // Some action-specials cannot be called from a script.
-   if ( operand.func && operand.func->type == FUNC_ASPEC ) {
-      struct func_aspec* impl = operand.func->impl;
-      if ( ! impl->script_callable ) {
-         struct str str;
-         str_init( &str );
-         t_copy_name( operand.func->name, false, &str );
-         s_diag( semantic, DIAG_POS_ERR, &call->pos,
-            "action-special `%s` called from script", str.value );
-         s_bail( semantic );
-      }
+   if ( test.func ) {
+      test_call_func( semantic, &test, call );
    }
-   // Latent function cannot be called in a function.
-   if ( operand.func && operand.func->type == FUNC_DED ) {
-      struct func_ded* impl = operand.func->impl;
-      if ( impl->latent ) {
-         if ( semantic->func_test->func ) {
-            s_diag( semantic, DIAG_POS_ERR, &call->pos,
-               "calling latent function inside a function" );
-            // Show educational note to user.
-            if ( semantic->func_test->func ) {
-               struct str str;
-               str_init( &str );
-               t_copy_name( operand.func->name, false, &str );
-               s_diag( semantic, DIAG_FILE, &call->pos,
-                  "waiting functions like `%s` can only be called inside a "
-                  "script", str.value );
-               str_deinit( &str );
-            }
-            s_bail( semantic );
-         }
-      }
-   }
-   // Message-building function can only be called when building a message.
-   if ( operand.func && operand.func->msgbuild && semantic->func_test->func &&
-      ! semantic->func_test->func->msgbuild ) {
-      s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "calling message-building function where no message is being built" );
-      s_bail( semantic );
-   }
+   // Return-value from function.
    if ( operand.func ) {
-      if ( operand.func->type == FUNC_USER ) {
-         struct func_user* impl = operand.func->impl;
-         if ( impl->nested ) {
-            add_nested_call( operand.func, call );
-         }
-      }
       result->ref = operand.func->ref;
       result->structure = operand.func->structure;
       result->enumeration = operand.func->enumeration;
@@ -1395,7 +1351,14 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       result->complete = true;
       result->usable = ( operand.func->return_spec != SPEC_VOID );
       call->func = operand.func;
+      if ( operand.func->type == FUNC_USER ) {
+         struct func_user* impl = operand.func->impl;
+         if ( impl->nested ) {
+            add_nested_call( operand.func, call );
+         }
+      }
    }
+   // Return-value from function reference.
    else if ( operand.ref && operand.ref->type == REF_FUNCTION ) {
       struct ref_func* func = ( struct ref_func* ) operand.ref;
       result->ref = operand.ref->next;
@@ -1409,14 +1372,13 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       call->func = &dummy_func;
    }
    else {
-      UNREACHABLE()
+      UNREACHABLE();
    }
 }
 
-void init_call_test( struct call_test* test ) {
+void init_call_test( struct call_test* test, struct call* call ) {
    test->func = NULL;
-   test->call = NULL;
-   test->i = NULL;
+   test->call = call;
    test->params = NULL;
    test->min_param = 0;
    test->max_param = 0;
@@ -1424,65 +1386,50 @@ void init_call_test( struct call_test* test ) {
    test->format_param = false;
 }
 
-void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
-   struct call_test* test ) {
-   struct call* call = test->call;
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
-   test->i = &i;
-   test_call_first_arg( semantic, expr_test, test );
-   test_remaining_args( semantic, expr_test, test );
-   // Number of arguments must be correct.
-   if ( test->num_args < test->min_param ) {
-      s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "not enough %sarguments in function call",
-         test->format_param ? "regular " : "" );
-      struct str str;
-      str_init( &str );
-      present_func( test, &str );
-      s_diag( semantic, DIAG_POS, &call->pos,
-         "%s needs %s%d %sargument%s", str.value,
-         test->min_param != test->max_param ? "at least " : "",
-         test->min_param, test->format_param ? "regular " : "",
-         test->min_param != 1 ? "s" : "" );
-      s_bail( semantic );
+void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
+   struct call_test* test, struct call* call, struct result* operand ) {
+   init_result( operand );
+   test_suffix( semantic, expr_test, operand, call->operand );
+   if ( operand->func ) {
+      test->func = operand->func;
+      test->params = operand->func->params;
+      test->min_param = operand->func->min_param;
+      test->max_param = operand->func->max_param;
+      test->format_param = ( operand->func->type == FUNC_FORMAT );
    }
-   if ( test->num_args > test->max_param ) {
+   else if ( operand->ref && operand->ref->type == REF_FUNCTION ) {
+      struct ref_func* func = ( struct ref_func* ) operand->ref;
+      test->params = func->params;
+      test->min_param = func->min_param;
+      test->max_param = func->max_param;
+   }
+   else {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "too many %sarguments in function call",
-         test->format_param ? "regular " : "" );
-      struct str str;
-      str_init( &str );
-      present_func( test, &str );
-      s_diag( semantic, DIAG_POS, &call->pos,
-         "%s takes %s%d %sargument%s", str.value,
-         test->min_param != test->max_param ? "at most " : "",
-         test->max_param, test->format_param ? "regular " : "",
-         test->max_param != 1 ? "s" : "" );
+         "operand not a function" );
       s_bail( semantic );
    }
 }
 
-void test_call_first_arg( struct semantic* semantic,
-   struct expr_test* expr_test, struct call_test* test ) {
+void test_call_format_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct call* call ) {
    if ( test->format_param ) {
-      if ( ! test->call->format_item ) {
+      if ( ! call->format_item ) {
          if ( expr_test->msgbuild_func ) {
             struct format_item* item = t_alloc_format_item();
             item->cast = FCAST_MSGBUILD;
-            test->call->format_item = item;
+            call->format_item = item;
          }
          else {
-            s_diag( semantic, DIAG_POS_ERR, &test->call->pos,
+            s_diag( semantic, DIAG_POS_ERR, &call->pos,
                "function call missing format argument" );
             s_bail( semantic );
          }
       }
-      test_format_item_list( semantic, expr_test, test->call->format_item );
+      test_format_item_list( semantic, expr_test, call->format_item );
    }
    else {
-      if ( test->call->format_item ) {
-         s_diag( semantic, DIAG_POS_ERR, &test->call->format_item->pos,
+      if ( call->format_item ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->format_item->pos,
             "passing format-item to non-format function" );
          s_bail( semantic );
       }
@@ -1646,11 +1593,48 @@ void add_nested_call( struct func* func, struct call* call ) {
    call->nested_call = nested;
 }
 
+void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
+   struct call_test* test ) {
+   struct call* call = test->call;
+   test_remaining_args( semantic, expr_test, test );
+   // Number of arguments must be correct.
+   if ( test->num_args < test->min_param ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
+         "not enough %sarguments in function call",
+         test->format_param ? "regular " : "" );
+      struct str str;
+      str_init( &str );
+      present_func( test, &str );
+      s_diag( semantic, DIAG_POS, &call->pos,
+         "%s needs %s%d %sargument%s", str.value,
+         test->min_param != test->max_param ? "at least " : "",
+         test->min_param, test->format_param ? "regular " : "",
+         test->min_param != 1 ? "s" : "" );
+      s_bail( semantic );
+   }
+   if ( test->num_args > test->max_param ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
+         "too many %sarguments in function call",
+         test->format_param ? "regular " : "" );
+      struct str str;
+      str_init( &str );
+      present_func( test, &str );
+      s_diag( semantic, DIAG_POS, &call->pos,
+         "%s takes %s%d %sargument%s", str.value,
+         test->min_param != test->max_param ? "at most " : "",
+         test->max_param, test->format_param ? "regular " : "",
+         test->max_param != 1 ? "s" : "" );
+      s_bail( semantic );
+   }
+}
+
 void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    struct param* param = test->params;
-   while ( ! list_end( test->i ) ) {
-      struct expr* expr = list_data( test->i );
+   list_iter_t i;
+   list_iter_init( &i, &test->call->args );
+   while ( ! list_end( &i ) ) {
+      struct expr* expr = list_data( &i );
       struct expr_test nested;
       s_init_expr_test( &nested, true, false );
       struct result result;
@@ -1671,7 +1655,7 @@ void test_remaining_args( struct semantic* semantic,
          param = param->next;
       }
       ++test->num_args;
-      list_next( test->i );
+      list_next( &i );
    }
 }
 
@@ -1704,6 +1688,50 @@ void present_func( struct call_test* test, struct str* msg ) {
    }
    else {
       str_append( msg, "referenced function" );
+   }
+}
+
+void test_call_func( struct semantic* semantic, struct call_test* test,
+   struct call* call ) {
+   // Some action-specials cannot be called from a script.
+   if ( test->func->type == FUNC_ASPEC ) {
+      struct func_aspec* impl = test->func->impl;
+      if ( ! impl->script_callable ) {
+         struct str str;
+         str_init( &str );
+         t_copy_name( test->func->name, false, &str );
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
+            "action-special `%s` called from script", str.value );
+         s_bail( semantic );
+      }
+   }
+   // Latent function cannot be called in a function.
+   else if ( test->func->type == FUNC_DED ) {
+      struct func_ded* impl = test->func->impl;
+      if ( impl->latent ) {
+         if ( semantic->func_test->func ) {
+            s_diag( semantic, DIAG_POS_ERR, &call->pos,
+               "calling latent function inside a function" );
+            // Show educational note to user.
+            if ( semantic->func_test->func ) {
+               struct str str;
+               str_init( &str );
+               t_copy_name( test->func->name, false, &str );
+               s_diag( semantic, DIAG_FILE, &call->pos,
+                  "waiting functions like `%s` can only be called inside a "
+                  "script", str.value );
+               str_deinit( &str );
+            }
+            s_bail( semantic );
+         }
+      }
+   }
+   // Message-building function can only be called when building a message.
+   if ( test->func->msgbuild && semantic->func_test->func &&
+      ! semantic->func_test->func->msgbuild ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->pos,
+         "calling message-building function where no message is being built" );
+      s_bail( semantic );
    }
 }
 
@@ -1747,38 +1775,38 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_literal( struct result* result, struct literal* literal ) {
+   result->spec = SPEC_INT;
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_INT;
 }
 
 void test_fixed_literal( struct result* result,
    struct fixed_literal* literal ) {
+   result->spec = SPEC_FIXED;
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_FIXED;
 }
 
 void test_string_usage( struct expr_test* test, struct result* result,
    struct indexed_string_usage* usage ) {
+   result->spec = SPEC_STR;
    result->value = usage->string->index;
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_STR;
    test->has_string = true;
 }
 
 void test_boolean( struct result* result, struct boolean* boolean ) {
+   result->spec = SPEC_BOOL;
    result->value = boolean->value;
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   result->spec = SPEC_BOOL;
 }
 
 void test_name_usage( struct semantic* semantic, struct expr_test* test,
@@ -1850,8 +1878,11 @@ void select_object( struct result* result, struct object* object ) {
       select_alias( result,
          ( struct alias* ) object );
       break;
-   default:
+   case NODE_STRUCTURE:
+   case NODE_TYPE_ALIAS:
       break;
+   default:
+      UNREACHABLE();
    }
 }
 
@@ -1874,96 +1905,100 @@ void select_enumerator( struct result* result,
 }
 
 void select_var( struct result* result, struct var* var ) {
-   result->data_origin = var;
-   result->ref = var->ref;
-   result->structure = var->structure;
-   result->enumeration = var->enumeration;
-   result->dim = var->dim;
-   result->spec = var->spec;
-   result->usable = true;
-   if ( is_ref_type( result ) ) {
-      if ( result->ref ) {
-         if ( result->ref->type == REF_ARRAY ) {
-            struct ref_array* part = ( struct ref_array* ) result->ref;
-            result->ref_dim = part->dim_count;
-         }
-         if ( ! result->dim ) {
-            result->assignable = true;
-         }
-      }
-      else {
-      }
-      result->complete = true;
-      if ( result->dim || result->structure ) {
-         result->folded = true;
-      }
+   // Array.
+   if ( var->dim ) {
+      result->ref = var->ref;
+      result->structure = var->structure;
+      result->enumeration = var->enumeration;
+      result->dim = var->dim;
+      result->spec = var->spec;
+      result->folded = true;
    }
+   // Reference variable.
+   else if ( var->ref ) {
+      result->ref = var->ref;
+      result->structure = var->structure;
+      result->enumeration = var->enumeration;
+      result->spec = var->spec;
+      result->modifiable = true;
+   }
+   // Structure variable.
+   else if ( var->structure ) {
+      result->structure = var->structure;
+      result->spec = var->spec;
+      result->folded = true;
+   }
+   // Primitive variable.
    else {
-      if ( ! result->structure ) {
-         result->complete = true;
-         result->assignable = true;
-      }
+      result->enumeration = var->enumeration;
+      result->spec = var->spec;
+      result->modifiable = true;
    }
+   result->data_origin = var;
+   result->complete = true;
+   result->usable = true;
    var->used = true;
 }
 
 void select_param( struct result* result, struct param* param ) {
-   result->spec = param->spec;
    result->ref = param->ref;
    result->structure = param->structure;
    result->enumeration = param->enumeration;
+   result->spec = param->spec;
    result->complete = true;
    result->usable = true;
-   result->assignable = true;
+   result->modifiable = true;
    param->used = true;
 }
 
 void select_member( struct result* result, struct structure_member* member ) {
-   result->ref = member->ref;
-   result->structure = member->structure;
-   result->enumeration = member->enumeration;
-   result->dim = member->dim;
-   result->spec = member->spec;
-   result->usable = true;
-   if ( is_ref_type( result ) ) {
-      if ( result->ref ) {
-         if ( result->ref->type == REF_ARRAY ) {
-            struct ref_array* part = ( struct ref_array* ) result->ref;
-            result->ref_dim = part->dim_count;
-         }
-         if ( ! result->dim ) {
-            result->assignable = true;
-         }
-      }
-      else {
-      }
-      result->complete = true;
+   // Array member.
+   if ( member->dim ) {
+      result->ref = member->ref;
+      result->structure = member->structure;
+      result->enumeration = member->enumeration;
+      result->dim = member->dim;
+      result->spec = member->spec;
    }
+   // Reference member.
+   else if ( member->ref ) {
+      result->ref = member->ref;
+      result->structure = member->structure;
+      result->enumeration = member->enumeration;
+      result->spec = member->spec;
+      result->modifiable = true;
+   }
+   // Structure member.
+   else if ( member->structure ) {
+      result->structure = member->structure;
+      result->spec = member->spec;
+   }
+   // Primitive member.
    else {
-      if ( ! result->structure ) {
-         result->complete = true;
-         result->assignable = true;
-      }
+      result->enumeration = member->enumeration;
+      result->spec = member->spec;
+      result->modifiable = true;
    }
+   result->complete = true;
+   result->usable = true;
 }
 
 void select_func( struct result* result, struct func* func ) {
    if ( func->type == FUNC_USER ) {
+      result->usable = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
    }
-   // When using just the name of an action special, a value is produced,
-   // which is the ID of the action special.
+   // When an action-special is not called, it decays into an integer value.
+   // The value is the ID of the action-special.
    else if ( func->type == FUNC_ASPEC ) {
       result->spec = SPEC_INT;
-      result->complete = true;
-      result->usable = true;
       struct func_aspec* impl = func->impl;
       result->value = impl->id;
+      result->usable = true;
       result->folded = true;
    }
    result->func = func;
-   result->usable = true;
    result->complete = true;
 }
 
