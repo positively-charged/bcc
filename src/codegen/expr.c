@@ -134,7 +134,7 @@ static void visit_internal_call( struct codegen* codegen,
    struct result* result, struct call* call );
 static void write_executewait( struct codegen* codegen, struct call* call,
    bool named_impl );
-static void call_array_size( struct codegen* codegen, struct result* result,
+static void call_array_length( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
@@ -172,7 +172,7 @@ static void copy_array( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
 static void scale_offset( struct codegen* codegen, struct result* result,
    int offset_var );
-static void push_array_size( struct codegen* codegen, struct result* result,
+static void push_array_length( struct codegen* codegen, struct result* result,
    bool dim_info_pushed );
 static void copy_elements( struct codegen* codegen, struct result* dst,
    struct result* src, int dst_ofs, int src_ofs, int length );
@@ -1535,8 +1535,8 @@ void visit_internal_call( struct codegen* codegen, struct result* result,
       c_push_expr( codegen, list_head( &call->args ) );
       c_pcd( codegen, PCD_CALLFUNC, 2, 15 );
    }
-   else if ( impl->id == INTERN_FUNC_ARRAY_SIZE ) {
-      call_array_size( codegen, result, call );
+   else if ( impl->id == INTERN_FUNC_ARRAY_LENGTH ) {
+      call_array_length( codegen, result, call );
    }
 }
 
@@ -1568,7 +1568,7 @@ void write_executewait( struct codegen* codegen, struct call* call,
    }
 }
 
-void call_array_size( struct codegen* codegen, struct result* result,
+void call_array_length( struct codegen* codegen, struct result* result,
    struct call* call ) {
    struct result operand;
    init_result( &operand, true );
@@ -1576,7 +1576,7 @@ void call_array_size( struct codegen* codegen, struct result* result,
    if ( operand.status == R_ARRAYINDEX ) {
       c_pcd( codegen, PCD_DROP );
    }
-   push_array_size( codegen, &operand, false );
+   push_array_length( codegen, &operand, false );
 }
 
 void visit_primary( struct codegen* codegen, struct result* result,
@@ -1970,7 +1970,7 @@ void copy_array( struct codegen* codegen, struct result* result,
    visit_operand( codegen, &src, call->string->root );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
    if ( ! call->array_length ) {
-      push_array_size( codegen, &src, false );
+      push_array_length( codegen, &src, false );
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
    }
    // Evaluate source-offset.
@@ -1988,7 +1988,7 @@ void copy_array( struct codegen* codegen, struct result* result,
       if ( call->array_length ) {
          c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
          c_pcd( codegen, PCD_ADD );
-         push_array_size( codegen, &src, false );
+         push_array_length( codegen, &src, false );
          c_pcd( codegen, PCD_LE );
       }
       else {
@@ -2024,10 +2024,10 @@ void copy_array( struct codegen* codegen, struct result* result,
    // Check: destination-offset + length <= destination-length
    if ( dst.ref && dst.ref->type == REF_ARRAY ) {
       c_pcd( codegen, PCD_PUSHSCRIPTVAR, dim_info );
-      push_array_size( codegen, &dst, true );
+      push_array_length( codegen, &dst, true );
    }
    else {
-      push_array_size( codegen, &dst, false );
+      push_array_length( codegen, &dst, false );
    }
    c_pcd( codegen, PCD_LE );
    if ( call->array_offset ) {
@@ -2086,7 +2086,7 @@ void scale_offset( struct codegen* codegen, struct result* result,
    }
 }
 
-void push_array_size( struct codegen* codegen, struct result* result,
+void push_array_length( struct codegen* codegen, struct result* result,
    bool dim_info_pushed ) {
    if ( result->dim ) {
       c_pcd( codegen, PCD_PUSHNUMBER, result->dim->length );
