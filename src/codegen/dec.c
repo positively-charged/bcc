@@ -177,23 +177,30 @@ void c_visit_var( struct codegen* codegen, struct var* var ) {
 }
 
 void visit_local_var( struct codegen* codegen, struct var* var ) {
-   if ( var->dim ) {
+   if ( var->dim || ( ! var->ref && var->structure ) ) {
       var->index = codegen->func->array_index;
       ++codegen->func->array_index;
+      struct value* value = var->value;
+      while ( value ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, value->index );
+         c_push_expr( codegen, value->expr );
+         c_update_element( codegen, var->storage, var->index, AOP_NONE );
+         value = value->next;
+      }
    }
    else {
       var->index = c_alloc_script_var( codegen );
       if ( var->ref && var->ref->type == REF_ARRAY ) {
          c_alloc_script_var( codegen );
       }
-   }
-   if ( var->value ) {
-      c_push_expr( codegen, var->value->expr );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
-      if ( var->ref && var->ref->type == REF_ARRAY ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
+      if ( var->value ) {
+         c_push_expr( codegen, var->value->expr );
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
+         if ( var->ref && var->ref->type == REF_ARRAY ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+            c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+            c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
+         }
       }
    }
 }
