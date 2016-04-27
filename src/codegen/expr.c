@@ -182,6 +182,8 @@ static void scale_offset( struct codegen* codegen, struct result* result,
    int offset_var );
 static void push_array_length( struct codegen* codegen, struct result* result,
    bool dim_info_pushed );
+static void push_ref_array_length( struct codegen* codegen,
+   struct result* result, bool dim_info_pushed );
 static void copy_elements( struct codegen* codegen, struct result* dst,
    struct result* src, int dst_ofs, int src_ofs, int length );
 static void copy_struct( struct codegen* codegen, struct result* result,
@@ -2215,34 +2217,49 @@ void push_array_length( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_PUSHNUMBER, result->dim->length );
    }
    else if ( result->ref && result->ref->type == REF_ARRAY ) {
-      struct ref_array* array = ( struct ref_array* ) result->ref;
-      int dim_count = result->ref_dim ? result->ref_dim : array->dim_count;
-      if ( ! dim_info_pushed ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      }
-      if ( dim_count > 1 ) {
-         c_pcd( codegen, PCD_DUP );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-         c_pcd( codegen, PCD_SWAP );
-         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
-         c_pcd( codegen, PCD_ADD );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-         c_pcd( codegen, PCD_DIVIDE );
-      }
-      else if ( result->structure ) {
-         if ( result->structure->size > 1 ) {
-            c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-            c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
-            c_pcd( codegen, PCD_DIVIDE );
-         }
-      }
-      else {
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      }
+      push_ref_array_length( codegen, result, dim_info_pushed );
    }
    else {
       UNREACHABLE();
+   }
+}
+
+void push_ref_array_length( struct codegen* codegen, struct result* result,
+   bool dim_info_pushed ) {
+   int dim_count = result->ref_dim;
+   if ( dim_count == 0 ) {
+      struct ref_array* array = ( struct ref_array* ) result->ref;
+      dim_count = array->dim_count;
+   }
+   if ( ! dim_info_pushed ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+   }
+   // Sub-array.
+   if ( dim_count > 1 ) {
+      c_pcd( codegen, PCD_DUP );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_SWAP );
+      c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+      c_pcd( codegen, PCD_ADD );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_DIVIDE );
+   }
+   // Array reference element.
+   else if ( result->ref->next && result->ref->next->type == REF_ARRAY ) {
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHNUMBER, ARRAYREF_SIZE );
+      c_pcd( codegen, PCD_DIVIDE );
+   }
+   // Structure element, the structure size being greater than 1.
+   else if ( result->structure && result->structure->size > 1 ) {
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
+      c_pcd( codegen, PCD_DIVIDE );
+   }
+   // Any element of size 1.
+   else {
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
    }
 }
 

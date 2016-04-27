@@ -6,6 +6,9 @@
 
 #define BUFFER_SIZE 65536
 
+enum { PRIMITIVE_SIZE = 1 };
+enum { ARRAYREF_SIZE = PRIMITIVE_SIZE + PRIMITIVE_SIZE };
+
 struct buffer {
    struct buffer* next;
    char data[ BUFFER_SIZE ];
