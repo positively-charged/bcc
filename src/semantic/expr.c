@@ -1270,8 +1270,9 @@ bool is_array( struct result* result ) {
 }
 
 bool is_struct( struct result* result ) {
-   bool ref = ( result->ref && result->ref->type == REF_STRUCTURE );
-   return ( ! result->dim && ( ref || result->spec == SPEC_STRUCT ) );
+   return ( ! result->dim && (
+      ( result->ref && result->ref->type == REF_STRUCTURE ) ||
+      ( ! result->ref && result->spec == SPEC_STRUCT ) ) );
 }
 
 void unknown_member( struct semantic* semantic, struct access* access,
