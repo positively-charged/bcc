@@ -1136,5 +1136,6 @@ void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
 }
 
 inline bool script_array( struct var* var ) {
-   return ( var->storage == STORAGE_LOCAL && var->dim ); 
+   return ( var->storage == STORAGE_LOCAL && ( var->dim ||
+      ( ! var->ref && var->structure ) ) ); 
 }
