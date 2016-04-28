@@ -86,6 +86,7 @@ struct codegen {
       int dim_info;
       int data;
    } shared_array_offsets;
+   struct list shared_array_vars;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -143,5 +144,7 @@ void c_dealloc_last_script_var( struct codegen* codegen );
 void c_push_foreach_collection( struct codegen* codegen,
    struct foreach_collection* collection, struct expr* expr );
 void c_push_element( struct codegen* codegen, int storage, int index );
+void c_append_string( struct codegen* codegen,
+   struct indexed_string* string );
 
 #endif

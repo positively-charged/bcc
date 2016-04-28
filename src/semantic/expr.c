@@ -167,6 +167,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
    test->name_offset = NULL;
    test->msgbuild_func = NULL;
+   test->var = NULL;
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
@@ -239,6 +240,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
          "expression does not produce a value" );
       s_bail( semantic );
    }
+   test->var = result->data_origin;
    expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;
@@ -1138,6 +1140,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    // Move on to array element:
    // Sub-array.
    if ( ( lside->dim && lside->dim->next ) || lside->ref_dim > 1 ) {
+      result->data_origin = lside->data_origin;
       result->ref = lside->ref;
       result->structure = lside->structure;
       result->enumeration = lside->enumeration;
@@ -1165,6 +1168,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    }
    // Structure element.
    else if ( lside->structure ) {
+      result->data_origin = lside->data_origin;
       result->structure = lside->structure;
       result->spec = lside->spec;
    }
@@ -1176,6 +1180,10 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    }
    result->usable = true;
    result->complete = true;
+   if ( lside->folded && index.folded ) {
+      result->value = lside->value + lside->dim->element_size * index.value;
+      result->folded = true;
+   }
 }
 
 void warn_bounds_violation( struct semantic* semantic,

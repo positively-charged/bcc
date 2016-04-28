@@ -600,7 +600,7 @@ void do_aini( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) && var->value ) {
+         ( var->dim || var->structure ) && var->value && ! var->hidden ) {
          do_aini_single( codegen, var );
       }
       list_next( &i );
@@ -660,11 +660,45 @@ void do_aini_single( struct codegen* codegen, struct var* var ) {
    }
 }
 
+struct initz_w {
+   int base;
+   int done;
+};
+
+void write_initz( struct codegen* codegen, struct initz_w* writing,
+   struct value* value ) {
+   while ( value ) {
+      int index = writing->base + value->index;
+      // Nullify uninitialized space.
+      if ( writing->done < index && ( ( value->expr->value &&
+         ! value->string_initz ) || value->string_initz ) ) {
+         c_add_int_zero( codegen, index - writing->done );
+         writing->done = index;
+      }
+      if ( value->string_initz ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         for ( int i = 0; i < usage->string->length; ++i ) {
+            c_add_int( codegen, usage->string->value[ i ] );
+         }
+         writing->done += usage->string->length;
+      }
+      else {
+         if ( value->expr->value ) {
+            c_add_int( codegen, value->expr->value );
+            ++writing->done;
+         }
+      }
+      value = value->next;
+   }
+}
+
+static int count_shared_array_values( struct codegen* codegen );
+
 void do_aini_sharedarray( struct codegen* codegen ) {
    c_add_str( codegen, "AINI" );
    c_add_int( codegen, sizeof( int ) +
-      sizeof( int ) +
-      sizeof( int ) * codegen->shared_array_diminfo_size );
+      sizeof( int ) * count_shared_array_values( codegen ) );
    c_add_int( codegen, codegen->shared_array_index );
    // Insert null element.
    c_add_int( codegen, 0 );
@@ -699,6 +733,47 @@ void do_aini_sharedarray( struct codegen* codegen ) {
       }
       list_next( &i );
    }
+   // Initialize variables.
+   list_iter_init( &i, &codegen->shared_array_vars );
+   struct initz_w writing = { 0, 0 };
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      writing.base = var->index - codegen->shared_array_offsets.data;
+      write_initz( codegen, &writing, var->value );
+      list_next( &i );
+   }
+}
+
+int count_shared_array_values( struct codegen* codegen ) {
+   int count = 0;
+   // Dimension counter.
+   ++count;
+   // Dimension information.
+   count += codegen->shared_array_diminfo_size;
+   // Non-zero initializers.
+   int index = count;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shared_array_vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      struct value* value = var->value;
+      while ( value ) {
+         if ( value->string_initz ) {
+            struct indexed_string_usage* usage =
+               ( struct indexed_string_usage* ) value->expr->root;
+            index = var->index + value->index + usage->string->length;
+         }
+         else {
+            if ( value->expr->value ) {
+               index = var->index + value->index + 1;
+            }
+         }
+         value = value->next;
+      }
+      list_next( &i );
+   }
+   count += index - count;
+   return count;
 }
 
 void do_load( struct codegen* codegen ) {

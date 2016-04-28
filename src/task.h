@@ -540,6 +540,7 @@ struct initial {
 struct value {
    struct initial initial;
    struct expr* expr;
+   struct var* var;
    struct value* next;
    int index;
    bool string_initz;

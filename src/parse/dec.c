@@ -1011,6 +1011,7 @@ struct value* alloc_value( void ) {
    struct value* value = mem_alloc( sizeof( *value ) );
    init_initial( &value->initial, false );
    value->expr = NULL;
+   value->var = NULL;
    value->next = NULL;
    value->index = 0;
    value->string_initz = false;

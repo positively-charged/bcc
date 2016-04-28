@@ -1042,6 +1042,7 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
    if ( expr.has_string ) {
       test->has_string = true;
    }
+   value->var = expr.var;
    return true;
 }
 
