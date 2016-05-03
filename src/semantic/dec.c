@@ -633,9 +633,11 @@ void merge_ref( struct semantic* semantic, struct name_spec_test* test,
 }
 
 bool test_var_ref( struct semantic* semantic, struct var* var ) {
-   struct ref_test test;
-   init_ref_test( &test, var->ref, var->spec );
-   test_ref( semantic, &test );
+   if ( var->ref ) {
+      struct ref_test test;
+      init_ref_test( &test, var->ref, var->spec );
+      test_ref( semantic, &test );
+   }
    return true;
 }
 
@@ -665,6 +667,13 @@ void test_ref_part( struct semantic* semantic, struct ref_test* test,
             "only array/structure/function reference type is valid" );
          s_bail( semantic );
       }
+   }
+   if ( semantic->lib->importable && ref->type != REF_FUNCTION ) {
+      s_diag( semantic, DIAG_POS_ERR, &ref->pos,
+         "invalid reference type" );
+      s_diag( semantic, DIAG_POS, &ref->pos,
+         "only function-reference type is valid in an importable library" );
+      s_bail( semantic );
    }
 }
 

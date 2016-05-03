@@ -628,16 +628,8 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "invalid assignment operation" );
       s_bail( semantic );
    }
-   if ( is_ref_type( &lside ) ) {
-      if ( rside.data_origin ) {
-         // At this time, a reference can be made only to private data.
-         if ( ! rside.data_origin->ref && ! rside.data_origin->hidden ) {
-            s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-               "right operand not a reference to a private variable" );
-            s_bail( semantic );
-         }
-         rside.data_origin->addr_taken = true;
-      }
+   if ( is_ref_type( &lside ) && rside.data_origin ) {
+      rside.data_origin->addr_taken = true;
    }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
