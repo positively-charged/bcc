@@ -1043,6 +1043,13 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
       test->has_string = true;
    }
    value->var = expr.var;
+   value->func = expr.func;
+   if ( expr.has_string ) {
+      value->type = VALUE_STRING;
+   }
+   else if ( expr.func ) {
+      value->type = VALUE_FUNC;
+   }
    return true;
 }
 
@@ -1087,6 +1094,7 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
       }
    }
    value->string_initz = true;
+   value->type = VALUE_STRINGINITZ;
    return true;
 }
 
@@ -1731,7 +1739,7 @@ void alloc_value_index( struct value_index_alloc* alloc,
             alloc->index += dim->next->length;
          }
          else {
-            ++alloc->index;
+            alloc->index += dim->element_size;
          }
          alloc->value = alloc->value->next;
       }
@@ -1770,7 +1778,7 @@ void alloc_value_index_struct( struct value_index_alloc* alloc,
             alloc->index += member->dim->length;
          }
          else {
-            ++alloc->index;
+            alloc->index += member->size;
          }
          alloc->value = alloc->value->next;
       }

@@ -62,6 +62,8 @@ typedef struct list_link* list_iter_t;
 void list_init( struct list* );
 void list_append( struct list*, void* );
 void list_append_head( struct list*, void* );
+void list_merge( struct list* receiver, struct list* giver );
+void* list_shift( struct list* list );
 void list_deinit( struct list* );
 
 struct options {

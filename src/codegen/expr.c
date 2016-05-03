@@ -243,9 +243,15 @@ void push_operand( struct codegen* codegen, struct node* node ) {
    init_result( &result, true );
    visit_operand( codegen, &result, node );
    if ( result.dim ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_PUSHNUMBER, result.diminfo_start );
-      c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+      if ( codegen->shary.dim_counter_var ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, result.diminfo_start );
+         c_pcd( codegen, PCD_ASSIGNMAPVAR, codegen->shary.dim_counter );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_PUSHNUMBER, result.diminfo_start );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
+      }
    }
 }
 
@@ -520,7 +526,7 @@ void assign_array_reference( struct codegen* codegen, struct assign* assign,
       }
       else {
          c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       }
       c_update_element( codegen, lside->storage, lside->index, AOP_NONE );
       if ( result->push ) {
@@ -546,7 +552,7 @@ void assign_array_reference( struct codegen* codegen, struct assign* assign,
       }
       else {
          c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       }
       c_update_indexed( codegen, lside->storage, lside->index + 1, AOP_NONE );
       if ( result->push ) {
@@ -1020,7 +1026,7 @@ void subscript_array( struct codegen* codegen, struct subscript* subscript,
          }
          push_element( codegen, lside->storage, lside->index );
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
       }
       else {
          result->storage = lside->storage;
@@ -1056,7 +1062,7 @@ void copy_diminfo( struct codegen* codegen, struct result* lside ) {
    push_element( codegen, lside->storage, lside->index );
    c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
    c_pcd( codegen, PCD_SWAP );
-   c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+   c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
 }
 
 void subscript_array_reference( struct codegen* codegen,
@@ -1069,10 +1075,10 @@ void subscript_array_reference( struct codegen* codegen,
    c_push_expr( codegen, subscript->index );
    if ( lside->ref_dim > 1 ) {
       c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_INCMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_INCMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_MULTIPLY );
    }
    else if ( lside->ref->next ) {
@@ -1107,7 +1113,7 @@ void subscript_array_reference( struct codegen* codegen,
          }
          push_element( codegen, lside->storage, lside->index );
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
       }
       else {
          result->storage = lside->storage;
@@ -1192,7 +1198,7 @@ void access_structure_member( struct codegen* codegen,
          }
          push_element( codegen, lside->storage, lside->index );
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
       }
       else {
          result->storage = lside->storage;
@@ -1415,7 +1421,7 @@ void write_call_args( struct codegen* codegen, struct call* call ) {
       }
       else if ( arg.ref && arg.ref->type == REF_ARRAY ) {
          c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       }
       list_next( &i );
       param = param->next;
@@ -1450,7 +1456,7 @@ void call_user_func( struct codegen* codegen, struct call* call,
       case REF_STRUCTURE:
       case REF_ARRAY:
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
          result->status = R_ARRAYINDEX;
          break;
       case REF_FUNCTION:
@@ -1489,7 +1495,7 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
       case REF_STRUCTURE:
       case REF_ARRAY:
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
          result->status = R_ARRAYINDEX;
          break;
       case REF_FUNCTION:
@@ -1832,10 +1838,10 @@ void visit_var( struct codegen* codegen, struct result* result,
       result->structure = var->structure;
       result->dim = var->dim;
       result->diminfo_start = var->diminfo_start;
-      if ( var->hidden ) {
+      if ( var->in_shared_array ) {
          c_pcd( codegen, PCD_PUSHNUMBER, var->index );
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
          result->status = R_ARRAYINDEX;
       }
       else {
@@ -1847,7 +1853,7 @@ void visit_var( struct codegen* codegen, struct result* result,
    else if ( var->ref ) {
       result->ref = var->ref;
       result->structure = var->structure;
-      if ( var->hidden ) {
+      if ( var->in_shared_array ) {
          visit_private_ref_var( codegen, result, var );
       }
       else {
@@ -1857,10 +1863,10 @@ void visit_var( struct codegen* codegen, struct result* result,
    // Structure variable.
    else if ( var->structure ) {
       result->structure = var->structure;
-      if ( var->hidden ) {
+      if ( var->in_shared_array ) {
          c_pcd( codegen, PCD_PUSHNUMBER, var->index );
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
          result->status = R_ARRAYINDEX;
       }
       else {
@@ -1870,15 +1876,15 @@ void visit_var( struct codegen* codegen, struct result* result,
    }
    // Primitive variable.
    else {
-      if ( var->hidden ) {
+      if ( var->in_shared_array ) {
          c_pcd( codegen, PCD_PUSHNUMBER, var->index );
          if ( result->push ) {
-            push_element( codegen, STORAGE_MAP, codegen->shared_array_index );
+            push_element( codegen, STORAGE_MAP, codegen->shary.index );
             result->status = R_VALUE;
          }
          else {
             result->storage = STORAGE_MAP;
-            result->index = codegen->shared_array_index;
+            result->index = codegen->shary.index;
             result->status = R_ARRAYINDEX;
          }
       }
@@ -1905,15 +1911,15 @@ void visit_private_ref_var( struct codegen* codegen, struct result* result,
          c_pcd( codegen, PCD_PUSHNUMBER, 1 );
          c_pcd( codegen, PCD_ADD );
          push_element( codegen, STORAGE_MAP,
-            codegen->shared_array_index );
+            codegen->shary.index );
          c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
          c_pcd( codegen, PCD_SWAP );
-         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
       }
-      push_element( codegen, STORAGE_MAP, codegen->shared_array_index );
+      push_element( codegen, STORAGE_MAP, codegen->shary.index );
    }
    result->storage = STORAGE_MAP;
-   result->index = codegen->shared_array_index;
+   result->index = codegen->shary.index;
    result->status = R_ARRAYINDEX;
 }
 
@@ -1924,10 +1930,10 @@ void visit_public_ref_var( struct codegen* codegen, struct result* result,
       if ( var->ref->type == REF_ARRAY ) {
          c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
          push_indexed( codegen, var->storage, var->index + 1 );
-         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
       }
       result->storage = STORAGE_MAP;
-      result->index = codegen->shared_array_index;
+      result->index = codegen->shary.index;
       result->status = R_ARRAYINDEX;
    }
    else {
@@ -1948,10 +1954,10 @@ void visit_param( struct codegen* codegen, struct result* result,
          if ( param->ref->type == REF_ARRAY ) {
             c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
             push_indexed( codegen, STORAGE_LOCAL, param->index + 1 );
-            c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shared_array_index );
+            c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
          }
          result->storage = STORAGE_MAP;
-         result->index = codegen->shared_array_index;
+         result->index = codegen->shary.index;
          result->status = R_ARRAYINDEX;
       }
       else {
@@ -2228,33 +2234,33 @@ void push_ref_array_length( struct codegen* codegen, struct result* result,
    }
    if ( ! dim_info_pushed ) {
       c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
    }
    // Sub-array.
    if ( dim_count > 1 ) {
       c_pcd( codegen, PCD_DUP );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_SWAP );
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
       c_pcd( codegen, PCD_ADD );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_DIVIDE );
    }
    // Array reference element.
    else if ( result->ref->next && result->ref->next->type == REF_ARRAY ) {
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_PUSHNUMBER, ARRAYREF_SIZE );
       c_pcd( codegen, PCD_DIVIDE );
    }
    // Structure element, the structure size being greater than 1.
    else if ( result->structure && result->structure->size > 1 ) {
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
       c_pcd( codegen, PCD_DIVIDE );
    }
    // Any element of size 1.
    else {
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
    }
 }
 
@@ -2454,5 +2460,15 @@ void c_push_foreach_collection( struct codegen* codegen,
    }
    else {
       collection->element_size_one_primitive = true;
+   }
+}
+
+void c_push_dimtrack( struct codegen* codegen ) {
+   if ( codegen->shary.dim_counter_var ) {
+      push_indexed( codegen, STORAGE_MAP, codegen->shary.dim_counter );
+   }
+   else {
+      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
    }
 }

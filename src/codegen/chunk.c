@@ -18,10 +18,13 @@ static void do_mini( struct codegen* codegen );
 static bool mini_var( struct var* var );
 static void do_aray( struct codegen* codegen );
 static bool aray_var( struct var* var );
-static bool aray_hidden_var( struct var* var );
 static void do_aini( struct codegen* codegen );
-static void do_aini_single( struct codegen* codegen, struct var* var );
-static void do_aini_sharedarray( struct codegen* codegen );
+static bool aini_var( struct var* var );
+static void write_aini( struct codegen* codegen, struct var* var );
+static int count_nonzero_initz( struct var* var );
+static void write_aini_shary( struct codegen* codegen );
+static int count_shary_initz( struct codegen* codegen );
+static void write_diminfo( struct codegen* codegen );
 static void do_load( struct codegen* codegen );
 static void do_mimp( struct codegen* codegen );
 static bool mimp_var( struct var* var );
@@ -36,8 +39,8 @@ static bool mstr_var( struct var* var );
 static void do_astr( struct codegen* codegen );
 static bool astr_var( struct var* var );
 static void do_atag( struct codegen* codegen );
-static bool atag_var( struct var* var );
-static void write_atagchunk( struct codegen* codegen, struct var* var );
+static void write_atag_chunk( struct codegen* codegen, struct var* var );
+static void write_atag_shary( struct codegen* codegen );
 static void do_sary( struct codegen* codegen );
 static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
    int index, struct list* vars );
@@ -499,7 +502,7 @@ void do_mini( struct codegen* codegen ) {
    struct var* first_var = NULL;
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( mini_var( var ) ) {
@@ -514,9 +517,11 @@ void do_mini( struct codegen* codegen ) {
       return;
    }
    c_add_str( codegen, "MINI" );
-   c_add_int( codegen, sizeof( int ) * ( count + 1 ) );
+   c_add_int( codegen,
+      sizeof( int ) + // Index of first variable in the sequence.
+      sizeof( int ) * count ); // Initializers.
    c_add_int( codegen, first_var->index );
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( mini_var( var ) ) {
@@ -527,23 +532,25 @@ void do_mini( struct codegen* codegen ) {
 }
 
 inline bool mini_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ! var->dim &&
-      ! var->structure && var->value && var->value->expr->value );
+   bool ref_var = ( var->desc == DESC_REFVAR &&
+      ( var->ref->type == REF_STRUCTURE || var->ref->type == REF_FUNCTION ) );
+   return ( var->desc == DESC_PRIMITIVEVAR || ref_var ) && var->value &&
+      var->value->expr->value != 0;
 }
 
 void do_aray( struct codegen* codegen ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) && ! var->hidden ) {
+      if ( aray_var( list_data( &i ) ) ) {
          ++count;
       }
       list_next( &i );
    }
-   count += ( int ) codegen->shared_array_used;
+   if ( codegen->shary.used ) {
+      ++count;
+   }
    if ( ! count ) {
       return;
    }
@@ -553,88 +560,59 @@ void do_aray( struct codegen* codegen ) {
    } entry;
    c_add_str( codegen, "ARAY" );
    c_add_int( codegen, sizeof( entry ) * count );
-   // Arrays.
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( aray_var( var ) ) { 
+      if ( aray_var( var ) ) {
          entry.number = var->index;
          entry.size = var->size;
          c_add_sized( codegen, &entry, sizeof( entry ) );
       }
       list_next( &i );
    }
-   // Hidden arrays.
-   if ( codegen->shared_array_used ) {
-      entry.number = codegen->shared_array_index;
-      entry.size = codegen->shared_array_size;
+   if ( codegen->shary.used ) {
+      entry.number = codegen->shary.index;
+      entry.size = codegen->shary.size;
       c_add_sized( codegen, &entry, sizeof( entry ) );
    }
-/*
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( aray_hidden_var( var ) ) {
-         entry.number = var->index;
-         entry.size = var->size;
-         c_add_sized( codegen, &entry, sizeof( entry ) );
-      }
-      list_next( &i );
-   }
-*/
 }
 
 inline bool aray_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP &&
-      ( var->dim || var->structure ) && ! var->hidden );
-}
-
-inline bool aray_hidden_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP &&
-      ( var->dim || var->structure ) && var->hidden );
+   return ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ||
+      ( var->desc == DESC_REFVAR && var->ref->type == REF_ARRAY ) );
 }
 
 void do_aini( struct codegen* codegen ) {
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) && var->value && ! var->hidden ) {
-         do_aini_single( codegen, var );
+      if ( aini_var( var ) ) {
+         write_aini( codegen, var );
       }
       list_next( &i );
    }
-   // Shared array.
-   if ( codegen->shared_array_used ) {
-      do_aini_sharedarray( codegen );
+   if ( codegen->shary.used ) {
+      write_aini_shary( codegen );
    }
 }
 
-void do_aini_single( struct codegen* codegen, struct var* var ) {
-   int count = 0;
-   struct value* value = var->value;
-   while ( value ) {
-      if ( value->string_initz ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         count = value->index + usage->string->length;
-      }
-      else {
-         if ( value->expr->value ) {
-            count = value->index + 1;
-         }
-      }
-      value = value->next;
-   }
+inline bool aini_var( struct var* var ) {
+   return aray_var( var ) && var->value;
+}
+
+void write_aini( struct codegen* codegen, struct var* var ) {
+   int count = count_nonzero_initz( var );
    if ( ! count ) {
       return;
    }
    c_add_str( codegen, "AINI" );
-   c_add_int( codegen, sizeof( int ) + sizeof( int ) * count );
+   c_add_int( codegen,
+      sizeof( int ) + // Array index.
+      sizeof( int ) * count ); // Number of elements to initialize.
    c_add_int( codegen, var->index );
    count = 0;
-   value = var->value;
+   struct value* value = var->value;
    while ( value ) {
       // Nullify uninitialized space.
       if ( count < value->index && ( ( value->expr->value &&
@@ -650,14 +628,43 @@ void do_aini_single( struct codegen* codegen, struct var* var ) {
          }
          count += usage->string->length;
       }
+      else if ( value->var && value->var->desc == DESC_ARRAY ) {
+         c_add_int( codegen, value->var->index );
+         c_add_int( codegen, value->var->diminfo_start );
+         count += 2;
+      }
       else {
-         if ( value->expr->value ) {
+         if ( value->expr->value != 0 ) {
             c_add_int( codegen, value->expr->value );
             ++count;
          }
       }
       value = value->next;
    }
+}
+
+int count_nonzero_initz( struct var* var ) {
+   int count = 0;
+   struct value* value = var->value;
+   while ( value ) {
+      if ( value->string_initz ) {
+         struct indexed_string_usage* usage =
+            ( struct indexed_string_usage* ) value->expr->root;
+         count = value->index + usage->string->length;
+      }
+      else if ( value->var && value->var->desc == DESC_ARRAY ) {
+         // Offset of the array initializer and offset of the dimension
+         // information.
+         count = value->index + 2;
+      }
+      else {
+         if ( value->expr->value != 0 ) {
+            count = value->index + 1;
+         }
+      }
+      value = value->next;
+   }
+   return count;
 }
 
 struct initz_w {
@@ -683,6 +690,11 @@ void write_initz( struct codegen* codegen, struct initz_w* writing,
          }
          writing->done += usage->string->length;
       }
+      else if ( value->var && value->var->desc == DESC_ARRAY ) {
+         c_add_int( codegen, value->var->index );
+         c_add_int( codegen, value->var->diminfo_start );
+         writing->done += 2;
+      }
       else {
          if ( value->expr->value ) {
             c_add_int( codegen, value->expr->value );
@@ -693,87 +705,58 @@ void write_initz( struct codegen* codegen, struct initz_w* writing,
    }
 }
 
-static int count_shared_array_values( struct codegen* codegen );
-
-void do_aini_sharedarray( struct codegen* codegen ) {
+void write_aini_shary( struct codegen* codegen ) {
    c_add_str( codegen, "AINI" );
-   c_add_int( codegen, sizeof( int ) +
-      sizeof( int ) * count_shared_array_values( codegen ) );
-   c_add_int( codegen, codegen->shared_array_index );
+   c_add_int( codegen,
+      sizeof( int ) +
+      sizeof( int ) * count_shary_initz( codegen ) );
+   c_add_int( codegen, codegen->shary.index );
    // Insert null element.
    c_add_int( codegen, 0 );
    // Insert array dimension information.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->objects );
-   while ( ! list_end( &i ) ) {
-      struct object* object = list_data( &i );
-      if ( object->node.type == NODE_VAR ) {
-         struct var* var = ( struct var* ) object;
-         if ( var->dim ) {
-            struct dim* dim = var->dim;
-            while ( dim ) {
-               c_add_int( codegen, dim->length * dim->element_size );
-               dim = dim->next;
-            }
-         }
-      }
-      else if ( object->node.type == NODE_STRUCTURE ) {
-         struct structure* structure = ( struct structure* ) object;
-         struct structure_member* member = structure->member;
-         while ( member ) {
-            if ( member->dim ) {
-               struct dim* dim = member->dim;
-               while ( dim ) {
-                  c_add_int( codegen, dim->length * dim->element_size );
-                  dim = dim->next;
-               }
-            }
-            member = member->next;
-         }
-      }
-      list_next( &i );
-   }
+   write_diminfo( codegen );
    // Initialize variables.
-   list_iter_init( &i, &codegen->shared_array_vars );
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shary.vars );
    struct initz_w writing = { 0, 0 };
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      writing.base = var->index - codegen->shared_array_offsets.data;
+      writing.base = var->index - codegen->shary.data_offset;
       write_initz( codegen, &writing, var->value );
       list_next( &i );
    }
 }
 
-int count_shared_array_values( struct codegen* codegen ) {
+int count_shary_initz( struct codegen* codegen ) {
    int count = 0;
-   // Dimension counter.
+   // null-element/dimension-tracker.
    ++count;
-   // Dimension information.
-   count += codegen->shared_array_diminfo_size;
-   // Non-zero initializers.
+   // dimension-information.
+   count += codegen->shary.diminfo_size;
+   // data.
    int index = count;
    list_iter_t i;
-   list_iter_init( &i, &codegen->shared_array_vars );
+   list_iter_init( &i, &codegen->shary.vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      struct value* value = var->value;
-      while ( value ) {
-         if ( value->string_initz ) {
-            struct indexed_string_usage* usage =
-               ( struct indexed_string_usage* ) value->expr->root;
-            index = var->index + value->index + usage->string->length;
-         }
-         else {
-            if ( value->expr->value ) {
-               index = var->index + value->index + 1;
-            }
-         }
-         value = value->next;
+      int count = count_nonzero_initz( var );
+      if ( count != 0 ) {
+         index = var->index + count;
       }
       list_next( &i );
    }
    count += index - count;
    return count;
+}
+
+void write_diminfo( struct codegen* codegen ) {
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shary.dims );
+   while ( ! list_end( &i ) ) {
+      struct dim* dim = list_data( &i );
+      c_add_int( codegen, t_dim_size( dim ) );
+      list_next( &i );
+   }
 }
 
 void do_load( struct codegen* codegen ) {
@@ -920,10 +903,10 @@ void do_mexp( struct codegen* codegen ) {
    int count = 0;
    int size = 0;
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+      if ( ! var->hidden ) {
          size += t_full_name_length( var->name ) + 1;
          ++count;
       }
@@ -933,75 +916,29 @@ void do_mexp( struct codegen* codegen ) {
       return;
    }
    int offset =
-      // Number of variables. A zero is NOT padded on each side.
-      sizeof( int ) +
-      sizeof( int ) * count;
+      sizeof( int ) + // Number of variables.
+      sizeof( int ) * count; // Offsets.
    int padding = alignpad( offset + size, 4 );
    c_add_str( codegen, "MEXP" );
    c_add_int( codegen, offset + size + padding );
-   // Number of variables.
    c_add_int( codegen, count );
-   // Offsets
-   // -----------------------------------------------------------------------
-   // Arrays.
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   // Write offsets.
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( mexp_array( var ) ) {
+      if ( ! var->hidden ) {
          c_add_int( codegen, offset );
          offset += t_full_name_length( var->name ) + 1;
       }
       list_next( &i );
    }
-   // Scalars, with-no-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( mexp_zeroinit_scalar( var ) ) {
-         c_add_int( codegen, offset );
-         offset += t_full_name_length( var->name ) + 1;
-      }
-      list_next( &i );
-   }
-   // Scalars, with-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( mexp_nonzeroinit_scalar( var ) ) {
-         c_add_int( codegen, offset );
-         offset += t_full_name_length( var->name ) + 1;
-      }
-      list_next( &i );
-   }
-   // Name
-   // -----------------------------------------------------------------------
+   // Write names.
    struct str str;
    str_init( &str );
-   // Arrays.
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( mexp_array( var ) ) {
-         t_copy_name( var->name, true, &str );
-         c_add_sized( codegen, str.value, str.length + 1 );
-      }
-      list_next( &i );
-   }
-   // Scalars, with-no-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( mexp_zeroinit_scalar( var ) ) {
-         t_copy_name( var->name, true, &str );
-         c_add_sized( codegen, str.value, str.length + 1 );
-      }
-      list_next( &i );
-   }
-   // Scalars, with-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( mexp_nonzeroinit_scalar( var ) ) {
+      if ( ! var->hidden ) {
          t_copy_name( var->name, true, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }
@@ -1014,88 +951,12 @@ void do_mexp( struct codegen* codegen ) {
    }
 }
 
-inline bool mexp_array( struct var* var ) {
-   return ( var->storage == STORAGE_MAP &&
-      ( var->dim || var->structure ) && ! var->hidden );
-}
-
-inline bool mexp_zeroinit_scalar( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ! var->dim &&
-      ! var->structure && ! var->hidden &&
-      ( ! var->value || ! var->value->expr->value ) );
-}
-
-inline bool mexp_nonzeroinit_scalar( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ! var->dim &&
-      ! var->structure && ! var->hidden && var->value &&
-      var->value->expr->value );
-}
-
 void do_mstr( struct codegen* codegen ) {
    int count = 0;
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       if ( mstr_var( list_data( &i ) ) ) {
-         ++count;
-      }
-      list_next( &i );
-   }
-   if ( count ) {
-      c_add_str( codegen, "MSTR" );
-      c_add_int( codegen, sizeof( int ) * count );
-      list_iter_init( &i, &codegen->task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( mstr_var( var ) ) {
-            c_add_int( codegen, var->index );
-         }
-         list_next( &i );
-      }
-   }
-}
-
-inline bool mstr_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ! var->dim &&
-      ! var->structure && var->initial_has_str );
-} 
-
-void do_astr( struct codegen* codegen ) {
-   int count = 0;
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( astr_var( var ) ) {
-         ++count;
-      }
-      list_next( &i );
-   }
-   if ( count ) {
-      c_add_str( codegen, "ASTR" );
-      c_add_int( codegen, sizeof( int ) * count );
-      list_iter_init( &i, &codegen->task->library_main->vars );
-      while ( ! list_end( &i ) ) {
-         struct var* var = list_data( &i );
-         if ( astr_var( var ) ) {
-            c_add_int( codegen, var->index );
-         }
-         list_next( &i );
-      }
-   }
-}
-
-inline bool astr_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && var->dim &&
-      ! var->structure && var->initial_has_str );
-}
-
-void do_atag( struct codegen* codegen ) {
-   int count = 0;
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      if ( atag_var( list_data( &i ) ) ) {
          ++count;
       }
       list_next( &i );
@@ -1103,22 +964,70 @@ void do_atag( struct codegen* codegen ) {
    if ( ! count ) {
       return;
    }
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   c_add_str( codegen, "MSTR" );
+   c_add_int( codegen, sizeof( int ) * count );
+   list_iter_init( &i, &codegen->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( atag_var( var ) ) {
-         write_atagchunk( codegen, var );
+      if ( mstr_var( var ) ) {
+         c_add_int( codegen, var->index );
       }
       list_next( &i );
    }
 }
 
-bool atag_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && var->structure &&
-      var->initial_has_str );
+inline bool mstr_var( struct var* var ) {
+   return ( var->desc == DESC_PRIMITIVEVAR && var->initial_has_str ) ||
+      ( var->desc == DESC_REFVAR && var->ref->type == REF_FUNCTION );
 }
 
-void write_atagchunk( struct codegen* codegen, struct var* var ) {
+void do_astr( struct codegen* codegen ) {
+   int count = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( astr_var( var ) ) {
+         ++count;
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   c_add_str( codegen, "ASTR" );
+   c_add_int( codegen, sizeof( int ) * count );
+   list_iter_init( &i, &codegen->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( astr_var( var ) ) {
+         c_add_int( codegen, var->index );
+      }
+      list_next( &i );
+   }
+}
+
+inline bool astr_var( struct var* var ) {
+   return ( var->desc == DESC_ARRAY && ( var->initial_has_str ||
+      ( var->ref && var->ref->type == REF_FUNCTION ) ) );
+}
+
+void do_atag( struct codegen* codegen ) {
+   list_iter_t i;
+   list_iter_init( &i, &codegen->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->desc == DESC_STRUCTVAR ) {
+         write_atag_chunk( codegen, var );
+      }
+      list_next( &i );
+   }
+   if ( codegen->shary.used ) {
+      write_atag_shary( codegen );
+   }
+}
+
+void write_atag_chunk( struct codegen* codegen, struct var* var ) {
    enum { CHUNK_VERSION = 0 };
    enum {
       TAG_INTEGER,
@@ -1128,8 +1037,13 @@ void write_atagchunk( struct codegen* codegen, struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
-      if ( value->expr->has_str && ! value->string_initz ) {
+      switch ( value->type ) {
+      case VALUE_STRING:
+      case VALUE_FUNC:
          count = value->index + 1;
+         break;
+      default:
+         break;
       }
       value = value->next;
    }
@@ -1149,15 +1063,93 @@ void write_atagchunk( struct codegen* codegen, struct var* var ) {
    value = var->value;
    int written = 0;
    while ( written < count ) {
-      if ( value->expr->has_str && ! value->string_initz ) {
+      // Implicit values.
+      if (
+         value->type == VALUE_STRING ||
+         value->type == VALUE_FUNC ) {
          while ( written < value->index ) {
             c_add_byte( codegen, TAG_INTEGER );
             ++written;
          }
+      }
+      if ( value->type == VALUE_STRING ) {
          c_add_byte( codegen, TAG_STRING );
          ++written;
       }
+      else if ( value->type == VALUE_FUNC ) {
+         c_add_byte( codegen, TAG_FUNCTION );
+         ++written;
+      }
       value = value->next;
+   }
+}
+
+// TODO: Refactor.
+void write_atag_shary( struct codegen* codegen ) {
+   enum { CHUNK_VERSION = 0 };
+   enum {
+      TAG_INTEGER,
+      TAG_STRING,
+      TAG_FUNCTION
+   };
+   int count = 0;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shary.vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      struct value* value = var->value;
+      while ( value ) {
+         switch ( value->type ) {
+         case VALUE_STRING:
+         case VALUE_FUNC:
+            count = var->index + value->index + 1;
+            break;
+         default:
+            break;
+         }
+         value = value->next;
+      }
+      list_next( &i );
+   }
+   if ( ! count ) {
+      return;
+   }
+   c_add_str( codegen, "ATAG" );
+   c_add_int( codegen,
+      // Version.
+      sizeof( char ) +
+      // Array number.
+      sizeof( int ) +
+      // Number of elements to tag.
+      sizeof( char ) * count );
+   c_add_byte( codegen, CHUNK_VERSION );
+   c_add_int( codegen, codegen->shary.index );
+   int written = 0;
+   list_iter_init( &i, &codegen->shary.vars );
+   while ( written < count ) {
+      struct var* var = list_data( &i );
+      struct value* value = var->value;
+      while ( value ) {
+         // Implicit values.
+         if (
+            value->type == VALUE_STRING ||
+            value->type == VALUE_FUNC ) {
+            while ( written < var->index + value->index ) {
+               c_add_byte( codegen, TAG_INTEGER );
+               ++written;
+            }
+         }
+         if ( value->type == VALUE_STRING ) {
+            c_add_byte( codegen, TAG_STRING );
+            ++written;
+         }
+         else if ( value->type == VALUE_FUNC ) {
+            c_add_byte( codegen, TAG_FUNCTION );
+            ++written;
+         }
+         value = value->next;
+      }
+      list_next( &i );
    }
 }
 

@@ -541,7 +541,14 @@ struct value {
    struct initial initial;
    struct expr* expr;
    struct var* var;
+   struct func* func;
    struct value* next;
+   enum {
+      VALUE_OTHER,
+      VALUE_STRING,
+      VALUE_STRINGINITZ,
+      VALUE_FUNC
+   } type;
    int index;
    bool string_initz;
 };
@@ -559,7 +566,7 @@ enum {
    STORAGE_WORLD,
    STORAGE_GLOBAL
 };
-
+ 
 struct var {
    struct object object;
    struct name* name;
@@ -576,6 +583,13 @@ struct var {
    int index;
    int size;
    int diminfo_start;
+   enum {
+      DESC_NONE,
+      DESC_ARRAY,
+      DESC_STRUCTVAR,
+      DESC_REFVAR,
+      DESC_PRIMITIVEVAR,
+   } desc;
    bool initz_zero;
    bool hidden;
    bool used;
@@ -583,6 +597,7 @@ struct var {
    bool imported;
    bool is_constant_init;
    bool addr_taken;
+   bool in_shared_array;
 };
 
 struct param {
@@ -1030,5 +1045,6 @@ struct func_user* t_alloc_func_user( void );
 struct param* t_alloc_param( void );
 struct format_item* t_alloc_format_item( void );
 struct call* t_alloc_call( void );
+int t_dim_size( struct dim* dim );
 
 #endif

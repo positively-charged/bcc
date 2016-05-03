@@ -4,9 +4,22 @@
 #include "phase.h"
 
 #define MAX_MAP_LOCATIONS 128
+#define MAX_LIB_FUNCS 256
 
-static void setup_shared_array( struct codegen* codegen );
-static void alloc_mapvars_index( struct codegen* codegen );
+static void clarify_vars( struct codegen* codegen );
+static void alloc_dim_counter_var( struct codegen* codegen );
+static void alloc_funcs( struct codegen* codegen );
+static void setup_shary( struct codegen* codegen );
+static void setup_diminfo( struct codegen* codegen );
+static int append_dim( struct codegen* codegen, struct dim* dim );
+static bool same_dim( struct dim* dim, list_iter_t i );
+static void setup_data( struct codegen* codegen );
+static void patch_initz( struct codegen* codegen );
+static void patch_initz_list( struct codegen* codegen, struct list* vars );
+static void sort_vars( struct codegen* codegen );
+static bool array_var( struct var* var );
+static bool scalar_var( struct var* var );
+static void assign_indexes( struct codegen* codegen );
 static void create_assert_strings( struct codegen* codegen );
 
 void c_init( struct codegen* codegen, struct task* task ) {
@@ -31,16 +44,27 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->assert_prefix = NULL;
    codegen->runtime_index = 0;
    list_init( &codegen->used_strings );
-   codegen->shared_array_index = 0;
-   codegen->shared_array_size = 0;
-   codegen->shared_array_diminfo_size = 0;
-   codegen->shared_array_used = false;
-   list_init( &codegen->shared_array_vars );
+   list_init( &codegen->vars );
+   list_init( &codegen->imported_vars );
+   list_init( &codegen->shary.vars );
+   list_init( &codegen->shary.dims );
+   codegen->shary.index = 0;
+   codegen->shary.dim_counter = 0;
+   codegen->shary.size = 0;
+   codegen->shary.diminfo_size = 0;
+   codegen->shary.diminfo_offset = 0;
+   codegen->shary.data_offset = 0;
+   codegen->shary.dim_counter_var = false;
+   codegen->shary.used = false;
 }
 
 void c_publish( struct codegen* codegen ) {
-   setup_shared_array( codegen );
-   alloc_mapvars_index( codegen );
+   clarify_vars( codegen );
+   alloc_funcs( codegen );
+   setup_shary( codegen );
+   patch_initz( codegen );
+   sort_vars( codegen );
+   assign_indexes( codegen );
    if ( codegen->task->options->write_asserts &&
       list_size( &codegen->task->runtime_asserts ) > 0 ) {
       create_assert_strings( codegen );
@@ -49,183 +73,20 @@ void c_publish( struct codegen* codegen ) {
    c_flush( codegen );
 }
 
-void setup_shared_array( struct codegen* codegen ) {
-   struct list vars;
-   list_init( &vars );
-   // Determine which variables will go into the shared array.
+void clarify_vars( struct codegen* codegen ) {
+   int count = 0;
+   // Variables.
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && var->hidden ) {
-         list_append( &vars, var );
+      if ( var->storage == STORAGE_MAP && ! var->hidden ) {
+         list_append( &codegen->vars, var );
+         ++count;
       }
       list_next( &i );
    }
-   // Don't use a shared array.
-   if ( list_size( &vars ) == 0 ) {
-      return;
-   }
-   // Array layout:
-   // <null-element>
-   // <array-dimension-information>
-   // <arrays>
-   int size = 0;
-   // Reserve space for the null element.
-   ++size;
-   // Reserve space for dimension information.
-   codegen->shared_array_offsets.dim_info = size;
-   int diminfo_size = 0;
-   list_iter_init( &i, &codegen->task->library_main->objects );
-   while ( ! list_end( &i ) ) {
-      struct object* object = list_data( &i );
-      if ( object->node.type == NODE_VAR ) {
-         struct var* var = ( struct var* ) object;
-         if ( var->dim ) {
-            var->diminfo_start = size;
-            struct dim* dim = var->dim;
-            while ( dim ) {
-               ++diminfo_size;
-               ++size;
-               dim = dim->next;
-            }
-         }
-      }
-      else if ( object->node.type == NODE_STRUCTURE ) {
-         struct structure* structure = ( struct structure* ) object;
-         struct structure_member* member = structure->member;
-         while ( member ) {
-            if ( member->dim ) {
-               member->diminfo_start = size;
-               struct dim* dim = member->dim;
-               while ( dim ) {
-                  ++diminfo_size;
-                  ++size;
-                  dim = dim->next;
-               }
-            }
-            member = member->next;
-         }
-      }
-      list_next( &i );
-   }
-   // Reserve space for arrays.
-   codegen->shared_array_offsets.data = size;
-   list_iter_init( &i, &vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      var->index = size;
-      size += var->size;
-      list_next( &i );
-   }
-   // Patch initializers.
-   list_iter_init( &i, &vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      struct value* value = var->value;
-      while ( value ) {
-         if ( value->var ) {
-            value->expr->value += value->var->index;
-         }
-         if ( value->expr->spec == SPEC_STR ) {
-            struct indexed_string* string = t_lookup_string( codegen->task,
-               value->expr->value );
-            if ( string ) {
-               c_append_string( codegen, string );
-            }
-         }
-         value = value->next;
-      }
-      list_next( &i );
-   }
-   // Done.
-   codegen->shared_array_vars = vars;
-   codegen->shared_array_size = size;
-   codegen->shared_array_diminfo_size = diminfo_size;
-   codegen->shared_array_used = true;
-}
-
-void alloc_mapvars_index( struct codegen* codegen ) {
-   // Variables:
-   // 
-   // Order of allocation:
-   // - arrays
-   // - scalars, with-no-value
-   // - scalars, with-value
-   // - scalars, with-value, hidden
-   // - scalars, with-no-value, hidden
-   // - arrays, hidden
-   // - imported
-   //
-   // -----------------------------------------------------------------------
-   // Arrays.
-   int index = 0;
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP &&
-         ( var->dim || var->structure ) && ! var->hidden ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Scalars, with-no-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         ! var->structure && ! var->hidden &&
-         ( ! var->value || ! var->value->expr->value ) ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Scalars, with-value.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         ! var->structure && ! var->hidden && var->value &&
-         var->value->expr->value ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Scalars, with-value, hidden.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         ! var->structure && var->hidden && var->value &&
-         var->value->expr->value ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Scalars, with-no-value, hidden.
-   list_iter_init( &i, &codegen->task->library_main->vars );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->storage == STORAGE_MAP && ! var->dim &&
-         ! var->structure && var->hidden &&
-         ( ! var->value || ! var->value->expr->value ) ) {
-         var->index = index;
-         ++index;
-      }
-      list_next( &i );
-   }
-   // Arrays, hidden.
-   // Combine all variables used by references into a single array.
-   if ( codegen->shared_array_used ) {
-      codegen->shared_array_index = index;
-      ++index;
-   }
-   // Imported.
+   // Imported variables.
    list_iter_init( &i, &codegen->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -234,24 +95,91 @@ void alloc_mapvars_index( struct codegen* codegen ) {
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->used ) {
-            var->index = index;
-            ++index;
+            list_append( &codegen->imported_vars, var );
+            ++count;
          }
          list_next( &k );
       }
       list_next( &i );
    }
+   // Take shared array into account.
+   ++count;
+   // Store in the shared array those private arrays and private
+   // structure-variables whose address is taken.
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && ( var->desc == DESC_ARRAY ||
+         var->desc == DESC_STRUCTVAR ) && var->hidden && var->addr_taken ) {
+         list_append( &codegen->shary.vars, var );
+      }
+      list_next( &i );
+   }
+   // Allocate dimension counter. It is better to use a variable than it is
+   // to use an element of the shared array because it reduces the number of
+   // instructions we need to use when dealing with array references.
+   if ( list_size( &codegen->shary.vars ) > 0 && count < MAX_MAP_LOCATIONS ) {
+      alloc_dim_counter_var( codegen );
+      ++count;
+   }
+   // Hidden variables.
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->storage == STORAGE_MAP && var->hidden && ! var->addr_taken ) {
+         if ( count < MAX_MAP_LOCATIONS ) {
+            list_append( &codegen->vars, var );
+            ++count;
+         }
+         // When an index is no longer available, store the hidden variable
+         // in the shared array.
+         else {
+            list_append( &codegen->shary.vars, var );
+         }
+      }
+      list_next( &i );
+   }
+   // Shared array is used and needs to be reserved.
+   if ( list_size( &codegen->shary.vars ) > 1 ) {
+      codegen->shary.used = true;
+   }
+   // When the shared array contains a single variable and the variable is not
+   // used by a reference, give the index of the shared array to the variable.
+   else if ( list_size( &codegen->shary.vars ) == 1 ) {
+      struct var* var = list_head( &codegen->shary.vars );
+      if ( var->addr_taken ) {
+         codegen->shary.used = true;
+      }
+      else {
+         list_append( &codegen->vars, var );
+      }
+   }
+   // Shared array not needed.
+   else {
+      --count;
+   }
    // Don't go over the variable limit.
-   if ( index > MAX_MAP_LOCATIONS ) {
+   if ( count > MAX_MAP_LOCATIONS ) {
       t_diag( codegen->task, DIAG_ERR | DIAG_FILE,
          &codegen->task->library_main->file_pos,
          "library uses over maximum %d variables", MAX_MAP_LOCATIONS );
       t_bail( codegen->task );
    }
-   // Functions:
-   // -----------------------------------------------------------------------
-   index = 0;
-   // Imported functions:
+}
+
+void alloc_dim_counter_var( struct codegen* codegen ) {
+   // TODO: Determine if we need the dimension counter.
+   codegen->shary.dim_counter_var = true;
+}
+
+void alloc_funcs( struct codegen* codegen ) {
+   // Order of allocation:
+   // - imported functions
+   // - functions
+   // - hidden functions
+   int index = 0;
+   // Imported functions.
+   list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
@@ -268,7 +196,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   // Functions:
+   // Functions.
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
@@ -279,7 +207,7 @@ void alloc_mapvars_index( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   // Hidden functions:
+   // Hidden functions.
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
@@ -294,13 +222,248 @@ void alloc_mapvars_index( struct codegen* codegen ) {
    // index of the function is a byte in size, allowing up to 256 different
    // functions to be called.
    // NOTE: Maybe automatically switch to the Big-E format? 
-   if ( codegen->task->library_main->format == FORMAT_LITTLE_E && index > 256 ) {
+   if ( codegen->task->library_main->format == FORMAT_LITTLE_E &&
+      index > MAX_LIB_FUNCS ) {
       t_diag( codegen->task, DIAG_ERR | DIAG_FILE,
          &codegen->task->library_main->file_pos,
-         "library uses over maximum 256 functions" );
+         "library uses over maximum %d functions", MAX_LIB_FUNCS );
       t_diag( codegen->task, DIAG_FILE, &codegen->task->library_main->file_pos,
          "to use more functions, try using the #nocompact directive" );
       t_bail( codegen->task );
+   }
+}
+
+// Shared-array layout:
+// - null-element/dimension-counter
+// - dimension-information
+// - data
+void setup_shary( struct codegen* codegen ) {
+   if ( codegen->shary.used ) {
+      // null-element/dimension-counter
+      ++codegen->shary.size;
+      setup_diminfo( codegen );
+      setup_data( codegen );
+   }
+}
+
+// TODO (Optimization): Objects with the greater number of dimensions need to
+// be output first. This way, objects with smaller number of dimensions can
+// reuse the dimension-size values of the objects with the greater number of
+// dimensions, since they might form a substring of the values. This eliminates
+// duplicates.
+void setup_diminfo( struct codegen* codegen ) {
+   codegen->shary.diminfo_offset = codegen->shary.size;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      if ( object->node.type == NODE_VAR ) {
+         struct var* var = ( struct var* ) object;
+         if ( var->dim && var->addr_taken ) {
+            var->diminfo_start = append_dim( codegen, var->dim );
+         }
+      }
+      else if ( object->node.type == NODE_STRUCTURE ) {
+         struct structure* structure = ( struct structure* ) object;
+         struct structure_member* member = structure->member;
+         while ( member ) {
+            if ( member->dim ) {
+               member->diminfo_start = append_dim( codegen, member->dim );
+            }
+            member = member->next;
+         }
+      }
+      list_next( &i );
+   }
+   codegen->shary.size += codegen->shary.diminfo_size;
+}
+
+int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
+   int offset = codegen->shary.diminfo_offset;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shary.dims );
+   while ( ! list_end( &i ) ) {
+      if ( same_dim( candidate_dim, i ) ) {
+         return offset;
+      }
+      ++offset;
+      list_next( &i );
+   }
+   struct dim* dim = candidate_dim;
+   while ( dim ) {
+      list_append( &codegen->shary.dims, dim );
+      ++codegen->shary.diminfo_size;
+      dim = dim->next;
+   }
+   return offset;
+}
+
+bool same_dim( struct dim* dim, list_iter_t i ) {
+   while ( dim != NULL && ! list_end( &i ) &&
+      t_dim_size( dim ) == t_dim_size( list_data( &i ) ) ) {
+      list_next( &i );
+      dim = dim->next;
+   }
+   return ( dim == NULL && list_end( &i ) );
+}
+
+void setup_data( struct codegen* codegen ) {
+   codegen->shary.data_offset = codegen->shary.size;
+   list_iter_t i;
+   list_iter_init( &i, &codegen->shary.vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      var->index = codegen->shary.size;
+      var->in_shared_array = true;
+      codegen->shary.size += var->size;
+      list_next( &i );
+   }
+}
+
+void patch_initz( struct codegen* codegen ) {
+   patch_initz_list( codegen, &codegen->vars );
+   patch_initz_list( codegen, &codegen->shary.vars );
+}
+
+void patch_initz_list( struct codegen* codegen, struct list* vars ) {
+   list_iter_t i;
+   list_iter_init( &i, vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      struct value* value = var->value;
+      while ( value ) {
+         if ( value->var ) {
+            value->expr->value += value->var->index;
+         }
+         else if ( value->func ) {
+            struct func_user* impl = value->func->impl; 
+            value->expr->value = impl->index;
+         }
+         else if ( value->type == VALUE_STRING ) {
+            struct indexed_string* string = t_lookup_string( codegen->task,
+               value->expr->value );
+            c_append_string( codegen, string );
+         }
+         value = value->next;
+      }
+      list_next( &i );
+   }
+}
+
+// The reason for sorting the variables is to reduce the size of the chunks.
+// A chunk might need some of the variables but not all, so the variables are
+// ordered in such a way that only those that are needed appear first. Now take
+// all of the chunks into account and try to find the order that best reduces
+// the size of as many chunks as possible. (It is extra work and added
+// complexity for a small gain, but going the distance is what separates a
+// professional grade product from a toy.)
+//
+// Sorting order:
+// - arrays
+// - scalars, with-no-value
+// - scalars, with-value
+// - scalars, with-value, hidden
+// - scalars, with-no-value, hidden
+// - arrays, hidden
+void sort_vars( struct codegen* codegen ) {
+   struct list arrays;
+   struct list zero_scalars;
+   struct list nonzero_scalars;
+   struct list zerohidden_scalars;
+   struct list nonzerohidden_scalars;
+   struct list hidden_arrays;
+   list_init( &arrays );
+   list_init( &zero_scalars );
+   list_init( &nonzero_scalars );
+   list_init( &zerohidden_scalars );
+   list_init( &nonzerohidden_scalars );
+   list_init( &hidden_arrays );
+   while ( list_size( &codegen->vars ) > 0 ) {
+      struct var* var = list_shift( &codegen->vars );
+      // Arrays.
+      if ( array_var( var ) && ! var->hidden ) {
+         list_append( &arrays, var );
+      }
+      // Scalars, with-no-value.
+      else if ( scalar_var( var ) && ( ! var->value ||
+         var->value->expr->value == 0 ) && ! var->hidden ) {
+         list_append( &zero_scalars, var );
+      }
+      // Scalars, with-value.
+      else if ( scalar_var( var ) && var->value &&
+         var->value->expr->value != 0 && ! var->hidden ) {
+         list_append( &nonzero_scalars, var );
+      }
+      // Scalars, with-value, hidden.
+      else if ( scalar_var( var ) && var->value &&
+         var->value->expr->value != 0 && var->hidden ) {
+         list_append( &zerohidden_scalars, var );
+      }
+      // Scalars, with-no-value, hidden.
+      else if ( scalar_var( var ) && ( ! var->value ||
+         var->value->expr->value == 0 ) && var->hidden ) {
+         list_append( &nonzerohidden_scalars, var );
+      }
+      // Arrays, hidden, no-address-taken.
+      else if ( array_var( var ) && var->hidden ) {
+         list_append( &hidden_arrays, var );
+      }
+      else {
+         UNREACHABLE();
+      }
+   }
+   list_merge( &codegen->vars, &arrays );
+   list_merge( &codegen->vars, &zero_scalars );
+   list_merge( &codegen->vars, &nonzero_scalars );
+   list_merge( &codegen->vars, &zerohidden_scalars );
+   list_merge( &codegen->vars, &nonzerohidden_scalars );
+   list_merge( &codegen->vars, &hidden_arrays );
+}
+
+inline bool array_var( struct var* var ) {
+   return ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ||
+      // An array reference consists of the offset to the first element of the
+      // array and the offset to the dimension information, so we need two
+      // scalar variables to store the information. However, it's not desirable
+      // to waste two indexes, so use an array instead.
+      ( var->desc == DESC_REFVAR && var->ref->type == REF_ARRAY ) );
+}
+
+inline bool scalar_var( struct var* var ) {
+   return ( var->desc == DESC_PRIMITIVEVAR || ( var->desc == DESC_REFVAR &&
+      ( var->ref->type == REF_STRUCTURE || var->ref->type == REF_FUNCTION ) )
+   );
+}
+
+void assign_indexes( struct codegen* codegen ) {
+   // NOTE: The indexes need to be assigned in the same order as the variables
+   // are allocated.
+   int index = 0;
+   // Variables.
+   list_iter_t i;
+   list_iter_init( &i, &codegen->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      var->index = index;
+      ++index;
+      list_next( &i );
+   }
+   // Imported variables.
+   list_iter_init( &i, &codegen->imported_vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      var->index = index;
+      ++index;
+      list_next( &i );
+   }
+   // Shared array.
+   if ( codegen->shary.used ) {
+      codegen->shary.index = index;
+      ++index;
+      if ( codegen->shary.dim_counter_var ) {
+         codegen->shary.dim_counter = index;
+         ++index;
+      }
    }
 }
 

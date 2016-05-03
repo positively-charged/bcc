@@ -25,6 +25,7 @@ struct expr_test {
    struct name* name_offset;
    struct func* msgbuild_func;
    struct var* var;
+   struct func* func;
    bool result_required;
    bool has_string;
    bool undef_erred;

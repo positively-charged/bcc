@@ -536,6 +536,7 @@ void test_objects_bodies( struct semantic* semantic ) {
    list_iter_init( &i, &semantic->task->library_main->namespaces );
    while ( ! list_end( &i ) ) {
       semantic->ns = list_data( &i );
+      show_private_objects( semantic );
       list_iter_t k;
       list_iter_init( &k, &semantic->ns->scripts );
       while ( ! list_end( &k ) ) {
@@ -550,6 +551,7 @@ void test_objects_bodies( struct semantic* semantic ) {
          }
          list_next( &k );
       }
+      hide_private_objects( semantic );
       list_next( &i );
    }
 }

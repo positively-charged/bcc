@@ -807,3 +807,7 @@ struct call* t_alloc_call( void ) {
    list_init( &call->args );
    return call;
 }
+
+int t_dim_size( struct dim* dim ) {
+   return dim->length * dim->element_size;
+}

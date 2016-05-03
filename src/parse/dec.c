@@ -123,6 +123,7 @@ static void read_multi_init( struct parse* parse, struct dec*,
 static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void add_var( struct parse* parse, struct dec* );
 static struct var* alloc_var( struct dec* dec );
+static void describe_var( struct var* var );
 static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static const char* get_storage_name( int type );
@@ -1012,7 +1013,9 @@ struct value* alloc_value( void ) {
    init_initial( &value->initial, false );
    value->expr = NULL;
    value->var = NULL;
+   value->func = NULL;
    value->next = NULL;
+   value->type = VALUE_OTHER;
    value->index = 0;
    value->string_initz = false;
    return value;
@@ -1079,6 +1082,7 @@ void test_var( struct parse* parse, struct dec* dec ) {
 void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = alloc_var( dec );
    var->imported = parse->lib->imported;
+   describe_var( var );
    if ( dec->area == DEC_TOP ) {
       var->hidden = dec->private_visibility;
       p_add_unresolved( parse, &var->object );
@@ -1119,6 +1123,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->index = dec->storage_index.value;
    var->size = 0;
    var->diminfo_start = 0;
+   var->desc = DESC_NONE;
    var->initz_zero = false;
    var->hidden = false;
    var->used = false;
@@ -1127,7 +1132,27 @@ struct var* alloc_var( struct dec* dec ) {
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    var->addr_taken = false;
+   var->in_shared_array = false;
    return var;
+}
+
+void describe_var( struct var* var ) {
+   // Array.
+   if ( var->dim ) {
+      var->desc = DESC_ARRAY;
+   }
+   // Reference/reference-element. 
+   else if ( var->ref ) {
+      var->desc = DESC_REFVAR;
+   }
+   // Structure/structure-element.
+   else if ( var->structure ) {
+      var->desc = DESC_STRUCTVAR;
+   }
+   // Initializer.
+   else {
+      var->desc = DESC_PRIMITIVEVAR;
+   }
 }
 
 void test_storage( struct parse* parse, struct dec* dec ) {

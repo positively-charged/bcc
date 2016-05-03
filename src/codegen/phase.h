@@ -76,17 +76,20 @@ struct codegen {
    struct indexed_string* assert_prefix;
    int runtime_index;
    struct list used_strings;
-   int shared_array_index;
-   int shared_array_size;
-   int shared_array_diminfo_size;
-   bool shared_array_used;
+   struct list vars;
+   struct list imported_vars;
    struct {
-      int null;
+      struct list vars;
+      struct list dims;
+      int index;
       int dim_counter;
-      int dim_info;
-      int data;
-   } shared_array_offsets;
-   struct list shared_array_vars;
+      int size;
+      int diminfo_size;
+      int diminfo_offset;
+      int data_offset;
+      bool dim_counter_var;
+      bool used;
+   } shary;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -146,5 +149,6 @@ void c_push_foreach_collection( struct codegen* codegen,
 void c_push_element( struct codegen* codegen, int storage, int index );
 void c_append_string( struct codegen* codegen,
    struct indexed_string* string );
+void c_push_dimtrack( struct codegen* codegen );
 
 #endif

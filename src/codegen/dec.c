@@ -197,8 +197,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
          c_push_expr( codegen, var->value->expr );
          c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
          if ( var->ref && var->ref->type == REF_ARRAY ) {
-            c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-            c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shared_array_index );
+            c_push_dimtrack( codegen );
             c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
          }
       }

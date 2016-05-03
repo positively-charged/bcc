@@ -168,6 +168,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    test->name_offset = NULL;
    test->msgbuild_func = NULL;
    test->var = NULL;
+   test->func = NULL;
    test->result_required = result_required;
    test->has_string = false;
    test->undef_erred = false;
@@ -241,6 +242,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    test->var = result->data_origin;
+   test->func = result->func;
    expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;
@@ -1151,6 +1153,10 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       else {
          result->ref_dim = lside->ref_dim - 1;
       }
+      if ( index.folded ) {
+         result->value = lside->value + lside->dim->element_size * index.value;
+         result->folded = true;
+      }
    }
    // Reference element.
    else if ( ( lside->dim && lside->ref ) ||
@@ -1180,10 +1186,6 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    }
    result->usable = true;
    result->complete = true;
-   if ( lside->folded && index.folded ) {
-      result->value = lside->value + lside->dim->element_size * index.value;
-      result->folded = true;
-   }
 }
 
 void warn_bounds_violation( struct semantic* semantic,
@@ -1996,6 +1998,7 @@ void select_member( struct result* result, struct structure_member* member ) {
 void select_func( struct result* result, struct func* func ) {
    if ( func->type == FUNC_USER ) {
       result->usable = true;
+      result->folded = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
    }
