@@ -962,10 +962,11 @@ char read_ch( struct parse* parse ) {
    if ( source->buffer_pos >= SAFE_AMOUNT ) {
       int unread = SOURCE_BUFFER_SIZE - source->buffer_pos;
       memcpy( source->buffer, source->buffer + source->buffer_pos, unread );
-      size_t count = fread(
-         source->buffer + unread, sizeof( source->buffer[ 0 ] ),
-         SOURCE_BUFFER_SIZE - unread, source->fh );
-      source->buffer[ unread + count ] = '\0';
+      size_t count = fread( source->buffer + unread,
+         sizeof( source->buffer[ 0 ] ), SOURCE_BUFFER_SIZE - unread,
+         source->fh );
+      source->buffer[ unread + count ] = '\n';
+      source->buffer[ unread + count + 1 ] = '\0';
       source->buffer_pos = 0;
    }
    // Line concatenation.

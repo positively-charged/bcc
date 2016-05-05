@@ -245,7 +245,7 @@ struct source {
    bool imported;
    char ch;
    // Plus one for the null character.
-   char buffer[ SOURCE_BUFFER_SIZE + 1 ];
+   char buffer[ SOURCE_BUFFER_SIZE + 2 ];
    int buffer_pos;
 };
 
