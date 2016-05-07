@@ -305,12 +305,6 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
          parse->tk_text );
       p_bail( parse );
    }
-   // These are ignored.
-   else if (
-      strcmp( parse->tk_text, "region" ) == 0 ||
-      strcmp( parse->tk_text, "endregion" ) == 0 ) {
-      p_read_tk( parse );
-   }
    else {
       p_diag( parse, DIAG_POS_ERR, pos,
          "unknown directive '%s'", parse->tk_text );

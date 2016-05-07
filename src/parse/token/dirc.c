@@ -15,6 +15,8 @@ enum dirc {
    DIRC_UNDEF,
    DIRC_ERROR,
    DIRC_LINE,
+   DIRC_REGION,
+   DIRC_ENDREGION,
    DIRC_NULL
 };
 
@@ -84,6 +86,7 @@ static void read_endif( struct parse* parse, struct endif_search* search,
    struct pos* pos );
 static bool pop_ifdirc( struct parse* parse );
 static void skip_section( struct parse* parse, struct pos* pos );
+static void read_region( struct parse* parse );
 
 bool p_read_dirc( struct parse* parse ) {
    enum dirc dirc = identify_dirc( parse );
@@ -130,6 +133,8 @@ enum dirc identify_named_dirc( const char* name ) {
       { "undef", DIRC_UNDEF },
       { "error", DIRC_ERROR },
       { "line", DIRC_LINE },
+      { "region", DIRC_REGION },
+      { "endregion", DIRC_ENDREGION },
       { NULL, DIRC_NONE }
    };
    int i = 0;
@@ -169,6 +174,10 @@ void read_identified_dirc( struct parse* parse,
       break;
    case DIRC_LINE:
       read_line( parse );
+      break;
+   case DIRC_REGION:
+   case DIRC_ENDREGION:
+      read_region( parse );
       break;
    case DIRC_NULL:
       break;
@@ -843,4 +852,11 @@ void p_define_imported_macro( struct parse* parse ) {
    struct macro* macro = alloc_macro( parse );
    macro->name = "__imported__";
    add_macro( parse, macro );
+}
+
+// Reads #region/#endregion. These directives have no effect.
+void read_region( struct parse* parse ) {
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
+   p_test_preptk( parse, TK_NL );
 }
