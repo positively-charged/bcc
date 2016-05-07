@@ -17,6 +17,8 @@ static void write_userfunc( struct codegen* codegen, struct func* func );
 static void init_func_record( struct func_record* record );
 static void alloc_param_indexes( struct func_record* func,
    struct param* param );
+static void alloc_funcscopevars_indexes( struct func_record* func,
+   struct list* vars );
 static void visit_local_var( struct codegen* codegen, struct var* var );
 static void visit_world_var( struct codegen* codegen, struct var* var );
 static void write_world_initz( struct codegen* codegen, struct var* var );
@@ -79,6 +81,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
       assign_nested_call_ids( codegen, script->nested_funcs );
    }
    alloc_param_indexes( &record, script->params );
+   alloc_funcscopevars_indexes( &record, &script->funcscope_vars );
    c_write_stmt( codegen, script->body );
    c_pcd( codegen, PCD_TERMINATE );
    script->size = record.size;
@@ -103,6 +106,7 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
       assign_nested_call_ids( codegen, impl->nested_funcs );
    }
    alloc_param_indexes( &record, func->params );
+   alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
    add_default_params( codegen, func, record.count_param, true );
    c_write_block( codegen, impl->body );
    c_pcd( codegen, PCD_RETURNVOID );
@@ -141,6 +145,19 @@ void alloc_param_indexes( struct func_record* func, struct param* param ) {
       func->count_param = func->start_index;
       ++func->start_index;
       ++func->size;
+   }
+}
+
+void alloc_funcscopevars_indexes( struct func_record* func,
+   struct list* vars ) {
+   list_iter_t i;
+   list_iter_init( &i, vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      var->index = func->start_index;
+      func->start_index += var->size;
+      func->size += var->size;
+      list_next( &i );
    }
 }
 
@@ -189,9 +206,11 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
       }
    }
    else {
-      var->index = c_alloc_script_var( codegen );
-      if ( var->ref && var->ref->type == REF_ARRAY ) {
-         c_alloc_script_var( codegen );
+      if ( ! var->func_scope ) {
+         var->index = c_alloc_script_var( codegen );
+         if ( var->ref && var->ref->type == REF_ARRAY ) {
+            c_alloc_script_var( codegen );
+         }
       }
       if ( var->value ) {
          c_push_expr( codegen, var->value->expr );

@@ -181,7 +181,7 @@ static void bind_builtin_aliases( struct semantic* semantic,
 static void deinit_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases );
 static void init_func_test( struct func_test* test, struct func* func,
-   struct list* labels );
+   struct list* labels, struct list* funcscope_vars );
 static void calc_param_size( struct param* param );
 static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref );
@@ -495,6 +495,8 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
          "variable of void type" );
       s_bail( semantic );
    }
+   var->spec = s_spec( semantic, var->spec );
+   var->func_scope = ( var->spec == SPEC_RAW );
    if ( var->spec == SPEC_STRUCT ) {
       return var->structure->object.resolved;
    }
@@ -544,7 +546,7 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
 
 void merge_type( struct semantic* semantic, struct name_spec_test* test,
    struct type_alias* alias ) {
-   test->spec = alias->spec;
+   test->spec = s_spec( semantic, alias->spec );
    test->structure = alias->structure;
    test->enumeration = alias->enumeration;
    if ( test->ref ) {
@@ -679,7 +681,12 @@ void test_ref_part( struct semantic* semantic, struct ref_test* test,
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, var->name, &var->object );
+      if ( var->func_scope ) {
+         s_bind_funcscope_name( semantic, var->name, &var->object );
+      }
+      else {
+         s_bind_name( semantic, var->name, &var->object );
+      }
    }
    return true;
 }
@@ -1279,6 +1286,9 @@ void s_test_local_var( struct semantic* semantic, struct var* var ) {
    if ( var->initial ) {
       s_calc_var_value_index( var );
    }
+   if ( var->func_scope ) {
+      list_append( semantic->func_test->funcscope_vars, var );
+   }
 }
 
 void s_test_foreach_var( struct semantic* semantic,
@@ -1350,7 +1360,7 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_after_name( struct semantic* semantic, struct func* func ) {
-   s_add_scope( semantic );
+   s_add_scope( semantic, true );
    bool resolved = test_param_list( semantic, func );
    s_pop_scope( semantic );
    return resolved;
@@ -1489,7 +1499,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    struct builtin_aliases builtin_aliases;
    init_builtin_aliases( semantic, func, &builtin_aliases );
    struct func_user* impl = func->impl;
-   s_add_scope( semantic );
+   s_add_scope( semantic, true );
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
@@ -1498,7 +1508,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       param = param->next;
    }
    struct func_test test;
-   init_func_test( &test, func, &impl->labels );
+   init_func_test( &test, func, &impl->labels, &impl->funcscope_vars );
    if ( ! impl->nested ) {
       semantic->topfunc_test = &test;
    }
@@ -1550,9 +1560,10 @@ void deinit_builtin_aliases( struct semantic* semantic,
 }
 
 void init_func_test( struct func_test* test, struct func* func,
-   struct list* labels ) {
+   struct list* labels, struct list* funcscope_vars ) {
    test->func = func;
    test->labels = labels;
+   test->funcscope_vars = funcscope_vars;
    test->nested_funcs = NULL;
    test->returns = NULL;
    test->script = ( func == NULL );
@@ -1583,7 +1594,13 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             "script number not constant" );
          s_bail( semantic );
       }
-      script->named_script = ( script->number->spec == SPEC_STR );
+      if ( semantic->lib->type_mode == TYPEMODE_STRONG ) {
+         script->named_script = ( script->number->spec == SPEC_STR );
+      }
+      else {
+         script->named_script =
+            ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
+      }
       if ( ! script->named_script ) {
          if ( script->number->value < SCRIPT_MIN_NUM ||
             script->number->value > SCRIPT_MAX_NUM ) {
@@ -1602,7 +1619,7 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
 }
 
 void test_script_body( struct semantic* semantic, struct script* script ) {
-   s_add_scope( semantic );
+   s_add_scope( semantic, true );
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
@@ -1612,7 +1629,7 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
       param = param->next;
    }
    struct func_test test;
-   init_func_test( &test, NULL, &script->labels );
+   init_func_test( &test, NULL, &script->labels, &script->funcscope_vars );
    semantic->topfunc_test = &test;
    semantic->func_test = semantic->topfunc_test;
    s_test_body( semantic, script->body );

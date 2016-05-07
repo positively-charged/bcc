@@ -6,6 +6,7 @@
 struct func_test {
    struct func* func;
    struct list* labels;
+   struct list* funcscope_vars;
    struct func* nested_funcs;
    struct return_stmt* returns;
    bool script;
@@ -70,6 +71,12 @@ struct semantic {
    struct func_test* topfunc_test;
    struct func_test* func_test;
    struct type_info type_int;
+   int spec_map[ SPEC_TOTAL ];
+   int spec_raw;
+   int spec_int;
+   int spec_fixed;
+   int spec_bool;
+   int spec_str;
    int depth;
    bool retest_nss;
    bool resolved_objects;
@@ -101,12 +108,14 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
 void s_test_cond( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_body( struct semantic* semantic, struct node* node );
-void s_add_scope( struct semantic* semantic );
+void s_add_scope( struct semantic* semantic, bool func_scope );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );
 void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
 void s_bind_name( struct semantic* semantic, struct name* name,
+   struct object* object );
+void s_bind_funcscope_name( struct semantic* semantic, struct name* name,
    struct object* object );
 void s_diag( struct semantic* semantic, int flags, ... );
 void s_bail( struct semantic* semantic );
@@ -145,5 +154,6 @@ void s_type_mismatch( struct semantic* semantic, const char* label_a,
    struct type_info* type_a, const char* label_b, struct type_info* type_b,
    struct pos* pos );
 void s_test_nested_func( struct semantic* semantic, struct func* func );
+int s_spec( struct semantic* semantic, int spec );
 
 #endif

@@ -4,7 +4,12 @@
 
 #include "phase.h"
 
-static void read_block( struct parse* parse, struct stmt_reading* );
+static void read_block( struct parse* parse, struct stmt_reading* reading );
+static struct block* alloc_block( void );
+static void read_implicit_block( struct parse* parse,
+   struct stmt_reading* reading );
+static void read_block_item( struct parse* parse, struct stmt_reading* reading,
+   struct block* block );
 static void read_case( struct parse* parse, struct stmt_reading* );
 static void read_default_case( struct parse* parse, struct stmt_reading* );
 static void read_label( struct parse* parse, struct stmt_reading* );
@@ -59,59 +64,85 @@ void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
       read_block( parse, reading );
    }
    else {
-      read_stmt( parse, reading );
+      read_implicit_block( parse, reading );
    }
 }
 
 void read_block( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_BRACE_L );
+   struct block* block = alloc_block();
+   block->pos = parse->tk_pos;
+   p_read_tk( parse );
+   while ( parse->tk != TK_BRACE_R ) {
+      read_block_item( parse, reading, block );
+   }
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
+   reading->node = &block->node;
+   reading->block_node = block;
+}
+
+struct block* alloc_block( void ) {
    struct block* block = mem_alloc( sizeof( *block ) );
    block->node.type = NODE_BLOCK;
    list_init( &block->stmts );
-   block->pos = parse->tk_pos;
-   p_read_tk( parse );
-   while ( true ) {
-      if ( p_is_dec( parse ) ) {
-         struct dec dec;
-         p_init_dec( &dec );
-         dec.area = DEC_LOCAL;
-         dec.name_offset = parse->ns->body;
-         dec.vars = &block->stmts;
-         p_read_dec( parse, &dec );
-      }
-      else if ( parse->tk == TK_CASE ) {
-         read_case( parse, reading );
+   return block;
+}
+
+// ACS compatability: In ACS, block-items are parsed as statements. As a
+// result, you can have weird code like the following, and it does exist in the
+// wild: if ( 0 ) int test = 123; switch ( 1 ) case 0:
+// To support such code, we implicitly create a block.
+void read_implicit_block( struct parse* parse, struct stmt_reading* reading ) {
+   // No need for an implicit block when one is explicitly specified.
+   if ( parse->tk == TK_BRACE_L ) {
+      read_block( parse, reading );
+   }
+   else {
+      struct block* block = alloc_block();
+      block->pos = parse->tk_pos;
+      read_block_item( parse, reading, block );
+      reading->node = &block->node;
+      reading->block_node = block;
+   }
+}
+
+void read_block_item( struct parse* parse, struct stmt_reading* reading,
+   struct block* block ) {
+   if ( p_is_dec( parse ) ) {
+      struct dec dec;
+      p_init_dec( &dec );
+      dec.area = DEC_LOCAL;
+      dec.name_offset = parse->ns->body;
+      dec.vars = &block->stmts;
+      p_read_dec( parse, &dec );
+   }
+   else if ( parse->tk == TK_CASE ) {
+      read_case( parse, reading );
+      list_append( &block->stmts, reading->node );
+   }
+   else if ( parse->tk == TK_DEFAULT ) {
+      read_default_case( parse, reading );
+      list_append( &block->stmts, reading->node );
+   }
+   else if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
+      read_label( parse, reading );
+      list_append( &block->stmts, reading->node );
+   }
+   else if ( parse->tk == TK_USING ) {
+      p_read_using( parse, &block->stmts );
+   }
+   else if ( parse->tk == TK_ASSERT ||
+      ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
+      read_assert( parse, reading );
+      list_append( &block->stmts, reading->node );
+   }
+   else {
+      read_stmt( parse, reading );
+      if ( reading->node->type != NODE_NONE ) {
          list_append( &block->stmts, reading->node );
-      }
-      else if ( parse->tk == TK_DEFAULT ) {
-         read_default_case( parse, reading );
-         list_append( &block->stmts, reading->node );
-      }
-      else if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
-         read_label( parse, reading );
-         list_append( &block->stmts, reading->node );
-      }
-      else if ( parse->tk == TK_BRACE_R ) {
-         p_read_tk( parse );
-         break;
-      }
-      else if ( parse->tk == TK_USING ) {
-         p_read_using( parse, &block->stmts );
-      }
-      else if ( parse->tk == TK_ASSERT ||
-         ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
-         read_assert( parse, reading );
-         list_append( &block->stmts, reading->node );
-      }
-      else {
-         read_stmt( parse, reading );
-         if ( reading->node->type != NODE_NONE ) {
-            list_append( &block->stmts, reading->node );
-         }
       }
    }
-   reading->node = &block->node;
-   reading->block_node = block;
 }
 
 void read_case( struct parse* parse, struct stmt_reading* reading ) {
@@ -237,7 +268,7 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
       p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
          &parse->tk_pos, "body of `if` statement is empty (`;`)" );
    }
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    stmt->else_body = NULL;
    if ( parse->tk == TK_ELSE ) {
@@ -246,7 +277,7 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
          p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
             &parse->tk_pos, "body of `else` is empty (`;`)" );
       }
-      read_stmt( parse, reading );
+      read_implicit_block( parse, reading );
       stmt->else_body = reading->node;
    }
    reading->node = &stmt->node;
@@ -263,7 +294,7 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    stmt->cond = cond.output_node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
 }
@@ -299,7 +330,7 @@ void read_while( struct parse* parse, struct stmt_reading* reading ) {
    stmt->cond = cond.output_node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -311,7 +342,7 @@ void read_do( struct parse* parse, struct stmt_reading* reading ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    stmt->type = WHILE_DO_WHILE;
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -407,7 +438,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
 }
@@ -427,7 +458,7 @@ void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
    stmt->collection = collection.output_node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   read_stmt( parse, reading );
+   read_implicit_block( parse, reading );
    stmt->body = reading->node;
    reading->node = &stmt->node;
 }

@@ -12,8 +12,11 @@ struct scope {
    struct scope* prev;
    struct sweep* sweep;
    struct ns_link* ns_link;
+   short depth;
+   bool func_scope;
 };
 
+static void init_spec_map( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
 static void bind_namespace_object( struct semantic* semantic,
@@ -50,8 +53,8 @@ static void calc_map_value_index( struct semantic* semantic );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static bool implicitly_imported( struct object* object );
-static void add_sweep_name( struct semantic* semantic, struct name* name,
-   struct object* object );
+static void add_sweep_name( struct semantic* semantic, struct scope* scope,
+   struct name* name, struct object* object );
 static struct object* get_nsobject( struct ns* ns, const char* object_name );
 static void confirm_compiletime_content( struct semantic* semantic );
 static bool is_compiletime_object( struct object* object );
@@ -72,6 +75,29 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->resolved_objects = false;
    semantic->trigger_err = false;
    semantic->in_localscope = false;
+   init_spec_map( semantic );
+   semantic->spec_raw = SPEC_RAW;
+   semantic->spec_int = s_spec( semantic, SPEC_INT );
+   semantic->spec_fixed = s_spec( semantic, SPEC_FIXED );
+   semantic->spec_bool = s_spec( semantic, SPEC_BOOL );
+   semantic->spec_str = s_spec( semantic, SPEC_STR );
+}
+
+void init_spec_map( struct semantic* semantic ) {
+   STATIC_ASSERT( SPEC_TOTAL == 11 );
+   for ( int i = 0; i < SPEC_TOTAL; i++ ) {
+      semantic->spec_map[ i ] = i;
+   }
+   if ( semantic->lib->type_mode == TYPEMODE_WEAK ) {
+      semantic->spec_map[ SPEC_INT ] = SPEC_RAW;
+      semantic->spec_map[ SPEC_FIXED ] = SPEC_RAW;
+      semantic->spec_map[ SPEC_BOOL ] = SPEC_RAW;
+      semantic->spec_map[ SPEC_STR ] = SPEC_RAW;
+   }
+}
+
+int s_spec( struct semantic* semantic, int spec ) {
+   return semantic->spec_map[ spec ];
 }
 
 void s_test( struct semantic* semantic ) {
@@ -652,7 +678,7 @@ void calc_map_value_index( struct semantic* semantic ) {
    }
 }
 
-void s_add_scope( struct semantic* semantic ) {
+void s_add_scope( struct semantic* semantic, bool func_scope ) {
    struct scope* scope;
    if ( semantic->free_scope ) {
       scope = semantic->free_scope;
@@ -661,11 +687,13 @@ void s_add_scope( struct semantic* semantic ) {
    else {
       scope = mem_alloc( sizeof( *scope ) );
    }
+   ++semantic->depth;
    scope->prev = semantic->scope;
    scope->sweep = NULL;
    scope->ns_link = semantic->ns->links;
+   scope->depth = semantic->depth;
+   scope->func_scope = func_scope;
    semantic->scope = scope;
-   ++semantic->depth;
    semantic->in_localscope = ( semantic->depth > 0 );
 }
 
@@ -698,11 +726,27 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    if ( ! name->object || name->object->depth < semantic->depth ) {
       if ( semantic->depth ) {
-         add_sweep_name( semantic, name, object );
+         add_sweep_name( semantic, semantic->scope, name, object );
       }
       else {
          name->object = object;
       }
+   }
+   else {
+      dupname_err( semantic, name, object );
+   }
+}
+
+void s_bind_funcscope_name( struct semantic* semantic, struct name* name,
+   struct object* object ) {
+   int func_depth = semantic->depth;
+   struct scope* scope = semantic->scope;
+   while ( ! scope->func_scope ) {
+      --func_depth;
+      scope = scope->prev;
+   }
+   if ( ! name->object || name->object->depth < func_depth ) {
+      add_sweep_name( semantic, scope, name, object );
    }
    else {
       dupname_err( semantic, name, object );
@@ -741,9 +785,9 @@ bool implicitly_imported( struct object* object ) {
    return false;
 }
 
-void add_sweep_name( struct semantic* semantic, struct name* name,
-   struct object* object ) {
-   struct sweep* sweep = semantic->scope->sweep;
+void add_sweep_name( struct semantic* semantic, struct scope* scope,
+   struct name* name, struct object* object ) {
+   struct sweep* sweep = scope->sweep;
    if ( ! sweep || sweep->size == SWEEP_MAX_SIZE ) {
       if ( semantic->free_sweep ) {
          sweep = semantic->free_sweep;
@@ -753,12 +797,12 @@ void add_sweep_name( struct semantic* semantic, struct name* name,
          sweep = mem_alloc( sizeof( *sweep ) );
       }
       sweep->size = 0;
-      sweep->prev = semantic->scope->sweep;
-      semantic->scope->sweep = sweep; 
+      sweep->prev = scope->sweep;
+      scope->sweep = sweep; 
    }
    sweep->names[ sweep->size ] = name;
    ++sweep->size;
-   object->depth = semantic->depth;
+   object->depth = scope->depth;
    object->next_scope = name->object;
    name->object = object;
 }

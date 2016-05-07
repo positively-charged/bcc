@@ -138,7 +138,8 @@ enum {
    SPEC_STRUCT,
    SPEC_NAME,
    SPEC_AUTO,
-   SPEC_VOID
+   SPEC_VOID,
+   SPEC_TOTAL
 };
 
 struct enumeration {
@@ -598,6 +599,7 @@ struct var {
    bool is_constant_init;
    bool addr_taken;
    bool in_shared_array;
+   bool func_scope;
 };
 
 struct param {
@@ -707,6 +709,7 @@ struct func_user {
    struct c_point* prologue_point;
    struct c_sortedcasejump* return_table;
    struct list vars;
+   struct list funcscope_vars;
    int index;
    int size;
    int usage;
@@ -802,6 +805,7 @@ struct script {
    struct call* nested_calls;
    struct list labels;
    struct list vars;
+   struct list funcscope_vars;
    int assigned_number;
    int num_param;
    int offset;
@@ -961,6 +965,10 @@ struct library {
       FORMAT_BIG_E,
       FORMAT_LITTLE_E
    } format;
+   enum {
+      TYPEMODE_WEAK,
+      TYPEMODE_STRONG
+   } type_mode;
    bool importable;
    bool imported;
    bool encrypt_str;

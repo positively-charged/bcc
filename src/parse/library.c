@@ -71,6 +71,10 @@ void p_read_lib( struct parse* parse ) {
          p_bail( parse );
       }
    }
+   // Enable strong mode.
+   if ( p_find_macro( parse, "__strongmode" ) ) {
+      parse->lib->type_mode = TYPEMODE_STRONG;
+   }
 }
 
 void read_namespace( struct parse* parse ) {

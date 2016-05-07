@@ -10,6 +10,7 @@
 #endif
 
 #library
+#include "zstrong.acs"
 
 // Constants
 // ==========================================================================
@@ -1335,8 +1336,8 @@ function bool SetPointer( int, int, int = 0, int = 0 ) -= 38;
 function bool Acs_NamedExecute( str, int, raw = 0, raw = 0, raw = 0 ) -= 39;
 function bool Acs_NamedSuspend( str, int ) -= 40;
 function bool Acs_NamedTerminate( str, int ) -= 41;
-function bool Acs_NamedLockedExecute( str, int, raw, raw, int ) -= 42;
-function bool Acs_NamedLockedExecuteDoor( str, int, raw, raw, int ) -= 43;
+function bool Acs_NamedLockedExecute( str, int, raw, raw, raw ) -= 42;
+function bool Acs_NamedLockedExecuteDoor( str, int, raw, raw, raw ) -= 43;
 function int Acs_NamedExecuteWithResult( str, raw = 0, raw = 0, raw = 0,
    raw = 0 ) -= 44;
 function bool Acs_NamedExecuteAlways( str, int, raw = 0, raw = 0,
@@ -1565,7 +1566,7 @@ function bool CheckActorCeilingTexture( int, str ) += 338, 0;
 function bool CheckActorFloorTexture( int, str ) += 339, 0;
 function int GetActorLightLevel( int ) += 340, 0;
 function void SetMugShotState( str ) += 341, 0;
-function int ThingCountSector( str, int, int ) += 342, 0;
+function int ThingCountSector( int, int, int ) += 342, 0;
 function int ThingCountNameSector( str, int, int ) += 343, 0;
 function int CheckPlayerCamera( int ) += 344, 0;
 function int MorphActor( int, str = "", str = "", int = 0, int = 0, str = "",
@@ -1579,9 +1580,9 @@ function void NamedScriptWait( str ) += 361, 1;
 // Tail format: *= <terminating-opcode>
 function void Print() *= 86;
 function void PrintBold() *= 101;
-function void HudMessage( int, int, int, int, int, int, fixed = 0.0,
+function void HudMessage( int, int, int, fixed, fixed, fixed, fixed = 0.0,
    fixed = 0.0, fixed = 0.0 ) *= 161;
-function void HudMessageBold( int, int, int, int, int, int, fixed = 0.0,
+function void HudMessageBold( int, int, int, fixed, fixed, fixed, fixed = 0.0,
    fixed = 0.0, fixed = 0.0 ) *= 162;
 function void Log() *= 270;
 function str StrParam() *= 352;

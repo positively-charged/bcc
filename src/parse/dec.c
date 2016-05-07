@@ -1093,15 +1093,20 @@ void add_var( struct parse* parse, struct dec* dec ) {
          list_append( &parse->ns->private_objects, var );
       }
    }
-   else if ( dec->storage.type == STORAGE_MAP ) {
-      var->hidden = ( dec->static_qual == true );
-      list_append( &parse->lib->vars, var );
-      list_append( &parse->lib->objects, var );
-      list_append( dec->vars, var );
+   else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
+      if ( dec->static_qual ) {
+         var->hidden = true;
+         list_append( &parse->lib->vars, var );
+         list_append( &parse->lib->objects, var );
+         list_append( dec->vars, var );
+      }
+      else {
+         list_append( dec->vars, var );
+         list_append( parse->local_vars, var );
+      }
    }
    else {
-      list_append( dec->vars, var );
-      list_append( parse->local_vars, var );
+      UNREACHABLE();
    }
 }
 
@@ -1133,6 +1138,7 @@ struct var* alloc_var( struct dec* dec ) {
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    var->addr_taken = false;
    var->in_shared_array = false;
+   var->func_scope = false;
    return var;
 }
 
@@ -1253,6 +1259,8 @@ void read_func( struct parse* parse, struct dec* dec ) {
       func->type = FUNC_USER;
       struct func_user* impl = mem_alloc( sizeof( *impl ) );
       list_init( &impl->labels );
+      list_init( &impl->vars );
+      list_init( &impl->funcscope_vars );
       impl->body = NULL;
       impl->next_nested = NULL;
       impl->nested_funcs = NULL;
@@ -1558,6 +1566,7 @@ void p_read_script( struct parse* parse ) {
    script->nested_calls = NULL;
    list_init( &script->labels );
    list_init( &script->vars );
+   list_init( &script->funcscope_vars );
    script->assigned_number = 0;
    script->num_param = 0;
    script->offset = 0;

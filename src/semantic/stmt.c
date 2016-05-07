@@ -66,7 +66,7 @@ void s_test_body( struct semantic* semantic, struct node* node ) {
 void test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block ) {
    if ( ! test->manual_scope ) {
-      s_add_scope( semantic );
+      s_add_scope( semantic, false );
    }
    list_iter_t i;
    list_iter_init( &i, &block->stmts );
@@ -320,7 +320,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
 
 void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* stmt ) {
-   s_add_scope( semantic );
+   s_add_scope( semantic, false );
    // Initialization.
    list_iter_t i;
    list_iter_init( &i, &stmt->init );
@@ -368,7 +368,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
 
 void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct foreach_stmt* stmt ) {
-   s_add_scope( semantic );
+   s_add_scope( semantic, false );
    struct var* key = stmt->key;
    struct var* value = stmt->value;
    if ( key ) {

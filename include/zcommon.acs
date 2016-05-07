@@ -1,9 +1,1 @@
-// NOTE: Do NOT use this file in new projects. This file exists solely for the
-// purpose of making existing ACS code compile with the bcc compiler. Certain
-// features introduced by the bcc compiler will not work when this file is
-// used. Instead, #import the zcommon.bcs file.
-#import "zcommon.bcs"
-#define int raw
-#define fixed raw
-#define bool raw
-#define str raw
+#import "zengine.acs"

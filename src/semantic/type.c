@@ -325,6 +325,9 @@ void s_iterate_type( struct type_info* type, struct type_iter* iter ) {
       subscript_array_type( type, &iter->value );
       iter->available = true;
    }
+   else {
+      iter->available = false;
+   }
 }
 
 inline bool s_is_str_value_type( struct type_info* type ) {
