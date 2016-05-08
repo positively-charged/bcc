@@ -160,7 +160,6 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct objcpy_call* call );
-static bool valid_objcpy_destination( struct result* dst );
 static bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result );
 static bool is_int_value( struct semantic* semantic, struct result* result );
@@ -2086,48 +2085,55 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
 void test_objcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct objcpy_call* call ) {
    // Destination.
-   struct result destination;
-   init_result( &destination );
-   test_root( semantic, test, &destination, call->destination );
-   if ( ! valid_objcpy_destination( &destination ) ) {
+   struct result dst;
+   init_result( &dst );
+   test_root( semantic, test, &dst, call->destination );
+   if ( ! ( is_array_ref( &dst ) || is_struct( &dst ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
-         "destination argument not an array or a structure" );
+         "destination not an array or structure" );
       s_bail( semantic );
    }
-   // Array-offset.
+   // It doesn't look pretty if we allow struct variables to be specified with
+   // the array format-item, so make sure the argument is an array.
+   if ( call->array_cast && ! is_array_ref( &dst ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
+         "destination not an array" );
+      s_bail( semantic );
+   }
+   // Destination-offset.
    if ( call->destination_offset ) {
       struct result arg;
       init_result( &arg );
       test_root( semantic, test, &arg, call->destination_offset );
       if ( ! is_int_value( semantic, &arg ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->destination_offset->pos,
-            "array-offset argument not an integer value" );
+            "destination-offset not an integer value" );
          s_bail( semantic );
       }
-      // Array-length.
+      // Destination-length.
       if ( call->destination_length ) {
          init_result( &arg );
          test_root( semantic, test, &arg, call->destination_length );
          if ( ! is_int_value( semantic, &arg ) ) {
             s_diag( semantic, DIAG_POS_ERR, &call->destination_length->pos,
-               "array-length argument not an integer value" );
+               "destination-length not an integer value" );
             s_bail( semantic );
          }
       }
    }
    // Source.
-   struct result source;
-   init_result( &source );
-   test_root( semantic, test, &source, call->source );
-   struct type_info destination_type;
-   struct type_info source_type;
-   init_type_info( &destination_type, &destination );
-   init_type_info( &source_type, &source );
-   s_decay( &destination_type );
-   s_decay( &source_type );
-   if ( ! s_same_type( &source_type, &destination_type ) ) {
-      s_type_mismatch( semantic, "source", &source_type,
-         "destination", &destination_type, &call->source->pos );
+   struct result src;
+   init_result( &src );
+   test_root( semantic, test, &src, call->source );
+   struct type_info dst_type;
+   struct type_info src_type;
+   init_type_info( &dst_type, &dst );
+   init_type_info( &src_type, &src );
+   s_decay( &dst_type );
+   s_decay( &src_type );
+   if ( ! s_same_type( &src_type, &dst_type ) ) {
+      s_type_mismatch( semantic, "source", &src_type,
+         "destination", &dst_type, &call->source->pos );
       s_bail( semantic );
    }
    // Source-offset.
@@ -2137,20 +2143,21 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
       test_root( semantic, test, &arg, call->source_offset );
       if ( ! is_int_value( semantic, &arg ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
-            "source-offset argument not an integer value" );
+            "source-offset not an integer value" );
+         s_bail( semantic );
+      }
+      if ( ! is_array_ref( &dst ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
+            "source-offset specified for non-array source" );
          s_bail( semantic );
       }
    }
    result->spec = semantic->spec_bool;
    result->complete = true;
    result->usable = true;
-   if ( is_struct( &source ) ) {
+   if ( is_struct( &dst ) ) {
       call->type = OBJCPY_STRUCT;
    }
-}
-
-bool valid_objcpy_destination( struct result* dst ) {
-   return ( is_array_ref( dst ) || dst->structure );
 }
 
 bool is_onedim_intelem_array_ref( struct semantic* semantic,
