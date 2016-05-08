@@ -159,7 +159,7 @@ static void select_alias( struct semantic* semantic, struct result* result,
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct strcpy_call* call );
+   struct result* result, struct objcpy_call* call );
 static bool valid_objcpy_destination( struct result* dst );
 static bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result );
@@ -1770,6 +1770,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_strcpy( semantic, test, result,
          ( struct strcpy_call* ) node );
       break;
+   case NODE_OBJCPY:
+      test_objcpy( semantic, test, result,
+         ( struct objcpy_call* ) node );
+      break;
    case NODE_PAREN:
       test_paren( semantic, test, result,
          ( struct paren* ) node );
@@ -2026,10 +2030,6 @@ void select_alias( struct semantic* semantic, struct result* result,
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
-   if ( call->obj ) {
-      test_objcpy( semantic, test, result, call );
-      return;
-   }
    // Array.
    struct result arg;
    init_result( &arg );
@@ -2084,32 +2084,32 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_objcpy( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct strcpy_call* call ) {
+   struct result* result, struct objcpy_call* call ) {
    // Destination.
    struct result destination;
    init_result( &destination );
-   test_root( semantic, test, &destination, call->array );
+   test_root( semantic, test, &destination, call->destination );
    if ( ! valid_objcpy_destination( &destination ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
+      s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
          "destination argument not an array or a structure" );
       s_bail( semantic );
    }
    // Array-offset.
-   if ( call->array_offset ) {
+   if ( call->destination_offset ) {
       struct result arg;
       init_result( &arg );
-      test_root( semantic, test, &arg, call->array_offset );
+      test_root( semantic, test, &arg, call->destination_offset );
       if ( ! is_int_value( semantic, &arg ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &call->array_offset->pos,
+         s_diag( semantic, DIAG_POS_ERR, &call->destination_offset->pos,
             "array-offset argument not an integer value" );
          s_bail( semantic );
       }
       // Array-length.
-      if ( call->array_length ) {
+      if ( call->destination_length ) {
          init_result( &arg );
-         test_root( semantic, test, &arg, call->array_length );
+         test_root( semantic, test, &arg, call->destination_length );
          if ( ! is_int_value( semantic, &arg ) ) {
-            s_diag( semantic, DIAG_POS_ERR, &call->array_length->pos,
+            s_diag( semantic, DIAG_POS_ERR, &call->destination_length->pos,
                "array-length argument not an integer value" );
             s_bail( semantic );
          }
@@ -2118,7 +2118,7 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    // Source.
    struct result source;
    init_result( &source );
-   test_root( semantic, test, &source, call->string );
+   test_root( semantic, test, &source, call->source );
    struct type_info destination_type;
    struct type_info source_type;
    init_type_info( &destination_type, &destination );
@@ -2127,16 +2127,16 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    s_decay( &source_type );
    if ( ! s_same_type( &source_type, &destination_type ) ) {
       s_type_mismatch( semantic, "source", &source_type,
-         "destination", &destination_type, &call->string->pos );
+         "destination", &destination_type, &call->source->pos );
       s_bail( semantic );
    }
    // Source-offset.
-   if ( call->offset ) {
+   if ( call->source_offset ) {
       struct result arg;
       init_result( &arg );
-      test_root( semantic, test, &arg, call->offset );
+      test_root( semantic, test, &arg, call->source_offset );
       if ( ! is_int_value( semantic, &arg ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &call->offset->pos,
+         s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
             "source-offset argument not an integer value" );
          s_bail( semantic );
       }
@@ -2144,11 +2144,8 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    result->spec = semantic->spec_bool;
    result->complete = true;
    result->usable = true;
-   if ( is_array_ref( &source ) ) {
-      call->source = STRCPYSRC_ARRAY;
-   }
-   else {
-      call->source = STRCPYSRC_STRUCTURE;
+   if ( is_struct( &source ) ) {
+      call->type = OBJCPY_STRUCT;
    }
 }
 

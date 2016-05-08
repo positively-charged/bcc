@@ -174,10 +174,10 @@ static void visit_func( struct codegen* codegen, struct result* result,
    struct func* func );
 static void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
-static void copy_str( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call );
+static void visit_objcpy( struct codegen* codegen, struct result* result,
+   struct objcpy_call* call );
 static void copy_array( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call );
+   struct objcpy_call* call );
 static void scale_offset( struct codegen* codegen, struct result* result,
    int offset_var );
 static void push_array_length( struct codegen* codegen, struct result* result,
@@ -187,7 +187,7 @@ static void push_ref_array_length( struct codegen* codegen,
 static void copy_elements( struct codegen* codegen, struct result* dst,
    struct result* src, int dst_ofs, int src_ofs, int length );
 static void copy_struct( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call );
+   struct objcpy_call* call );
 static void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren );
 static void push_indexed( struct codegen* codegen, int storage, int index );
@@ -1737,6 +1737,10 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_strcpy( codegen, result,
          ( struct strcpy_call* ) node );
       break;
+   case NODE_OBJCPY:
+      visit_objcpy( codegen, result,
+         ( struct objcpy_call* ) node );
+      break;
    case NODE_PAREN:
       visit_paren( codegen, result,
          ( struct paren* ) node );
@@ -1995,23 +1999,6 @@ void visit_func( struct codegen* codegen, struct result* result,
 
 void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call ) {
-   switch ( call->source ) {
-   case STRCPYSRC_STRING:
-      copy_str( codegen, result, call );
-      break;
-   case STRCPYSRC_ARRAY:
-      copy_array( codegen, result, call );
-      break;
-   case STRCPYSRC_STRUCTURE:
-      copy_struct( codegen, result, call );
-      break;
-   default:
-      UNREACHABLE();
-   }
-}
-
-void copy_str( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call ) {
    struct result object;
    init_result( &object, false );
    visit_operand( codegen, &object, call->array->root );
@@ -2061,8 +2048,22 @@ void copy_str( struct codegen* codegen, struct result* result,
    result->status = R_VALUE;
 }
 
+void visit_objcpy( struct codegen* codegen, struct result* result,
+   struct objcpy_call* call ) {
+   switch ( call->type ) {
+   case OBJCPY_ARRAY:
+      copy_array( codegen, result, call );
+      break;
+   case OBJCPY_STRUCT:
+      copy_struct( codegen, result, call );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
 void copy_array( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call ) {
+   struct objcpy_call* call ) {
    int dst_ofs = c_alloc_script_var( codegen );
    int src_ofs = c_alloc_script_var( codegen );
    int length = c_alloc_script_var( codegen );
@@ -2070,7 +2071,7 @@ void copy_array( struct codegen* codegen, struct result* result,
    // Evaluate destination.
    struct result dst;
    init_result( &dst, true );
-   visit_operand( codegen, &dst, call->array->root );
+   visit_operand( codegen, &dst, call->destination->root );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
    if ( dst.ref && dst.ref->type == REF_ARRAY ) {
       dim_info = c_alloc_script_var( codegen );
@@ -2079,29 +2080,29 @@ void copy_array( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dim_info );
    }
    // Evaluate destination-offset.
-   if ( call->array_offset ) {
-      c_push_expr( codegen, call->array_offset );
+   if ( call->destination_offset ) {
+      c_push_expr( codegen, call->destination_offset );
       c_pcd( codegen, PCD_DUP );
       scale_offset( codegen, &dst, -1 );
       c_pcd( codegen, PCD_ADDSCRIPTVAR, dst_ofs );
       // Evaluate destination-length.
-      if ( call->array_length ) {
-         c_push_expr( codegen, call->array_length );
+      if ( call->destination_length ) {
+         c_push_expr( codegen, call->destination_length );
          c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
       }
    }
    // Evaluate source.
    struct result src;
    init_result( &src, true );
-   visit_operand( codegen, &src, call->string->root );
+   visit_operand( codegen, &src, call->source->root );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
-   if ( ! call->array_length ) {
+   if ( ! call->destination_length ) {
       push_array_length( codegen, &src, false );
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
    }
    // Evaluate source-offset.
-   if ( call->offset ) {
-      c_push_expr( codegen, call->offset );
+   if ( call->source_offset ) {
+      c_push_expr( codegen, call->source_offset );
       c_pcd( codegen, PCD_DUP );
       scale_offset( codegen, &src, -1 );
       c_pcd( codegen, PCD_ADDSCRIPTVAR, src_ofs );
@@ -2111,7 +2112,7 @@ void copy_array( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_GE );
       c_pcd( codegen, PCD_SWAP );
       // Check: source-offset + length <= source-length
-      if ( call->array_length ) {
+      if ( call->destination_length ) {
          c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
          c_pcd( codegen, PCD_ADD );
          push_array_length( codegen, &src, false );
@@ -2124,17 +2125,17 @@ void copy_array( struct codegen* codegen, struct result* result,
          c_pcd( codegen, PCD_GT );
       }
       c_pcd( codegen, PCD_ANDLOGICAL );
-      if ( call->array_offset ) {
+      if ( call->destination_offset ) {
          c_pcd( codegen, PCD_SWAP );
       }
    }
    // Check: destination-offset >= 0
-   if ( call->array_offset ) {
+   if ( call->destination_offset ) {
       c_pcd( codegen, PCD_DUP );
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       c_pcd( codegen, PCD_GE );
       // Check: length > 0
-      if ( call->array_length ) {
+      if ( call->destination_length ) {
          c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_pcd( codegen, PCD_GT );
@@ -2143,7 +2144,7 @@ void copy_array( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_SWAP );
    }
    c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
-   if ( call->array_offset ) {
+   if ( call->destination_offset ) {
       c_pcd( codegen, PCD_ADD );
    }
    // Check: length <= destination-length
@@ -2156,10 +2157,10 @@ void copy_array( struct codegen* codegen, struct result* result,
       push_array_length( codegen, &dst, false );
    }
    c_pcd( codegen, PCD_LE );
-   if ( call->array_offset ) {
+   if ( call->destination_offset ) {
       c_pcd( codegen, PCD_ANDLOGICAL );
    }
-   if ( call->offset ) {
+   if ( call->source_offset ) {
       c_pcd( codegen, PCD_ANDLOGICAL );
    }
    if ( result->push ) {
@@ -2282,17 +2283,17 @@ void copy_elements( struct codegen* codegen, struct result* dst,
 }
 
 void copy_struct( struct codegen* codegen, struct result* result,
-   struct strcpy_call* call ) {
+   struct objcpy_call* call ) {
    int dst_ofs = c_alloc_script_var( codegen );
    int src_ofs = c_alloc_script_var( codegen );
    int length = c_alloc_script_var( codegen );
    struct result dst;
    init_result( &dst, true );
-   visit_operand( codegen, &dst, call->array->root );
+   visit_operand( codegen, &dst, call->destination->root );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
    struct result src;
    init_result( &src, true );
-   visit_operand( codegen, &src, call->string->root );
+   visit_operand( codegen, &src, call->source->root );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
    c_pcd( codegen, PCD_PUSHNUMBER, dst.structure->size );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );

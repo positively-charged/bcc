@@ -91,8 +91,9 @@ struct node {
       NODE_NULL,
       NODE_NAMESPACE,
       NODE_UPMOST,
-      NODE_USING
+      NODE_USING,
       // 50
+      NODE_OBJCPY
    } type;
 };
 
@@ -401,6 +402,20 @@ struct strcpy_call {
       STRCPYSRC_STRUCTURE,
    } source;
    bool obj;
+};
+
+struct objcpy_call {
+   struct node node;
+   struct expr* destination;
+   struct expr* destination_offset;
+   struct expr* destination_length;
+   struct expr* source;
+   struct expr* source_offset;
+   enum {
+      OBJCPY_ARRAY,
+      OBJCPY_STRUCT,
+   } type;
+   bool array_cast;
 };
 
 struct expr {

@@ -16,6 +16,15 @@ struct array_field {
    struct expr* length;
 };
 
+struct strcpy_reading {
+   struct expr* array;
+   struct expr* array_offset;
+   struct expr* array_length;
+   struct expr* string;
+   struct expr* offset;
+   bool array_cast;
+};
+
 static void read_op( struct parse* parse, struct expr_reading* reading );
 static void read_operand( struct parse* parse, struct expr_reading* reading );
 static struct binary* alloc_binary( int op, struct pos* pos );
@@ -45,6 +54,9 @@ static void read_string( struct parse* parse, struct expr_reading* reading );
 static void read_null( struct parse* parse, struct expr_reading* reading );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
+static void read_strcpy_call( struct parse* parse,
+   struct strcpy_reading* reading );
+static void read_objcpy( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
@@ -517,8 +529,11 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       reading->node = &node;
       p_read_tk( parse );
    }
-   else if ( parse->tk == TK_STRCPY || parse->tk == TK_OBJCPY ) {
+   else if ( parse->tk == TK_STRCPY ) {
       read_strcpy( parse, reading );
+   }
+   else if ( parse->tk == TK_OBJCPY ) {
+      read_objcpy( parse, reading );
    }
    else if ( parse->tk == TK_PAREN_L ) {
       struct paren* paren = mem_alloc( sizeof( *paren ) );
@@ -989,5 +1004,75 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+   reading->node = &call->node;
+}
+
+void read_strcpy_call( struct parse* parse, struct strcpy_reading* reading ) {
+   reading->array = NULL;
+   reading->array_offset = NULL;
+   reading->array_length = NULL;
+   reading->string = NULL;
+   reading->offset = NULL;
+   reading->array_cast = false;
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   // Array field.
+   if ( peek_format_cast( parse ) ) {
+      struct format_cast cast;
+      init_format_cast( &cast );
+      read_format_cast( parse, &cast );
+      if ( cast.type != FCAST_ARRAY ) {
+         p_diag( parse, DIAG_POS_ERR, &cast.pos,
+            "not an array format-cast" );
+         p_diag( parse, DIAG_POS, &cast.pos,
+            "expecting `a:` here" );
+         p_bail( parse );
+      }
+      struct array_field field;
+      init_array_field( &field );
+      read_array_field( parse, &field );
+      reading->array = field.array;
+      reading->array_offset = field.offset;
+      reading->array_length = field.length;
+      reading->array_cast = true;
+   }
+   else {
+      struct expr_reading expr;
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      reading->array = expr.output_node;
+   }
+   p_test_tk( parse, TK_COMMA );
+   p_read_tk( parse );
+   // String field.
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   reading->string = expr.output_node;
+   // String-offset field. Optional.
+   if ( parse->tk == TK_COMMA ) {
+      p_read_tk( parse );
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      reading->offset = expr.output_node;
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+}
+
+void read_objcpy( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_OBJCPY );
+   p_read_tk( parse );
+   struct strcpy_reading call_r;
+   read_strcpy_call( parse, &call_r );
+   struct objcpy_call* call = mem_alloc( sizeof( *call ) );
+   call->node.type = NODE_OBJCPY;
+   call->destination = call_r.array;
+   call->destination_offset = call_r.array_offset;
+   call->destination_length = call_r.array_length;
+   call->source = call_r.string;
+   call->source_offset = call_r.offset;
+   call->type = OBJCPY_ARRAY;
+   call->array_cast = call_r.array_cast;
    reading->node = &call->node;
 }
