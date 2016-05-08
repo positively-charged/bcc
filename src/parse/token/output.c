@@ -4,7 +4,6 @@ static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 
 void p_preprocess( struct parse* parse ) {
-   p_load_main_source( parse );
 
 
 /*

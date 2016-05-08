@@ -384,7 +384,7 @@ struct parse {
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
 void p_init_stream( struct parse* parse );
-void p_read( struct parse* parse );
+void p_run( struct parse* parse );
 void p_preprocess( struct parse* parse );
 void p_diag( struct parse* parse, int flags, ... );
 void p_bail( struct parse* parse );

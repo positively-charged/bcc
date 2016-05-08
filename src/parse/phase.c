@@ -32,15 +32,20 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->lib = NULL;
 }
 
-void p_read( struct parse* parse ) {
+void p_run( struct parse* parse ) {
    struct library* lib = t_add_library( parse->task );
    parse->task->library_main = lib;
    parse->lib = lib;
    parse->ns = lib->upmost_ns;
    p_define_cmdline_macros( parse );
    p_load_main_source( parse );
-   p_read_tk( parse );
-   p_read_target_lib( parse );
+   if ( parse->task->options->preprocess ) {
+      p_preprocess( parse );
+   }
+   else {
+      p_read_tk( parse );
+      p_read_target_lib( parse );
+   }
 
 /*
    while ( parse->tk != TK_END ) {

@@ -348,13 +348,13 @@ void clear_cache( struct task* task, struct cache* cache ) {
 void preprocess( struct task* task ) {
    struct parse parse;
    p_init( &parse, task, NULL );
-   p_preprocess( &parse );
+   p_run( &parse );
 }
 
 void compile_mainlib( struct task* task, struct cache* cache ) {
    struct parse parse;
    p_init( &parse, task, cache );
-   p_read( &parse );
+   p_run( &parse );
    struct semantic semantic;
    s_init( &semantic, task, task->library_main );
    s_test( &semantic );
