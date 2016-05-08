@@ -2,6 +2,8 @@
 
 #include "phase.h"
 
+#define CMDLINEMACRO_TEXT "1"
+
 enum dirc {
    DIRC_NONE,
    DIRC_DEFINE,
@@ -62,6 +64,8 @@ static void read_macro_body( struct parse* parse,
 static void read_body_item( struct parse* parse, struct macro* macro );
 static bool valid_macro_param( struct parse* parse, struct macro* macro );
 static struct token* alloc_token( struct parse* parse );
+static void init_token( struct token* token, enum tk type, const char* text,
+   int length );
 static void append_token( struct macro* macro, struct token* token );
 static bool same_macro( struct macro* a, struct macro* b );
 static void add_macro( struct parse* parse, struct macro* macro );
@@ -494,6 +498,15 @@ struct token* alloc_token( struct parse* parse ) {
    return token;
 }
 
+void init_token( struct token* token, enum tk type, const char* text,
+   int length ) {
+   token->next = NULL;
+   token->text = text;
+   token->type = type;
+   token->length = length;
+   token->is_id = false;
+}
+
 void append_token( struct macro* macro, struct token* token ) {
    if ( macro->body ) {
       macro->body_tail->next = token;
@@ -852,6 +865,25 @@ void p_define_imported_macro( struct parse* parse ) {
    struct macro* macro = alloc_macro( parse );
    macro->name = "__imported__";
    add_macro( parse, macro );
+}
+
+void p_define_cmdline_macros( struct parse* parse ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->options->defines );
+   while ( ! list_end( &i ) ) {
+      const char* name = list_data( &i );
+      struct macro* macro = p_find_macro( parse, name );
+      if ( ! macro ) {
+         struct token* token = alloc_token( parse );
+         init_token( token, TK_LIT_DECIMAL, CMDLINEMACRO_TEXT,
+            strlen( CMDLINEMACRO_TEXT ) );
+         macro = alloc_macro( parse );
+         macro->name = name;
+         append_token( macro, token );
+         add_macro( parse, macro );
+      }
+      list_next( &i );
+   }
 }
 
 // Reads #region/#endregion. These directives have no effect.

@@ -467,6 +467,7 @@ void p_read_using( struct parse* parse, struct list* output );
 void p_read_target_lib( struct parse* parse );
 void p_clear_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
+void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 
 #endif

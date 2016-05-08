@@ -37,6 +37,7 @@ void p_read( struct parse* parse ) {
    parse->task->library_main = lib;
    parse->lib = lib;
    parse->ns = lib->upmost_ns;
+   p_define_cmdline_macros( parse );
    p_load_main_source( parse );
    p_read_tk( parse );
    p_read_target_lib( parse );

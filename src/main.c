@@ -98,6 +98,7 @@ int main( int argc, char* argv[] ) {
 
 void init_options( struct options* options ) {
    list_init( &options->includes );
+   list_init( &options->defines );
    options->source_file = NULL;
    options->object_file = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
@@ -215,6 +216,17 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "no-assert" ) == 0 ) {
          options->write_asserts = false;
       }
+      else if ( strcmp( option, "D" ) == 0 ) {
+         if ( *args ) {
+            list_append( &options->defines, *args );
+            ++args;
+         }
+         else {
+            printf( "error: missing macro argument for %s option\n",
+               option );
+            return false;
+         }
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -268,6 +280,8 @@ void print_usage( char* path ) {
       "  -no-assert           Do not include asserts in object file\n"
       "                       (asserts will not be executed at run-time)\n"
       "  -E                   Do preprocessing only\n"
+      "  -D <name>            Create a macro with the specified name. The\n"
+      "                       macro will have a value of 1\n"
       "Cache options:\n"
       "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"
