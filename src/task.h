@@ -396,12 +396,6 @@ struct strcpy_call {
    struct expr* array_length;
    struct expr* string;
    struct expr* offset;
-   enum {
-      STRCPYSRC_STRING,
-      STRCPYSRC_ARRAY,
-      STRCPYSRC_STRUCTURE,
-   } source;
-   bool obj;
 };
 
 struct objcpy_call {
