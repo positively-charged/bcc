@@ -22,19 +22,33 @@ solution 'bcc'
       'src/',
    }
 
-   project 'src'
-      location 'build/src'
+   project 'bcc'
+      location 'build'
       kind 'ConsoleApp'
       targetname 'bcc'
+      links {
+         'src',
+         'src_parse',
+         'src_token',
+         'src_semantic',
+         'src_codegen',
+         'src_cache',
+      }
+
+   project 'src'
+      location 'build/src'
+      targetdir 'build/src'
+      kind 'StaticLib'
       files {
          'src/*.c',
       }
-      links {
-         'src_token',
-         'src_parse',
-         'src_semantic',
-         'src_codegen',
-         'src_cache'
+
+   project 'src_parse'
+      location 'build/src_parse'
+      targetdir 'build/src_parse'
+      kind 'StaticLib'
+      files {
+         'src/parse/*.c'
       }
 
    project 'src_token'
@@ -46,14 +60,6 @@ solution 'bcc'
       }
       includedirs {
          'src/parse',
-      }
-
-   project 'src_parse'
-      location 'build/src_parse'
-      targetdir 'build/src_parse'
-      kind 'StaticLib'
-      files {
-         'src/parse/*.c'
       }
 
    project 'src_semantic'
