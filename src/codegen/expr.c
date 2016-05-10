@@ -2284,23 +2284,72 @@ void copy_elements( struct codegen* codegen, struct result* dst,
 
 void copy_struct( struct codegen* codegen, struct result* result,
    struct objcpy_call* call ) {
-   int dst_ofs = c_alloc_script_var( codegen );
-   int src_ofs = c_alloc_script_var( codegen );
-   int length = c_alloc_script_var( codegen );
+   int dst_ofs;
    struct result dst;
    init_result( &dst, true );
    visit_operand( codegen, &dst, call->destination->root );
-   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
+   if ( dst.status == R_ARRAYINDEX ) {
+      dst_ofs = c_alloc_script_var( codegen );
+      c_pcd( codegen, dst.structure->size );
+      c_pcd( codegen, PCD_ADD );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
+   }
+   int src_ofs;
    struct result src;
    init_result( &src, true );
    visit_operand( codegen, &src, call->source->root );
-   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
+   if ( src.status == R_ARRAYINDEX ) {
+      src_ofs = c_alloc_script_var( codegen );
+      c_pcd( codegen, dst.structure->size );
+      c_pcd( codegen, PCD_ADD );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, src_ofs );
+   }
+   int length = c_alloc_script_var( codegen );
    c_pcd( codegen, PCD_PUSHNUMBER, dst.structure->size );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, length );
-   copy_elements( codegen, &dst, &src, dst_ofs, src_ofs, length );
+   struct c_point* copy_point = c_create_point( codegen );
+   c_append_node( codegen, &copy_point->node );
+   if ( dst.status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_DECSCRIPTVAR, dst_ofs );
+   }
+   if ( src.status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_DECSCRIPTVAR, src_ofs );
+   }
+   c_pcd( codegen, PCD_DECSCRIPTVAR, length );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+   // Push destination offset.
+   if ( dst.status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, dst_ofs );
+   }
+   else {
+      c_pcd( codegen, PCD_DUP );
+   }
+   // Push source offset.
+   if ( src.status == R_ARRAYINDEX ) {
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, src_ofs );
+   }
+   else {
+      if ( dst.status == R_ARRAYINDEX ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, length );
+      }
+      else {
+         c_pcd( codegen, PCD_DUP );
+      }
+   }
+   // Push and assign source element.
+   push_element( codegen, src.storage, src.index );
+   c_update_element( codegen, dst.storage, dst.index, AOP_NONE );
+   // Keep going until: length == 0
+   struct c_jump* cond_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &cond_jump->node );
+   cond_jump->point = copy_point;
    c_dealloc_last_script_var( codegen );
-   c_dealloc_last_script_var( codegen );
-   c_dealloc_last_script_var( codegen );
+   if ( src.status == R_ARRAYINDEX ) {
+      c_dealloc_last_script_var( codegen );
+   }
+   if ( dst.status == R_ARRAYINDEX ) {
+      c_dealloc_last_script_var( codegen );
+   }
    if ( result->push ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
       result->status = R_VALUE;
