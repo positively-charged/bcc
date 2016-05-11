@@ -476,6 +476,24 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
          test_var_initz( semantic, var ) &&
          test_var_finish( semantic, var );
    }
+   if ( var->object.resolved ) {
+      // Array.
+      if ( var->dim ) {
+         var->desc = DESC_ARRAY;
+      }
+      // Reference/reference-element. 
+      else if ( var->ref ) {
+         var->desc = DESC_REFVAR;
+      }
+      // Structure/structure-element.
+      else if ( var->structure ) {
+         var->desc = DESC_STRUCTVAR;
+      }
+      // Initializer.
+      else {
+         var->desc = DESC_PRIMITIVEVAR;
+      }
+   }
 }
 
 bool test_var_spec( struct semantic* semantic, struct var* var ) {
