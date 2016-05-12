@@ -2216,6 +2216,10 @@ void init_type_info( struct type_info* type, struct result* result ) {
          result->func->min_param, result->func->max_param,
          result->func->msgbuild );
    }
+   else if ( result->ref_dim >= 1 ) {
+      s_init_type_info_array_ref( type, result->ref->next, result->structure,
+         result->enumeration, result->ref_dim, result->spec );
+   }
    else {
       s_init_type_info( type, result->ref, result->structure,
          result->enumeration, result->dim, result->spec );

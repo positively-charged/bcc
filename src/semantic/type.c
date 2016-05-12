@@ -31,6 +31,18 @@ void s_init_type_info( struct type_info* type, struct ref* ref,
    type->implicit_ref = false;
 }
 
+void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
+   struct structure* structure, struct enumeration* enumeration,
+   int dim_count, int spec ) {
+   s_init_type_info( type, ref, structure, enumeration, NULL, spec );
+   struct ref_array* array = &type->implicit_ref_part.array;
+   array->ref.next = type->ref;
+   array->ref.type = REF_ARRAY;
+   array->dim_count = dim_count;
+   type->ref = &array->ref;
+   type->implicit_ref = true;
+}
+
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct param* params, int return_spec, int min_param, int max_param,
