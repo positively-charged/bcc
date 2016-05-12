@@ -55,7 +55,6 @@ static void dupname_err( struct semantic* semantic, struct name* name,
 static bool implicitly_imported( struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct scope* scope,
    struct name* name, struct object* object );
-static struct object* get_nsobject( struct ns* ns, const char* object_name );
 static void confirm_compiletime_content( struct semantic* semantic );
 static bool is_compiletime_object( struct object* object );
 
@@ -377,7 +376,7 @@ void import_selection( struct semantic* semantic, struct ns* ns,
 void import_item( struct semantic* semantic, struct ns* ns,
    struct using_item* item ) {
    // Locate object.
-   struct object* object = get_nsobject( ns, item->name );
+   struct object* object = s_get_nsobject( ns, item->name );
    if ( ! object ) {
       s_unknown_ns_object( semantic, ns, item->name, &item->pos );
       s_bail( semantic );
@@ -411,7 +410,7 @@ struct object* follow_path( struct semantic* semantic, struct path* path,
       path = path->next;
    }
    while ( path ) {
-      object = ns ? get_nsobject( ns, path->text ) :
+      object = ns ? s_get_nsobject( ns, path->text ) :
          s_search_object( semantic, path->text );
       if ( ! object ) {
          s_diag( semantic, DIAG_POS_ERR, &path->pos,
@@ -452,7 +451,7 @@ struct object* s_search_object( struct semantic* semantic,
       // namespace are not searched.
       struct ns_link* link = ns->links;
       while ( link ) {
-         struct object* object = get_nsobject( link->ns, object_name );
+         struct object* object = s_get_nsobject( link->ns, object_name );
          if ( object ) {
             return object;
          }
@@ -818,7 +817,7 @@ void add_sweep_name( struct semantic* semantic, struct scope* scope,
 }
 
 // Retrieves an object from a namespace.
-struct object* get_nsobject( struct ns* ns, const char* object_name ) {
+struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {
    struct name* name = t_extend_name( ns->body, object_name );
    if ( name->object ) {
       struct object* object = name->object;

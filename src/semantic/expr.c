@@ -91,6 +91,8 @@ static void test_subscript_str( struct semantic* semantic,
 static bool is_array_ref( struct result* result );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
+static struct object* access_object( struct semantic* semantic,
+   struct access* access, struct result* lside );
 static bool is_array( struct result* result );
 static bool is_struct( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
@@ -1230,34 +1232,12 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, access->lside );
-   struct name* name = NULL;
-   if ( is_struct( &lside ) ) {
-      name = lside.structure->name;
-   }
-   else if ( lside.object && lside.object->node.type == NODE_ENUMERATION ) {
-      struct enumeration* enumeration = ( struct enumeration* ) lside.object;
-      name = enumeration->name;
-   }
-   else if ( lside.object && lside.object->node.type == NODE_NAMESPACE ) {
-      struct ns* ns = ( struct ns* ) lside.object;
-      name = ns->name;
-   }
-   else if ( is_array( &lside ) ) {
-      name = semantic->task->array_name;
-   }
-   else {
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "left operand does not support member access" );
-      s_bail( semantic );
-   }
-   struct name* member_name = t_extend_name( name, "." );
-   member_name = t_extend_name( member_name, access->name );
-   if ( ! member_name->object ) {
+   struct object* object = access_object( semantic, access, &lside );
+   if ( ! object ) {
       unknown_member( semantic, access, &lside );
       s_bail( semantic );
    }
-   if ( ! member_name->object->resolved &&
-      member_name->object->node.type != NODE_NAMESPACE ) {
+   if ( ! object->resolved && object->node.type != NODE_NAMESPACE ) {
       if ( semantic->trigger_err ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "right operand (`%s`) undefined", access->name );
@@ -1268,10 +1248,38 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   select_object( semantic, result, member_name->object );
-   access->rside = &member_name->object->node;
-   if ( member_name->object->node.type == NODE_STRUCTURE_MEMBER ) {
+   select_object( semantic, result, object );
+   access->rside = &object->node;
+   if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
       result->data_origin = lside.data_origin;
+   }
+}
+
+struct object* access_object( struct semantic* semantic, struct access* access,
+   struct result* lside ) {
+   if ( is_struct( lside ) ) {
+      struct name* name = t_extend_name( lside->structure->body,
+         access->name );
+      return name->object;
+   }
+   else if ( lside->object && lside->object->node.type == NODE_ENUMERATION ) {
+      struct enumeration* enumeration = ( struct enumeration* ) lside->object;
+      struct name* name = t_extend_name( enumeration->body, access->name );
+      return name->object;
+   }
+   else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
+      return s_get_nsobject( ( struct ns* ) lside->object, access->name );
+   }
+   else if ( is_array( lside ) ) {
+      struct name* name = t_extend_name( semantic->task->array_name, "." );
+      name = t_extend_name( name, access->name );
+      return name->object;
+   }
+   else {
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "left operand does not support member access" );
+      s_bail( semantic );
+      return NULL;
    }
 }
 
