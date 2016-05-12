@@ -121,6 +121,9 @@ static void test_msgbuild_arg( struct semantic* semantic,
 static void add_nested_call( struct func* func, struct call* call );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
+static void test_remaining_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct param* param,
+   struct expr* expr );
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct type_info* type, const char* from, struct type_info* required_type,
    const char* where, int number );
@@ -1267,6 +1270,9 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    }
    select_object( semantic, result, member_name->object );
    access->rside = &member_name->object->node;
+   if ( member_name->object->node.type == NODE_STRUCTURE_MEMBER ) {
+      result->data_origin = lside.data_origin;
+   }
 }
 
 bool is_array( struct result* result ) {
@@ -1641,28 +1647,38 @@ void test_remaining_args( struct semantic* semantic,
    list_iter_t i;
    list_iter_init( &i, &test->call->args );
    while ( ! list_end( &i ) ) {
-      struct expr* expr = list_data( &i );
-      struct expr_test nested;
-      s_init_expr_test( &nested, true, false );
-      struct result result;
-      init_result( &result );
-      test_nested_root( semantic, expr_test, &nested, &result, expr );
+      test_remaining_arg( semantic, expr_test, test, param, list_data( &i ) );
       if ( param ) {
-         struct type_info type;
-         struct type_info param_type;
-         init_type_info( &type, &result );
-         s_init_type_info( &param_type, param->ref, param->structure,
-            param->enumeration, NULL, param->spec );
-         s_decay( &type );
-         if ( ! s_same_type( &param_type, &type ) ) {
-            arg_mismatch( semantic, &expr->pos, &type,
-               "parameter", &param_type, "argument", test->num_args + 1 );
-            s_bail( semantic );
-         }
          param = param->next;
       }
-      ++test->num_args;
       list_next( &i );
+   }
+}
+
+void test_remaining_arg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct param* param,
+   struct expr* expr ) {
+   struct expr_test nested;
+   s_init_expr_test( &nested, true, false );
+   struct result result;
+   init_result( &result );
+   test_nested_root( semantic, expr_test, &nested, &result, expr );
+   if ( param ) {
+      struct type_info type;
+      struct type_info param_type;
+      init_type_info( &type, &result );
+      s_init_type_info( &param_type, param->ref, param->structure,
+         param->enumeration, NULL, param->spec );
+      s_decay( &type );
+      if ( ! s_same_type( &param_type, &type ) ) {
+         arg_mismatch( semantic, &expr->pos, &type,
+            "parameter", &param_type, "argument", test->num_args + 1 );
+         s_bail( semantic );
+      }
+   }
+   ++test->num_args;
+   if ( is_ref_type( &result ) && result.data_origin ) {
+      result.data_origin->addr_taken = true;
    }
 }
 
@@ -1923,12 +1939,15 @@ void select_var( struct semantic* semantic, struct result* result,
    struct var* var ) {
    // Array.
    if ( var->dim ) {
+      result->data_origin = var;
       result->ref = var->ref;
       result->structure = var->structure;
       result->enumeration = var->enumeration;
       result->dim = var->dim;
       result->spec = s_spec( semantic, var->spec );
-      result->folded = true;
+      if ( var->storage == STORAGE_MAP ) {
+         result->folded = true;
+      }
    }
    // Reference variable.
    else if ( var->ref ) {
@@ -1940,9 +1959,12 @@ void select_var( struct semantic* semantic, struct result* result,
    }
    // Structure variable.
    else if ( var->structure ) {
+      result->data_origin = var;
       result->structure = var->structure;
       result->spec = s_spec( semantic, var->spec );
-      result->folded = true;
+      if ( var->storage == STORAGE_MAP ) {
+         result->folded = true;
+      }
    }
    // Primitive variable.
    else {
@@ -1950,7 +1972,6 @@ void select_var( struct semantic* semantic, struct result* result,
       result->spec = s_spec( semantic, var->spec );
       result->modifiable = true;
    }
-   result->data_origin = var;
    result->complete = true;
    result->usable = true;
    var->used = true;

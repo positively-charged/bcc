@@ -150,5 +150,6 @@ void c_push_element( struct codegen* codegen, int storage, int index );
 void c_append_string( struct codegen* codegen,
    struct indexed_string* string );
 void c_push_dimtrack( struct codegen* codegen );
+void c_update_dimtrack( struct codegen* codegen );
 
 #endif

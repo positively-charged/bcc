@@ -2,6 +2,10 @@
 
 #include "phase.h"
 
+struct packed_expr_test {
+   struct type_info* type;
+   struct var* data_origin;
+};
 
 static void test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block );
@@ -37,7 +41,7 @@ static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void test_packed_expr( struct semantic* semantic,
-   struct type_info* type, struct packed_expr* packed_expr );
+   struct packed_expr_test* test, struct packed_expr* packed_expr );
 static void check_dup_label( struct semantic* semantic );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
@@ -387,6 +391,9 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
          "expression not of iterable type" );
       s_bail( semantic );
    }
+   if ( s_is_ref_type( &collection_type ) && expr.var ) {
+      expr.var->addr_taken = true;
+   }
    // Key.
    if ( stmt->key ) {
       s_test_foreach_var( semantic, &iter.key, key );
@@ -485,7 +492,8 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    }
    if ( stmt->return_value ) {
       struct type_info type;
-      test_packed_expr( semantic, &type, stmt->return_value );
+      struct packed_expr_test expr_test = { &type, NULL };
+      test_packed_expr( semantic, &expr_test, stmt->return_value );
       if ( func->return_spec == SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
             "returning a value in void function" );
@@ -499,6 +507,9 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
          s_type_mismatch( semantic, "return-value", &type,
             "function-return", &return_type, &stmt->return_value->expr->pos );
          s_bail( semantic );
+      }
+      if ( s_is_ref_type( &type ) && expr_test.data_origin ) {
+         expr_test.data_origin->addr_taken = true;
       }
    }
    else {
@@ -561,23 +572,25 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
-   test_packed_expr( semantic, NULL, stmt->packed_expr );
+   struct packed_expr_test test = { NULL, NULL };
+   test_packed_expr( semantic, &test, stmt->packed_expr );
 }
 
-void test_packed_expr( struct semantic* semantic, struct type_info* type,
-   struct packed_expr* packed_expr ) {
+void test_packed_expr( struct semantic* semantic,
+   struct packed_expr_test* test, struct packed_expr* packed_expr ) {
    if ( packed_expr->msgbuild_func ) {
       s_test_nested_func( semantic, packed_expr->msgbuild_func );
    }
    struct expr_test expr_test;
    s_init_expr_test_packed( &expr_test, packed_expr->msgbuild_func,
-      ( type != NULL ) );
-   if ( type ) {
-      s_test_expr_type( semantic, &expr_test, type, packed_expr->expr );
+      ( test->type != NULL ) );
+   if ( test->type ) {
+      s_test_expr_type( semantic, &expr_test, test->type, packed_expr->expr );
    }
    else {
       s_test_expr( semantic, &expr_test, packed_expr->expr );
    }
+   test->data_origin = expr_test.var;
    if ( packed_expr->msgbuild_func ) {
       struct func_user* impl = packed_expr->msgbuild_func->impl;
       if ( ! impl->usage ) {

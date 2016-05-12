@@ -425,6 +425,11 @@ void add_default_params( struct codegen* codegen, struct func* func,
    }
 }
 
+bool zero_default_value( struct param* param ) {
+   return ( ! param->ref && param->default_value->folded &&
+      param->default_value->value == 0 );
+}
+
 void write_default_init( struct codegen* codegen, struct func* func,
    struct param* start, struct param* end, int count_param ) {
    c_pcd( codegen, PCD_PUSHSCRIPTVAR, count_param );
@@ -451,10 +456,6 @@ void write_default_init( struct codegen* codegen, struct func* func,
       param = param->next;
    }
    c_append_node( codegen, &exit_point->node );
-}
-
-bool zero_default_value( struct param* param ) {
-   return ( param->default_value->folded && param->default_value->value == 0 );
 }
 
 void assign_nested_call_ids( struct codegen* codegen,

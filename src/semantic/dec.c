@@ -1084,6 +1084,9 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
    else if ( expr.func ) {
       value->type = VALUE_FUNC;
    }
+   if ( s_is_ref_type( &initz_type ) && expr.var ) {
+      expr.var->addr_taken = true;
+   }
    return true;
 }
 
@@ -1480,6 +1483,9 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
          default_value_mismatch( semantic, func, param, &param_type, &type,
             &param->default_value->pos );
          s_bail( semantic );
+      }
+      if ( s_is_ref_type( &type ) && expr.var ) {
+         expr.var->addr_taken = true;
       }
    }
    return true;

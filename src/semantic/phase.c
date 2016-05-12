@@ -119,6 +119,16 @@ void s_test( struct semantic* semantic ) {
          s_bail( semantic );
       }
    }
+   // TODO: Refactor this.
+   if ( ! semantic->lib->importable ) {
+      list_iter_t i;
+      list_iter_init( &i, &semantic->lib->vars );
+      while ( ! list_end( &i ) ) {
+         struct var* var = list_data( &i );
+         var->hidden = true;
+         list_next( &i );
+      }
+   }
 }
 
 void bind_names( struct semantic* semantic ) {

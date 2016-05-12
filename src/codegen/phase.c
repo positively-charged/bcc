@@ -404,7 +404,7 @@ void sort_vars( struct codegen* codegen ) {
          var->value->expr->value == 0 ) && var->hidden ) {
          list_append( &nonzerohidden_scalars, var );
       }
-      // Arrays, hidden, no-address-taken.
+      // Arrays, hidden.
       else if ( array_var( var ) && var->hidden ) {
          list_append( &hidden_arrays, var );
       }
