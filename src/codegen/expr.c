@@ -1,3 +1,4 @@
+
 #include <limits.h>
 
 #include "phase.h"
@@ -1154,6 +1155,10 @@ void visit_access( struct codegen* codegen, struct result* result,
    else if ( access->rside->type == NODE_ENUMERATOR ) {
       visit_enumerator( codegen, result,
          ( struct enumerator* ) access->rside );
+   }
+   else if ( access->rside->type == NODE_VAR ) {
+      visit_var( codegen, result,
+         ( struct var* ) access->rside );
    }
    else if ( access->rside->type == NODE_FUNC ) {
       *result = lside;
@@ -2487,31 +2492,59 @@ void c_update_element( struct codegen* codegen, int storage, int index,
 }
 
 void c_push_foreach_collection( struct codegen* codegen,
-   struct foreach_collection* collection, struct expr* expr ) {
+   struct foreach_writing* writing, struct expr* expr ) {
    struct result result;
    init_result( &result, true );
    visit_operand( codegen, &result, expr->root );
-   collection->ref = result.ref;
-   collection->structure = result.structure;
-   collection->dim = result.dim;
-   collection->storage = result.storage;
-   collection->index = result.index;
-   collection->diminfo_start = result.diminfo_start;
-   collection->base_pushed = ( result.status == R_ARRAYINDEX );
+   writing->structure = result.structure;
+   writing->dim = result.dim;
+   writing->storage = result.storage;
+   writing->index = result.index;
+   writing->diminfo = result.diminfo_start;
+   writing->pushed_base = ( result.status == R_ARRAYINDEX );
+   // Array.
    if ( result.dim ) {
-      collection->element_size_one_primitive =
-         ( result.dim->element_size == 1 );
+      writing->collection = FOREACHCOLLECTION_ARRAY;
+      // Sub-array.
+      if ( result.dim->next ) {
+         writing->item = FOREACHITEM_SUBARRAY;
+      }
+      // Reference element.
+      else if ( result.ref ) {
+         if ( result.ref->type == REF_ARRAY ) {
+            writing->item = FOREACHITEM_ARRAYREF;
+         }
+      }
+      // Structure element.
+      else if ( result.structure ) {
+         writing->item = FOREACHITEM_STRUCT;
+      }
    }
-   else if ( result.ref ) {
-      collection->element_size_one_primitive =
-         ( result.ref->next && result.ref->next->type != REF_ARRAY );
-   }
-   else if ( result.structure ) {
-      collection->element_size_one_primitive =
-         ( result.structure->size == 1 );
-   }
-   else {
-      collection->element_size_one_primitive = true;
+   // Array (reference).
+   else if ( result.ref && result.ref->type == REF_ARRAY ) {
+      writing->collection = FOREACHCOLLECTION_ARRAYREF;
+      push_array_length( codegen, &result, false );
+      int ref_dim = result.ref_dim;
+      if ( ref_dim == 0 ) {
+         struct ref_array* array = ( struct ref_array* ) result.ref;
+         ref_dim = array->dim_count;
+      }
+      // Sub-array.
+      if ( ref_dim > 1 ) {
+         inc_dimtrack( codegen );
+         c_push_dimtrack( codegen );
+         writing->item = FOREACHITEM_SUBARRAY;
+      }
+      // Reference element.
+      else if ( result.ref->next ) {
+         if ( result.ref->next->type == REF_ARRAY ) {
+            writing->item = FOREACHITEM_ARRAYREF;
+         }
+      }
+      // Structure element.
+      else if ( result.structure ) {
+         writing->item = FOREACHITEM_STRUCT;
+      }
    }
 }
 
@@ -2545,6 +2578,10 @@ void inc_dimtrack( struct codegen* codegen ) {
       c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
       c_pcd( codegen, PCD_INCMAPARRAY, codegen->shary.index );
    }
+}
+
+void c_inc_dimtrack( struct codegen* codegen ) {
+   inc_dimtrack( codegen );
 }
 
 void next_diminfo( struct codegen* codegen ) {

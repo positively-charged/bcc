@@ -24,12 +24,13 @@ static bool while_stmt( struct while_stmt* stmt );
 static void visit_for( struct codegen* codegen, struct for_stmt* );
 static void visit_foreach( struct codegen* codegen,
    struct foreach_stmt* stmt );
-static void foreach_array( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection );
-static void foreach_ref( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection );
-static void foreach_str( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection );
+static void init_foreach_writing( struct foreach_writing* writing );
+static void foreach_array( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt );
+static void foreach_ref_array( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt );
+static void foreach_str( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt );
 static void visit_jump( struct codegen* codegen, struct jump* );
 static void set_jumps_point( struct codegen* codegen, struct jump* jump,
    struct c_point* point );
@@ -477,182 +478,279 @@ void visit_foreach( struct codegen* codegen, struct foreach_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
-   // Allocate variables to hold the key and value.
-   if ( stmt->key ) {
-      c_visit_var( codegen, stmt->key );
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->key->index );
-   }
-   c_visit_var( codegen, stmt->value );
-   // Push collection onto the stack.
-   struct foreach_collection collection;
-   c_push_foreach_collection( codegen, &collection, stmt->collection );
-   if ( collection.dim ) {
-      foreach_array( codegen, stmt, &collection );
-   }
-   else if ( collection.ref ) {
-      foreach_ref( codegen, stmt, &collection );
-   }
-   else {
-      foreach_str( codegen, stmt, &collection );
+   struct foreach_writing writing;
+   init_foreach_writing( &writing );
+   c_push_foreach_collection( codegen, &writing, stmt->collection );
+   switch ( writing.collection ) {
+   case FOREACHCOLLECTION_ARRAY:
+      foreach_array( codegen, &writing, stmt );
+      break;
+   case FOREACHCOLLECTION_ARRAYREF:
+      foreach_ref_array( codegen, &writing, stmt );
+      break;
+   case FOREACHCOLLECTION_STR:
+      foreach_str( codegen, &writing, stmt );
+      break;
    }
    // Patch jump statements.
-/*
-   set_jumps_point( codegen, stmt->jump_break, exit_point );
-   set_jumps_point( codegen, stmt->jump_continue,
-      post_point ? post_point :
-      cond_point ? cond_point :
-      body_point ); */
+   set_jumps_point( codegen, stmt->jump_break, writing.break_point );
+   set_jumps_point( codegen, stmt->jump_continue, writing.continue_point );
    pop_local_record( codegen );
 }
 
-void foreach_array( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection ) {
-   // Initialize variable that stores the element offset.
-   // -----------------------------------------------------------------------
-   // When the array elements are of size 1, we use a single variable to hold
-   // both the key and the element offset, since both values will be the same.
-   int offset_var = 0;
-   if ( stmt->key && collection->element_size_one_primitive ) {
-      offset_var = stmt->key->index;
-   }
-   else {
-      offset_var = c_alloc_script_var( codegen );
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, offset_var );
-   }
-   // Begin processing element.
-   // -----------------------------------------------------------------------
-   struct c_point* element_point = c_create_point( codegen );
-   c_append_node( codegen, &element_point->node );
-   // Calculate address to element.
-   // -----------------------------------------------------------------------
-   // Duplicate the base offset so it can be reused on the next element.
-   if ( collection->base_pushed ) {
-      c_pcd( codegen, PCD_DUP );
-   }
-   c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset_var );
-   if ( collection->base_pushed ) {
-      c_pcd( codegen, PCD_ADD );
-   }
-   // Initialize value variable with element.
-   // -----------------------------------------------------------------------
-   // Implicit array reference.
-   if ( collection->dim->next ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index );
-      c_pcd( codegen, PCD_PUSHNUMBER, collection->diminfo_start + 1 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index + 1 );
-   }
-   // Implicit structure reference.
-   else if ( collection->structure ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index );
-   }
-   // Array reference.
-   else if ( collection->ref && collection->ref->type == REF_ARRAY ) {
-      c_pcd( codegen, PCD_DUP );
-      c_pcd( codegen, PCD_PUSHNUMBER, 1 );
-      c_pcd( codegen, PCD_ADD );
-      c_push_element( codegen, collection->storage, collection->index );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index + 1 );
-      c_push_element( codegen, collection->storage, collection->index );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index );
-   }
-   // Primitive.
-   else {
-      c_push_element( codegen, collection->storage, collection->index );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index );
-   }
-   // Initialize key variable.
-   // -----------------------------------------------------------------------
+void init_foreach_writing( struct foreach_writing* writing ) {
+   writing->structure = NULL;
+   writing->dim = NULL;
+   writing->break_point = NULL;
+   writing->continue_point = NULL;
+   writing->storage = STORAGE_LOCAL;
+   writing->index = 0;
+   writing->diminfo = 0;
+   writing->collection = FOREACHCOLLECTION_STR;
+   writing->item = FOREACHITEM_PRIMITIVE;
+   writing->pushed_base = false;
+}
+
+void foreach_array( struct codegen* codegen, struct foreach_writing* writing,
+   struct foreach_stmt* stmt ) {
+   // Allocate key variable.
+   int key = c_alloc_script_var( codegen );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, key );
    if ( stmt->key ) {
-      // Push the key onto the stack because the user is allowed to change the
-      // key variable. The key variable will be restored after the body is done
-      // executing.
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, stmt->key->index );
+      stmt->key->index = key;
    }
-   // Body.
-   // -----------------------------------------------------------------------
-   c_write_stmt( codegen, stmt->body );
-   // Restore the key variable.
-   // -----------------------------------------------------------------------
-   if ( stmt->key ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->key->index );
-      c_pcd( codegen, PCD_INCSCRIPTVAR, stmt->key->index );
+   // Allocate value variable.
+   c_visit_var( codegen, stmt->value );
+   int value = stmt->value->index;
+   // When iterating over sub-arrays, the dimension information will be the
+   // same for each sub-array, so assign it only once.
+   if ( writing->item == FOREACHITEM_SUBARRAY ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, writing->diminfo + 1 );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value + 1 );
    }
-   // Move to the next element.
+   // Allocate element-offset variable.
    // -----------------------------------------------------------------------
-   if ( collection->dim->element_size > 1 ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, collection->dim->element_size );
-      c_pcd( codegen, PCD_ADDSCRIPTVAR, offset_var );
-   }
-   else {
-      // Don't increment the offset variable when it's the same as the key
-      // variable, since the key is already incremented.
-      if ( ! ( stmt->key && stmt->key->index == offset_var ) ) {
-         c_pcd( codegen, PCD_INCSCRIPTVAR, offset_var );
+   // When the item is a sub-array or a structure, we use a single variable to
+   // hold both the value and the element offset, since both values will be the
+   // same.
+   int offset = value;
+   if ( ! ( writing->item == FOREACHITEM_SUBARRAY ||
+      writing->item == FOREACHITEM_STRUCT ) ) {
+      // When the item is of size 1, we use a single variable to hold both the
+      // key and the element offset, since both values will be the same.
+      offset = key;
+      if ( writing->dim->element_size > 1 || writing->pushed_base ) {
+         offset = c_alloc_script_var( codegen );
       }
    }
-   // See if another element is present.
-   // -----------------------------------------------------------------------
-   c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset_var );
-   c_pcd( codegen, PCD_PUSHNUMBER,
-      collection->dim->length * collection->dim->element_size );
-   c_pcd( codegen, PCD_LT );
-   struct c_jump* element_jump = c_create_jump( codegen, PCD_IFGOTO );
-   c_append_node( codegen, &element_jump->node );
-   element_jump->point = element_point;
-   // Exit.
-   // -----------------------------------------------------------------------
-   if ( collection->base_pushed ) { 
-      c_pcd( codegen, PCD_DROP );
+   if ( offset != key ) {
+      if ( ! writing->pushed_base ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      }
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, offset );
    }
-}
-
-void foreach_ref( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection ) {
-}
-
-void foreach_str( struct codegen* codegen, struct foreach_stmt* stmt,
-   struct foreach_collection* collection ) {
-   int offset_var = 0;
-   // Reuse the key variable as the offset variable.
-   if ( stmt->key ) {
-      offset_var = stmt->key->index;
-   }
-   else {
-      offset_var = c_alloc_script_var( codegen );
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, offset_var );
-   }
-   struct c_jump* cond_jump = c_create_jump( codegen, PCD_GOTO );
-   c_append_node( codegen, &cond_jump->node );
-   // Pre-body.
+   // Beginning of loop.
    struct c_point* start_point = c_create_point( codegen );
    c_append_node( codegen, &start_point->node );
-   if ( stmt->key ) {
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset_var );
+   // Initialize value variable.
+   switch ( writing->item ) {
+   case FOREACHITEM_ARRAYREF:
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value );
+      c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value + 1 );
+      break;
+   case FOREACHITEM_PRIMITIVE:
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value );
+      break;
+   case FOREACHITEM_SUBARRAY:
+   case FOREACHITEM_STRUCT:
+      break;
    }
    // Body.
    c_write_stmt( codegen, stmt->body );
-   // Post-body.
-   if ( stmt->key ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, offset_var );
+   // Increment.
+   struct c_point* increment_point = c_create_point( codegen );
+   c_append_node( codegen, &increment_point->node );
+   writing->continue_point = increment_point;
+   c_pcd( codegen, PCD_INCSCRIPTVAR, key );
+   if ( offset != key ) {
+      // The offset variable is incremented once to get the dimension
+      // information. Increment again to move on to the next element.
+      if ( writing->item == FOREACHITEM_ARRAYREF ) {
+         c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      }
+      else if ( writing->dim->element_size > 1 ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, writing->dim->element_size );
+         c_pcd( codegen, PCD_ADDSCRIPTVAR, offset );
+      }
+      else {
+         c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      }
    }
-   c_pcd( codegen, PCD_INCSCRIPTVAR, offset_var );
+   // Condition.
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, key );
+   c_pcd( codegen, PCD_PUSHNUMBER, writing->dim->length );
+   c_pcd( codegen, PCD_LT );
+   struct c_jump* start_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &start_jump->node );
+   start_jump->point = start_point;
+   // Exit.
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   writing->break_point = exit_point;
+}
+
+void foreach_ref_array( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt ) {
+   // Allocate key variable.
+   int key = -1;
+   if ( stmt->key ) {
+      key = c_alloc_script_var( codegen );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, key );
+      stmt->key->index = key;
+   }
+   // Allocate value variable.
+   c_visit_var( codegen, stmt->value );
+   int value = stmt->value->index;
+   // When iterating over sub-arrays, the dimension information will be the
+   // same for each sub-array, so assign it only once.
+   if ( writing->item == FOREACHITEM_SUBARRAY ) {
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value + 1 );
+   }
+   // Allocate elements-left variable.
+   int left = c_alloc_script_var( codegen );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, left );
+   // Allocate element-offset variable.
+   // -----------------------------------------------------------------------
+   // When the item is a sub-array or a structure, we use a single variable to
+   // hold both the value and the element offset, since both values will be the
+   // same.
+   int offset = value;
+   if ( ! ( writing->item == FOREACHITEM_SUBARRAY ||
+      writing->item == FOREACHITEM_STRUCT ) ) {
+      offset = c_alloc_script_var( codegen );
+   }
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, offset );
+   // Beginning of loop.
+   struct c_point* start_point = c_create_point( codegen );
+   c_append_node( codegen, &start_point->node );
+   // Initialize value variable.
+   switch ( writing->item ) {
+   case FOREACHITEM_ARRAYREF:
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value );
+      c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value + 1 );
+      break;
+   case FOREACHITEM_PRIMITIVE:
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset );
+      c_push_element( codegen, writing->storage, writing->index );
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value );
+      break;
+   case FOREACHITEM_SUBARRAY:
+   case FOREACHITEM_STRUCT:
+      break;
+   }
+   // Body.
+   c_write_stmt( codegen, stmt->body );
+   // Increment.
+   struct c_point* increment_point = c_create_point( codegen );
+   c_append_node( codegen, &increment_point->node );
+   writing->continue_point = increment_point;
+   if ( key >= 0 ) {
+      c_pcd( codegen, PCD_INCSCRIPTVAR, key );
+   }
+   switch ( writing->item ) {
+   case FOREACHITEM_SUBARRAY:
+      // Because the iteration variable containing the offset to the dimension
+      // information is assigned only once and remains unchanged, use it to get
+      // the sub-array size, which is the increment amount.
+      c_pcd( codegen, PCD_PUSHSCRIPTVAR, value + 1 );
+      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      c_pcd( codegen, PCD_ADDSCRIPTVAR, offset );
+      break;
+   case FOREACHITEM_ARRAYREF:
+      // The offset variable is incremented once to get the dimension
+      // information. Increment again to move on to the next element.
+      c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      break;
+   case FOREACHITEM_STRUCT:
+      if ( writing->structure->size > 1 ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, writing->structure->size );
+         c_pcd( codegen, PCD_ADDSCRIPTVAR, offset );
+      }
+      else {
+         c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      }
+      break;
+   case FOREACHITEM_PRIMITIVE:
+      c_pcd( codegen, PCD_INCSCRIPTVAR, offset );
+      break;
+   }
+   // Condition.
+   c_pcd( codegen, PCD_DECSCRIPTVAR, left );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, left );
+   struct c_jump* start_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &start_jump->node );
+   start_jump->point = start_point;
+   // Exit.
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   writing->break_point = exit_point;
+}
+
+void foreach_str( struct codegen* codegen, struct foreach_writing* writing,
+   struct foreach_stmt* stmt ) {
+   // Allocate string variable.
+   int string = c_alloc_script_var( codegen );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, string );
+   // Allocate key variable.
+   int key = c_alloc_script_var( codegen );
+   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, key );
+   if ( stmt->key ) {
+      stmt->key->index = key;
+   }
+   // Allocate value variable.
+   c_visit_var( codegen, stmt->value );
+   int value = stmt->value->index;
+   struct c_jump* cond_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &cond_jump->node );
+   // Beginning of loop.
+   struct c_point* start_point = c_create_point( codegen );
+   c_append_node( codegen, &start_point->node );
+   // Body.
+   c_write_stmt( codegen, stmt->body );
+   // Increment.
+   c_pcd( codegen, PCD_INCSCRIPTVAR, key );
    // Condition.
    struct c_point* cond_point = c_create_point( codegen );
    c_append_node( codegen, &cond_point->node );
-   c_pcd( codegen, PCD_DUP );
-   c_pcd( codegen, PCD_PUSHSCRIPTVAR, offset_var );
+   cond_jump->point = cond_point;
+   writing->continue_point = cond_point;
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, string );
+   c_pcd( codegen, PCD_PUSHSCRIPTVAR, key );
    c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
    c_pcd( codegen, PCD_DUP );
-   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, stmt->value->index );
-   cond_jump->point = cond_point;
-   // Jump to body.
-   struct c_jump* body_jump = c_create_jump( codegen, PCD_IFGOTO );
-   c_append_node( codegen, &body_jump->node );
-   body_jump->point = start_point;
-   c_pcd( codegen, PCD_DROP );
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, value );
+   struct c_jump* start_jump = c_create_jump( codegen, PCD_IFGOTO );
+   c_append_node( codegen, &start_jump->node );
+   start_jump->point = start_point;
+   // Exit.
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   writing->break_point = exit_point;
 }
 
 void visit_jump( struct codegen* codegen, struct jump* jump ) {

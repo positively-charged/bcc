@@ -391,7 +391,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
          "expression not of iterable type" );
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &collection_type ) && expr.var ) {
+   if ( s_is_ref_type( &iter.value ) && expr.var ) {
       expr.var->addr_taken = true;
    }
    // Key.

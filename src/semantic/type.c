@@ -383,6 +383,9 @@ void subscript_array_type( struct type_info* type,
          element_type->spec = SPEC_STRUCT;
          element_type->implicit_ref = true;
       }
+      else {
+         element_type->ref = NULL;
+      }
    }
    else {
       UNREACHABLE();
