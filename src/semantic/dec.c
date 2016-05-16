@@ -44,6 +44,14 @@ struct initz_test {
    bool has_string;
 };
 
+struct scalar_initz_test {
+   struct type_info initz_type;
+   struct initz_test* initz_test;
+   struct type_info* type;
+   bool constant;
+   bool has_string;
+};
+
 struct initz_pres {
    struct str output;
    bool member_last;
@@ -142,8 +150,12 @@ static void refnotinit_struct( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value );
 static bool test_value( struct semantic* semantic, struct initz_test* test,
    struct type_info* type, struct value* value );
+static void init_scalar_initz_test( struct scalar_initz_test* test,
+   struct initz_test* initz_test, struct type_info* type, bool constant );
+static void init_scalar_initz_test_auto( struct scalar_initz_test* test,
+   bool constant );
 static bool test_scalar_initz( struct semantic* semantic,
-   struct initz_test* test, struct type_info* type, struct value* value );
+   struct scalar_initz_test* test, struct value* value );
 static void initz_mismatch( struct semantic* semantic,
    struct initz_test* test, struct type_info* initz_type,
    struct type_info* type, struct pos* pos );
@@ -1042,7 +1054,15 @@ void refnotinit_struct( struct semantic* semantic, struct initz_test* test,
 bool test_value( struct semantic* semantic, struct initz_test* test,
    struct type_info* type, struct value* value ) {
    if ( s_is_scalar( type ) ) {
-      return test_scalar_initz( semantic, test, type, value );
+      struct scalar_initz_test scalar_test;
+      init_scalar_initz_test( &scalar_test, test, type, test->constant );
+      if ( ! test_scalar_initz( semantic, &scalar_test, value ) ) {
+         return false;
+      }
+      if ( scalar_test.has_string ) {
+         test->has_string = true;
+      }
+      return true;
    }
    else if ( s_is_onedim_int_array( type ) ) {
       return test_string_initz( semantic, type->dim, value );
@@ -1055,12 +1075,24 @@ bool test_value( struct semantic* semantic, struct initz_test* test,
    }
 }
 
-bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
-   struct type_info* type, struct value* value ) {
+void init_scalar_initz_test( struct scalar_initz_test* test,
+   struct initz_test* initz_test, struct type_info* type, bool constant ) {
+   test->initz_test = initz_test;
+   test->type = type;
+   test->constant = constant;
+   test->has_string = false;
+}
+
+void init_scalar_initz_test_auto( struct scalar_initz_test* test,
+   bool constant ) {
+   init_scalar_initz_test( test, NULL, NULL, constant );
+}
+
+bool test_scalar_initz( struct semantic* semantic,
+   struct scalar_initz_test* test, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   struct type_info initz_type;
-   s_test_expr_type( semantic, &expr, &initz_type, value->expr );
+   s_test_expr_type( semantic, &expr, &test->initz_type, value->expr );
    if ( expr.undef_erred ) {
       return false;
    }
@@ -1069,13 +1101,16 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
          "non-constant initializer" );
       s_bail( semantic );
    }
-   if ( ! s_same_type( type, &initz_type ) ) {
-      initz_mismatch( semantic, test, &initz_type, type, &value->expr->pos );
-      s_bail( semantic );
+   // Perform type checking when testing an initializer for a variable with
+   // known type information.
+   if ( test->initz_test ) {
+      if ( ! s_same_type( test->type, &test->initz_type ) ) {
+         initz_mismatch( semantic, test->initz_test, &test->initz_type,
+            test->type, &value->expr->pos );
+         s_bail( semantic );
+      }
    }
-   if ( expr.has_string ) {
-      test->has_string = true;
-   }
+   test->has_string = expr.has_string;
    value->var = expr.var;
    value->func = expr.func;
    if ( expr.has_string ) {
@@ -1084,7 +1119,7 @@ bool test_scalar_initz( struct semantic* semantic, struct initz_test* test,
    else if ( expr.func ) {
       value->type = VALUE_FUNC;
    }
-   if ( s_is_ref_type( &initz_type ) && expr.var ) {
+   if ( s_is_ref_type( &test->initz_type ) && expr.var ) {
       expr.var->addr_taken = true;
    }
    return true;
@@ -1267,23 +1302,17 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
          "auto-declaration missing initializer" );
       s_bail( semantic );
    }
-   struct value* value = ( struct value* ) var->initial;
-   struct type_info type;
-   struct expr_test expr;
-   s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, value->expr );
-   if ( var->is_constant_init && ! value->expr->folded ) {
-      s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-         "non-constant initializer" );
-      s_bail( semantic );
-   }
+   struct scalar_initz_test initz_test;
+   init_scalar_initz_test_auto( &initz_test, var->is_constant_init );
+   test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
+   var->initial_has_str = initz_test.has_string;
    // For now, keep an auto-declaration in local scope.
    if ( ! semantic->in_localscope ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
          "auto-declaration in non-local scope" );
       s_bail( semantic );
    }
-   assign_inferred_type( var, &type );
+   assign_inferred_type( var, &initz_test.initz_type );
    s_bind_name( semantic, var->name, &var->object );
    var->object.resolved = true;
 }
