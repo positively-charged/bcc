@@ -609,6 +609,7 @@ struct var {
    bool addr_taken;
    bool in_shared_array;
    bool func_scope;
+   bool constant;
 };
 
 struct param {

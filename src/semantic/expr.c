@@ -1963,7 +1963,7 @@ void select_var( struct semantic* semantic, struct result* result,
       result->structure = var->structure;
       result->enumeration = var->enumeration;
       result->spec = s_spec( semantic, var->spec );
-      result->modifiable = true;
+      result->modifiable = ( ! var->constant );
    }
    // Structure variable.
    else if ( var->structure ) {
@@ -1978,7 +1978,7 @@ void select_var( struct semantic* semantic, struct result* result,
    else {
       result->enumeration = var->enumeration;
       result->spec = s_spec( semantic, var->spec );
-      result->modifiable = true;
+      result->modifiable = ( ! var->constant );
    }
    result->complete = true;
    result->usable = true;

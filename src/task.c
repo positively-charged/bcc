@@ -730,6 +730,7 @@ struct var* t_alloc_var( void ) {
    var->imported = false;
    var->is_constant_init = false;
    var->addr_taken = false;
+   var->constant = false;
    return var;
 }
 

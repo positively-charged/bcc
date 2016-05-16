@@ -1137,6 +1137,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->addr_taken = false;
    var->in_shared_array = false;
    var->func_scope = false;
+   var->constant = false;
    return var;
 }
 
