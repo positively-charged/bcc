@@ -448,7 +448,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       result->spec = spec;
       result->complete = true;
       result->usable = true;
-      binary->lside_spec = operand->spec;
+      binary->operand_type = operand->spec;
       return true;
    }
    // Reference type.
@@ -456,6 +456,8 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       switch ( binary->op ) {
       case BOP_EQ:
       case BOP_NEQ:
+         binary->operand_type = ( operand->ref->type == REF_FUNCTION ) ?
+            BINARYOPERAND_REFFUNC : BINARYOPERAND_REF;
          result->spec = semantic->spec_bool;
          result->complete = true;
          result->usable = true;
@@ -2249,5 +2251,5 @@ bool is_value_type( struct result* result ) {
 }
 
 bool is_ref_type( struct result* result ) {
-   return ( result->ref || result->dim || result->structure );
+   return ( result->ref || result->dim || result->structure || result->func );
 }

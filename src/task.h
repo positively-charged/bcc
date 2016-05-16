@@ -303,7 +303,16 @@ struct binary {
    struct node* lside;
    struct node* rside;
    struct pos pos;
-   int lside_spec;
+   enum {
+      BINARYOPERAND_NONE,
+      BINARYOPERAND_PRIMITIVERAW = SPEC_RAW,
+      BINARYOPERAND_PRIMITIVEINT = SPEC_INT,
+      BINARYOPERAND_PRIMITIVEFIXED = SPEC_FIXED,
+      BINARYOPERAND_PRIMITIVEBOOL = SPEC_BOOL,
+      BINARYOPERAND_PRIMITIVESTR = SPEC_STR,
+      BINARYOPERAND_REF,
+      BINARYOPERAND_REFFUNC
+   } operand_type;
    int value;
    bool folded;
 };

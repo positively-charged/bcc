@@ -42,6 +42,14 @@ static void lt_str( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void concat_str( struct codegen* codegen, struct result* result,
    struct binary* binary );
+static void write_binary_ref( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void eq_ref( struct codegen* codegen, struct result* result,
+   struct binary* binary );
+static void write_binary_ref_func( struct codegen* codegen,
+   struct result* result, struct binary* binary );
+static void eq_func( struct codegen* codegen, struct result* result,
+   struct binary* binary );
 static void visit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
 static void write_logical( struct codegen* codegen,
@@ -280,19 +288,25 @@ void visit_operand( struct codegen* codegen, struct result* result,
 
 void visit_binary( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
-   switch ( binary->lside_spec ) {
-   case SPEC_RAW:
-   case SPEC_INT:
+   switch ( binary->operand_type ) {
+   case BINARYOPERAND_PRIMITIVERAW:
+   case BINARYOPERAND_PRIMITIVEINT:
       write_binary_int( codegen, result, binary );
       break;
-   case SPEC_FIXED:
+   case BINARYOPERAND_PRIMITIVEFIXED:
       write_binary_fixed( codegen, result, binary );
       break;
-   case SPEC_BOOL:
+   case BINARYOPERAND_PRIMITIVEBOOL:
       write_binary_bool( codegen, result, binary );
       break;
-   case SPEC_STR:
+   case BINARYOPERAND_PRIMITIVESTR:
       write_binary_str( codegen, result, binary );
+      break;
+   case BINARYOPERAND_REF:
+      write_binary_ref( codegen, result, binary );
+      break;
+   case BINARYOPERAND_REFFUNC:
+      write_binary_ref_func( codegen, result, binary );
       break;
    default:
       UNREACHABLE()
@@ -431,6 +445,76 @@ void concat_str( struct codegen* codegen, struct result* result,
    push_operand( codegen, binary->rside );
    c_pcd( codegen, PCD_PRINTSTRING );
    c_pcd( codegen, PCD_SAVESTRING );
+   result->status = R_VALUE;
+}
+
+void write_binary_ref( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      eq_ref( codegen, result, binary );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
+void eq_ref( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   struct result lside;
+   init_result( &lside, true );
+   visit_operand( codegen, &lside, binary->lside );
+   struct result rside;
+   init_result( &rside, true );
+   visit_operand( codegen, &rside, binary->rside );
+   // For two references to be the same, they must point to the same array and
+   // have the same offset. The offset is not required if the variables are
+   // directly available.
+   if ( lside.index == rside.index && lside.status == rside.status ) {
+      if ( lside.status == R_ARRAYINDEX ) {
+         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
+      }
+      // Variables compared directly, so the references are the same.
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER,
+            ( binary->op == BOP_EQ ) ? 1 : 0 );
+      }
+   }
+   else {
+      if ( lside.status == R_ARRAYINDEX ) {
+         c_pcd( codegen, PCD_DROP );
+      }
+      if ( rside.status == R_ARRAYINDEX ) {
+         c_pcd( codegen, PCD_DROP );
+      }
+      c_pcd( codegen, PCD_PUSHNUMBER,
+         ( binary->op == BOP_EQ ) ? 0 : 1 );
+   }
+   result->status = R_VALUE;
+}
+
+void write_binary_ref_func( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      eq_func( codegen, result, binary );
+      break;
+   default:
+      UNREACHABLE();
+   }
+}
+
+void eq_func( struct codegen* codegen, struct result* result,
+   struct binary* binary ) {
+   struct result lside;
+   init_result( &lside, true );
+   visit_operand( codegen, &lside, binary->lside );
+   struct result rside;
+   init_result( &rside, true );
+   visit_operand( codegen, &rside, binary->rside );
+   c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
    result->status = R_VALUE;
 }
 
