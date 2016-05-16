@@ -1168,9 +1168,15 @@ void visit_access( struct codegen* codegen, struct result* result,
 void access_structure_member( struct codegen* codegen,
    struct structure_member* member, struct result* lside,
    struct result* result ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
    if ( lside->status == R_ARRAYINDEX ) {
-      c_pcd( codegen, PCD_ADD );
+      // Adding a zero doesn't change the final offset.
+      if ( member->offset > 0 ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
+         c_pcd( codegen, PCD_ADD );
+      }
+   }
+   else {
+      c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
    }
    // Array member.
    if ( member->dim ) {
