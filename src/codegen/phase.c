@@ -16,6 +16,7 @@ static bool same_dim( struct dim* dim, list_iter_t i );
 static void setup_data( struct codegen* codegen );
 static void patch_initz( struct codegen* codegen );
 static void patch_initz_list( struct codegen* codegen, struct list* vars );
+static void patch_value( struct codegen* codegen, struct value* value );
 static void sort_vars( struct codegen* codegen );
 static bool array_var( struct var* var );
 static bool scalar_var( struct var* var );
@@ -332,23 +333,34 @@ void patch_initz_list( struct codegen* codegen, struct list* vars ) {
       struct var* var = list_data( &i );
       struct value* value = var->value;
       while ( value ) {
-         if ( value->var ) {
-            value->expr->value += value->var->index;
-         }
-         else if ( value->func ) {
-            struct func_user* impl = value->func->impl; 
-            value->expr->value = impl->index;
-         }
-         else if ( value->type == VALUE_STRING ) {
-            struct indexed_string* string = t_lookup_string( codegen->task,
-               value->expr->value );
-            c_append_string( codegen, string );
-         }
+         patch_value( codegen, value );
          value = value->next;
       }
       list_next( &i );
    }
 }
+
+void patch_value( struct codegen* codegen, struct value* value ) {
+   if ( value->var ) {
+      value->expr->value += value->var->index;
+   }
+   else if ( value->func ) {
+      struct func_user* impl = value->func->impl; 
+      value->expr->value = impl->index;
+   }
+   else {
+      if ( value->expr->has_str ) {
+         struct indexed_string* string = t_lookup_string( codegen->task,
+            value->expr->value );
+         // In ACS, one can add strings to numbers, so an invalid string index
+         // is possible, so make sure we have a valid string.
+         if ( string ) {
+            c_append_string( codegen, string );
+            value->expr->value = string->index_runtime;
+         }
+      }
+   }
+} 
 
 // The reason for sorting the variables is to reduce the size of the chunks.
 // A chunk might need some of the variables but not all, so the variables are
