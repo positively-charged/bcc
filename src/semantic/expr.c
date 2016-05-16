@@ -550,7 +550,10 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
 // can be converted to a boolean.
 bool can_convert_to_boolean( struct result* operand ) {
    if ( is_ref_type( operand ) ) {
-      return true;
+      // At this time, there is no null reference, so it doesn't make sense to
+      // have a reference in a boolean scenario.
+      // return true;
+      return false;
    }
    else {
       switch ( operand->spec ) {
@@ -882,6 +885,7 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    // Reference type.
    else {
       // Only logical-not can be performed on a reference type.
+      /*
       if ( unary->op == UOP_LOG_NOT ) {
          result->spec = semantic->spec_bool;
          result->complete = true;
@@ -891,6 +895,8 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
       else {
          return false;
       }
+      */
+      return false;
    }
 }
 
