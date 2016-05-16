@@ -2260,19 +2260,29 @@ void push_ref_array_length( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
       c_pcd( codegen, PCD_DIVIDE );
    }
-   // Array reference element.
-   else if ( result->ref->next && result->ref->next->type == REF_ARRAY ) {
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
-      c_pcd( codegen, PCD_PUSHNUMBER, ARRAYREF_SIZE );
-      c_pcd( codegen, PCD_DIVIDE );
+   // Reference element.
+   else if ( result->ref->next ) {
+      if ( result->ref->next->type == REF_ARRAY ) {
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+         c_pcd( codegen, PCD_PUSHNUMBER, ARRAYREF_SIZE );
+         c_pcd( codegen, PCD_DIVIDE );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      }
    }
-   // Structure element, the structure size being greater than 1.
-   else if ( result->structure && result->structure->size > 1 ) {
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
-      c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
-      c_pcd( codegen, PCD_DIVIDE );
+   // Structure element.
+   else if ( result->structure ) {
+      if ( result->structure->size > 1 ) {
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+         c_pcd( codegen, PCD_PUSHNUMBER, result->structure->size );
+         c_pcd( codegen, PCD_DIVIDE );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      }
    }
-   // Any element of size 1.
+   // Primitive element.
    else {
       c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
    }
