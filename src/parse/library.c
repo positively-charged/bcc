@@ -17,6 +17,7 @@ static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* );
 static void read_library_name( struct parse* parse, struct pos* pos );
 static void read_libdefine( struct parse* parse );
+static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
    struct file_entry* file );
@@ -26,12 +27,7 @@ static void append_imported_lib( struct parse* parse, struct library* lib );
 
 void p_read_target_lib( struct parse* parse ) {
    p_read_lib( parse );
-   list_iter_t i;
-   list_iter_init( &i, &parse->lib->import_dircs );
-   while ( ! list_end( &i ) ) {
-      import_lib( parse, list_data( &i ) );
-      list_next( &i );
-   }
+   read_imported_libs( parse );
 }
 
 void p_read_lib( struct parse* parse ) {
@@ -400,9 +396,19 @@ void p_add_unresolved( struct parse* parse, struct object* object ) {
    t_append_unresolved_namespace_object( parse->ns, object );
 }
 
+void read_imported_libs( struct parse* parse ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->lib->import_dircs );
+   while ( ! list_end( &i ) ) {
+      import_lib( parse, list_data( &i ) );
+      list_next( &i );
+   }
+}
+
 void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    struct file_query query;
-   t_init_file_query( &query, parse->lib->file, dirc->file_path );
+   t_init_file_query( &query, parse->task->library_main->file,
+      dirc->file_path );
    t_find_file( parse->task, &query );
    if ( ! query.file ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,

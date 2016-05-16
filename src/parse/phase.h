@@ -252,6 +252,7 @@ struct source {
 struct request {
    const char* given_path;
    struct file_entry* file;
+   struct file_entry* offset_file;
    struct source* source;
    bool err_open;
    bool err_loading;
@@ -431,7 +432,8 @@ void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject );
 void p_load_library( struct parse* parent );
 void p_deinit_tk( struct parse* parse );
-void p_init_request( struct request* request, const char* path );
+void p_init_request( struct request* request, struct file_entry* offset_file,
+   const char* path );
 void p_load_source( struct parse* parse, struct request* request );
 void p_read_source( struct parse* parse, struct token* token );
 bool p_read_dirc( struct parse* parse );

@@ -28,7 +28,7 @@ static void append_ch( struct str* str, char ch );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
-   p_init_request( &request, parse->task->options->source_file );
+   p_init_request( &request, NULL, parse->task->options->source_file );
    p_load_source( parse, &request );
    if ( request.source ) {
       parse->lib->file = request.file;
@@ -46,8 +46,9 @@ void p_load_main_source( struct parse* parse ) {
 void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    struct file_entry* file ) {
    struct request request;
-   p_init_request( &request, file->full_path.value );
-   p_load_source( parse, &request );
+   p_init_request( &request, NULL, file->full_path.value );
+   request.file = file;
+   open_source_file( parse, &request );
    if ( request.source ) {
       parse->lib->file = file;
       parse->lib->file_pos.id = file->id;
@@ -64,7 +65,7 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
 void p_load_included_source( struct parse* parse, const char* file_path,
    struct pos* pos ) {
    struct request request;
-   p_init_request( &request, file_path );
+   p_init_request( &request, parse->source->file, file_path );
    p_load_source( parse, &request );
    if ( request.source ) {
       append_file( parse->lib, request.file );
@@ -95,9 +96,11 @@ void append_file( struct library* lib, struct file_entry* file ) {
    list_append( &lib->files, file );
 }
 
-void p_init_request( struct request* request, const char* path ) {
+void p_init_request( struct request* request, struct file_entry* offset_file,
+   const char* path ) {
    request->given_path = path;
    request->file = NULL;
+   request->offset_file = offset_file;
    request->source = NULL;
    request->err_open = false;
    request->err_loaded_before = false;
@@ -106,8 +109,7 @@ void p_init_request( struct request* request, const char* path ) {
 
 void p_load_source( struct parse* parse, struct request* request ) {
    struct file_query query;
-   t_init_file_query( &query, ( parse->source ? parse->source->file : NULL ),
-      request->given_path );
+   t_init_file_query( &query, request->offset_file, request->given_path );
    t_find_file( parse->task, &query );
    if ( query.success ) {
       request->file = query.file;
