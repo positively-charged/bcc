@@ -711,12 +711,7 @@ void test_ref_part( struct semantic* semantic, struct ref_test* test,
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
-      if ( var->func_scope ) {
-         s_bind_funcscope_name( semantic, var->name, &var->object );
-      }
-      else {
-         s_bind_name( semantic, var->name, &var->object );
-      }
+      s_bind_local_var( semantic, var );
    }
    return true;
 }
@@ -1305,6 +1300,8 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    struct scalar_initz_test initz_test;
    init_scalar_initz_test_auto( &initz_test, var->is_constant_init );
    test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
+   assign_inferred_type( var, &initz_test.initz_type );
+   var->func_scope = ( var->spec == SPEC_RAW );
    var->initial_has_str = initz_test.has_string;
    // For now, keep an auto-declaration in local scope.
    if ( ! semantic->in_localscope ) {
@@ -1312,8 +1309,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
          "auto-declaration in non-local scope" );
       s_bail( semantic );
    }
-   assign_inferred_type( var, &initz_test.initz_type );
-   s_bind_name( semantic, var->name, &var->object );
+   s_bind_local_var( semantic, var );
    var->object.resolved = true;
 }
 
@@ -1353,6 +1349,7 @@ void s_test_foreach_var( struct semantic* semantic,
          test_var_spec( semantic, var ) &&
          test_var_ref( semantic, var );
    }
+   s_bind_local_var( semantic, var );
    var->object.resolved = resolved;
    s_calc_var_size( var );
 }

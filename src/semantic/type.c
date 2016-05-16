@@ -326,14 +326,15 @@ bool s_is_value_type( struct type_info* type ) {
 
 // Initializes @type with the type of the key used by the iterable type. Right
 // now, only an integer key is possible.
-void s_iterate_type( struct type_info* type, struct type_iter* iter ) {
+void s_iterate_type( struct semantic* semantic, struct type_info* type,
+   struct type_iter* iter ) {
    if ( s_is_str_value_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, SPEC_INT );
-      s_init_type_info_scalar( &iter->value, SPEC_INT );
+      s_init_type_info_scalar( &iter->key, semantic->spec_int );
+      s_init_type_info_scalar( &iter->value, semantic->spec_int );
       iter->available = true;
    }
    else if ( is_array_ref_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, SPEC_INT );
+      s_init_type_info_scalar( &iter->key, semantic->spec_int );
       subscript_array_type( type, &iter->value );
       iter->available = true;
    }

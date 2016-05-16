@@ -115,8 +115,7 @@ void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
 void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
-void s_bind_funcscope_name( struct semantic* semantic, struct name* name,
-   struct object* object );
+void s_bind_local_var( struct semantic* semantic, struct var* var );
 void s_diag( struct semantic* semantic, int flags, ... );
 void s_bail( struct semantic* semantic );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
@@ -136,7 +135,8 @@ bool s_same_type( struct type_info* a, struct type_info* b );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_ref_type( struct type_info* type );
 bool s_is_value_type( struct type_info* type );
-void s_iterate_type( struct type_info* type, struct type_iter* iter );
+void s_iterate_type( struct semantic* semantic, struct type_info* type,
+   struct type_iter* iter );
 struct object* s_search_object( struct semantic* semantic,
    const char* object_name );
 struct object* s_follow_path( struct semantic* semantic, struct path* path );

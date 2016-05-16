@@ -375,17 +375,13 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_add_scope( semantic, false );
    struct var* key = stmt->key;
    struct var* value = stmt->value;
-   if ( key ) {
-      s_bind_name( semantic, key->name, &key->object );
-   }
-   s_bind_name( semantic, value->name, &value->object );
    // Collection.
    struct type_info collection_type;
    struct expr_test expr;
    s_init_expr_test( &expr, false, false );
    s_test_expr_type( semantic, &expr, &collection_type, stmt->collection );
    struct type_iter iter;
-   s_iterate_type( &collection_type, &iter );
+   s_iterate_type( semantic, &collection_type, &iter );
    if ( ! iter.available ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
          "expression not of iterable type" );

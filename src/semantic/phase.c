@@ -50,6 +50,8 @@ static void match_duplicate_script( struct semantic* semantic,
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
+static void bind_funcscope_name( struct semantic* semantic, struct name* name,
+   struct object* object );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static bool implicitly_imported( struct object* object );
@@ -746,7 +748,16 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    }
 }
 
-void s_bind_funcscope_name( struct semantic* semantic, struct name* name,
+void s_bind_local_var( struct semantic* semantic, struct var* var ) {
+   if ( var->func_scope ) {
+      bind_funcscope_name( semantic, var->name, &var->object );
+   }
+   else {
+      s_bind_name( semantic, var->name, &var->object );
+   }
+}
+
+void bind_funcscope_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    int func_depth = semantic->depth;
    struct scope* scope = semantic->scope;
