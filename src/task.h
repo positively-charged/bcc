@@ -360,6 +360,8 @@ struct conditional {
    struct node* left;
    struct node* middle;
    struct node* right;
+   struct ref* ref;
+   int left_spec;
    int left_value;
    bool folded;
 };

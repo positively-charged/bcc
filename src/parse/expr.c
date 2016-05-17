@@ -291,6 +291,7 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
       cond->left = reading->node;
       cond->middle = NULL;
       cond->right = NULL;
+      cond->left_spec = SPEC_NONE;
       cond->left_value = 0;
       cond->folded = false;
       p_read_tk( parse );

@@ -760,6 +760,11 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          "left operand not a value" );
       s_bail( semantic );
    }
+   if ( ! can_convert_to_boolean( &left ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+         "left operand cannot be converted to a boolean value" );
+      s_bail( semantic );
+   }
    struct result middle = left;
    if ( cond->middle ) {
       init_result( &middle );
@@ -780,13 +785,25 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          &right_type, &cond->pos );
       s_bail( semantic );
    }
-   result->ref = right.ref;
-   result->structure = right.structure;
-   result->enumeration = right.enumeration;
-   result->dim = right.dim;
-   result->spec = right.spec;
+   struct type_snapshot snapshot;
+   s_take_type_snapshot( &right_type, &snapshot ); 
+   result->ref = snapshot.ref;
+   result->structure = snapshot.structure;
+   result->enumeration = snapshot.enumeration;
+   result->dim = snapshot.dim;
+   result->spec = snapshot.spec;
    result->complete = true;
-   result->usable = ( right.spec != SPEC_VOID );
+   result->usable = ( snapshot.spec != SPEC_VOID );
+   cond->ref = snapshot.ref;
+   cond->left_spec = left.spec;
+   if ( is_ref_type( &middle ) ) {
+      if ( middle.data_origin ) {
+         middle.data_origin->addr_taken = true;
+      }
+      if ( right.data_origin ) {
+         right.data_origin->addr_taken = true;
+      }
+   }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
       result->value = left.value ? middle.value : right.value;

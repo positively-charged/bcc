@@ -24,6 +24,8 @@ struct result {
 
 static void init_result( struct result* result, bool push );
 static void push_operand( struct codegen* codegen, struct node* node );
+static void push_operand_result( struct codegen* codegen,
+   struct result* result, struct node* node );
 static void visit_operand( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_binary( struct codegen* codegen, struct result* result,
@@ -56,6 +58,7 @@ static void write_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
 static void push_logical_operand( struct codegen* codegen,
    struct node* node, int spec );
+static void convert_to_boolean( struct codegen* codegen, int spec );
 static void visit_assign( struct codegen* codegen, struct result* result,
    struct assign* assign );
 static void assign_array_reference( struct codegen* codegen,
@@ -253,9 +256,14 @@ void init_result( struct result* result, bool push ) {
 void push_operand( struct codegen* codegen, struct node* node ) {
    struct result result;
    init_result( &result, true );
-   visit_operand( codegen, &result, node );
-   if ( result.dim ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, result.diminfo_start );
+   push_operand_result( codegen, &result, node );
+}
+
+void push_operand_result( struct codegen* codegen, struct result* result,
+   struct node* node ) {
+   visit_operand( codegen, result, node );
+   if ( result->dim ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, result->diminfo_start );
       c_update_dimtrack( codegen );
    }
 }
@@ -562,6 +570,10 @@ void push_logical_operand( struct codegen* codegen,
    init_result( &result, true );
    result.skip_negate = true;
    visit_operand( codegen, &result, node );
+   convert_to_boolean( codegen, spec );
+}
+
+void convert_to_boolean( struct codegen* codegen, int spec ) {
    if ( spec == SPEC_STR ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
@@ -784,43 +796,47 @@ void assign_value( struct codegen* codegen, struct assign* assign,
 
 void visit_conditional( struct codegen* codegen, struct result* result,
    struct conditional* cond ) {
-   if ( cond->folded ) {
-      push_operand( codegen, cond->left_value ?
-         ( cond->middle ? cond->middle : cond->left ) : cond->right );
-      result->status = R_VALUE;
+   if ( cond->middle ) {
+      write_conditional( codegen, result, cond );
    }
    else {
-      if ( cond->middle ) {
-         write_conditional( codegen, result, cond );
-      }
-      else {
-         write_middleless_conditional( codegen, result, cond );
-      }
+      write_middleless_conditional( codegen, result, cond );
    }
 }
 
 void write_conditional( struct codegen* codegen, struct result* result,
    struct conditional* cond ) {
-   push_operand( codegen, cond->left );
+   // Condition.
+   push_logical_operand( codegen, cond->left, cond->left_spec );
    struct c_jump* right_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
    c_append_node( codegen, &right_jump->node );
+   // When condition is true.
    push_operand( codegen, cond->middle );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
+   // When condition is not true.
    struct c_point* right_point = c_create_point( codegen );
    c_append_node( codegen, &right_point->node );
    right_jump->point = right_point;
-   push_operand( codegen, cond->right );
+   struct result right;
+   init_result( &right, true );
+   push_operand_result( codegen, &right, cond->right );
+   // Done.
    struct c_point* exit_point = c_create_point( codegen );
    c_append_node( codegen, &exit_point->node );
    exit_jump->point = exit_point;
-   result->status = R_VALUE;
+   result->ref = cond->ref;
+   result->structure = right.structure;
+   result->storage = right.storage;
+   result->index = right.index;
+   result->status = right.status;
 }
 
 void write_middleless_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond ) {
    push_operand( codegen, cond->left );
    c_pcd( codegen, PCD_DUP );
+   convert_to_boolean( codegen, cond->left_spec );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &exit_jump->node );
    c_pcd( codegen, PCD_DROP );

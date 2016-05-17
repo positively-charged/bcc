@@ -412,6 +412,7 @@ struct ref* dup_ref( struct ref* ref ) {
    switch ( ref->type ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;
    case REF_STRUCTURE: size = sizeof( struct ref_struct ); break;
+   case REF_FUNCTION: size = sizeof( struct ref_func ); break;
    default:
       UNREACHABLE()
       return NULL;
