@@ -237,7 +237,7 @@ void c_push_expr( struct codegen* codegen, struct expr* expr ) {
 }
 
 void c_push_cond( struct codegen* codegen, struct expr* cond ) {
-   push_operand( codegen, cond->root );
+   push_logical_operand( codegen, cond->root, cond->spec );
 }
 
 void init_result( struct result* result, bool push ) {
