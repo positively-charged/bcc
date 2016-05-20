@@ -459,8 +459,15 @@ struct object* s_search_object( struct semantic* semantic,
          }
          link = link->next;
       }
-      // Search in the parent namespace.
-      ns = ns->parent;
+      // Search in the parent namespace. In a header namespace, you gotta be
+      // explicit about where names come from, so the parent namespace is not
+      // searched.
+      if ( ns->explicit_imports ) {
+         ns = NULL;
+      }
+      else {
+         ns = ns->parent;
+      }
    }
    return NULL;
 }
