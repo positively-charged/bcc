@@ -3,6 +3,8 @@
 #include "phase.h"
 #include "cache/cache.h"
 
+static void read_module( struct parse* parse );
+static void read_module_item( struct parse* parse );
 static void read_namespace( struct parse* parse );
 static void read_namespace_name_list( struct parse* parse );
 static void read_namespace_name( struct parse* parse );
@@ -12,7 +14,7 @@ static struct using_dirc* alloc_using( struct pos* pos );
 static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
-static void read_dirc( struct parse* parse, struct pos* );
+static void read_pseudo_dirc( struct parse* parse );
 static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* );
 static void read_library_name( struct parse* parse, struct pos* pos );
@@ -26,50 +28,34 @@ static struct library* find_lib( struct parse* parse,
 static void append_imported_lib( struct parse* parse, struct library* lib );
 
 void p_read_target_lib( struct parse* parse ) {
-   p_read_lib( parse );
+   read_module( parse );
    read_imported_libs( parse );
 }
 
-void p_read_lib( struct parse* parse ) {
-   while ( true ) {
-      if ( p_is_dec( parse ) ) {
-         struct dec dec;
-         p_init_dec( &dec );
-         dec.name_offset = parse->ns->body;
-         p_read_dec( parse, &dec );
-      }
-      else if ( parse->tk == TK_SCRIPT ) {
-         p_read_script( parse );
-      }
-      else if ( parse->tk == TK_NAMESPACE ) {
-         read_namespace( parse );
-      }
-      else if ( parse->tk == TK_USING ) {
-         p_read_using( parse, &parse->ns->usings );
-      }
-      else if ( parse->tk == TK_SEMICOLON ) {
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_HASH ) {
-         struct pos pos = parse->tk_pos;
-         p_read_tk( parse );
-         read_dirc( parse, &pos );
-      }
-      else if ( parse->tk == TK_SPECIAL ) {
-         p_read_special_list( parse );
-      }
-      else if ( parse->tk == TK_END ) {
-         break;
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "unexpected %s", p_get_token_name( parse->tk ) );
-         p_bail( parse );
-      }
+void read_module( struct parse* parse ) {
+   while ( parse->tk != TK_END ) {
+      read_module_item( parse );
    }
    // Enable strong mode.
    if ( p_find_macro( parse, "__strongmode" ) ) {
       parse->lib->type_mode = TYPEMODE_STRONG;
+   }
+}
+
+void read_module_item( struct parse* parse ) {
+   switch ( parse->tk ) {
+   case TK_SPECIAL:
+      p_read_special_list( parse );
+      break;
+   case TK_HASH:
+      read_pseudo_dirc( parse );
+      break;
+   case TK_NAMESPACE:
+      read_namespace( parse );
+      break;
+   default:
+      read_namespace_member( parse );
+      break;
    }
 }
 
@@ -269,17 +255,20 @@ bool p_peek_path( struct parse* parse, struct parsertk_iter* iter ) {
    return true;
 }
 
-void read_dirc( struct parse* parse, struct pos* pos ) {
+void read_pseudo_dirc( struct parse* parse ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_HASH );
+   p_read_tk( parse );
    if ( parse->tk == TK_IMPORT ) {
       p_read_tk( parse );
-      read_import( parse, pos );
+      read_import( parse, &pos );
    }
    else if ( strcmp( parse->tk_text, "libdefine" ) == 0 ) {
       read_libdefine( parse );
    }
    else if ( strcmp( parse->tk_text, "library" ) == 0 ) {
       p_read_tk( parse );
-      read_library( parse, pos );
+      read_library( parse, &pos );
    }
    else if ( strcmp( parse->tk_text, "encryptstrings" ) == 0 ) {
       parse->lib->encrypt_str = true;
@@ -297,12 +286,12 @@ void read_dirc( struct parse* parse, struct pos* pos ) {
       // NOTE: Not sure what these two are.
       strcmp( parse->tk_text, "wadauthor" ) == 0 ||
       strcmp( parse->tk_text, "nowadauthor" ) == 0 ) {
-      p_diag( parse, DIAG_POS_ERR, pos, "directive `%s` not supported",
+      p_diag( parse, DIAG_POS_ERR, &pos, "directive `%s` not supported",
          parse->tk_text );
       p_bail( parse );
    }
    else {
-      p_diag( parse, DIAG_POS_ERR, pos,
+      p_diag( parse, DIAG_POS_ERR, &pos,
          "unknown directive '%s'", parse->tk_text );
       p_bail( parse );
    }
@@ -443,7 +432,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    p_define_imported_macro( parse );
    p_define_cmdline_macros( parse );
    p_read_tk( parse );
-   p_read_lib( parse );
+   read_module( parse );
    // An imported library must have a #library directive.
    if ( ! lib->header ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,

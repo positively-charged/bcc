@@ -418,7 +418,6 @@ const char* p_get_token_name( enum tk type );
 int p_extract_literal_value( struct parse* parse );
 void p_load_included_source( struct parse* parse, const char* file_path,
    struct pos* pos );
-void p_read_lib( struct parse* parse );
 void p_read_script( struct parse* parse );
 void p_add_unresolved( struct parse* parse, struct object* object );
 struct path* p_read_path( struct parse* parse );
