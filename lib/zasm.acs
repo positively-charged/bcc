@@ -1,0 +1,857 @@
+#library
+
+#ifndef __IMPORTED__
+   #error you must #import this file
+#endif
+
+// Instructions.
+#mnemonic nop 0
+#mnemonic terminate_ 1
+#mnemonic suspend_ 2
+#mnemonic pushnumber 3
+#mnemonic lspec1 4
+#mnemonic lspec2 5
+#mnemonic lspec3 6
+#mnemonic lspec4 7
+#mnemonic lspec5 8
+#mnemonic lspec1direct 9
+#mnemonic lspec2direct 10
+#mnemonic lspec3direct 11
+#mnemonic lspec4direct 12
+#mnemonic lspec5direct 13
+#mnemonic add 14
+#mnemonic subtract 15
+#mnemonic multiply 16
+#mnemonic divide 17
+#mnemonic modulus 18
+#mnemonic eq 19
+#mnemonic ne 20
+#mnemonic lt 21
+#mnemonic gt 22
+#mnemonic le 23
+#mnemonic ge 24
+#mnemonic assignscriptvar 25
+#mnemonic assignmapvar 26
+#mnemonic assignworldvar 27
+#mnemonic pushscriptvar 28
+#mnemonic pushmapvar 29
+#mnemonic pushworldvar 30
+#mnemonic addscriptvar 31
+#mnemonic addmapvar 32
+#mnemonic addworldvar 33
+#mnemonic subscriptvar 34
+#mnemonic submapvar 35
+#mnemonic subworldvar 36
+#mnemonic mulscriptvar 37
+#mnemonic mulmapvar 38
+#mnemonic mulworldvar 39
+#mnemonic divscriptvar 40
+#mnemonic divmapvar 41
+#mnemonic divworldvar 42
+#mnemonic modscriptvar 43
+#mnemonic modmapvar 44
+#mnemonic modworldvar 45
+#mnemonic incscriptvar 46
+#mnemonic incmapvar 47
+#mnemonic incworldvar 48
+#mnemonic decscriptvar 49
+#mnemonic decmapvar 50
+#mnemonic decworldvar 51
+#mnemonic goto_ 52
+#mnemonic ifgoto 53
+#mnemonic drop 54
+#mnemonic delay 55
+#mnemonic delaydirect 56
+#mnemonic random 57
+#mnemonic randomdirect 58
+#mnemonic thingcount 59
+#mnemonic thingcountdirect 60
+#mnemonic tagwait 61
+#mnemonic tagwaitdirect 62
+#mnemonic polywait 63
+#mnemonic polywaitdirect 64
+#mnemonic changefloor 65
+#mnemonic changefloordirect 66
+#mnemonic changeceiling 67
+#mnemonic changeceilingdirect 68
+#mnemonic restart_ 69
+#mnemonic andlogical 70
+#mnemonic orlogical 71
+#mnemonic andbitwise 72
+#mnemonic orbitwise 73
+#mnemonic eorbitwise 74
+#mnemonic negatelogical 75
+#mnemonic lshift 76
+#mnemonic rshift 77
+#mnemonic unaryminus 78
+#mnemonic ifnotgoto 79
+#mnemonic lineside 80
+#mnemonic scriptwait 81
+#mnemonic scriptwaitdirect 82
+#mnemonic clearlinespecial 83
+#mnemonic casegoto 84
+#mnemonic beginprint 85
+#mnemonic endprint 86
+#mnemonic printstring 87
+#mnemonic printnumber 88
+#mnemonic printcharacter 89
+#mnemonic playercount 90
+#mnemonic gametype 91
+#mnemonic gameskill 92
+#mnemonic timer 93
+#mnemonic sectorsound 94
+#mnemonic ambientsound 95
+#mnemonic soundsequence 96
+#mnemonic setlinetexture 97
+#mnemonic setlineblocking 98
+#mnemonic setlinespecial 99
+#mnemonic thingsound 100
+#mnemonic endprintbold 101
+#mnemonic activatorsound 102
+#mnemonic localambientsound 103
+#mnemonic setlinemonsterblocking 104
+#mnemonic playerteam 119
+#mnemonic playerhealth 120
+#mnemonic playerarmorpoints 121
+#mnemonic playerfrags 122
+#mnemonic blueteamcount 124
+#mnemonic redteamcount 125
+#mnemonic blueteamscore 126
+#mnemonic redteamscore 127
+#mnemonic isoneflagctf 128
+#mnemonic getinvasionwave 129
+#mnemonic getinvasionstate 130
+#mnemonic printname 131
+#mnemonic musicchange 132
+#mnemonic consolecommanddirect 133
+#mnemonic consolecommand 134
+#mnemonic singleplayer 135
+#mnemonic fixedmul 136
+#mnemonic fixeddiv 137
+#mnemonic setgravity 138
+#mnemonic setgravitydirect 139
+#mnemonic setaircontrol 140
+#mnemonic setaircontroldirect 141
+#mnemonic clearinventory 142
+#mnemonic giveinventory 143
+#mnemonic giveinventorydirect 144
+#mnemonic takeinventory 145
+#mnemonic takeinventorydirect 146
+#mnemonic checkinventory 147
+#mnemonic checkinventorydirect 148
+#mnemonic spawn 149
+#mnemonic spawndirect 150
+#mnemonic spawnspot 151
+#mnemonic spawnspotdirect 152
+#mnemonic setmusic 153
+#mnemonic setmusicdirect 154
+#mnemonic localsetmusic 155
+#mnemonic localsetmusicdirect 156
+#mnemonic printfixed 157
+#mnemonic printlocalized 158
+#mnemonic morehudmessage 159
+#mnemonic opthudmessage 160
+#mnemonic endhudmessage 161
+#mnemonic endhudmessagebold 162
+#mnemonic setfont 165
+#mnemonic setfontdirect 166
+#mnemonic pushbyte 167
+#mnemonic lspec1directb 168
+#mnemonic lspec2directb 169
+#mnemonic lspec3directb 170
+#mnemonic lspec4directb 171
+#mnemonic lspec5directb 172
+#mnemonic delaydirectb 173
+#mnemonic randomdirectb 174
+#mnemonic pushbytes 175
+#mnemonic push2bytes 176
+#mnemonic push3bytes 177
+#mnemonic push4bytes 178
+#mnemonic push5bytes 179
+#mnemonic setthingspecial 180
+#mnemonic assignglobalvar 181
+#mnemonic pushglobalvar 182
+#mnemonic addglobalvar 183
+#mnemonic subglobalvar 184
+#mnemonic mulglobalvar 185
+#mnemonic divglobalvar 186
+#mnemonic modglobalvar 187
+#mnemonic incglobalvar 188
+#mnemonic decglobalvar 189
+#mnemonic fadeto 190
+#mnemonic faderange 191
+#mnemonic cancelfade 192
+#mnemonic playmovie 193
+#mnemonic setfloortrigger 194
+#mnemonic setceilingtrigger 195
+#mnemonic getactorx 196
+#mnemonic getactory 197
+#mnemonic getactorz 198
+#mnemonic starttranslation 199
+#mnemonic translationrange1 200
+#mnemonic translationrange2 201
+#mnemonic endtranslation 202
+#mnemonic call 203
+#mnemonic calldiscard 204
+#mnemonic returnvoid 205
+#mnemonic returnval 206
+#mnemonic pushmaparray 207
+#mnemonic assignmaparray 208
+#mnemonic addmaparray 209
+#mnemonic submaparray 210
+#mnemonic mulmaparray 211
+#mnemonic divmaparray 212
+#mnemonic modmaparray 213
+#mnemonic incmaparray 214
+#mnemonic decmaparray 215
+#mnemonic dup 216
+#mnemonic swap 217
+#mnemonic sin 220
+#mnemonic cos 221
+#mnemonic vectorangle 222
+#mnemonic checkweapon 223
+#mnemonic setweapon 224
+#mnemonic tagstring 225
+#mnemonic pushworldarray 226
+#mnemonic assignworldarray 227
+#mnemonic addworldarray 228
+#mnemonic subworldarray 229
+#mnemonic mulworldarray 230
+#mnemonic divworldarray 231
+#mnemonic modworldarray 232
+#mnemonic incworldarray 233
+#mnemonic decworldarray 234
+#mnemonic pushglobalarray 235
+#mnemonic assignglobalarray 236
+#mnemonic addglobalarray 237
+#mnemonic subglobalarray 238
+#mnemonic mulglobalarray 239
+#mnemonic divglobalarray 240
+#mnemonic modglobalarray 241
+#mnemonic incglobalarray 242
+#mnemonic decglobalarray 243
+#mnemonic setmarineweapon 244
+#mnemonic setactorproperty 245
+#mnemonic getactorproperty 246
+#mnemonic playernumber 247
+#mnemonic activatortid 248
+#mnemonic setmarinesprite 249
+#mnemonic getscreenwidth 250
+#mnemonic getscreenheight 251
+#mnemonic thingprojectile2 252
+#mnemonic strlen 253
+#mnemonic sethudsize 254
+#mnemonic getcvar 255
+#mnemonic casegotosorted 256
+#mnemonic setresultvalue 257
+#mnemonic getlinerowoffset 258
+#mnemonic getactorfloorz 259
+#mnemonic getactorangle 260
+#mnemonic getsectorfloorz 261
+#mnemonic getsectorceilingz 262
+#mnemonic lspec5result 263
+#mnemonic getsigilpieces 264
+#mnemonic getlevelinfo 265
+#mnemonic changesky 266
+#mnemonic playeringame 267
+#mnemonic playerisbot 268
+#mnemonic setcameratotexture 269
+#mnemonic endlog 270
+#mnemonic getammocapacity 271
+#mnemonic setammocapacity 272
+#mnemonic printmapchararray 273
+#mnemonic printworldchararray 274
+#mnemonic printglobalchararray 275
+#mnemonic setactorangle 276
+#mnemonic spawnprojectile 280
+#mnemonic getsectorlightlevel 281
+#mnemonic getactorceilingz 282
+#mnemonic setactorposition 283
+#mnemonic clearactorinventory 284
+#mnemonic giveactorinventory 285
+#mnemonic takeactorinventory 286
+#mnemonic checkactorinventory 287
+#mnemonic thingcountname 288
+#mnemonic spawnspotfacing 289
+#mnemonic playerclass 290
+#mnemonic andscriptvar 291
+#mnemonic andmapvar 292
+#mnemonic andworldvar 293
+#mnemonic andglobalvar 294
+#mnemonic andmaparray 295
+#mnemonic andworldarray 296
+#mnemonic andglobalarray 297
+#mnemonic eorscriptvar 298
+#mnemonic eormapvar 299
+#mnemonic eorworldvar 300
+#mnemonic eorglobalvar 301
+#mnemonic eormaparray 302
+#mnemonic eorworldarray 303
+#mnemonic eorglobalarray 304
+#mnemonic orscriptvar 305
+#mnemonic ormapvar 306
+#mnemonic orworldvar 307
+#mnemonic orglobalvar 308
+#mnemonic ormaparray 309
+#mnemonic orworldarray 310
+#mnemonic orglobalarray 311
+#mnemonic lsscriptvar 312
+#mnemonic lsmapvar 313
+#mnemonic lsworldvar 314
+#mnemonic lsglobalvar 315
+#mnemonic lsmaparray 316
+#mnemonic lsworldarray 317
+#mnemonic lsglobalarray 318
+#mnemonic rsscriptvar 319
+#mnemonic rsmapvar 320
+#mnemonic rsworldvar 321
+#mnemonic rsglobalvar 322
+#mnemonic rsmaparray 323
+#mnemonic rsworldarray 324
+#mnemonic rsglobalarray 325
+#mnemonic getplayerinfo 326
+#mnemonic changelevel 327
+#mnemonic sectordamage 328
+#mnemonic replacetextures 329
+#mnemonic negatebinary 330
+#mnemonic getactorpitch 331
+#mnemonic setactorpitch 332
+#mnemonic printbind 333
+#mnemonic setactorstate 334
+#mnemonic thingdamage2 335
+#mnemonic useinventory 336
+#mnemonic useactorinventory 337
+#mnemonic checkactorceilingtexture 338
+#mnemonic checkactorfloortexture 339
+#mnemonic getactorlightlevel 340
+#mnemonic setmugshotstate 341
+#mnemonic thingcountsector 342
+#mnemonic thingcountnamesector 343
+#mnemonic checkplayercamera 344
+#mnemonic morphactor 345
+#mnemonic unmorphactor 346
+#mnemonic getplayerinput 347
+#mnemonic classifyactor 348
+#mnemonic printbinary 349
+#mnemonic printhex 350
+#mnemonic callfunc 351
+#mnemonic savestring 352
+#mnemonic printmapchrange 353
+#mnemonic printworldchrange 354 
+#mnemonic printglobalchrange 355
+#mnemonic strcpytomapchrange 356
+#mnemonic strcpytoworldchrange 357
+#mnemonic strcpytoglobalchrange 358
+#mnemonic pushfunction 359
+#mnemonic callstack 360
+#mnemonic scriptwaitnamed 361
+#mnemonic translationrange3 362
+#mnemonic gotostack 363
+#mnemonic assignscriptarray 364
+#mnemonic pushscriptarray 365
+#mnemonic addscriptarray 366
+#mnemonic subscriptarray 367
+#mnemonic mulscriptarray 368
+#mnemonic divscriptarray 369
+#mnemonic modscriptarray 370
+#mnemonic incscriptarray 371
+#mnemonic decscriptarray 372
+#mnemonic andscriptarray 373
+#mnemonic eorscriptarray 374
+#mnemonic orscriptarray 375
+#mnemonic lsscriptarray 376
+#mnemonic rsscriptarray 377
+#mnemonic printscriptchararray 378
+#mnemonic printscriptchrange 379
+#mnemonic strcpytoscriptchrange 380
+
+// Instruction codes.
+enum {
+   PCD_NOP,
+   PCD_TERMINATE,
+   PCD_SUSPEND,
+   PCD_PUSHNUMBER,
+   PCD_LSPEC1,
+   PCD_LSPEC2,
+   PCD_LSPEC3,
+   PCD_LSPEC4,
+   PCD_LSPEC5,
+   PCD_LSPEC1DIRECT,
+   PCD_LSPEC2DIRECT,
+   PCD_LSPEC3DIRECT,
+   PCD_LSPEC4DIRECT,
+   PCD_LSPEC5DIRECT,
+   PCD_ADD,
+   PCD_SUBTRACT,
+   PCD_MULTIPLY,
+   PCD_DIVIDE,
+   PCD_MODULUS,
+   PCD_EQ,
+   PCD_NE,
+   PCD_LT,
+   PCD_GT,
+   PCD_LE,
+   PCD_GE,
+   PCD_ASSIGNSCRIPTVAR,
+   PCD_ASSIGNMAPVAR,
+   PCD_ASSIGNWORLDVAR,
+   PCD_PUSHSCRIPTVAR,
+   PCD_PUSHMAPVAR,
+   PCD_PUSHWORLDVAR,
+   PCD_ADDSCRIPTVAR,
+   PCD_ADDMAPVAR,
+   PCD_ADDWORLDVAR,
+   PCD_SUBSCRIPTVAR,
+   PCD_SUBMAPVAR,
+   PCD_SUBWORLDVAR,
+   PCD_MULSCRIPTVAR,
+   PCD_MULMAPVAR,
+   PCD_MULWORLDVAR,
+   PCD_DIVSCRIPTVAR,
+   PCD_DIVMAPVAR,
+   PCD_DIVWORLDVAR,
+   PCD_MODSCRIPTVAR,
+   PCD_MODMAPVAR,
+   PCD_MODWORLDVAR,
+   PCD_INCSCRIPTVAR,
+   PCD_INCMAPVAR,
+   PCD_INCWORLDVAR,
+   PCD_DECSCRIPTVAR,
+   PCD_DECMAPVAR,
+   PCD_DECWORLDVAR,
+   PCD_GOTO,
+   PCD_IFGOTO,
+   PCD_DROP,
+   PCD_DELAY,
+   PCD_DELAYDIRECT,
+   PCD_RANDOM,
+   PCD_RANDOMDIRECT,
+   PCD_THINGCOUNT,
+   PCD_THINGCOUNTDIRECT,
+   PCD_TAGWAIT,
+   PCD_TAGWAITDIRECT,
+   PCD_POLYWAIT,
+   PCD_POLYWAITDIRECT,
+   PCD_CHANGEFLOOR,
+   PCD_CHANGEFLOORDIRECT,
+   PCD_CHANGECEILING,
+   PCD_CHANGECEILINGDIRECT,
+   PCD_RESTART,
+   PCD_ANDLOGICAL,
+   PCD_ORLOGICAL,
+   PCD_ANDBITWISE,
+   PCD_ORBITWISE,
+   PCD_EORBITWISE,
+   PCD_NEGATELOGICAL,
+   PCD_LSHIFT,
+   PCD_RSHIFT,
+   PCD_UNARYMINUS,
+   PCD_IFNOTGOTO,
+   PCD_LINESIDE,
+   PCD_SCRIPTWAIT,
+   PCD_SCRIPTWAITDIRECT,
+   PCD_CLEARLINESPECIAL,
+   PCD_CASEGOTO,
+   PCD_BEGINPRINT,
+   PCD_ENDPRINT,
+   PCD_PRINTSTRING,
+   PCD_PRINTNUMBER,
+   PCD_PRINTCHARACTER,
+   PCD_PLAYERCOUNT,
+   PCD_GAMETYPE,
+   PCD_GAMESKILL,
+   PCD_TIMER,
+   PCD_SECTORSOUND,
+   PCD_AMBIENTSOUND,
+   PCD_SOUNDSEQUENCE,
+   PCD_SETLINETEXTURE,
+   PCD_SETLINEBLOCKING,
+   PCD_SETLINESPECIAL,
+   PCD_THINGSOUND,
+   PCD_ENDPRINTBOLD,
+   PCD_ACTIVATORSOUND,
+   PCD_LOCALAMBIENTSOUND,
+   PCD_SETLINEMONSTERBLOCKING,
+   PCD_PLAYERBLUESKULL,
+   PCD_PLAYERREDSKULL,
+   PCD_PLAYERYELLOWSKULL,
+   PCD_PLAYERMASTERSKULL,
+   PCD_PLAYERBLUECARD,
+   PCD_PLAYERREDCARD,
+   PCD_PLAYERYELLOWCARD,
+   PCD_PLAYERMASTERCARD,
+   PCD_PLAYERBLACKSKULL,
+   PCD_PLAYERSILVERSKULL,
+   PCD_PLAYERGOLDSKULL,
+   PCD_PLAYERBLACKCARD,
+   PCD_PLAYERSILVERCARD,
+   PCD_ISMULTIPLAYER,
+   PCD_PLAYERTEAM,
+   PCD_PLAYERHEALTH,
+   PCD_PLAYERARMORPOINTS,
+   PCD_PLAYERFRAGS,
+   PCD_PLAYEREXPERT,
+   PCD_BLUETEAMCOUNT,
+   PCD_REDTEAMCOUNT,
+   PCD_BLUETEAMSCORE,
+   PCD_REDTEAMSCORE,
+   PCD_ISONEFLAGCTF,
+   PCD_GETINVASIONWAVE,
+   PCD_GETINVASIONSTATE,
+   PCD_PRINTNAME,
+   PCD_MUSICCHANGE,
+   PCD_CONSOLECOMMANDDIRECT,
+   PCD_CONSOLECOMMAND,
+   PCD_SINGLEPLAYER,
+   PCD_FIXEDMUL,
+   PCD_FIXEDDIV,
+   PCD_SETGRAVITY,
+   PCD_SETGRAVITYDIRECT,
+   PCD_SETAIRCONTROL,
+   PCD_SETAIRCONTROLDIRECT,
+   PCD_CLEARINVENTORY,
+   PCD_GIVEINVENTORY,
+   PCD_GIVEINVENTORYDIRECT,
+   PCD_TAKEINVENTORY,
+   PCD_TAKEINVENTORYDIRECT,
+   PCD_CHECKINVENTORY,
+   PCD_CHECKINVENTORYDIRECT,
+   PCD_SPAWN,
+   PCD_SPAWNDIRECT,
+   PCD_SPAWNSPOT,
+   PCD_SPAWNSPOTDIRECT,
+   PCD_SETMUSIC,
+   PCD_SETMUSICDIRECT,
+   PCD_LOCALSETMUSIC,
+   PCD_LOCALSETMUSICDIRECT,
+   PCD_PRINTFIXED,
+   PCD_PRINTLOCALIZED,
+   PCD_MOREHUDMESSAGE,
+   PCD_OPTHUDMESSAGE,
+   PCD_ENDHUDMESSAGE,
+   PCD_ENDHUDMESSAGEBOLD,
+   PCD_SETSTYLE,
+   PCD_SETSTYLEDIRECT,
+   PCD_SETFONT,
+   PCD_SETFONTDIRECT,
+   PCD_PUSHBYTE,
+   PCD_LSPEC1DIRECTB,
+   PCD_LSPEC2DIRECTB,
+   PCD_LSPEC3DIRECTB,
+   PCD_LSPEC4DIRECTB,
+   PCD_LSPEC5DIRECTB,
+   PCD_DELAYDIRECTB,
+   PCD_RANDOMDIRECTB,
+   PCD_PUSHBYTES,
+   PCD_PUSH2BYTES,
+   PCD_PUSH3BYTES,
+   PCD_PUSH4BYTES,
+   PCD_PUSH5BYTES,
+   PCD_SETTHINGSPECIAL,
+   PCD_ASSIGNGLOBALVAR,
+   PCD_PUSHGLOBALVAR,
+   PCD_ADDGLOBALVAR,
+   PCD_SUBGLOBALVAR,
+   PCD_MULGLOBALVAR,
+   PCD_DIVGLOBALVAR,
+   PCD_MODGLOBALVAR,
+   PCD_INCGLOBALVAR,
+   PCD_DECGLOBALVAR,
+   PCD_FADETO,
+   PCD_FADERANGE,
+   PCD_CANCELFADE,
+   PCD_PLAYMOVIE,
+   PCD_SETFLOORTRIGGER,
+   PCD_SETCEILINGTRIGGER,
+   PCD_GETACTORX,
+   PCD_GETACTORY,
+   PCD_GETACTORZ,
+   PCD_STARTTRANSLATION,
+   PCD_TRANSLATIONRANGE1,
+   PCD_TRANSLATIONRANGE2,
+   PCD_ENDTRANSLATION,
+   PCD_CALL,
+   PCD_CALLDISCARD,
+   PCD_RETURNVOID,
+   PCD_RETURNVAL,
+   PCD_PUSHMAPARRAY,
+   PCD_ASSIGNMAPARRAY,
+   PCD_ADDMAPARRAY,
+   PCD_SUBMAPARRAY,
+   PCD_MULMAPARRAY,
+   PCD_DIVMAPARRAY,
+   PCD_MODMAPARRAY,
+   PCD_INCMAPARRAY,
+   PCD_DECMAPARRAY,
+   PCD_DUP,
+   PCD_SWAP,
+   PCD_WRITETOINI,
+   PCD_GETFROMINI,
+   PCD_SIN,
+   PCD_COS,
+   PCD_VECTORANGLE,
+   PCD_CHECKWEAPON,
+   PCD_SETWEAPON,
+   PCD_TAGSTRING,
+   PCD_PUSHWORLDARRAY,
+   PCD_ASSIGNWORLDARRAY,
+   PCD_ADDWORLDARRAY,
+   PCD_SUBWORLDARRAY,
+   PCD_MULWORLDARRAY,
+   PCD_DIVWORLDARRAY,
+   PCD_MODWORLDARRAY,
+   PCD_INCWORLDARRAY,
+   PCD_DECWORLDARRAY,
+   PCD_PUSHGLOBALARRAY,
+   PCD_ASSIGNGLOBALARRAY,
+   PCD_ADDGLOBALARRAY,
+   PCD_SUBGLOBALARRAY,
+   PCD_MULGLOBALARRAY,
+   PCD_DIVGLOBALARRAY,
+   PCD_MODGLOBALARRAY,
+   PCD_INCGLOBALARRAY,
+   PCD_DECGLOBALARRAY,
+   PCD_SETMARINEWEAPON,
+   PCD_SETACTORPROPERTY,
+   PCD_GETACTORPROPERTY,
+   PCD_PLAYERNUMBER,
+   PCD_ACTIVATORTID,
+   PCD_SETMARINESPRITE,
+   PCD_GETSCREENWIDTH,
+   PCD_GETSCREENHEIGHT,
+   PCD_THINGPROJECTILE2,
+   PCD_STRLEN,
+   PCD_SETHUDSIZE,
+   PCD_GETCVAR,
+   PCD_CASEGOTOSORTED,
+   PCD_SETRESULTVALUE,
+   PCD_GETLINEROWOFFSET,
+   PCD_GETACTORFLOORZ,
+   PCD_GETACTORANGLE,
+   PCD_GETSECTORFLOORZ,
+   PCD_GETSECTORCEILINGZ,
+   PCD_LSPEC5RESULT,
+   PCD_GETSIGILPIECES,
+   PCD_GETLEVELINFO,
+   PCD_CHANGESKY,
+   PCD_PLAYERINGAME,
+   PCD_PLAYERISBOT,
+   PCD_SETCAMERATOTEXTURE,
+   PCD_ENDLOG,
+   PCD_GETAMMOCAPACITY,
+   PCD_SETAMMOCAPACITY,
+   PCD_PRINTMAPCHARARRAY,
+   PCD_PRINTWORLDCHARARRAY,
+   PCD_PRINTGLOBALCHARARRAY,
+   PCD_SETACTORANGLE,
+   PCD_GRAPINPUT,
+   PCD_SETMOUSEPOINTER,
+   PCD_MOVEMOUSEPOINTER,
+   PCD_SPAWNPROJECTILE,
+   PCD_GETSECTORLIGHTLEVEL,
+   PCD_GETACTORCEILINGZ,
+   PCD_SETACTORPOSITION,
+   PCD_CLEARACTORINVENTORY,
+   PCD_GIVEACTORINVENTORY,
+   PCD_TAKEACTORINVENTORY,
+   PCD_CHECKACTORINVENTORY,
+   PCD_THINGCOUNTNAME,
+   PCD_SPAWNSPOTFACING,
+   PCD_PLAYERCLASS,
+   PCD_ANDSCRIPTVAR,
+   PCD_ANDMAPVAR,
+   PCD_ANDWORLDVAR,
+   PCD_ANDGLOBALVAR,
+   PCD_ANDMAPARRAY,
+   PCD_ANDWORLDARRAY,
+   PCD_ANDGLOBALARRAY,
+   PCD_EORSCRIPTVAR,
+   PCD_EORMAPVAR,
+   PCD_EORWORLDVAR,
+   PCD_EORGLOBALVAR,
+   PCD_EORMAPARRAY,
+   PCD_EORWORLDARRAY,
+   PCD_EORGLOBALARRAY,
+   PCD_ORSCRIPTVAR,
+   PCD_ORMAPVAR,
+   PCD_ORWORLDVAR,
+   PCD_ORGLOBALVAR,
+   PCD_ORMAPARRAY,
+   PCD_ORWORLDARRAY,
+   PCD_ORGLOBALARRAY,
+   PCD_LSSCRIPTVAR,
+   PCD_LSMAPVAR,
+   PCD_LSWORLDVAR,
+   PCD_LSGLOBALVAR,
+   PCD_LSMAPARRAY,
+   PCD_LSWORLDARRAY,
+   PCD_LSGLOBALARRAY,
+   PCD_RSSCRIPTVAR,
+   PCD_RSMAPVAR,
+   PCD_RSWORLDVAR,
+   PCD_RSGLOBALVAR,
+   PCD_RSMAPARRAY,
+   PCD_RSWORLDARRAY,
+   PCD_RSGLOBALARRAY,
+   PCD_GETPLAYERINFO,
+   PCD_CHANGELEVEL,
+   PCD_SECTORDAMAGE,
+   PCD_REPLACETEXTURES,
+   PCD_NEGATEBINARY,
+   PCD_GETACTORPITCH,
+   PCD_SETACTORPITCH,
+   PCD_PRINTBIND,
+   PCD_SETACTORSTATE,
+   PCD_THINGDAMAGE2,
+   PCD_USEINVENTORY,
+   PCD_USEACTORINVENTORY,
+   PCD_CHECKACTORCEILINGTEXTURE,
+   PCD_CHECKACTORFLOORTEXTURE,
+   PCD_GETACTORLIGHTLEVEL,
+   PCD_SETMUGSHOTSTATE,
+   PCD_THINGCOUNTSECTOR,
+   PCD_THINGCOUNTNAMESECTOR,
+   PCD_CHECKPLAYERCAMERA,
+   PCD_MORPHACTOR,
+   PCD_UNMORPHACTOR,
+   PCD_GETPLAYERINPUT,
+   PCD_CLASSIFYACTOR,
+   PCD_PRINTBINARY,
+   PCD_PRINTHEX,
+   PCD_CALLFUNC,
+   PCD_SAVESTRING,
+   PCD_PRINTMAPCHRANGE,
+   PCD_PRINTWORLDCHRANGE,
+   PCD_PRINTGLOBALCHRANGE,
+   PCD_STRCPYTOMAPCHRANGE,
+   PCD_STRCPYTOWORLDCHRANGE,
+   PCD_STRCPYTOGLOBALCHRANGE,
+   PCD_PUSHFUNCTION,
+   PCD_CALLSTACK,
+   PCD_SCRIPTWAITNAMED,
+   PCD_TRANSLATIONRANGE3,
+   PCD_GOTOSTACK,
+   PCD_ASSIGNSCRIPTARRAY,
+   PCD_PUSHSCRIPTARRAY,
+   PCD_ADDSCRIPTARRAY,
+   PCD_SUBSCRIPTARRAY,
+   PCD_MULSCRIPTARRAY,
+   PCD_DIVSCRIPTARRAY,
+   PCD_MODSCRIPTARRAY,
+   PCD_INCSCRIPTARRAY,
+   PCD_DECSCRIPTARRAY,
+   PCD_ANDSCRIPTARRAY,
+   PCD_EORSCRIPTARRAY,
+   PCD_ORSCRIPTARRAY,
+   PCD_LSSCRIPTARRAY,
+   PCD_RSSCRIPTARRAY,
+   PCD_PRINTSCRIPTCHARARRAY,
+   PCD_PRINTSCRIPTCHRANGE,
+   PCD_STRCPYTOSCRIPTCHRANGE
+}
+
+// Extension functions.
+enum {
+   ACSF_GETLINEUDMFINT = 1,
+   ACSF_GETLINEUDMFFIXED,
+   ACSF_GETTHINGUDMFINT,
+   ACSF_GETTHINGUDMFFIXED,
+   ACSF_GETSECTORUDMFINT,
+   ACSF_GETSECTORUDMFFIXED,
+   ACSF_GETSIDEUDMFINT,
+   ACSF_GETSIDEUDMFFIXED,
+   ACSF_GETACTORVELX,
+   ACSF_GETACTORVELY,
+   ACSF_GETACTORVELZ,
+   ACSF_SETACTIVATOR,
+   ACSF_SETACTIVATORTOTARGET,
+   ACSF_GETACTORVIEWHEIGHT,
+   ACSF_GETCHAR,
+   ACSF_GETAIRSUPPLY,
+   ACSF_SETAIRSUPPLY,
+   ACSF_SETSKYSCROLLSPEED,
+   ACSF_GETARMORTYPE,
+   ACSF_SPAWNSPOTFORCED,
+   ACSF_SPAWNSPOTFACINGFORCED,
+   ACSF_CHECKACTORPROPERTY,
+   ACSF_SETACTORVELOCITY,
+   ACSF_SETUSERVARIABLE,
+   ACSF_GETUSERVARIABLE,
+   ACSF_RADIUS_QUAKE2,
+   ACSF_CHECKACTORCLASS,
+   ACSF_SETUSERARRAY,
+   ACSF_GETUSERARRAY,
+   ACSF_SOUNDSEQUENCEONACTOR,
+   ACSF_SOUNDSEQUENCEONSECTOR,
+   ACSF_SOUNDSEQUENCEONPOLYOBJ,
+   ACSF_GETPOLYOBJX,
+   ACSF_GETPOLYOBJY,
+   ACSF_CHECKSIGHT,
+   ACSF_SPAWNFORCED,
+   ACSF_ANNOUNCERSOUND,
+   ACSF_SETPOINTER,
+   ACSF_ACS_NAMEDEXECUTE,
+   ACSF_ACS_NAMEDSUSPEND,
+   ACSF_ACS_NAMEDTERMINATE,
+   ACSF_ACS_NAMEDLOCKEDEXECUTE,
+   ACSF_ACS_NAMEDLOCKEDEXECUTEDOOR,
+   ACSF_ACS_NAMEDEXECUTEWITHRESULT,
+   ACSF_ACS_NAMEDEXECUTEALWAYS,
+   ACSF_UNIQUETID,
+   ACSF_ISTIDUSED,
+   ACSF_SQRT,
+   ACSF_FIXEDSQRT,
+   ACSF_VECTORLENGTH,
+   ACSF_SETHUDCLIPRECT,
+   ACSF_SETHUDWRAPWIDTH,
+   ACSF_SETCVAR,
+   ACSF_GETUSERCVAR,
+   ACSF_SETUSERCVAR,
+   ACSF_GETCVARSTRING,
+   ACSF_SETCVARSTRING,
+   ACSF_GETUSERCVARSTRING,
+   ACSF_SETUSERCVARSTRING,
+   ACSF_LINEATTACK,
+   ACSF_PLAYSOUND,
+   ACSF_STOPSOUND,
+   ACSF_STRCMP,
+   ACSF_STRICMP,
+   ACSF_STRCASECMP = ACSF_STRICMP,
+   ACSF_STRLEFT,
+   ACSF_STRRIGHT,
+   ACSF_STRMID,
+   ACSF_GETACTORCLASS,
+   ACSF_GETWEAPON,
+   ACSF_SOUNDVOLUME,
+   ACSF_PLAYACTORSOUND,
+   ACSF_SPAWNDECAL,
+   ACSF_CHECKFONT,
+   ACSF_DROPITEM,
+   ACSF_CHECKFLAG,
+   ACSF_SETLINEACTIVATION,
+   ACSF_GETLINEACTIVATION,
+   ACSF_GETACTORPOWERUPTICS,
+   ACSF_CHANGEACTORANGLE,
+   ACSF_CHANGEACTORPITCH,
+   ACSF_RESETMAP = 100,
+   ACSF_PLAYERISSPECTATOR,
+   ACSF_CONSOLEPLAYERNUMBER,
+   ACSF_GETTEAMPROPERTY,
+   ACSF_GETPLAYERLIVESLEFT,
+   ACSF_SETPLAYERLIVESLEFT,
+   ACSF_KICKFROMGAME,
+   ACSF_GETGAMEMODESTATE,
+   ACSF_SETDBENTRY,
+   ACSF_GETDBENTRY,
+   ACSF_SETDBENTRYSTRING,
+   ACSF_GETDBENTRYSTRING,
+   ACSF_INCREMENTDBENTRY,
+   ACSF_PLAYERISLOGGEDIN,
+   ACSF_GETPLAYERACCOUNTNAME,
+   ACSF_QUERYSORTEDDBENTRIES,
+   ACSF_GETDBRESULTSIZE,
+   ACSF_CLEARDBRESULTHANDLE,
+   ACSF_GETDBRESULTENTRYNAMESTRING,
+   ACSF_GETDBRESULTENTRYVALUESTRING,
+   ACSF_GETDBENTRYRANK
+}
