@@ -4,6 +4,8 @@
 #include "phase.h"
 #include "pcode.h"
 
+enum { FIXEDNUMBER_WHOLE = 1 << 16 };
+
 struct result {
    struct ref* ref;
    struct structure* structure;
@@ -200,6 +202,8 @@ static void copy_elements( struct codegen* codegen, struct result* dst,
    struct result* src, int dst_ofs, int src_ofs, int length );
 static void copy_struct( struct codegen* codegen, struct result* result,
    struct objcpy_call* call );
+static void visit_conversion( struct codegen* codegen, struct result* result,
+   struct conversion* conv );
 static void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren );
 static void push_indexed( struct codegen* codegen, int storage, int index );
@@ -1840,12 +1844,16 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_objcpy( codegen, result,
          ( struct objcpy_call* ) node );
       break;
+   case NODE_CONVERSION:
+      visit_conversion( codegen, result,
+         ( struct conversion* ) node );
+      break;
    case NODE_PAREN:
       visit_paren( codegen, result,
          ( struct paren* ) node );
       break;
    default:
-      break;
+      UNREACHABLE()
    }
 }
 
@@ -2476,6 +2484,121 @@ void copy_struct( struct codegen* codegen, struct result* result,
    if ( result->push ) {
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
       result->status = R_VALUE;
+   }
+}
+
+void visit_conversion( struct codegen* codegen, struct result* result,
+   struct conversion* conv ) {
+   switch ( conv->spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+      switch ( conv->spec_from ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_BOOL:
+         c_push_expr( codegen, conv->expr );
+         result->status = R_VALUE;
+         break;
+      // When shifting by 16 a negative fixed-point number, the result seems
+      // to be off by one if the fixed-point number contains a fractional part.
+      // I'm not sure exactly what is going on, but it might have something to
+      // do with the representation of signed integers. For now, just do some
+      // basic math to get the right result.
+      case SPEC_FIXED:
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_PUSHNUMBER, FIXEDNUMBER_WHOLE );
+         c_pcd( codegen, PCD_DIVIDE );
+         result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE()
+      }
+      break;
+   case SPEC_FIXED:
+      switch ( conv->spec_from ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_BOOL:
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_PUSHNUMBER, 16 );
+         c_pcd( codegen, PCD_LSHIFT );
+         result->status = R_VALUE;
+         break;
+      case SPEC_FIXED:
+         c_push_expr( codegen, conv->expr );
+         result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE()
+      }
+      break;
+   case SPEC_BOOL:
+      switch ( conv->spec_from ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         result->status = R_VALUE;
+         break;
+      case SPEC_BOOL:
+         c_push_expr( codegen, conv->expr );
+         result->status = R_VALUE;
+         break;
+      case SPEC_STR:
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE()
+      }
+      break;
+   case SPEC_STR:
+      switch ( conv->spec_from ) {
+         struct c_casejump* jump;
+         struct c_point* point;
+      case SPEC_RAW:
+      case SPEC_INT:
+         c_pcd( codegen, PCD_BEGINPRINT );
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_PRINTNUMBER );
+         c_pcd( codegen, PCD_SAVESTRING );
+         result->status = R_VALUE;
+         break;
+      case SPEC_FIXED:
+         c_pcd( codegen, PCD_BEGINPRINT );
+         c_push_expr( codegen, conv->expr );
+         c_pcd( codegen, PCD_PRINTFIXED );
+         c_pcd( codegen, PCD_SAVESTRING );
+         result->status = R_VALUE;
+         break;
+      case SPEC_BOOL:
+         c_pcd( codegen, PCD_BEGINPRINT );
+         c_push_expr( codegen, conv->expr );
+         jump = c_create_casejump( codegen, 0, NULL );
+         c_append_node( codegen, &jump->node );
+         c_pcd( codegen, PCD_PRINTNUMBER );
+         point = c_create_point( codegen );
+         c_append_node( codegen, &point->node );
+         jump->point = point;
+         c_pcd( codegen, PCD_SAVESTRING );
+         result->status = R_VALUE;
+         break;
+      case SPEC_STR:
+         c_push_expr( codegen, conv->expr );
+         result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE()
+      }
+      break;
+   default:
+      UNREACHABLE();
    }
 }
 

@@ -169,6 +169,12 @@ static bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result );
 static bool is_int_value( struct semantic* semantic, struct result* result );
 static bool is_str_value( struct semantic* semantic, struct result* result );
+static void test_conversion( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct conversion* conv );
+static bool perform_conversion( struct conversion* conv,
+   struct type_info* from );
+static void unsupported_conversion( struct semantic* semantic,
+   struct type_info* from, int to_spec, struct pos* pos );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
 static void test_upmost( struct semantic* semantic, struct result* result );
@@ -1822,6 +1828,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_objcpy( semantic, test, result,
          ( struct objcpy_call* ) node );
       break;
+   case NODE_CONVERSION:
+      test_conversion( semantic, test, result,
+         ( struct conversion* ) node );
+      break;
    case NODE_PAREN:
       test_paren( semantic, test, result,
          ( struct paren* ) node );
@@ -2228,6 +2238,59 @@ bool is_int_value( struct semantic* semantic, struct result* result ) {
 
 bool is_str_value( struct semantic* semantic, struct result* result ) {
    return ( is_value_type( result ) && result->spec == semantic->spec_str );
+}
+
+void test_conversion( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct conversion* conv ) {
+   struct type_info type;
+   struct expr_test nested_test;
+   s_init_expr_test( &nested_test, true, false );
+   s_test_expr_type( semantic, &nested_test, &type, conv->expr );
+   if ( ! perform_conversion( conv, &type ) ) {
+      unsupported_conversion( semantic, &type, conv->spec, &conv->expr->pos );
+      s_bail( semantic );
+   }
+   conv->spec_from = s_spec( semantic, type.spec );
+   result->spec = s_spec( semantic, conv->spec );
+   result->complete = true;
+   result->usable = true;
+}
+
+bool perform_conversion( struct conversion* conv, struct type_info* from ) { 
+   if ( s_is_value_type( from ) ) {
+      // Converting from a string to either an integer or a fixed-point number
+      // requires a lot of generated code. For now, use a library function to
+      // perform these conversions.
+      switch ( conv->spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         return ( from->spec != SPEC_STR );
+      case SPEC_FIXED:
+         return ( from->spec != SPEC_STR );
+      default:
+         return true;
+      }
+   }
+   else {
+      return false;
+   }
+}
+
+void unsupported_conversion( struct semantic* semantic, struct type_info* from,
+   int to_spec, struct pos* pos ) {
+   struct str from_s;
+   str_init( &from_s );
+   s_present_type( from, &from_s );
+   struct type_info to;
+   s_init_type_info_scalar( &to, to_spec );
+   struct str to_s;
+   str_init( &to_s );
+   s_present_type( &to, &to_s );
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "conversion from `%s` to `%s` unsupported", from_s.value,
+      to_s.value );
+   str_deinit( &from_s );
+   str_deinit( &to_s );
 }
 
 void test_paren( struct semantic* semantic, struct expr_test* test,

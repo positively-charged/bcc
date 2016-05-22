@@ -93,7 +93,8 @@ struct node {
       NODE_UPMOST,
       NODE_USING,
       // 50
-      NODE_OBJCPY
+      NODE_OBJCPY,
+      NODE_CONVERSION
    } type;
 };
 
@@ -421,6 +422,13 @@ struct objcpy_call {
       OBJCPY_STRUCT,
    } type;
    bool array_cast;
+};
+
+struct conversion {
+   struct node node;
+   struct expr* expr;
+   int spec;
+   int spec_from;
 };
 
 struct expr {

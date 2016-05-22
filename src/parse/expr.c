@@ -37,6 +37,8 @@ static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading );
 static int extract_fixed_literal_value( const char* text );
+static void read_conversion( struct parse* parse,
+   struct expr_reading* reading );
 static void read_postfix( struct parse* parse, struct expr_reading* reading );
 static struct access* alloc_access( const char* name, struct pos pos );
 static void read_post_inc( struct parse* parse, struct expr_reading* reading );
@@ -549,6 +551,14 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    else if ( parse->tk == TK_LIT_FIXED ) {
       read_fixed_literal( parse, reading );
    }
+   else if (
+      parse->tk == TK_RAW ||
+      parse->tk == TK_INT ||
+      parse->tk == TK_FIXED ||
+      parse->tk == TK_BOOL ||
+      parse->tk == TK_STR ) {
+      read_conversion( parse, reading );
+   }
    else {
       switch ( parse->tk ) {
       case TK_LIT_DECIMAL:
@@ -690,6 +700,45 @@ int extract_fixed_literal_value( const char* text ) {
       ( ( int ) value << 16 ) +
       // Fraction.
       ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
+}
+
+void read_conversion( struct parse* parse, struct expr_reading* reading ) {
+   int spec = SPEC_RAW;
+   switch ( parse->tk ) {
+   case TK_INT:
+      spec = SPEC_INT;
+      p_read_tk( parse );
+      break;
+   case TK_FIXED:
+      spec = SPEC_FIXED;
+      p_read_tk( parse );
+      break;
+   case TK_BOOL:
+      spec = SPEC_BOOL;
+      p_read_tk( parse );
+      break;
+   case TK_STR:
+      spec = SPEC_STR;
+      p_read_tk( parse );
+      break;
+   default:
+      p_test_tk( parse, TK_RAW );
+      p_read_tk( parse );
+      break;
+   }
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   struct conversion* conv = mem_alloc( sizeof( *conv ) );
+   conv->node.type = NODE_CONVERSION;
+   conv->spec = spec;
+   conv->spec_from = SPEC_NONE;
+   conv->expr = expr.output_node;
+   reading->node = &conv->node;
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
 }
 
 void read_postfix( struct parse* parse, struct expr_reading* reading ) {
