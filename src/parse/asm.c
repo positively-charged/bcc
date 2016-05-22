@@ -1,6 +1,8 @@
 #include <string.h>
 
 #include "phase.h"
+#include "codegen/phase.h"
+#include "codegen/pcode.h"
 
 static struct mnemonic* alloc_mnemonic( void );
 static void append_mnemonic( struct parse* parse, struct task* task,
@@ -18,10 +20,15 @@ void p_read_mnemonic( struct parse* parse ) {
    p_test_tk( parse, TK_LIT_DECIMAL );
    mnemonic->opcode = p_extract_literal_value( parse );
    p_read_tk( parse );
-   p_test_tk( parse, TK_LIT_STRING );
-   mnemonic->args = parse->tk_text;
-   p_read_tk( parse );
    append_mnemonic( parse, parse->task, mnemonic );
+   struct pcode* instruction = c_get_pcode_info( mnemonic->opcode );
+   if ( ! instruction ) {
+      p_diag( parse, DIAG_POS_ERR, &mnemonic->pos,
+         "`%s` instruction (opcode %d) not supported",
+         mnemonic->name, mnemonic->opcode );
+      p_bail( parse );
+   }
+   mnemonic->args = instruction->args_format;
 }
 
 struct mnemonic* alloc_mnemonic( void ) {

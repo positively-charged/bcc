@@ -395,6 +395,7 @@ enum {
 struct pcode {
    int code;
    int argc;
+   const char* args_format;
 };
 
 #endif

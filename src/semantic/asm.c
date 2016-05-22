@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "phase.h"
+#include "codegen/phase.h"
 
 struct test {
    struct stmt_test* stmt_test;
@@ -57,7 +58,7 @@ struct mnemonic* find_mnemonic( struct task* task, const char* name ) {
    while ( mnemonic && strcmp( mnemonic->name, name ) < 0 ) {
       mnemonic = mnemonic->next;
    }
-   if ( strcmp( mnemonic->name, name ) == 0 ) {
+   if ( mnemonic && strcmp( mnemonic->name, name ) == 0 ) {
       return mnemonic;
    }
    else {
@@ -131,6 +132,9 @@ void test_arg( struct semantic* semantic, struct test* test,
       while ( *test->format && *test->format != ',' ) {
          ++test->format;
       }
+      if ( *test->format == ',' ) {
+         ++test->format;
+      }
    }
 }
 
@@ -180,7 +184,7 @@ void test_var_arg( struct semantic* semantic, struct test* test,
       storage = var->storage;
    }
    // Check for array.
-   if ( *test->format == 'a' ) {
+   if ( test->format[ 0 ] == 'a' ) {
       if ( ! dim && ! structure ) {
          s_diag( semantic, DIAG_POS_ERR, &arg->pos,
             "instruction argument not an array" );
@@ -196,14 +200,14 @@ void test_var_arg( struct semantic* semantic, struct test* test,
    }
    // Check storage.
    bool storage_correct = (
-      ( test->format[ 1 ] == 'l' && storage == STORAGE_LOCAL ) ||
+      ( test->format[ 1 ] == 's' && storage == STORAGE_LOCAL ) ||
       ( test->format[ 1 ] == 'm' && storage == STORAGE_MAP ) ||
       ( test->format[ 1 ] == 'w' && storage == STORAGE_WORLD ) ||
       ( test->format[ 1 ] == 'g' && storage == STORAGE_GLOBAL ) );
    if ( ! storage_correct ) {
       const char* name = "";
       switch ( test->format[ 1 ] ) {
-      case 'l': name = "local"; break;
+      case 's': name = "script"; break;
       case 'm': name = "map"; break;
       case 'w': name = "world"; break;
       case 'g': name = "global"; break;
@@ -211,7 +215,8 @@ void test_var_arg( struct semantic* semantic, struct test* test,
          UNREACHABLE();
       }
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
-         "instruction argument not a %s variable", name );
+         "instruction argument not a %s %s", name,
+         ( test->format[ 0 ] == 'a' ) ? "array" : "variable" );
       s_bail( semantic );
    }
    if ( param ) {
