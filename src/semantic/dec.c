@@ -238,7 +238,7 @@ void s_test_enumeration( struct semantic* semantic,
          s_bind_name( semantic, enumeration->name, &enumeration->object );
       }
    }
-   struct enumeration_test test = { 0 };
+   struct enumeration_test test = { -1 };
    // Skip previously resolved enumerators.
    struct enumerator* enumerator = enumeration->head;
    while ( enumerator && enumerator->object.resolved ) {
@@ -300,9 +300,7 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
             "maximum automatically-generated value is %d", INT_MAX );
          s_bail( semantic );
       }
-      else {
-         ++test->value;
-      }
+      ++test->value;
    }
    enumerator->value = test->value;
    enumerator->object.resolved = true;
