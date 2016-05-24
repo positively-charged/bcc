@@ -16,6 +16,7 @@ struct result {
    bool modifiable;
    bool folded;
    bool in_paren;
+   bool null;
 };
 
 struct call_test {
@@ -39,7 +40,7 @@ static void test_operand( struct semantic* semantic, struct expr_test* test,
 static void test_binary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct binary* binary );
 static bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct type_info* operand, struct result* result );
+   struct type_info* lside, struct type_info* rside, struct result* result );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
@@ -302,6 +303,7 @@ void init_result( struct result* result ) {
    result->modifiable = false;
    result->folded = false;
    result->in_paren = false;
+   result->null = false;
 }
 
 void test_operand( struct semantic* semantic, struct expr_test* test,
@@ -359,7 +361,7 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
          "right-operand", &rside_type, &binary->pos );
       s_bail( semantic );
    }
-   if ( ! perform_bop( semantic, binary, &lside_type, result ) ) {
+   if ( ! perform_bop( semantic, binary, &lside_type, &rside_type, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
          "invalid binary operation" );
       s_bail( semantic );
@@ -371,14 +373,14 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
 }
 
 bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct type_info* operand, struct result* result ) {
+   struct type_info* lside, struct type_info* rside, struct result* result ) {
    // Value type.
-   if ( s_is_value_type( operand ) ) {
+   if ( s_is_value_type( lside ) ) {
       int spec = SPEC_NONE;
       switch ( binary->op ) {
       case BOP_EQ:
       case BOP_NEQ:
-         switch ( operand->spec ) {
+         switch ( lside->spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -396,10 +398,10 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       case BOP_SHIFT_L:
       case BOP_SHIFT_R:
       case BOP_MOD:
-         switch ( operand->spec ) {
+         switch ( lside->spec ) {
          case SPEC_RAW:
          case SPEC_INT:
-            spec = operand->spec;
+            spec = lside->spec;
             break;
          default:
             break;
@@ -409,7 +411,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       case BOP_LTE:
       case BOP_GT:
       case BOP_GTE:
-         switch ( operand->spec ) {
+         switch ( lside->spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -421,12 +423,12 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
          }
          break;
       case BOP_ADD:
-         switch ( operand->spec ) {
+         switch ( lside->spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
          case SPEC_STR:
-            spec = operand->spec;
+            spec = lside->spec;
             break;
          default:
             break;
@@ -435,11 +437,11 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       case BOP_SUB:
       case BOP_MUL:
       case BOP_DIV:
-         switch ( operand->spec ) {
+         switch ( lside->spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
-            spec = operand->spec;
+            spec = lside->spec;
             break;
          default:
             break;
@@ -454,7 +456,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       result->spec = spec;
       result->complete = true;
       result->usable = true;
-      binary->operand_type = operand->spec;
+      binary->operand_type = lside->spec;
       return true;
    }
    // Reference type.
@@ -462,8 +464,9 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       switch ( binary->op ) {
       case BOP_EQ:
       case BOP_NEQ:
-         binary->operand_type = ( operand->ref->type == REF_FUNCTION ) ?
-            BINARYOPERAND_REFFUNC : BINARYOPERAND_REF;
+         binary->operand_type = ( lside->ref->type == REF_FUNCTION ||
+            rside->ref->type == REF_FUNCTION ) ? BINARYOPERAND_REFFUNC :
+            BINARYOPERAND_REF;
          result->spec = semantic->spec_bool;
          result->complete = true;
          result->usable = true;
@@ -556,10 +559,7 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
 // can be converted to a boolean.
 bool can_convert_to_boolean( struct result* operand ) {
    if ( is_ref_type( operand ) ) {
-      // At this time, there is no null reference, so it doesn't make sense to
-      // have a reference in a boolean scenario.
-      // return true;
-      return false;
+      return true;
    }
    else {
       switch ( operand->spec ) {
@@ -643,7 +643,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    init_type_info( &lside_type, &lside );
    init_type_info( &rside_type, &rside );
    s_decay( &rside_type );
-   if ( ! s_same_type( &lside_type, &rside_type ) ) {
+   if ( ! s_instance_of( &lside_type, &rside_type ) ) {
       s_type_mismatch( semantic, "left-operand", &lside_type,
          "right-operand", &rside_type, &assign->pos );
       s_bail( semantic );
@@ -792,11 +792,15 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    struct type_snapshot snapshot;
-   s_take_type_snapshot( &right_type, &snapshot ); 
+   if ( ! middle.null ) {
+      s_take_type_snapshot( &middle_type, &snapshot );
+   }
+   else {
+      s_take_type_snapshot( &right_type, &snapshot );
+   }
    result->ref = snapshot.ref;
    result->structure = snapshot.structure;
    result->enumeration = snapshot.enumeration;
-   result->dim = snapshot.dim;
    result->spec = snapshot.spec;
    result->complete = true;
    result->usable = ( snapshot.spec != SPEC_VOID );
@@ -908,7 +912,6 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    // Reference type.
    else {
       // Only logical-not can be performed on a reference type.
-      /*
       if ( unary->op == UOP_LOG_NOT ) {
          result->spec = semantic->spec_bool;
          result->complete = true;
@@ -918,8 +921,6 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
       else {
          return false;
       }
-      */
-      return false;
    }
 }
 
@@ -1421,6 +1422,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       static struct func dummy_func;
       dummy_func.type = FUNC_SAMPLE;
       call->func = &dummy_func;
+      call->ref_func = func;
    }
    else {
       UNREACHABLE();
@@ -1537,7 +1539,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    s_decay( &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, spec );
-   if ( ! s_same_type( &type, &required_type ) ) {
+   if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
@@ -1555,11 +1557,11 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    init_type_info( &type, &root );
    s_decay( &type );
    static struct ref_array array = {
-      { NULL, { 0, 0, 0 }, REF_ARRAY }, 1, 0, 0 };
+      { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, 0, 0 };
    struct type_info required_type;
    s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
       semantic->spec_int );
-   if ( ! s_same_type( &type, &required_type ) ) {
+   if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
@@ -1585,7 +1587,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    s_decay( &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, semantic->spec_int );
-   if ( ! s_same_type( &type, &required_type ) ) {
+   if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &arg->pos );
       s_bail( semantic );
@@ -1626,7 +1628,7 @@ void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
    struct type_info required_type;
    s_init_type_info_func( &required_type,
       NULL, NULL, NULL, NULL, SPEC_VOID, 0, 0, true );
-   if ( ! s_same_type( &required_type, &type ) ) {
+   if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
@@ -1709,7 +1711,7 @@ void test_remaining_arg( struct semantic* semantic,
       s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, param->spec );
       s_decay( &type );
-      if ( ! s_same_type( &param_type, &type ) ) {
+      if ( ! s_instance_of( &param_type, &type ) ) {
          arg_mismatch( semantic, &expr->pos, &type,
             "parameter", &param_type, "argument", test->num_args + 1 );
          s_bail( semantic );
@@ -1838,6 +1840,12 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       break;
    case NODE_UPMOST:
       test_upmost( semantic, result );
+      break;
+   case NODE_NULL:
+      result->null = true;
+      result->complete = true;
+      result->usable = true;
+      result->folded = true;
       break;
    default:
       UNREACHABLE();
@@ -2251,6 +2259,7 @@ void test_conversion( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    conv->spec_from = s_spec( semantic, type.spec );
+   conv->from_ref = ( type.ref != NULL );
    result->spec = s_spec( semantic, conv->spec );
    result->complete = true;
    result->usable = true;
@@ -2272,7 +2281,12 @@ bool perform_conversion( struct conversion* conv, struct type_info* from ) {
       }
    }
    else {
-      return false;
+      switch ( conv->spec ) {
+      case SPEC_BOOL:
+         return true;
+      default:
+         return false;
+      }
    }
 }
 
@@ -2316,6 +2330,9 @@ void init_type_info( struct type_info* type, struct result* result ) {
       s_init_type_info_array_ref( type, result->ref->next, result->structure,
          result->enumeration, result->ref_dim, result->spec );
    }
+   else if ( result->null ) {
+      s_init_type_info_null( type );
+   }
    else {
       s_init_type_info( type, result->ref, result->structure,
          result->enumeration, result->dim, result->spec );
@@ -2337,5 +2354,6 @@ bool is_value_type( struct result* result ) {
 }
 
 bool is_ref_type( struct result* result ) {
-   return ( result->ref || result->dim || result->structure || result->func );
+   return ( result->ref || result->dim || result->structure || result->func ||
+      result->null );
 }

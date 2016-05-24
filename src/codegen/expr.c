@@ -5,6 +5,8 @@
 #include "pcode.h"
 
 enum { FIXEDNUMBER_WHOLE = 1 << 16 };
+enum { NULLVALUE_ARRAYSTRUCT = SHAREDARRAYFIELD_NULL };
+enum { NULLVALUE_FUNC = USHRT_MAX };
 
 struct result {
    struct ref* ref;
@@ -14,20 +16,25 @@ struct result {
       R_NONE,
       R_VALUE,
       R_VAR,
-      R_ARRAYINDEX
+      R_ARRAYINDEX,
+      R_NULL
    } status;
    int storage;
    int index;
    int ref_dim;
    int diminfo_start;
    bool push;
+   bool push_func;
    bool skip_negate;
+   bool null;
 };
 
 static void init_result( struct result* result, bool push );
 static void push_operand( struct codegen* codegen, struct node* node );
 static void push_operand_result( struct codegen* codegen,
    struct result* result, struct node* node );
+static void push_initz( struct codegen* codegen, struct ref* ref,
+   struct node* initz );
 static void visit_operand( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_binary( struct codegen* codegen, struct result* result,
@@ -204,6 +211,7 @@ static void copy_struct( struct codegen* codegen, struct result* result,
    struct objcpy_call* call );
 static void visit_conversion( struct codegen* codegen, struct result* result,
    struct conversion* conv );
+static void visit_null( struct codegen* codegen, struct result* result );
 static void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren );
 static void push_indexed( struct codegen* codegen, int storage, int index );
@@ -244,6 +252,11 @@ void c_push_cond( struct codegen* codegen, struct expr* cond ) {
    push_logical_operand( codegen, cond->root, cond->spec );
 }
 
+void c_push_initz_expr( struct codegen* codegen, struct ref* ref,
+   struct expr* expr ) {
+   push_initz( codegen, ref, expr->root );
+}
+
 void init_result( struct result* result, bool push ) {
    result->ref = NULL;
    result->structure = NULL;
@@ -254,7 +267,9 @@ void init_result( struct result* result, bool push ) {
    result->ref_dim = 0;
    result->diminfo_start = 0;
    result->push = push;
+   result->push_func = false;
    result->skip_negate = false;
+   result->null = false;
 }
 
 void push_operand( struct codegen* codegen, struct node* node ) {
@@ -270,6 +285,14 @@ void push_operand_result( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_PUSHNUMBER, result->diminfo_start );
       c_update_dimtrack( codegen );
    }
+}
+
+void push_initz( struct codegen* codegen, struct ref* ref,
+   struct node* initz ) {
+   struct result rside;
+   init_result( &rside, true );
+   rside.push_func = ( ref && ref->type == REF_FUNCTION );
+   push_operand_result( codegen, &rside, initz );
 }
 
 void visit_operand( struct codegen* codegen, struct result* result,
@@ -480,10 +503,22 @@ void eq_ref( struct codegen* codegen, struct result* result,
    struct result rside;
    init_result( &rside, true );
    visit_operand( codegen, &rside, binary->rside );
+   if ( lside.null || rside.null ) {
+      // NOTE: If this if-statement fails, then one of the null values will
+      // remain on the stack. Since failing the if-statement indicates a false
+      // result, and the null value for array and structure references is 0, we
+      // leave the null value pushed and use it as the result value.
+      STATIC_ASSERT( NULLVALUE_ARRAYSTRUCT == 0 );
+      if ( ( lside.null && rside.null ) ||
+         ( lside.null && rside.status == R_ARRAYINDEX ) ||
+         ( rside.null && lside.status == R_ARRAYINDEX ) ) {
+         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
+      }
+   }
    // For two references to be the same, they must point to the same array and
    // have the same offset. The offset is not required if the variables are
    // directly available.
-   if ( lside.index == rside.index && lside.status == rside.status ) {
+   else if ( lside.index == rside.index && lside.status == rside.status ) {
       if ( lside.status == R_ARRAYINDEX ) {
          c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
       }
@@ -522,9 +557,11 @@ void eq_func( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    struct result lside;
    init_result( &lside, true );
+   lside.push_func = true;
    visit_operand( codegen, &lside, binary->lside );
    struct result rside;
    init_result( &rside, true );
+   rside.push_func = true;
    visit_operand( codegen, &rside, binary->rside );
    c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
    result->status = R_VALUE;
@@ -575,6 +612,10 @@ void push_logical_operand( struct codegen* codegen,
    result.skip_negate = true;
    visit_operand( codegen, &result, node );
    convert_to_boolean( codegen, spec );
+   if ( result.ref && result.ref->type == REF_FUNCTION ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
+      c_pcd( codegen, PCD_NE );
+   }
 }
 
 void convert_to_boolean( struct codegen* codegen, int spec ) {
@@ -777,7 +818,7 @@ void assign_value( struct codegen* codegen, struct assign* assign,
       if ( result->push ) {
          c_pcd( codegen, PCD_DUP );
       }
-      push_operand( codegen, assign->rside );
+      push_initz( codegen, lside->ref, assign->rside );
       c_update_element( codegen, lside->storage, lside->index, assign->op );
       if ( result->push ) {
          push_element( codegen, lside->storage, lside->index );
@@ -785,7 +826,7 @@ void assign_value( struct codegen* codegen, struct assign* assign,
       }
    }
    else {
-      push_operand( codegen, assign->rside );
+      push_initz( codegen, lside->ref, assign->rside );
       if ( assign->op == AOP_NONE && result->push ) {
          c_pcd( codegen, PCD_DUP );
          result->status = R_VALUE;
@@ -815,7 +856,10 @@ void write_conditional( struct codegen* codegen, struct result* result,
    struct c_jump* right_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
    c_append_node( codegen, &right_jump->node );
    // When condition is true.
-   push_operand( codegen, cond->middle );
+   struct result middle;
+   init_result( &middle, true );
+   middle.push_func = ( cond->ref && cond->ref->type == REF_FUNCTION );
+   push_operand_result( codegen, &middle, cond->middle );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
    // When condition is not true.
@@ -1165,8 +1209,11 @@ void copy_diminfo( struct codegen* codegen, struct result* lside ) {
 void subscript_array_reference( struct codegen* codegen,
    struct subscript* subscript, struct result* lside, struct result* result ) {
    if ( lside->ref_dim == 0 ) {
-      struct ref_array* part = ( struct ref_array* ) lside->ref;
-      lside->ref_dim = part->dim_count;
+      struct ref_array* array = ( struct ref_array* ) lside->ref;
+      lside->ref_dim = array->dim_count;
+      if ( array->ref.nullable ) {
+         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+      }
    }
    // Calculate offset to element.
    c_push_expr( codegen, subscript->index );
@@ -1273,6 +1320,9 @@ void access_structure_member( struct codegen* codegen,
    struct structure_member* member, struct result* lside,
    struct result* result ) {
    if ( lside->status == R_ARRAYINDEX ) {
+      if ( lside->ref && lside->ref->nullable ) {
+         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+      }
       // Adding a zero doesn't change the final offset.
       if ( member->offset > 0 ) {
          c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
@@ -1516,9 +1566,10 @@ void write_call_args( struct codegen* codegen, struct call* call ) {
    list_iter_init( &i, &call->args );
    struct param* param = call->func->params;
    while ( ! list_end( &i ) ) {
+      struct expr* expr = list_data( &i );
       struct result arg;
       init_result( &arg, true );
-      struct expr* expr = list_data( &i );
+      arg.push_func = ( param->ref && param->ref->type == REF_FUNCTION );
       visit_operand( codegen, &arg, expr->root );
       if ( arg.dim ) {
          c_pcd( codegen, PCD_PUSHNUMBER, arg.diminfo_start );
@@ -1547,33 +1598,31 @@ void call_user_func( struct codegen* codegen, struct call* call,
    struct func_user* impl = call->func->impl;
    if ( call->func->return_spec != SPEC_VOID && result->push ) {
       c_pcd( codegen, PCD_CALL, impl->index );
+      // Reference-type result. 
+      if ( call->func->ref ) {
+         result->ref = call->func->ref;
+         result->structure = call->func->structure;
+         switch ( result->ref->type ) {
+         case REF_STRUCTURE:
+         case REF_ARRAY:
+            result->storage = STORAGE_MAP;
+            result->index = codegen->shary.index;
+            result->status = R_ARRAYINDEX;
+            break;
+         case REF_FUNCTION:
+            result->status = R_VALUE;
+            break;
+         default:
+            UNREACHABLE();
+         }
+      }
+      // Primitive-type result.
+      else {
+         result->status = R_VALUE;
+      }
    }
    else {
       c_pcd( codegen, PCD_CALLDISCARD, impl->index );
-   }
-   // Reference-type result. 
-   if ( call->func->ref ) {
-      result->ref = call->func->ref;
-      result->structure = call->func->structure;
-      switch ( result->ref->type ) {
-      case REF_STRUCTURE:
-      case REF_ARRAY:
-         result->storage = STORAGE_MAP;
-         result->index = codegen->shary.index;
-         result->status = R_ARRAYINDEX;
-         break;
-      case REF_FUNCTION:
-         result->status = R_VALUE;
-         break;
-      default:
-         UNREACHABLE();
-      }
-   }
-   // Primitive-type result.
-   else {
-      if ( call->func->return_spec != SPEC_VOID ) {
-         result->status = R_VALUE;
-      }
    }
 }
 
@@ -1584,9 +1633,13 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
    visit_suffix( codegen, &operand, call->operand );
    list_iter_t i;
    list_iter_init( &i, &call->args );
+   // TODO: Use common code to push arguments for function and function
+   // reference.
+   struct param* param = call->ref_func->params;
    while ( ! list_end( &i ) ) {
-      c_push_expr( codegen, list_data( &i ) );
+      c_push_initz_expr( codegen, param->ref, list_data( &i ) );
       c_pcd( codegen, PCD_SWAP );
+      param = param->next;
       list_next( &i );
    }
    c_pcd( codegen, PCD_CALLSTACK );
@@ -1847,6 +1900,9 @@ void visit_primary( struct codegen* codegen, struct result* result,
    case NODE_CONVERSION:
       visit_conversion( codegen, result,
          ( struct conversion* ) node );
+      break;
+   case NODE_NULL:
+      visit_null( codegen, result );
       break;
    case NODE_PAREN:
       visit_paren( codegen, result,
@@ -2533,29 +2589,45 @@ void visit_conversion( struct codegen* codegen, struct result* result,
       }
       break;
    case SPEC_BOOL:
-      switch ( conv->spec_from ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-      case SPEC_FIXED:
-         c_push_expr( codegen, conv->expr );
-         c_pcd( codegen, PCD_NEGATELOGICAL );
-         c_pcd( codegen, PCD_NEGATELOGICAL );
+      if ( conv->from_ref ) {
+         struct result arg;
+         init_result( &arg, true );
+         push_operand_result( codegen, &arg, conv->expr->root );
+         if ( arg.ref && arg.ref->type == REF_FUNCTION ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
+            c_pcd( codegen, PCD_NE );
+         }
+         else {
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+         }
          result->status = R_VALUE;
-         break;
-      case SPEC_BOOL:
-         c_push_expr( codegen, conv->expr );
-         result->status = R_VALUE;
-         break;
-      case SPEC_STR:
-         c_push_expr( codegen, conv->expr );
-         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-         c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
-         c_pcd( codegen, PCD_NEGATELOGICAL );
-         c_pcd( codegen, PCD_NEGATELOGICAL );
-         result->status = R_VALUE;
-         break;
-      default:
-         UNREACHABLE()
+      }
+      else {
+         switch ( conv->spec_from ) {
+         case SPEC_RAW:
+         case SPEC_INT:
+         case SPEC_FIXED:
+            c_push_expr( codegen, conv->expr );
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+            result->status = R_VALUE;
+            break;
+         case SPEC_BOOL:
+            c_push_expr( codegen, conv->expr );
+            result->status = R_VALUE;
+            break;
+         case SPEC_STR:
+            c_push_expr( codegen, conv->expr );
+            c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+            c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+            result->status = R_VALUE;
+            break;
+         default:
+            UNREACHABLE()
+         }
       }
       break;
    case SPEC_STR:
@@ -2600,6 +2672,13 @@ void visit_conversion( struct codegen* codegen, struct result* result,
    default:
       UNREACHABLE();
    }
+}
+
+void visit_null( struct codegen* codegen, struct result* result ) {
+   c_pcd( codegen, PCD_PUSHNUMBER, result->push_func ? NULLVALUE_FUNC :
+      NULLVALUE_ARRAYSTRUCT );
+   result->null = true;
+   result->status = R_VALUE;
 }
 
 void visit_paren( struct codegen* codegen, struct result* result,

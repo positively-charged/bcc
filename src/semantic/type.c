@@ -38,6 +38,7 @@ void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
    struct ref_array* array = &type->implicit_ref_part.array;
    array->ref.next = type->ref;
    array->ref.type = REF_ARRAY;
+   array->ref.nullable = false;
    array->dim_count = dim_count;
    type->ref = &array->ref;
    type->implicit_ref = true;
@@ -54,6 +55,7 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct ref_func* func = &type->implicit_ref_part.func;
    func->ref.next = type->ref;
    func->ref.type = REF_FUNCTION;
+   func->ref.nullable = false;
    func->params = params;
    func->min_param = min_param;
    func->max_param = max_param;
@@ -66,12 +68,23 @@ void s_init_type_info_scalar( struct type_info* type, int spec ) {
    s_init_type_info( type, NULL, NULL, NULL, NULL, spec );
 }
 
+void s_init_type_info_null( struct type_info* type ) {
+   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE );
+   struct ref* ref = &type->implicit_ref_part.ref;
+   ref->next = NULL;
+   ref->type = REF_NULL;
+   ref->nullable = false;
+   type->ref = ref;
+   type->implicit_ref = true;
+}
+
 void s_decay( struct type_info* type ) {
    // Array type.
    if ( type->dim ) {
       struct ref_array* array = &type->implicit_ref_part.array;
       array->ref.next = type->ref;
       array->ref.type = REF_ARRAY;
+      array->ref.nullable = false;
       array->dim_count = 0;
       struct dim* count_dim = type->dim;
       while ( count_dim ) {
@@ -87,6 +100,7 @@ void s_decay( struct type_info* type ) {
       struct ref_struct* implicit_ref = &type->implicit_ref_part.structure;
       implicit_ref->ref.next = NULL;
       implicit_ref->ref.type = REF_STRUCTURE;
+      implicit_ref->ref.nullable = false;
       type->ref = &implicit_ref->ref;
       type->implicit_ref = true;
    }
@@ -97,17 +111,25 @@ void s_decay( struct type_info* type ) {
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
-   return same_ref( a->ref, b->ref ) &&
-      ( a->structure == b->structure ) && (
-         ( ( a->spec == SPEC_ENUM || b->spec == SPEC_ENUM ) &&
-            a->enumeration == b->enumeration ) ||
-         ( same_spec( a->spec, b->spec ) ) ) &&
-      same_dim( a->dim, b->dim );
+   if ( a->ref && a->ref->type == REF_NULL ) {
+      return ( ! b->dim && b->ref );
+   }
+   else if ( b->ref && b->ref->type == REF_NULL ) {
+      return ( ! a->dim && a->ref );
+   }
+   else {
+      return same_ref( a->ref, b->ref ) &&
+         ( a->structure == b->structure ) && (
+            ( ( a->spec == SPEC_ENUM || b->spec == SPEC_ENUM ) &&
+               a->enumeration == b->enumeration ) ||
+            ( same_spec( a->spec, b->spec ) ) ) &&
+         same_dim( a->dim, b->dim );
+   }
 }
 
 bool same_ref( struct ref* a, struct ref* b ) {
    while ( a && b ) {
-      if ( a->type != b->type ) {
+      if ( ! ( a->type == b->type ) ) {
          return false;
       }
       bool same = false;
@@ -123,9 +145,8 @@ bool same_ref( struct ref* a, struct ref* b ) {
             ( struct ref_func* ) b );
          break;
       case REF_STRUCTURE:
+      case REF_NULL:
          same = true;
-         break;
-      default:
          break;
       }
       if ( ! same ) {
@@ -185,6 +206,24 @@ bool same_dim( struct dim* a, struct dim* b ) {
       b = b->next;
    }
    return ( a == NULL && b == NULL );
+}
+
+bool s_instance_of( struct type_info* type, struct type_info* instance ) {
+   // Reference.
+   if ( ! type->dim && type->ref ) {
+      if ( instance->ref && instance->ref->type == REF_NULL ) {
+         return type->ref->nullable;
+      }
+      else if ( ! type->ref->nullable ) {
+         return s_same_type( type, instance ) && ! instance->ref->nullable;
+      }
+      else {
+         return s_same_type( type, instance );
+      }
+   }
+   else {
+      return s_same_type( type, instance );
+   }
 }
 
 void s_present_type( struct type_info* type, struct str* string ) {
@@ -258,12 +297,22 @@ void present_ref( struct ref* ref, struct str* string,
          for ( int i = 0; i < part->dim_count; ++i ) {
             str_append( string, "[]" );
          }
-         if ( require_ampersand ) {
-            str_append( string, "&" );
+         if ( ref->nullable ) {
+            str_append( string, "?" );
+         }
+         else {
+            if ( require_ampersand ) {
+               str_append( string, "&" );
+            }
          }
       }
       else if ( ref->type == REF_STRUCTURE ) {
-         str_append( string, "&" );
+         if ( ref->nullable ) {
+            str_append( string, "?" );
+         }
+         else {
+            str_append( string, "&" );
+         }
       }
       else if ( ref->type == REF_FUNCTION ) {
          struct ref_func* func = ( struct ref_func* ) ref;
@@ -276,9 +325,17 @@ void present_ref( struct ref* ref, struct str* string,
             str_append( string, " " );
             str_append( string, "msgbuild" );
          }
-         if ( require_ampersand ) {
-            str_append( string, "&" );
+         if ( ref->nullable ) {
+            str_append( string, "?" );
          }
+         else {
+            if ( require_ampersand ) {
+               str_append( string, "&" );
+            }
+         }
+      }
+      else if ( ref->type == REF_NULL ) {
+         str_append( string, "null" );
       }
       else {
          UNREACHABLE()
@@ -379,6 +436,7 @@ void subscript_array_type( struct type_info* type,
             &element_type->implicit_ref_part.structure;
          implicit_ref->ref.next = NULL;
          implicit_ref->ref.type = REF_STRUCTURE;
+         implicit_ref->ref.nullable = false;
          element_type->ref = &implicit_ref->ref;
          element_type->structure = type->structure;
          element_type->spec = SPEC_STRUCT;
@@ -413,6 +471,7 @@ struct ref* dup_ref( struct ref* ref ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;
    case REF_STRUCTURE: size = sizeof( struct ref_struct ); break;
    case REF_FUNCTION: size = sizeof( struct ref_func ); break;
+   case REF_NULL: size = sizeof( struct ref ); break;
    default:
       UNREACHABLE()
       return NULL;

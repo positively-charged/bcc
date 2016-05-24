@@ -57,6 +57,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->shary.data_offset = 0;
    codegen->shary.dim_counter_var = false;
    codegen->shary.used = false;
+   codegen->null_handler = 0;
 }
 
 void c_publish( struct codegen* codegen ) {

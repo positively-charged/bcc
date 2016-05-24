@@ -81,7 +81,7 @@ static bool test_struct_body( struct semantic* semantic,
 static void test_member( struct semantic* semantic,
    struct structure* structure, struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
-   struct structure_member* member );
+   struct structure* structure, struct structure_member* member );
 static bool test_member_ref( struct semantic* semantic,
    struct structure_member* member );
 static bool test_member_name( struct semantic* semantic,
@@ -278,7 +278,7 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
       }
       struct type_info base_type;
       s_init_type_info_scalar( &base_type, enumeration->base_type );
-      if ( ! s_same_type( &type, &base_type ) ) {
+      if ( ! s_instance_of( &base_type, &type ) ) {
          s_type_mismatch( semantic, "enumerator", &type,
             "enumeration-base", &base_type, &enumerator->object.pos );
          s_bail( semantic );
@@ -341,7 +341,7 @@ bool test_struct_body( struct semantic* semantic,
 void test_member( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    member->object.resolved =
-      test_member_spec( semantic, member ) &&
+      test_member_spec( semantic, structure, member ) &&
       test_member_ref( semantic, member ) &&
       test_member_name( semantic, member ) &&
       test_member_dim( semantic, member );
@@ -352,7 +352,7 @@ void test_member( struct semantic* semantic, struct structure* structure,
    }
 }
 
-bool test_member_spec( struct semantic* semantic,
+bool test_member_spec( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    if ( member->spec == SPEC_NAME ) {
       struct name_spec_test test;
@@ -371,7 +371,8 @@ bool test_member_spec( struct semantic* semantic,
       s_bail( semantic );
    }
    if ( member->spec == SPEC_STRUCT ) {
-      return member->structure->object.resolved;
+      return member->structure->object.resolved ||
+         ( member->structure == structure && member->ref );
    }
    else if ( member->spec == SPEC_ENUM ) {
       return member->enumeration->object.resolved;
@@ -1097,7 +1098,7 @@ bool test_scalar_initz( struct semantic* semantic,
    // Perform type checking when testing an initializer for a variable with
    // known type information.
    if ( test->initz_test ) {
-      if ( ! s_same_type( test->type, &test->initz_type ) ) {
+      if ( ! s_instance_of( test->type, &test->initz_type ) ) {
          initz_mismatch( semantic, test->initz_test, &test->initz_type,
             test->type, &value->expr->pos );
          s_bail( semantic );
@@ -1504,7 +1505,7 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
       struct type_info param_type;
       s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, param->spec );
-      if ( ! s_same_type( &param_type, &type ) ) {
+      if ( ! s_instance_of( &param_type, &type ) ) {
          default_value_mismatch( semantic, func, param, &param_type, &type,
             &param->default_value->pos );
          s_bail( semantic );

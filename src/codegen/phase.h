@@ -28,6 +28,7 @@ struct local_record {
 };
 
 struct func_record {
+   struct func* func;
    int start_index;
    int array_index;
    int size;
@@ -101,6 +102,7 @@ struct codegen {
       bool dim_counter_var;
       bool used;
    } shary;
+   int null_handler;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -123,6 +125,8 @@ void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
 void c_push_expr( struct codegen* codegen, struct expr* expr );
 void c_push_cond( struct codegen* codegen, struct expr* cond );
+void c_push_initz_expr( struct codegen* codegen, struct ref* ref,
+   struct expr* expr );
 void c_update_indexed( struct codegen* codegen, int, int, int );
 void c_update_element( struct codegen* codegen, int, int, int );
 void c_add_block_visit( struct codegen* codegen );

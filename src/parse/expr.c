@@ -733,9 +733,10 @@ void read_conversion( struct parse* parse, struct expr_reading* reading ) {
    p_read_expr( parse, &expr );
    struct conversion* conv = mem_alloc( sizeof( *conv ) );
    conv->node.type = NODE_CONVERSION;
+   conv->expr = expr.output_node;
    conv->spec = spec;
    conv->spec_from = SPEC_NONE;
-   conv->expr = expr.output_node;
+   conv->from_ref = false;
    reading->node = &conv->node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
@@ -836,6 +837,7 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    call->pos = pos;
    call->operand = reading->node;
    call->func = NULL;
+   call->ref_func = NULL;
    call->nested_call = NULL;
    call->format_item = format_item;
    call->args = args;

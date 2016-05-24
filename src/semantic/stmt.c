@@ -396,7 +396,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
       struct type_info type;
       s_init_type_info( &type, key->ref, key->structure, key->enumeration,
          key->dim, key->spec );
-      if ( ! s_same_type( &type, &iter.key ) ) {
+      if ( ! s_instance_of( &type, &iter.key ) ) {
          s_type_mismatch( semantic, "key", &type,
             "collection-key", &iter.key, &key->object.pos );
          s_bail( semantic );
@@ -406,8 +406,8 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_test_foreach_var( semantic, &iter.value, value );
    struct type_info type;
    s_init_type_info( &type, value->ref, value->structure, value->enumeration,
-      value->dim, value->spec );
-   if ( ! s_same_type( &type, &iter.value ) ) {
+      value->dim, value->spec );;
+   if ( ! s_instance_of( &type, &iter.value ) ) {
       s_type_mismatch( semantic, "value", &type,
          "collection-value", &iter.value, &value->object.pos );
       s_bail( semantic );
@@ -499,7 +499,7 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       struct type_info return_type;
       s_init_type_info( &return_type, func->ref, func->structure,
          func->enumeration, NULL, func->return_spec );
-      if ( ! s_same_type( &type, &return_type ) ) {
+      if ( ! s_instance_of( &return_type, &type ) ) {
          s_type_mismatch( semantic, "return-value", &type,
             "function-return", &return_type, &stmt->return_value->expr->pos );
          s_bail( semantic );

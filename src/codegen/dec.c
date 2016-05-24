@@ -2,6 +2,7 @@
 #include "pcode.h"
 
 #include <stdio.h>
+#include <string.h>
 
 struct nestedfunc_writing {
    struct func* nested_funcs;
@@ -14,7 +15,7 @@ struct nestedfunc_writing {
 
 static void write_script( struct codegen* codegen, struct script* script );
 static void write_userfunc( struct codegen* codegen, struct func* func );
-static void init_func_record( struct func_record* record );
+static void init_func_record( struct func_record* record, struct func* func );
 static void alloc_param_indexes( struct func_record* func,
    struct param* param );
 static void alloc_funcscopevars_indexes( struct func_record* func,
@@ -47,6 +48,18 @@ static void patch_nestedfunc_addresses( struct codegen* codegen,
    struct func* func );
 
 void c_write_user_code( struct codegen* codegen ) {
+   #define NULLDEREF_MSG "\\cgerror: using null reference"
+   struct indexed_string* string = t_intern_string( codegen->task,
+      NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
+   string->used = true;
+   c_append_string( codegen, string );
+   codegen->null_handler = c_tell( codegen );
+   c_add_opc( codegen, PCD_BEGINPRINT );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, string->index_runtime );
+   c_add_opc( codegen, PCD_PRINTSTRING );
+   c_add_opc( codegen, PCD_ENDLOG );
+   c_add_opc( codegen, PCD_TERMINATE );
    // Scripts.
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->scripts );
@@ -74,7 +87,7 @@ void c_write_user_code( struct codegen* codegen ) {
 
 void write_script( struct codegen* codegen, struct script* script ) {
    struct func_record record;
-   init_func_record( &record );
+   init_func_record( &record, NULL );
    codegen->func = &record;
    script->offset = c_tell( codegen );
    if ( script->nested_funcs ) {
@@ -98,7 +111,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
 
 void write_userfunc( struct codegen* codegen, struct func* func ) {
    struct func_record record;
-   init_func_record( &record );
+   init_func_record( &record, func );
    codegen->func = &record;
    struct func_user* impl = func->impl;
    impl->obj_pos = c_tell( codegen );
@@ -122,7 +135,8 @@ void write_userfunc( struct codegen* codegen, struct func* func ) {
    c_flush_pcode( codegen );
 }
 
-void init_func_record( struct func_record* record ) {
+void init_func_record( struct func_record* record, struct func* func ) {
+   record->func = func;
    record->start_index = 0;
    record->array_index = 0;
    record->size = 0;
@@ -200,7 +214,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
       struct value* value = var->value;
       while ( value ) {
          c_pcd( codegen, PCD_PUSHNUMBER, value->index );
-         c_push_expr( codegen, value->expr );
+         c_push_initz_expr( codegen, var->ref, value->expr );
          c_update_element( codegen, var->storage, var->index, AOP_NONE );
          value = value->next;
       }
@@ -213,7 +227,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
          }
       }
       if ( var->value ) {
-         c_push_expr( codegen, var->value->expr );
+         c_push_initz_expr( codegen, var->ref, var->value->expr );
          c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
          if ( var->ref && var->ref->type == REF_ARRAY ) {
             c_push_dimtrack( codegen );
@@ -446,7 +460,7 @@ void write_default_init( struct codegen* codegen, struct func* func,
       struct c_point* init_point = c_create_point( codegen );
       c_append_node( codegen, &init_point->node );
       if ( ! zero_default_value( param ) ) {
-         c_push_expr( codegen, param->default_value );
+         c_push_initz_expr( codegen, param->ref, param->default_value );
          c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
       }
       struct c_casejump* entry = c_create_casejump( codegen,
@@ -514,7 +528,7 @@ void write_nested_funcs( struct codegen* codegen,
 void calc_args_space_size( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func ) {
    struct func_record record;
-   init_func_record( &record );
+   init_func_record( &record, func );
    record.start_index = writing->temps_start;
    alloc_param_indexes( &record, func->params );
    int args_size = record.size +
@@ -537,7 +551,7 @@ void write_one_nestedfunc( struct codegen* codegen,
    int start_index = writing->temps_start + writing->args_size +
       impl->index_offset;
    struct func_record record;
-   init_func_record( &record );
+   init_func_record( &record, func );
    record.start_index = start_index;
    record.nested_func = true;
    codegen->func = &record;

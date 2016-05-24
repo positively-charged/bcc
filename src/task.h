@@ -192,10 +192,12 @@ struct ref {
    struct ref* next;
    struct pos pos;
    enum {
+      REF_NULL,
       REF_STRUCTURE,
       REF_ARRAY,
       REF_FUNCTION
    } type;
+   bool nullable;
 };
 
 struct ref_struct {
@@ -388,6 +390,7 @@ struct call {
    struct pos pos;
    struct node* operand;
    struct func* func;
+   struct ref_func* ref_func;
    struct nested_call* nested_call;
    struct format_item* format_item;
    struct list args;
@@ -429,6 +432,7 @@ struct conversion {
    struct expr* expr;
    int spec;
    int spec_from;
+   bool from_ref;
 };
 
 struct expr {

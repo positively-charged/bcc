@@ -183,6 +183,7 @@ bool peek_dec_beginning_with_id( struct parse* parse ) {
       // bitwise-and operation can be used in any meaningful way in real code,
       // so a declaration takes precedence.
       iter.token->type == TK_BIT_AND ||
+      iter.token->type == TK_QUESTION_MARK ||
       // - Function reference.
       iter.token->type == TK_FUNCTION
    ) {
@@ -694,6 +695,7 @@ void read_ref( struct parse* parse, struct ref_reading* reading ) {
    case TK_WORLD:
    case TK_SCRIPT:
    case TK_BIT_AND:
+   case TK_QUESTION_MARK:
       read_struct_ref( parse, reading );
       break;
    default:
@@ -714,6 +716,10 @@ void read_ref( struct parse* parse, struct ref_reading* reading ) {
       if ( parse->tk == TK_BIT_AND ) {
          p_read_tk( parse );
       }
+      else if ( parse->tk == TK_QUESTION_MARK ) {
+         p_read_tk( parse );
+         reading->head->nullable = true;
+      }
       else {
          break;
       }
@@ -724,6 +730,7 @@ void init_ref( struct ref* ref, int type, struct pos* pos ) {
    ref->next = NULL;
    ref->type = type;
    ref->pos = *pos;
+   ref->nullable = false;
 }
 
 void prepend_ref( struct ref_reading* reading, struct ref* part ) {
@@ -733,9 +740,16 @@ void prepend_ref( struct ref_reading* reading, struct ref* part ) {
 
 void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
    read_ref_storage( parse, reading );
-   p_test_tk( parse, TK_BIT_AND );
+   bool nullable = false;
+   if ( parse->tk == TK_QUESTION_MARK ) {
+      nullable = true;
+   }
+   else {
+      p_test_tk( parse, TK_BIT_AND );
+   }
    struct ref_struct* part = mem_alloc( sizeof( *part ) );
    init_ref( &part->ref, REF_STRUCTURE, &parse->tk_pos );
+   part->ref.nullable = nullable;
    part->storage = reading->storage;
    part->storage_index = reading->storage_index;
    prepend_ref( reading, &part->ref );

@@ -40,6 +40,7 @@ struct type_info {
    struct dim* dim;
    int spec;
    union {
+      struct ref ref;
       struct ref_struct structure;
       struct ref_array array;
       struct ref_func func;
@@ -131,7 +132,9 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct param* params, int return_spec, int min_param, int max_param,
    bool msgbuild );
 void s_init_type_info_scalar( struct type_info* type, int spec );
+void s_init_type_info_null( struct type_info* type );
 bool s_same_type( struct type_info* a, struct type_info* b );
+bool s_instance_of( struct type_info* type, struct type_info* instance );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_ref_type( struct type_info* type );
 bool s_is_value_type( struct type_info* type );
