@@ -1,0 +1,95 @@
+#include "zcommon.acs"
+#include "zstrong.acs"
+
+namespace ListTest {
+// ==========================================================================
+
+script "ListTest" open {
+   auto list = ListCreate();
+   foreach ( auto ch in "abcde" ) {
+      auto node = ListCreateNode( ch );
+      ListAppend( list, node );
+   }
+   ListDetach( list, list.head.next );
+   ListDetach( list, list.tail );
+   Print( s: "Size: ", i: list.size );
+   auto node = list.head;
+   while ( node ) {
+      Print( s: "node=", c: node.value );
+      node = node.next;
+   }
+}
+
+struct NodeT {
+   NodeT? next;
+   int value;
+}
+
+struct ListT {
+   NodeT? head;
+   NodeT? tail;
+   int size;
+}
+
+function ListT& ListCreate() {
+   static auto allocated = false;
+   static ListT list = { null, null };
+   assert ( ! allocated, "List already allocated" );
+   allocated = true;
+   return list;
+}
+
+function void ListAppend( ListT& list, NodeT& node ) {
+   if ( list.head ) {
+      list.tail.next = node;
+   }
+   else {
+      list.head = node;
+   }
+   list.tail = node;
+   ++list.size;
+}
+
+function NodeT& ListCreateNode( int value ) {
+   static auto numAllocated = 0;
+   static NodeT availableNodes[] = {
+      { null },
+      { null },
+      { null },
+      { null },
+      { null },
+   };
+   assert ( numAllocated < availableNodes.length(),
+      "No more free nodes available" );
+   auto node = availableNodes[ numAllocated ];
+   node.value = value;
+   ++numAllocated;
+   return node;
+}
+
+function void ListDetach( ListT& list, NodeT? targetNode ) {
+   if ( targetNode == list.head ) {
+      list.head = list.head.next;
+      if ( targetNode == list.tail ) {
+         list.tail = null;
+      }
+   }
+   else if ( targetNode == list.tail ) {
+      auto node = list.head;
+      while ( node.next && node.next != targetNode ) {
+         node = node.next;
+      }
+      node.next = null;
+      list.tail = node;
+   }
+   else {
+      auto node = list.head;
+      while ( node.next && node.next != targetNode ) {
+         node = node.next;
+      }
+      node.next = node.next.next;
+   }
+   --list.size;
+}
+
+}

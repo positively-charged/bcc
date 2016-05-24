@@ -1,0 +1,86 @@
+#include "zcommon.acs"
+#include "zstrong.acs"
+
+namespace StackTest {
+// ==========================================================================
+
+script "StackTest" open {
+   auto stack = StackCreate();
+   StackPush( stack, "123" );
+   StackPush( stack, "321" );
+   StackPush( stack, "789" );
+   Print( s: StackPop( stack ) );
+   StackPush( stack, "666" );
+   Print( s: StackPop( stack ) );
+   Print( s: StackPop( stack ) );
+   Print( s: StackPop( stack ) );
+}
+
+struct NodeT {
+   NodeT? next;
+   str value;
+}
+
+struct StackT {
+   NodeT? top;
+}
+
+function StackT& StackCreate() {
+   static auto allocated = false;
+   static StackT stack = { null };
+   assert ( ! allocated, "Stack already allocated" );
+   allocated = true;
+   return stack;
+}
+
+function void StackPush( StackT& stack, str value ) {
+   auto node = AllocateFreeNode( value );
+   node.next = stack.top;
+   stack.top = node;
+}
+
+// Both allocates and frees a node.
+function NodeT? AllocateFreeNode( str value, NodeT? freeNode = null ) {
+   static extspec struct {
+      NodeT node;
+      bool allocated;
+   } table[] = {
+      { { null } },
+      { { null } },
+      { { null } },
+      { { null } },
+      { { null } },
+   };
+   // Free a node.
+   if ( freeNode ) {
+      foreach ( auto entry in table ) {
+         if ( entry.node == freeNode ) {
+            entry.allocated = false;
+            return null;
+         }
+      }
+      assert ( 0 );
+   }
+   // Allocate a node.
+   else {
+      foreach ( auto entry in table ) {
+         if ( ! entry.allocated ) {
+            entry.allocated = true;
+            auto node = entry.node;
+            node.value = value;
+            return node;
+         }
+      }
+      assert ( 0, "No more free nodes available" );
+   }
+}
+
+function str StackPop( StackT& stack ) {
+   assert ( stack.top );
+   auto node = stack.top;
+   stack.top = stack.top.next;
+   AllocateFreeNode( "", node );
+   return node.value;
+}
+
+}
