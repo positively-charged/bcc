@@ -165,6 +165,9 @@ static void write_executewait( struct codegen* codegen, struct call* call,
    bool named_impl );
 static void call_array_length( struct codegen* codegen, struct result* result,
    struct call* call );
+static void visit_sure( struct codegen* codegen, struct result* result,
+   struct sure* sure );
+static void write_null_check( struct codegen* codegen, struct result* result );
 static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_literal( struct codegen* codegen, struct result* result,
@@ -1113,6 +1116,10 @@ void visit_suffix( struct codegen* codegen, struct result* result,
       visit_call( codegen, result,
          ( struct call* ) node );
       break;
+   case NODE_SURE:
+      visit_sure( codegen, result,
+         ( struct sure* ) node );
+      break;
    default:
       visit_primary( codegen, result,
          node );
@@ -1864,6 +1871,27 @@ void call_array_length( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_DROP );
    }
    push_array_length( codegen, &operand, false );
+}
+
+void visit_sure( struct codegen* codegen, struct result* result,
+   struct sure* sure ) {
+   struct result operand;
+   init_result( &operand, true );
+   visit_suffix( codegen, &operand, sure->operand );
+   if ( ! sure->already_safe ) {
+      write_null_check( codegen, &operand );
+   }
+   result->ref = operand.ref;
+   result->structure = operand.structure;
+   result->storage = operand.storage;
+   result->index = operand.index;
+   result->status = operand.status;
+}
+
+void write_null_check( struct codegen* codegen, struct result* result ) {
+   c_pcd( codegen, PCD_CASEGOTO, ( result->ref &&
+      result->ref->type == REF_FUNCTION ) ? NULLVALUE_FUNC :
+      NULLVALUE_ARRAYSTRUCT, codegen->null_handler );
 }
 
 void visit_primary( struct codegen* codegen, struct result* result,

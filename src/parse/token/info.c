@@ -426,6 +426,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "namespace", TKF_KEYWORD ),
       ENTRY( "upmost", TKF_KEYWORD ),
       ENTRY( "using", TKF_KEYWORD ),
+      ENTRY( "!!", TKF_NONE ),
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
       ENTRY( BLANK, TKF_NONE )
@@ -564,8 +565,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_SPECIAL, "`special`" },
       { TK_NAMESPACE, "`namespace`" },
       { TK_UPMOST, "`upmost`" },
-      { TK_USING, "`using`" }, };
-   STATIC_ASSERT( TK_TOTAL == 128 );
+      { TK_USING, "`using`" },
+      { TK_BANGBANG, "`!!`" }, };
+   STATIC_ASSERT( TK_TOTAL == 129 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

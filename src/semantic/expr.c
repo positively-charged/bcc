@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "phase.h"
 
 struct result {
@@ -133,6 +135,8 @@ static void arg_mismatch( struct semantic* semantic, struct pos* pos,
 static void present_func( struct call_test* test, struct str* msg );
 static void test_call_func( struct semantic* semantic, struct call_test* test,
    struct call* call );
+static void test_sure( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct sure* sure );
 static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
 static void test_literal( struct semantic* semantic, struct result* result,
@@ -1117,6 +1121,10 @@ void test_suffix( struct semantic* semantic, struct expr_test* test,
       test_call( semantic, test, result,
          ( struct call* ) node );
       break;
+   case NODE_SURE:
+      test_sure( semantic, test, result,
+         ( struct sure* ) node );
+      break;
    default:
       test_primary( semantic, test, result,
          node );
@@ -1796,6 +1804,59 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "calling message-building function where no message is being built" );
       s_bail( semantic );
+   }
+}
+
+void test_sure( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct sure* sure ) {
+   struct result operand;
+   init_result( &operand );
+   test_suffix( semantic, test, &operand, sure->operand );
+   struct type_info type;
+   init_type_info( &type, &operand );
+   s_decay( &type );
+   if ( ! s_is_ref_type( &type ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &sure->pos,
+         "operand not a reference" );
+      s_bail( semantic );
+   }
+   if ( operand.null ) {
+      result->null = true;
+      result->complete = true;
+      result->usable = true;
+   }
+   else {
+      //if ( type.ref->nullable ) {
+         size_t size = 0;
+         switch ( type.ref->type ) {
+         case REF_STRUCTURE:
+            size = sizeof( struct ref_struct );
+            break;
+         case REF_ARRAY:
+            size = sizeof( struct ref_array );
+            break;
+         case REF_FUNCTION:
+            size = sizeof( struct ref_func );
+            break;
+         default:
+            UNREACHABLE();
+         }
+         result->ref = &test->temp_ref.ref;
+         memcpy( result->ref, type.ref, size );
+      //}
+      //else {
+     //    result->ref = type.ref;
+      if ( type.ref->nullable ) {
+         result->ref->nullable = false;
+      }
+      else {
+         sure->already_safe = true;
+      }
+      result->structure = type.structure;
+      result->enumeration = type.enumeration;
+      result->spec = type.spec;
+      result->complete = true;
+      result->usable = true;
    }
 }
 

@@ -27,6 +27,12 @@ struct expr_test {
    struct func* msgbuild_func;
    struct var* var;
    struct func* func;
+   union {
+      struct ref ref;
+      struct ref_struct structure;
+      struct ref_array array;
+      struct ref_func func;
+   } temp_ref;
    bool result_required;
    bool has_string;
    bool undef_erred;

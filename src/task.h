@@ -94,7 +94,8 @@ struct node {
       NODE_USING,
       // 50
       NODE_OBJCPY,
-      NODE_CONVERSION
+      NODE_CONVERSION,
+      NODE_SURE
    } type;
 };
 
@@ -433,6 +434,13 @@ struct conversion {
    int spec;
    int spec_from;
    bool from_ref;
+};
+
+struct sure {
+   struct node node;
+   struct pos pos;
+   struct node* operand;
+   bool already_safe;
 };
 
 struct expr {

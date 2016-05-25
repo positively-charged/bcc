@@ -55,6 +55,7 @@ static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_string( struct parse* parse, struct expr_reading* reading );
 static void read_null( struct parse* parse, struct expr_reading* reading );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
+static void read_sure( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy_call( struct parse* parse,
    struct strcpy_reading* reading );
@@ -780,6 +781,9 @@ void read_postfix( struct parse* parse, struct expr_reading* reading ) {
       else if ( parse->tk == TK_INC || parse->tk == TK_DEC ) {
          read_post_inc( parse, reading );
       }
+      else if ( parse->tk == TK_BANGBANG ) {
+         read_sure( parse, reading );
+      }
       else {
          break;
       }
@@ -991,6 +995,17 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
       }
    }
    p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+}
+
+void read_sure( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_BANGBANG );
+   struct sure* sure = mem_alloc( sizeof( *sure ) );
+   sure->node.type = NODE_SURE;
+   sure->pos = parse->tk_pos;
+   sure->operand = reading->node;
+   sure->already_safe = false;
+   reading->node = &sure->node;
    p_read_tk( parse );
 }
 

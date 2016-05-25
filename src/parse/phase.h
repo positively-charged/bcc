@@ -148,6 +148,7 @@ enum tk {
    TK_NAMESPACE,
    TK_UPMOST,
    TK_USING,
+   TK_BANGBANG,
 
    TK_TOTAL,
 
