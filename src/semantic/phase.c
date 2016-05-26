@@ -45,8 +45,8 @@ static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
 static void check_dup_scripts( struct semantic* semantic );
-static void match_duplicate_script( struct semantic* semantic,
-   struct script* script, struct script* other_script, bool* first_match );
+static void match_dup_script( struct semantic* semantic, struct script* script,
+   struct script* prev_script );
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
@@ -606,56 +606,36 @@ void check_dup_scripts( struct semantic* semantic ) {
    while ( ! list_end( &i ) ) {
       list_iter_t k = i;
       list_next( &k );
-      bool first_match = false;
       while ( ! list_end( &k ) ) {
-         match_duplicate_script( semantic, list_data( &i ), list_data( &k ),
-            &first_match );
+         match_dup_script( semantic, list_data( &k ), list_data( &i ) );
          list_next( &k );
-      }
-      if ( first_match ) {
-         s_bail( semantic );
       }
       list_next( &i );
    }
 }
 
-void match_duplicate_script( struct semantic* semantic, struct script* script,
-   struct script* other_script, bool* first_match ) {
-   bool match = false;
-   struct indexed_string* name = NULL;
-   if ( script->named_script ) {
-      if ( ! other_script->named_script ) {
-         return;
-      }
-      name = t_lookup_string( semantic->task, script->number->value );
-      struct indexed_string* other_name = t_lookup_string( semantic->task,
-         other_script->number->value );
-      match = ( name == other_name );
-   }
-   else {
-      if ( other_script->named_script ) {
-         return;
-      }
-      match = (
-         t_get_script_number( script ) ==
-         t_get_script_number( other_script ) );
-   }
-   if ( ! match ) {
-      return;
-   }
-   if ( ! *first_match ) {
+void match_dup_script( struct semantic* semantic, struct script* script,
+   struct script* prev_script ) {
+   bool match = ( t_get_script_number( script ) ==
+      t_get_script_number( prev_script ) && script->named_script ==
+      prev_script->named_script );
+   if ( match ) {
       if ( script->named_script ) {
+         struct indexed_string* name = t_lookup_string( semantic->task,
+            script->number->value );
          s_diag( semantic, DIAG_POS_ERR, &script->pos,
             "duplicate script \"%s\"", name->value );
+         s_diag( semantic, DIAG_POS, &prev_script->pos,
+            "script \"%s\" already found here", name->value );
       }
       else {
          s_diag( semantic, DIAG_POS_ERR, &script->pos,
             "duplicate script %d", t_get_script_number( script ) );
+         s_diag( semantic, DIAG_POS, &prev_script->pos,
+            "script %d already found here", t_get_script_number( script ) );
       }
-      *first_match = true;
+      s_bail( semantic );
    }
-   s_diag( semantic, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-      &other_script->pos, "script found here" );
 }
 
 void assign_script_numbers( struct semantic* semantic ) {
