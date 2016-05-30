@@ -125,6 +125,7 @@ static bool test_object_initz( struct semantic* semantic, struct var* var );
 static bool test_imported_object_initz( struct var* var );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
+static void describe_var( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
 static void assign_inferred_type( struct var* var, struct type_info* type );
 static void init_initz_test( struct initz_test* test,
@@ -488,24 +489,6 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
          test_var_dim( semantic, var ) &&
          test_var_initz( semantic, var ) &&
          test_var_finish( semantic, var );
-   }
-   if ( var->object.resolved ) {
-      // Array.
-      if ( var->dim ) {
-         var->desc = DESC_ARRAY;
-      }
-      // Reference/reference-element. 
-      else if ( var->ref ) {
-         var->desc = DESC_REFVAR;
-      }
-      // Structure/structure-element.
-      else if ( var->structure ) {
-         var->desc = DESC_STRUCTVAR;
-      }
-      // Initializer.
-      else {
-         var->desc = DESC_PRIMITIVEVAR;
-      }
    }
 }
 
@@ -1289,14 +1272,34 @@ void confirm_dim_length( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_var_finish( struct semantic* semantic, struct var* var ) {
+   describe_var( var );
    if ( semantic->func_test != semantic->topfunc_test &&
-      ( var->dim || ( ! var->ref && var->structure ) ) ) {
+      ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "%s declared inside nested function", var->dim ?
+         "%s declared inside nested function", var->desc == DESC_ARRAY ?
             "array" : "struct variable" );
       s_bail( semantic );
    }
    return true;
+}
+
+void describe_var( struct var* var ) {
+   // Array.
+   if ( var->dim ) {
+      var->desc = DESC_ARRAY;
+   }
+   // Reference/reference-element. 
+   else if ( var->ref ) {
+      var->desc = DESC_REFVAR;
+   }
+   // Structure/structure-element.
+   else if ( var->structure ) {
+      var->desc = DESC_STRUCTVAR;
+   }
+   // Initializer.
+   else {
+      var->desc = DESC_PRIMITIVEVAR;
+   }
 }
 
 void test_auto_var( struct semantic* semantic, struct var* var ) {
@@ -1320,6 +1323,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    }
    s_bind_name( semantic, var->name, &var->object );
    var->object.resolved = true;
+   describe_var( var );
 }
 
 void assign_inferred_type( struct var* var, struct type_info* type ) {
@@ -1351,12 +1355,14 @@ void s_test_foreach_var( struct semantic* semantic,
    bool resolved = false;
    if ( var->spec == SPEC_AUTO ) {
       assign_inferred_type( var, collection_type );
+      describe_var( var );
       resolved = true;
    }
    else {
       resolved =
          test_var_spec( semantic, var ) &&
-         test_var_ref( semantic, var );
+         test_var_ref( semantic, var ) &&
+         test_var_finish( semantic, var );
    }
    // We don't want the user to access iterator information after the foreach
    // loop has ended, so make the iterator variables accessible only in the
