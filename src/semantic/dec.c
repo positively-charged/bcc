@@ -180,6 +180,8 @@ static void test_param( struct semantic* semantic, struct func* func,
 static bool test_param_spec( struct semantic* semantic, struct param* param );
 static bool test_param_name( struct semantic* semantic, struct param* param );
 static bool test_param_ref( struct semantic* semantic, struct param* param );
+static bool test_param_after_ref( struct semantic* semantic, struct func* func,
+   struct param* param );
 static bool test_param_default_value( struct semantic* semantic,
    struct func* func, struct param* param );
 static void default_value_mismatch( struct semantic* semantic,
@@ -1104,6 +1106,14 @@ bool test_scalar_initz( struct semantic* semantic,
          s_bail( semantic );
       }
    }
+   if ( expr.func && expr.func->type == FUNC_USER ) {
+      struct func_user* impl = expr.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+            "nested function used as an initializer" );
+         s_bail( semantic );
+      }
+   }
    test->has_string = expr.has_string;
    value->var = expr.var;
    value->func = expr.func;
@@ -1445,7 +1455,7 @@ void test_param( struct semantic* semantic, struct func* func,
       test_param_spec( semantic, param ) &&
       test_param_ref( semantic, param ) &&
       test_param_name( semantic, param ) &&
-      test_param_default_value( semantic, func, param );
+      test_param_after_ref( semantic, func, param );
    if ( param->object.resolved ) {
       calc_param_size( param );
    }
@@ -1492,26 +1502,42 @@ bool test_param_name( struct semantic* semantic, struct param* param ) {
    return true;
 }
 
-bool test_param_default_value( struct semantic* semantic, struct func* func,
+bool test_param_after_ref( struct semantic* semantic, struct func* func,
    struct param* param ) {
    if ( param->default_value ) {
-      struct type_info type;
-      struct expr_test expr;
-      s_init_expr_test( &expr, true, false );
-      s_test_expr_type( semantic, &expr, &type, param->default_value );
-      if ( expr.undef_erred ) {
-         return false;
-      }
-      struct type_info param_type;
-      s_init_type_info( &param_type, param->ref, param->structure,
-         param->enumeration, NULL, param->spec );
-      if ( ! s_instance_of( &param_type, &type ) ) {
-         default_value_mismatch( semantic, func, param, &param_type, &type,
-            &param->default_value->pos );
+      return test_param_default_value( semantic, func, param );
+   }
+   else {
+      return true;
+   }
+}
+
+bool test_param_default_value( struct semantic* semantic, struct func* func,
+   struct param* param ) {
+   struct type_info type;
+   struct expr_test expr;
+   s_init_expr_test( &expr, true, false );
+   s_test_expr_type( semantic, &expr, &type, param->default_value );
+   if ( expr.undef_erred ) {
+      return false;
+   }
+   struct type_info param_type;
+   s_init_type_info( &param_type, param->ref, param->structure,
+      param->enumeration, NULL, param->spec );
+   if ( ! s_instance_of( &param_type, &type ) ) {
+      default_value_mismatch( semantic, func, param, &param_type, &type,
+         &param->default_value->pos );
+      s_bail( semantic );
+   }
+   if ( s_is_ref_type( &type ) && expr.var ) {
+      expr.var->addr_taken = true;
+   }
+   if ( expr.func && expr.func->type == FUNC_USER ) {
+      struct func_user* impl = expr.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
+            "nested function used as a default value" );
          s_bail( semantic );
-      }
-      if ( s_is_ref_type( &type ) && expr.var ) {
-         expr.var->addr_taken = true;
       }
    }
    return true;

@@ -5,6 +5,7 @@
 struct packed_expr_test {
    struct type_info* type;
    struct var* data_origin;
+   struct func* func;
 };
 
 static void test_block( struct semantic* semantic, struct stmt_test* test,
@@ -35,6 +36,8 @@ static void test_script_jump( struct semantic* semantic, struct stmt_test*,
    struct script_jump* );
 static void test_return( struct semantic* semantic, struct stmt_test*,
    struct return_stmt* );
+static void test_return_value( struct semantic* semantic,
+   struct stmt_test* test, struct return_stmt* stmt );
 static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
 static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
@@ -480,36 +483,16 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
 
 void test_return( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
-   struct func* func = semantic->func_test->func;
-   if ( ! func ) {
+   if ( ! semantic->func_test->func ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
          "return statement outside function" );
       s_bail( semantic );
    }
    if ( stmt->return_value ) {
-      struct type_info type;
-      struct packed_expr_test expr_test = { &type, NULL };
-      test_packed_expr( semantic, &expr_test, stmt->return_value );
-      if ( func->return_spec == SPEC_VOID ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
-            "returning a value in void function" );
-         s_bail( semantic );
-      }
-      // Return value must be of the same type as the return type.
-      struct type_info return_type;
-      s_init_type_info( &return_type, func->ref, func->structure,
-         func->enumeration, NULL, func->return_spec );
-      if ( ! s_instance_of( &return_type, &type ) ) {
-         s_type_mismatch( semantic, "return-value", &type,
-            "function-return", &return_type, &stmt->return_value->expr->pos );
-         s_bail( semantic );
-      }
-      if ( s_is_ref_type( &type ) && expr_test.data_origin ) {
-         expr_test.data_origin->addr_taken = true;
-      }
+      test_return_value( semantic, test, stmt );
    }
    else {
-      if ( func->return_spec != SPEC_VOID ) {
+      if ( semantic->func_test->func->return_spec != SPEC_VOID ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "missing return value" );
          s_bail( semantic );
@@ -517,6 +500,39 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    }
    stmt->next = semantic->func_test->returns;
    semantic->func_test->returns = stmt;
+}
+
+void test_return_value( struct semantic* semantic, struct stmt_test* test,
+   struct return_stmt* stmt ) {
+   struct func* func = semantic->func_test->func;
+   struct type_info type;
+   struct packed_expr_test expr_test = { &type, NULL, NULL };
+   test_packed_expr( semantic, &expr_test, stmt->return_value );
+   if ( func->return_spec == SPEC_VOID ) {
+      s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+         "returning a value in void function" );
+      s_bail( semantic );
+   }
+   // Return value must be of the same type as the return type.
+   struct type_info return_type;
+   s_init_type_info( &return_type, func->ref, func->structure,
+      func->enumeration, NULL, func->return_spec );
+   if ( ! s_instance_of( &return_type, &type ) ) {
+      s_type_mismatch( semantic, "return-value", &type,
+         "function-return", &return_type, &stmt->return_value->expr->pos );
+      s_bail( semantic );
+   }
+   if ( expr_test.func && expr_test.func->type == FUNC_USER ) {
+      struct func_user* impl = expr_test.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+            "returning nested function" );
+         s_bail( semantic );
+      }
+   }
+   if ( s_is_ref_type( &type ) && expr_test.data_origin ) {
+      expr_test.data_origin->addr_taken = true;
+   }
 }
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
@@ -568,7 +584,7 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
-   struct packed_expr_test test = { NULL, NULL };
+   struct packed_expr_test test = { NULL, NULL, NULL };
    test_packed_expr( semantic, &test, stmt->packed_expr );
 }
 
@@ -587,6 +603,7 @@ void test_packed_expr( struct semantic* semantic,
       s_test_expr( semantic, &expr_test, packed_expr->expr );
    }
    test->data_origin = expr_test.var;
+   test->func = expr_test.func;
    if ( packed_expr->msgbuild_func ) {
       struct func_user* impl = packed_expr->msgbuild_func->impl;
       if ( ! impl->usage ) {

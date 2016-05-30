@@ -652,6 +652,14 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "right-operand", &rside_type, &assign->pos );
       s_bail( semantic );
    }
+   if ( rside.func && rside.func->type == FUNC_USER ) {
+      struct func_user* impl = rside.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+            "assigning a nested function" );
+         s_bail( semantic );
+      }
+   }
    if ( ! perform_assign( assign, &lside, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "invalid assignment operation" );
@@ -780,9 +788,26 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
       init_result( &middle );
       test_operand( semantic, test, &middle, cond->middle );
    }
+   if ( middle.func && middle.func->type == FUNC_USER ) {
+      struct func_user* impl = middle.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+            "%s a nested function", cond->middle ?
+            "middle operand" : "left operand" );
+         s_bail( semantic );
+      }
+   }
    struct result right;
    init_result( &right );
    test_operand( semantic, test, &right, cond->right );
+   if ( right.func && right.func->type == FUNC_USER ) {
+      struct func_user* impl = right.func->impl;
+      if ( impl->nested ) {
+         s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+            "right operand a nested function" );
+         s_bail( semantic );
+      }
+   }
    struct type_info middle_type;
    init_type_info( &middle_type, &middle );
    s_decay( &middle_type );
@@ -1723,6 +1748,14 @@ void test_remaining_arg( struct semantic* semantic,
          arg_mismatch( semantic, &expr->pos, &type,
             "parameter", &param_type, "argument", test->num_args + 1 );
          s_bail( semantic );
+      }
+      if ( result.func && result.func->type == FUNC_USER ) {
+         struct func_user* impl = result.func->impl;
+         if ( impl->nested ) {
+            s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+               "passing nested function as an argument" );
+            s_bail( semantic );
+         }
       }
    }
    ++test->num_args;
