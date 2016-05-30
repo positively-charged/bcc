@@ -527,7 +527,7 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
       s_bail( semantic );
    }
    var->spec = s_spec( semantic, var->spec );
-   var->func_scope = ( var->spec == SPEC_RAW );
+   var->func_scope = s_func_scope_forced( semantic );
    if ( var->spec == SPEC_STRUCT ) {
       return var->structure->object.resolved;
    }
@@ -712,7 +712,7 @@ void test_ref_part( struct semantic* semantic, struct ref_test* test,
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
-      s_bind_local_var( semantic, var );
+      s_bind_name( semantic, var->name, &var->object );
    }
    return true;
 }
@@ -1310,7 +1310,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    init_scalar_initz_test_auto( &initz_test, var->is_constant_init );
    test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
    assign_inferred_type( var, &initz_test.initz_type );
-   var->func_scope = ( var->spec == SPEC_RAW );
+   var->func_scope = s_func_scope_forced( semantic );
    var->initial_has_str = initz_test.has_string;
    // For now, keep an auto-declaration in local scope.
    if ( ! semantic->in_localscope ) {
@@ -1318,7 +1318,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
          "auto-declaration in non-local scope" );
       s_bail( semantic );
    }
-   s_bind_local_var( semantic, var );
+   s_bind_name( semantic, var->name, &var->object );
    var->object.resolved = true;
 }
 
@@ -1358,7 +1358,10 @@ void s_test_foreach_var( struct semantic* semantic,
          test_var_spec( semantic, var ) &&
          test_var_ref( semantic, var );
    }
-   s_bind_local_var( semantic, var );
+   // We don't want the user to access iterator information after the foreach
+   // loop has ended, so make the iterator variables accessible only in the
+   // body of the loop.
+   s_bind_block_name( semantic, var->name, &var->object );
    var->constant = true;
    var->object.resolved = resolved;
    s_calc_var_size( var );

@@ -50,7 +50,7 @@ static void match_dup_script( struct semantic* semantic, struct script* script,
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
-static void bind_funcscope_name( struct semantic* semantic, struct name* name,
+static void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
@@ -722,29 +722,30 @@ void s_pop_scope( struct semantic* semantic ) {
 
 void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   if ( ! name->object || name->object->depth < semantic->depth ) {
-      if ( semantic->depth ) {
-         add_sweep_name( semantic, semantic->scope, name, object );
-      }
-      else {
+   // Namespace scope.
+   if ( semantic->depth == 0 ) {
+      if ( ! name->object || name->object->depth < semantic->depth ) {
          name->object = object;
       }
+      else {
+         dupname_err( semantic, name, object );
+      }
    }
+   // Function scope.
+   else if ( s_func_scope_forced( semantic ) ) {
+      bind_func_name( semantic, name, object );
+   }
+   // Block scope.
    else {
-      dupname_err( semantic, name, object );
+      s_bind_block_name( semantic, name, object );
    }
 }
 
-void s_bind_local_var( struct semantic* semantic, struct var* var ) {
-   if ( var->func_scope ) {
-      bind_funcscope_name( semantic, var->name, &var->object );
-   }
-   else {
-      s_bind_name( semantic, var->name, &var->object );
-   }
+bool s_func_scope_forced( struct semantic* semantic ) {
+   return ( semantic->lib->type_mode == TYPEMODE_WEAK );
 }
 
-void bind_funcscope_name( struct semantic* semantic, struct name* name,
+void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    int func_depth = semantic->depth;
    struct scope* scope = semantic->scope;
@@ -754,6 +755,16 @@ void bind_funcscope_name( struct semantic* semantic, struct name* name,
    }
    if ( ! name->object || name->object->depth < func_depth ) {
       add_sweep_name( semantic, scope, name, object );
+   }
+   else {
+      dupname_err( semantic, name, object );
+   }
+}
+
+void s_bind_block_name( struct semantic* semantic, struct name* name,
+   struct object* object ) {
+   if ( ! name->object || name->object->depth < semantic->depth ) {
+      add_sweep_name( semantic, semantic->scope, name, object );
    }
    else {
       dupname_err( semantic, name, object );

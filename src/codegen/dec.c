@@ -14,7 +14,7 @@ struct nestedfunc_writing {
 };
 
 static void write_script( struct codegen* codegen, struct script* script );
-static void write_userfunc( struct codegen* codegen, struct func* func );
+static void write_func( struct codegen* codegen, struct func* func );
 static void init_func_record( struct func_record* record, struct func* func );
 static void alloc_param_indexes( struct func_record* func,
    struct param* param );
@@ -70,7 +70,7 @@ void c_write_user_code( struct codegen* codegen ) {
    // Functions.
    list_iter_init( &i, &codegen->task->library_main->funcs );
    while ( ! list_end( &i ) ) {
-      write_userfunc( codegen, list_data( &i ) );
+      write_func( codegen, list_data( &i ) );
       list_next( &i );
    }
    // When utilizing the Little-E format, where instructions can be of
@@ -109,7 +109,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
    c_flush_pcode( codegen );
 }
 
-void write_userfunc( struct codegen* codegen, struct func* func ) {
+void write_func( struct codegen* codegen, struct func* func ) {
    struct func_record record;
    init_func_record( &record, func );
    codegen->func = &record;
@@ -168,9 +168,23 @@ void alloc_funcscopevars_indexes( struct func_record* func,
    list_iter_init( &i, vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      var->index = func->start_index;
-      func->start_index += var->size;
-      func->size += var->size;
+      if ( var->storage == STORAGE_LOCAL ) {
+         switch ( var->desc ) {
+         case DESC_ARRAY:
+         case DESC_STRUCTVAR:
+            var->index = func->array_index;
+            ++func->array_index;
+            break;
+         case DESC_REFVAR:
+         case DESC_PRIMITIVEVAR:
+            var->index = func->start_index;
+            func->start_index += var->size;
+            func->size += var->size;
+            break;
+         default:
+            UNREACHABLE();
+         }
+      }
       list_next( &i );
    }
 }
@@ -208,9 +222,13 @@ void c_visit_var( struct codegen* codegen, struct var* var ) {
 }
 
 void visit_local_var( struct codegen* codegen, struct var* var ) {
-   if ( var->dim || ( ! var->ref && var->structure ) ) {
-      var->index = codegen->func->array_index;
-      ++codegen->func->array_index;
+   switch ( var->desc ) {
+   case DESC_ARRAY:
+   case DESC_STRUCTVAR:
+      if ( ! var->func_scope ) {
+         var->index = codegen->func->array_index;
+         ++codegen->func->array_index;
+      }
       struct value* value = var->value;
       while ( value ) {
          c_pcd( codegen, PCD_PUSHNUMBER, value->index );
@@ -218,8 +236,9 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
          c_update_element( codegen, var->storage, var->index, AOP_NONE );
          value = value->next;
       }
-   }
-   else {
+      break;
+   case DESC_REFVAR:
+   case DESC_PRIMITIVEVAR:
       if ( ! var->func_scope ) {
          var->index = c_alloc_script_var( codegen );
          if ( var->ref && var->ref->type == REF_ARRAY ) {
@@ -234,6 +253,9 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
             c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
          }
       }
+      break;
+   default:
+      UNREACHABLE();
    }
 }
 
