@@ -56,7 +56,7 @@ static void fold_logical( struct logical* logical, struct result* lside,
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
 static bool perform_assign( struct assign* assign, struct result* lside,
-   struct result* result );
+   struct type_info* lside_type, struct result* result );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_prefix( struct semantic* semantic, struct expr_test* test,
@@ -72,11 +72,12 @@ static void fold_logical_not( struct semantic* semantic,
    struct result* operand, struct result* result );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
-static bool perform_inc( struct inc* inc, struct result* operand,
-   struct result* result );
+static bool perform_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand, struct result* result );
 static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast );
-static bool valid_cast( struct cast* cast, struct result* operand );
+static bool valid_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand );
 static void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
@@ -183,9 +184,9 @@ static void unsupported_conversion( struct semantic* semantic,
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
 static void test_upmost( struct semantic* semantic, struct result* result );
-static void init_type_info( struct type_info* type, struct result* result );
-static bool same_type( struct result* a, struct result* b );
-static bool is_value_type( struct result* result );
+static void init_type_info( struct semantic* semantic, struct type_info* type,
+   struct result* result );
+static bool is_value_type( struct semantic* semantic, struct result* result );
 static bool is_ref_type( struct result* result );
 
 void s_init_expr_test( struct expr_test* test, bool result_required,
@@ -232,7 +233,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
       struct result result;
       init_result( &result );
       test_root( semantic, test, &result, expr );
-      init_type_info( result_type, &result );
+      init_type_info( semantic, result_type, &result );
       s_decay( result_type );
    }
    else {
@@ -356,8 +357,8 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    }
    struct type_info lside_type;
    struct type_info rside_type;
-   init_type_info( &lside_type, &lside );
-   init_type_info( &rside_type, &rside );
+   init_type_info( semantic, &lside_type, &lside );
+   init_type_info( semantic, &rside_type, &rside );
    s_decay( &lside_type );
    s_decay( &rside_type );
    if ( ! s_same_type( &lside_type, &rside_type ) ) {
@@ -644,8 +645,8 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    }
    struct type_info lside_type;
    struct type_info rside_type;
-   init_type_info( &lside_type, &lside );
-   init_type_info( &rside_type, &rside );
+   init_type_info( semantic, &lside_type, &lside );
+   init_type_info( semantic, &rside_type, &rside );
    s_decay( &rside_type );
    if ( ! s_instance_of( &lside_type, &rside_type ) ) {
       s_type_mismatch( semantic, "left-operand", &lside_type,
@@ -660,7 +661,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   if ( ! perform_assign( assign, &lside, result ) ) {
+   if ( ! perform_assign( assign, &lside, &lside_type, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "invalid assignment operation" );
       s_bail( semantic );
@@ -679,9 +680,9 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
 }
 
 bool perform_assign( struct assign* assign, struct result* lside,
-   struct result* result ) {
+   struct type_info* lside_type, struct result* result ) {
    // Value type.
-   if ( is_value_type( lside ) ) {
+   if ( s_is_value_type( lside_type ) ) {
       bool valid = false;
       switch ( assign->op ) {
       case AOP_NONE:
@@ -809,10 +810,10 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
       }
    }
    struct type_info middle_type;
-   init_type_info( &middle_type, &middle );
+   init_type_info( semantic, &middle_type, &middle );
    s_decay( &middle_type );
    struct type_info right_type;
-   init_type_info( &right_type, &right );
+   init_type_info( semantic, &right_type, &right );
    s_decay( &right_type );
    if ( ! s_same_type( &middle_type, &right_type ) ) {
       s_type_mismatch( semantic, cond->middle ?
@@ -898,7 +899,7 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
 bool perform_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
    // Value type.
-   if ( is_value_type( operand ) ) {
+   if ( is_value_type( semantic, operand ) ) {
       int spec = SPEC_NONE;
       switch ( unary->op ) {
       case UOP_MINUS:
@@ -1021,7 +1022,7 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
             "decremented" : "incremented" );
       s_bail( semantic );
    }
-   if ( ! perform_inc( inc, &operand, result ) ) {
+   if ( ! perform_inc( semantic, inc, &operand, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &inc->pos,
          "invalid %s operation", inc->dec ?
             "decrement" : "increment" );
@@ -1029,10 +1030,11 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_inc( struct inc* inc, struct result* operand,
+bool perform_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand,
    struct result* result ) {
    // Value type.
-   if ( is_value_type( operand ) ) {
+   if ( is_value_type( semantic, operand ) ) {
       switch ( operand->spec ) {
       case SPEC_RAW:
       case SPEC_INT:
@@ -1061,16 +1063,17 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
          "cast operand not a value" );
       s_bail( semantic );
    }
-   if ( ! valid_cast( cast, result ) ) {
+   if ( ! valid_cast( semantic, cast, result ) ) {
       invalid_cast( semantic, cast, result );
       s_bail( semantic );
    }
    result->spec = cast->spec;
 }
 
-bool valid_cast( struct cast* cast, struct result* operand ) {
+bool valid_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand ) {
    // Value type.
-   if ( is_value_type( operand ) ) {
+   if ( is_value_type( semantic, operand ) ) {
       bool valid = false;
       switch ( cast->spec ) {
       case SPEC_RAW:
@@ -1117,7 +1120,7 @@ void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct type_info cast_type;
    s_init_type_info( &cast_type, NULL, NULL, NULL, NULL, cast->spec );
    struct type_info operand_type;
-   init_type_info( &operand_type, operand );
+   init_type_info( semantic, &operand_type, operand );
    struct str cast_type_s;
    str_init( &cast_type_s );
    s_present_type( &cast_type, &cast_type_s );
@@ -1186,7 +1189,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
    struct type_info type;
-   init_type_info( &type, &index );
+   init_type_info( semantic, &type, &index );
    s_decay( &type );
    if ( ! s_same_type( &type, &semantic->type_int ) ) {
       s_type_mismatch( semantic, "index", &type,
@@ -1272,7 +1275,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
    struct type_info type;
-   init_type_info( &type, &index );
+   init_type_info( semantic, &type, &index );
    s_decay( &type );
    if ( ! s_same_type( &type, &semantic->type_int ) ) {
       s_type_mismatch( semantic, "index", &type,
@@ -1568,7 +1571,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
       UNREACHABLE();
    }
    struct type_info type;
-   init_type_info( &type, &result );
+   init_type_info( semantic, &type, &result );
    s_decay( &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, spec );
@@ -1587,7 +1590,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    init_result( &root );
    test_nested_root( semantic, test, &nested, &root, item->value );
    struct type_info type;
-   init_type_info( &type, &root );
+   init_type_info( semantic, &type, &root );
    s_decay( &type );
    static struct ref_array array = {
       { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, 0, 0 };
@@ -1616,7 +1619,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    init_result( &root );
    test_nested_root( semantic, expr_test, &nested_expr_test, &root, arg );
    struct type_info type;
-   init_type_info( &type, &root );
+   init_type_info( semantic, &type, &root );
    s_decay( &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, semantic->spec_int );
@@ -1656,7 +1659,7 @@ void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
    init_result( &root );
    test_nested_root( semantic, expr_test, &nested, &root, item->value );
    struct type_info type;
-   init_type_info( &type, &root );
+   init_type_info( semantic, &type, &root );
    s_decay( &type );
    struct type_info required_type;
    s_init_type_info_func( &required_type,
@@ -1740,7 +1743,7 @@ void test_remaining_arg( struct semantic* semantic,
    if ( param ) {
       struct type_info type;
       struct type_info param_type;
-      init_type_info( &type, &result );
+      init_type_info( semantic, &type, &result );
       s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, param->spec );
       s_decay( &type );
@@ -1846,7 +1849,7 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
    init_result( &operand );
    test_suffix( semantic, test, &operand, sure->operand );
    struct type_info type;
-   init_type_info( &type, &operand );
+   init_type_info( semantic, &type, &operand );
    s_decay( &type );
    if ( ! s_is_ref_type( &type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &sure->pos,
@@ -2293,8 +2296,8 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    test_root( semantic, test, &src, call->source );
    struct type_info dst_type;
    struct type_info src_type;
-   init_type_info( &dst_type, &dst );
-   init_type_info( &src_type, &src );
+   init_type_info( semantic, &dst_type, &dst );
+   init_type_info( semantic, &src_type, &src );
    s_decay( &dst_type );
    s_decay( &src_type );
    if ( ! s_same_type( &src_type, &dst_type ) ) {
@@ -2335,11 +2338,13 @@ bool is_onedim_intelem_array_ref( struct semantic* semantic,
 }
 
 bool is_int_value( struct semantic* semantic, struct result* result ) {
-   return ( is_value_type( result ) && result->spec == semantic->spec_int );
+   return ( is_value_type( semantic, result ) &&
+      result->spec == semantic->spec_int );
 }
 
 bool is_str_value( struct semantic* semantic, struct result* result ) {
-   return ( is_value_type( result ) && result->spec == semantic->spec_str );
+   return ( is_value_type( semantic, result ) &&
+      result->spec == semantic->spec_str );
 }
 
 void test_conversion( struct semantic* semantic, struct expr_test* test,
@@ -2412,13 +2417,23 @@ void test_upmost( struct semantic* semantic, struct result* result ) {
    result->object = &semantic->lib->upmost_ns->object;
 }
 
-void init_type_info( struct type_info* type, struct result* result ) {
-   if ( result->func && result->func->type == FUNC_USER ) {
-      s_init_type_info_func( type, result->func->ref,
-         result->func->structure, result->func->enumeration,
-         result->func->params, result->func->return_spec,
-         result->func->min_param, result->func->max_param,
-         result->func->msgbuild );
+void init_type_info( struct semantic* semantic, struct type_info* type,
+   struct result* result ) {
+   if ( result->func ) {
+      switch ( result->func->type ) {
+      case FUNC_USER:
+         s_init_type_info_func( type, result->func->ref,
+            result->func->structure, result->func->enumeration,
+            result->func->params, result->func->return_spec,
+            result->func->min_param, result->func->max_param,
+            result->func->msgbuild );
+         break;
+      case FUNC_ASPEC:
+         s_init_type_info_scalar( type, semantic->spec_int );
+         break;
+      default:
+         s_init_type_info_builtin_func( type );
+      }
    }
    else if ( result->ref_dim >= 1 ) {
       s_init_type_info_array_ref( type, result->ref->next, result->structure,
@@ -2433,17 +2448,9 @@ void init_type_info( struct type_info* type, struct result* result ) {
    }
 }
 
-bool same_type( struct result* a, struct result* b ) {
-   struct type_info a_type;
-   init_type_info( &a_type, a );
-   struct type_info b_type;
-   init_type_info( &b_type, b );
-   return s_same_type( &a_type, &b_type );
-}
-
-bool is_value_type( struct result* result ) {
+bool is_value_type( struct semantic* semantic, struct result* result ) {
    struct type_info type;
-   init_type_info( &type, result );
+   init_type_info( semantic, &type, result );
    return s_is_value_type( &type );
 }
 

@@ -29,6 +29,7 @@ void s_init_type_info( struct type_info* type, struct ref* ref,
    type->dim = dim;
    type->spec = spec;
    type->implicit_ref = false;
+   type->builtin_func = false;
 }
 
 void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
@@ -62,6 +63,11 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    func->msgbuild = msgbuild;
    type->ref = &func->ref;
    type->implicit_ref = true;
+}
+
+void s_init_type_info_builtin_func( struct type_info* type ) {
+   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE );
+   type->builtin_func = true;
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {
@@ -227,10 +233,15 @@ bool s_instance_of( struct type_info* type, struct type_info* instance ) {
 }
 
 void s_present_type( struct type_info* type, struct str* string ) {
-   present_extended_spec( type->structure, type->enumeration, type->spec,
-      string );
-   present_ref( type->ref, string, false );
-   present_dim( type, string );
+   if ( type->builtin_func ) {
+      str_append( string, "builtin-function" );
+   }
+   else {
+      present_extended_spec( type->structure, type->enumeration, type->spec,
+         string );
+      present_ref( type->ref, string, false );
+      present_dim( type, string );
+   }
 }
 
 void present_extended_spec( struct structure* structure,

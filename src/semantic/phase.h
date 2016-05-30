@@ -52,6 +52,7 @@ struct type_info {
       struct ref_func func;
    } implicit_ref_part;
    bool implicit_ref;
+   bool builtin_func;
 };
 
 struct type_snapshot {
@@ -137,6 +138,7 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct param* params, int return_spec, int min_param, int max_param,
    bool msgbuild );
+void s_init_type_info_builtin_func( struct type_info* type );
 void s_init_type_info_scalar( struct type_info* type, int spec );
 void s_init_type_info_null( struct type_info* type );
 bool s_same_type( struct type_info* a, struct type_info* b );
