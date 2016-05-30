@@ -400,7 +400,7 @@ void s_iterate_type( struct semantic* semantic, struct type_info* type,
    }
 }
 
-inline bool s_is_str_value_type( struct type_info* type ) {
+bool s_is_str_value_type( struct type_info* type ) {
    return ( s_is_value_type( type ) && type->spec == SPEC_STR );
 }
 

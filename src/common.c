@@ -383,8 +383,6 @@ int alignpad( int size, int align_size ) {
 
 #if OS_WINDOWS
 
-#include <windows.h>
-
 bool c_read_full_path( const char* path, struct str* str ) {
    const int max_path = MAX_PATH + 1;
    if ( str->buffer_length < max_path ) { 
@@ -406,8 +404,82 @@ bool c_read_full_path( const char* path, struct str* str ) {
    }
 }
 
+void fs_strip_trailing_pathsep( struct str* path ) {
+   while ( path->length - 1 > 0 &&
+      path->value[ path->length - 1 ] == '\\' ) {
+      path->value[ path->length - 1 ] = '\0';
+      --path->length;
+   }
+}
+
+const char* fs_get_tempdir( void ) {
+   static bool got_path = false;
+   static CHAR path[ MAX_PATH + 1 ];
+   if ( ! got_path ) {
+      DWORD length = GetTempPathA( sizeof( path ), path );
+      if ( length - 1 > 0 && path[ length - 1 ] == '\\' ) {
+         path[ length - 1 ] = '\0';
+      }
+      got_path = true;
+   }
+   return path;
+}
+
+bool fs_create_dir( const char* path, struct fs_result* result ) {
+   return ( CreateDirectory( path, NULL ) != 0 );
+}
+
+void fs_init_query( struct fs_query* query, const char* path ) {
+   query->path = path;
+   query->err = 0;
+   query->attrs_obtained = false;
+}
+
+WIN32_FILE_ATTRIBUTE_DATA* get_file_attrs( struct fs_query* query ) {
+   // Request file statistics once.
+   if ( ! query->attrs_obtained ) {
+      bool result = GetFileAttributesEx( query->path, GetFileExInfoStandard,
+         &query->attrs );
+      if ( ! result ) {
+         query->err = GetLastError();
+         return NULL;
+      }
+      query->attrs_obtained = true;
+   }
+   return &query->attrs;
+}
+
+bool fs_exists( struct fs_query* query ) {
+   return ( get_file_attrs( query ) != NULL );
+}
+
+bool fs_is_dir( struct fs_query* query ) {
+   WIN32_FILE_ATTRIBUTE_DATA* attrs = get_file_attrs( query );
+   return ( attrs && ( attrs->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) );
+}
+
+#define UNIX_EPOCH 116444736000000000LL
+
+bool fs_get_mtime( struct fs_query* query, struct fs_timestamp* timestamp ) {
+   WIN32_FILE_ATTRIBUTE_DATA* attrs = get_file_attrs( query );
+   if ( attrs ) {
+      ULARGE_INTEGER mtime = { { attrs->ftLastWriteTime.dwLowDateTime,
+         attrs->ftLastWriteTime.dwHighDateTime } };
+      timestamp->value = ( mtime.QuadPart - UNIX_EPOCH ) / 10000000LL;
+      return true;
+   }
+   else {
+      return false;
+   }
+}
+
+bool fs_delete_file( const char* path ) {
+   return ( DeleteFileA( path ) == TRUE );
+}
+
 #else
 
+#include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -433,22 +505,6 @@ void fs_strip_trailing_pathsep( struct str* path ) {
       path->value[ path->length - 1 ] == '/' ) {
       path->value[ path->length - 1 ] = '\0';
       --path->length;
-   }
-}
-
-#endif
-
-void c_extract_dirname( struct str* path ) {
-   while ( true ) {
-      if ( path->length == 0 ) {
-         break;
-      }
-      --path->length;
-      char ch = path->value[ path->length ];
-      path->value[ path->length ] = 0;
-      if ( ch == '/' || ch == '\\' ) {
-         break;
-      }
    }
 }
 
@@ -507,6 +563,25 @@ const char* fs_get_tempdir( void ) {
    return "/tmp";
 }
 
+bool fs_delete_file( const char* path ) {
+   return ( unlink( path ) == 0 );
+}
+
+#endif
+
+void c_extract_dirname( struct str* path ) {
+   while ( true ) {
+      if ( path->length == 0 ) {
+         break;
+      }
+      --path->length;
+      char ch = path->value[ path->length ];
+      path->value[ path->length ] = 0;
+      if ( ch == '/' || ch == '\\' ) {
+         break;
+      }
+   }
+}
 
 void fs_get_file_contents( const char* path, struct file_contents* contents ) {
    FILE* fh = fopen( path, "r" );

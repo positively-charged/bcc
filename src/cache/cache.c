@@ -3,8 +3,6 @@
 #include <errno.h>
 #include <ctype.h>
 
-#include <unistd.h>
-
 #include "cache.h"
 
 // Default lifetime: 24 hours.
@@ -466,7 +464,7 @@ void save_cache( struct cache* cache ) {
       str_init( &path );
       append_entry_path( cache, entry, &path );
       // TODO: Check for file errors.
-      unlink( path.value );
+      fs_delete_file( path.value );
       archive_updated = true;
       str_deinit( &path );
       entry = entry->next;

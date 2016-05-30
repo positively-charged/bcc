@@ -88,6 +88,9 @@ struct options {
 
 #if OS_WINDOWS
 
+#include <windows.h>
+#include <time.h>
+
 // NOTE: Volume information is not included. Maybe add it later.
 struct fileid {
    int id_high;
@@ -96,6 +99,17 @@ struct fileid {
 
 #define NEWLINE_CHAR "\r\n"
 #define OS_PATHSEP "\\"
+
+struct fs_query {
+   WIN32_FILE_ATTRIBUTE_DATA attrs;
+   const char* path;
+   DWORD err;
+   bool attrs_obtained;
+};
+
+struct fs_timestamp {
+   time_t value;
+};
 
 #else
 
@@ -121,16 +135,16 @@ struct fs_timestamp {
    time_t value;
 };
 
-struct fs_result {
-   int err;
-};
-
 #endif
 
 struct file_contents {
    char* data;
    int err;
    bool obtained;
+};
+
+struct fs_result {
+   int err;
 };
 
 bool c_read_fileid( struct fileid*, const char* path );
@@ -148,5 +162,6 @@ bool fs_create_dir( const char* path, struct fs_result* result );
 const char* fs_get_tempdir( void );
 void fs_get_file_contents( const char* path, struct file_contents* contents );
 void fs_strip_trailing_pathsep( struct str* path );
+bool fs_delete_file( const char* path );
 
 #endif
