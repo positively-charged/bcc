@@ -40,8 +40,6 @@ void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start );
 static void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing );
-static void calc_args_space_size( struct codegen* codegen,
-   struct nestedfunc_writing* writing, struct func* func );
 static void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func );
 static void patch_nestedfunc_addresses( struct codegen* codegen,
@@ -522,12 +520,23 @@ void init_nestedfunc_writing( struct nestedfunc_writing* writing,
 
 void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing ) {
-   // Determine the number of script variables to reserve for the
-   // argument-holding zone.
+   // Determine the size of the argument-holding area.
    struct func* func = writing->nested_funcs;
    while ( func ) {
-      calc_args_space_size( codegen, writing, func );
       struct func_user* impl = func->impl;
+      if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+         int args_size = c_total_param_size( func );
+         if ( args_size > writing->args_size ) {
+            writing->args_size = args_size;
+         }
+         // The argument-holding area should have at least one variable, to
+         // temporarily hold the return-value.
+         if ( func->return_spec != SPEC_VOID ) {
+            if ( ! writing->args_size ) {
+               writing->args_size = 1;
+            }
+         }
+      }
       func = impl->next_nested;
    }
    // Write the nested functions.
@@ -547,42 +556,23 @@ void write_nested_funcs( struct codegen* codegen,
    }
 }
 
-void calc_args_space_size( struct codegen* codegen,
-   struct nestedfunc_writing* writing, struct func* func ) {
-   struct func_record record;
-   init_func_record( &record, func );
-   record.start_index = writing->temps_start;
-   alloc_param_indexes( &record, func->params );
-   int args_size = record.size +
-      ( func->min_param != func->max_param ? 1 : 0 );
-   if ( args_size > writing->args_size ) {
-      writing->args_size = args_size;
-   }
-}
-
 void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func ) {
    struct func_user* impl = func->impl;
-
-   // Prologue (begin):
+   // Prologue (part #1):
    // -----------------------------------------------------------------------
    struct c_point* prologue_point = c_create_point( codegen );
    c_append_node( codegen, &prologue_point->node );
    impl->prologue_point = prologue_point;
-
    int start_index = writing->temps_start + writing->args_size +
-      impl->index_offset;
+      writing->local_size;
    struct func_record record;
    init_func_record( &record, func );
    record.start_index = start_index;
    record.nested_func = true;
-   codegen->func = &record;
    alloc_param_indexes( &record, func->params );
-   // At this point, we need to save the script variables used as the workspace
-   // of the function. To do this, we need to know the size of the function.
-   // Write the function body to determine the size. Then return to complete
-   // the task of saving the workspace.
-
+   alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
+   codegen->func = &record;
    // Body:
    // -----------------------------------------------------------------------
    c_write_block( codegen, impl->body );
@@ -590,96 +580,85 @@ void write_one_nestedfunc( struct codegen* codegen,
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    impl->size = record.size;
-
-   // Prologue (finish):
+   // Prologue (part #2):
    // -----------------------------------------------------------------------
    c_seek_node( codegen, &prologue_point->node );
-
-   // Assign arguments to temporary space.
-   int index = writing->temps_start;
-   if ( func->min_param != func->max_param ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
-      ++index;
+   int total_param_size = c_total_param_size( func );
+   if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+      // Assign arguments to temporary space.
+      int i = 0;
+      while ( i < total_param_size ) {
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, writing->temps_start + i );
+         ++i;
+      }
+      // Push local variables of the function onto the stack. They will be
+      // restored at epilogue.
+      i = 0;
+      while ( i < impl->size ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, start_index + i );
+         ++i;
+      }
    }
-   struct param* param = func->params;
-   while ( param ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
-      ++index;
-      param = param->next;
-   }
-
-   // The function uses variables of the script or function as its workspace.
-   // Save the values of these variables onto the stack. They will be restored
-   // at epilogue.
+   // Assign arguments to parameters.
+   int param_index = start_index + total_param_size - 1;
+   int count_param = param_index;
    int i = 0;
-   while ( i < impl->size ) {
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, impl->index_offset + i );
+   while ( i < total_param_size ) {
+      if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, writing->temps_start + i );
+      }
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param_index );
+      --param_index;
       ++i;
    }
-
-   // Assign arguments to parameters.
-   param = func->params;
-   while ( param ) {
-      --index;
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, index );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
-      param = param->next;
-   }
+   // Assign default arguments.
    if ( func->min_param != func->max_param ) {
-      --index;
-      add_default_params( codegen, func, index, false );
+      add_default_params( codegen, func, count_param, false );
    }
    c_seek_node( codegen, codegen->node_tail );
-
    // Epilogue:
    // -----------------------------------------------------------------------
    struct c_point* epilogue_point = c_create_point( codegen );
    c_append_node( codegen, &epilogue_point->node );
-
-   // Temporarily save the return value.
-   int return_var = start_index;
-   if ( func->return_spec != SPEC_VOID && impl->size > 0 ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
-   }
-
-   // Restore previous values of script variables.
-   index = start_index + impl->size - 1;
-   i = ( func->return_spec != SPEC_VOID && impl->size > 0 ) ? 1 : 0;
-   while ( i < impl->size ) {
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
-      --index;
-      ++i;
-   }
-
-   // Push return value into stack.
+   // Temporarily save the return-value so we can restore the variables.
+   int return_var = writing->temps_start;
    if ( func->return_spec != SPEC_VOID ) {
-      if ( impl->size > 0 ) {
-         c_pcd( codegen, PCD_PUSHSCRIPTVAR, return_var );
-         c_pcd( codegen, PCD_SWAP );
-         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
+      if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+         if ( impl->size > 0 ) {
+            c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, return_var );
+         }
+      }
+   }
+   // Restore previous values of variables.
+   if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+      int index = start_index + impl->size - 1;
+      int i = 0;
+      while ( i < impl->size ) {
+         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, index );
+         --index;
+         ++i;
+      }
+   }
+   // Push return-value onto the stack.
+   if ( func->return_spec != SPEC_VOID ) {
+      if ( impl->recursive == RECURSIVE_POSSIBLY ) {
+         if ( impl->size > 0 ) {
+            c_pcd( codegen, PCD_PUSHSCRIPTVAR, return_var );
+         }
       }
       c_pcd( codegen, PCD_SWAP );
    }
-
-   // Return-table.
+   // Add return-table.
    struct c_sortedcasejump* return_table = c_create_sortedcasejump( codegen );
    c_append_node( codegen, &return_table->node );
    impl->return_table = return_table;
- 
    // Patch address of return-statements.
    struct return_stmt* stmt = impl->returns;
    while ( stmt ) {
       stmt->epilogue_jump->point = epilogue_point;
       stmt = stmt->next;
    }
-
-   // Keep track of the maximum number of script variables required to execute
-   // the bodies of all the nested functions.
-   int local_size = impl->index_offset + impl->size;
-   if ( local_size > writing->local_size ) {
-      writing->local_size = local_size;
-   }
-
+   writing->local_size += impl->size;
    codegen->func = NULL;
 }
 
@@ -698,15 +677,5 @@ void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
          call->nested_call->id, call->nested_call->return_point );
       c_append_casejump( impl->return_table, entry );
       call = call->nested_call->next;
-   }
-}
-
-void c_visit_nested_func( struct codegen* codegen, struct func* func ) {
-   if ( func->type == FUNC_USER ) {
-      if ( codegen->func->nested_func ) {
-         struct func_user* impl = func->impl;
-         impl->index_offset = codegen->local_record->index -
-            codegen->func->start_index;
-      }
    }
 }

@@ -152,11 +152,13 @@ static void visit_msgbuild_format_item( struct codegen* codegen,
    struct format_item* item );
 static void visit_user_call( struct codegen* codegen, struct result* result,
    struct call* call );
-static void visit_nested_userfunc_call( struct codegen* codegen,
+static void call_nested_user_func( struct codegen* codegen,
    struct result* result, struct call* call );
+static void call_user_func( struct codegen* codegen, struct result* result,
+   struct call* call );
 static void write_call_args( struct codegen* codegen, struct call* call );
-static void call_user_func( struct codegen* codegen, struct call* call,
-   struct result* result );
+static void set_user_func_call_result( struct codegen* codegen,
+   struct call* call, struct result* result );
 static void visit_sample_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_internal_call( struct codegen* codegen,
@@ -1545,14 +1547,14 @@ void visit_user_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
    struct func_user* impl = call->func->impl;
    if ( impl->nested ) {
-      visit_nested_userfunc_call( codegen, result, call );
+      call_nested_user_func( codegen, result, call );
    }
    else {
-      call_user_func( codegen, call, result );
+      call_user_func( codegen, result, call );
    }
 }
 
-void visit_nested_userfunc_call( struct codegen* codegen,
+void call_nested_user_func( struct codegen* codegen,
    struct result* result, struct call* call ) {
    // Push ID of entry to identify return address.
    c_pcd( codegen, PCD_PUSHNUMBER, call->nested_call->id );
@@ -1564,7 +1566,20 @@ void visit_nested_userfunc_call( struct codegen* codegen,
    c_append_node( codegen, &return_point->node );
    call->nested_call->return_point = return_point;
    if ( call->func->return_spec != SPEC_VOID ) {
-      result->status = R_VALUE;
+      set_user_func_call_result( codegen, call, result );
+   }
+}
+
+void call_user_func( struct codegen* codegen, struct result* result,
+   struct call* call ) {
+   write_call_args( codegen, call );
+   struct func_user* impl = call->func->impl;
+   if ( call->func->return_spec != SPEC_VOID && result->push ) {
+      c_pcd( codegen, PCD_CALL, impl->index );
+      set_user_func_call_result( codegen, call, result );
+   }
+   else {
+      c_pcd( codegen, PCD_CALLDISCARD, impl->index );
    }
 }
 
@@ -1584,6 +1599,12 @@ void write_call_args( struct codegen* codegen, struct call* call ) {
       else if ( arg.ref && arg.ref->type == REF_ARRAY ) {
          c_push_dimtrack( codegen );
       }
+      else if ( arg.null ) {
+         // Dimension information.
+         if ( param->ref && param->ref->type == REF_ARRAY ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         }
+      }
       list_next( &i );
       param = param->next;
    }
@@ -1599,37 +1620,29 @@ void write_call_args( struct codegen* codegen, struct call* call ) {
    }
 }
 
-void call_user_func( struct codegen* codegen, struct call* call,
+void set_user_func_call_result( struct codegen* codegen, struct call* call,
    struct result* result ) {
-   write_call_args( codegen, call );
-   struct func_user* impl = call->func->impl;
-   if ( call->func->return_spec != SPEC_VOID && result->push ) {
-      c_pcd( codegen, PCD_CALL, impl->index );
-      // Reference-type result. 
-      if ( call->func->ref ) {
-         result->ref = call->func->ref;
-         result->structure = call->func->structure;
-         switch ( result->ref->type ) {
-         case REF_STRUCTURE:
-         case REF_ARRAY:
-            result->storage = STORAGE_MAP;
-            result->index = codegen->shary.index;
-            result->status = R_ARRAYINDEX;
-            break;
-         case REF_FUNCTION:
-            result->status = R_VALUE;
-            break;
-         default:
-            UNREACHABLE();
-         }
-      }
-      // Primitive-type result.
-      else {
+   // Reference-type result.
+   if ( call->func->ref ) {
+      result->ref = call->func->ref;
+      result->structure = call->func->structure;
+      switch ( result->ref->type ) {
+      case REF_STRUCTURE:
+      case REF_ARRAY:
+         result->storage = STORAGE_MAP;
+         result->index = codegen->shary.index;
+         result->status = R_ARRAYINDEX;
+         break;
+      case REF_FUNCTION:
          result->status = R_VALUE;
+         break;
+      default:
+         UNREACHABLE();
       }
    }
+   // Primitive-type result.
    else {
-      c_pcd( codegen, PCD_CALLDISCARD, impl->index );
+      result->status = R_VALUE;
    }
 }
 
@@ -1799,7 +1812,7 @@ void visit_msgbuild_format_item( struct codegen* codegen,
    if ( extra->call ) {
       struct result result;
       init_result( &result, true );
-      visit_nested_userfunc_call( codegen, &result, extra->call );
+      call_nested_user_func( codegen, &result, extra->call );
    }
    else if ( extra->func ) {
       struct func_user* impl = extra->func->impl;

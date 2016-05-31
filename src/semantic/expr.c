@@ -1745,7 +1745,7 @@ void test_remaining_arg( struct semantic* semantic,
       struct type_info param_type;
       init_type_info( semantic, &type, &result );
       s_init_type_info( &param_type, param->ref, param->structure,
-         param->enumeration, NULL, param->spec );
+         param->enumeration, NULL, s_spec( semantic, param->spec ) );
       s_decay( &type );
       if ( ! s_instance_of( &param_type, &type ) ) {
          arg_mismatch( semantic, &expr->pos, &type,
@@ -1840,6 +1840,20 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "calling message-building function where no message is being built" );
       s_bail( semantic );
+   }
+   // Determine if any function being tested is called recursively.
+   struct func_test* func_test = semantic->func_test;
+   while ( func_test && func_test->func != test->func ) {
+      func_test = func_test->parent;
+   }
+   if ( func_test ) {
+      struct func_test* end = func_test->parent;
+      func_test = semantic->func_test;
+      while ( func_test != end ) {
+         struct func_user* impl = func_test->func->impl;
+         impl->recursive = RECURSIVE_POSSIBLY;
+         func_test = func_test->parent;
+      }
    }
 }
 

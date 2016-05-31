@@ -11,7 +11,6 @@ static bool svct_script( struct script* script );
 static void do_sflg( struct codegen* codegen );
 static void do_snam( struct codegen* codegen );
 static void do_func( struct codegen* codegen );
-static int total_param_size( struct func* func );
 static void do_fnam( struct codegen* codegen );
 static void do_strl( struct codegen* codegen );
 static void do_mini( struct codegen* codegen );
@@ -287,7 +286,7 @@ void do_func( struct codegen* codegen ) {
          struct func* func = list_data( &k );
          struct func_user* impl = func->impl;
          if ( impl->usage ) {
-            entry.params = ( char ) total_param_size( func );
+            entry.params = ( char ) c_total_param_size( func );
             entry.value = ( char ) ( func->return_spec != SPEC_VOID );
             c_add_sized( codegen, &entry, sizeof( entry ) );
          }
@@ -300,7 +299,7 @@ void do_func( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
-      entry.params = ( char ) total_param_size( func );
+      entry.params = ( char ) c_total_param_size( func );
       entry.size = ( char ) ( impl->size - entry.params );
       entry.value = ( char ) ( func->return_spec != SPEC_VOID );
       entry.offset = impl->obj_pos;
@@ -309,7 +308,7 @@ void do_func( struct codegen* codegen ) {
    }
 }
 
-int total_param_size( struct func* func ) {
+int c_total_param_size( struct func* func ) {
    int size = 0;
    struct param* param = func->params;
    while ( param ) {

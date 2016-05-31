@@ -82,10 +82,6 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
    case NODE_VAR:
       c_visit_var( codegen, ( struct var* ) node );
       break;
-   case NODE_FUNC:
-      c_visit_nested_func( codegen,
-         ( struct func* ) node );
-      break;
    case NODE_CASE:
    case NODE_CASE_DEFAULT:
       visit_case( codegen, ( struct case_label* ) node );
@@ -99,6 +95,7 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
       break;
    case NODE_CONSTANT:
    case NODE_ENUMERATION:
+   case NODE_FUNC:
       break;
    default:
       c_write_stmt( codegen, node );

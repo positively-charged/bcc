@@ -1267,7 +1267,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
       impl->size = 0;
       impl->usage = 0;
       impl->obj_pos = 0;
-      impl->index_offset = 0;
+      impl->recursive = RECURSIVE_UNDETERMINED;
       impl->nested = ( dec->area == DEC_LOCAL );
       func->impl = impl;
       // Only read the function body when it is needed.

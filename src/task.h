@@ -755,7 +755,10 @@ struct func_user {
    int size;
    int usage;
    int obj_pos;
-   int index_offset;
+   enum {
+      RECURSIVE_UNDETERMINED,
+      RECURSIVE_POSSIBLY
+   } recursive;
    bool nested;
 };
 

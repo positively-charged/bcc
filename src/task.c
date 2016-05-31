@@ -769,7 +769,7 @@ struct func_user* t_alloc_func_user( void ) {
    impl->size = 0;
    impl->usage = 0;
    impl->obj_pos = 0;
-   impl->index_offset = 0;
+   impl->recursive = RECURSIVE_UNDETERMINED;
    impl->nested = false;
    return impl;
 }

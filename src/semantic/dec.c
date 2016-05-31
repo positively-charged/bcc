@@ -195,8 +195,8 @@ static void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases );
 static void deinit_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases );
-static void init_func_test( struct func_test* test, struct func* func,
-   struct list* labels, struct list* funcscope_vars );
+static void init_func_test( struct func_test* test, struct func_test* parent,
+   struct func* func, struct list* labels, struct list* funcscope_vars );
 static void calc_param_size( struct param* param );
 static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref );
@@ -1593,15 +1593,15 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       param = param->next;
    }
    struct func_test test;
-   init_func_test( &test, func, &impl->labels, &impl->funcscope_vars );
+   init_func_test( &test, semantic->func_test, func, &impl->labels,
+      &impl->funcscope_vars );
    if ( ! impl->nested ) {
       semantic->topfunc_test = &test;
    }
-   struct func_test* prev = semantic->func_test;
    semantic->func_test = &test;
    bind_builtin_aliases( semantic, &builtin_aliases );
    s_test_body( semantic, &impl->body->node );
-   semantic->func_test = prev;
+   semantic->func_test = test.parent;
    impl->returns = test.returns;
    if ( ! impl->nested ) {
       impl->nested_funcs = test.nested_funcs;
@@ -1644,13 +1644,14 @@ void deinit_builtin_aliases( struct semantic* semantic,
    }
 }
 
-void init_func_test( struct func_test* test, struct func* func,
-   struct list* labels, struct list* funcscope_vars ) {
+void init_func_test( struct func_test* test, struct func_test* parent,
+   struct func* func, struct list* labels, struct list* funcscope_vars ) {
    test->func = func;
    test->labels = labels;
    test->funcscope_vars = funcscope_vars;
    test->nested_funcs = NULL;
    test->returns = NULL;
+   test->parent = parent;
    test->script = ( func == NULL );
 }
 
@@ -1714,7 +1715,8 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
       param = param->next;
    }
    struct func_test test;
-   init_func_test( &test, NULL, &script->labels, &script->funcscope_vars );
+   init_func_test( &test, NULL, NULL, &script->labels,
+      &script->funcscope_vars );
    semantic->topfunc_test = &test;
    semantic->func_test = semantic->topfunc_test;
    s_test_body( semantic, script->body );

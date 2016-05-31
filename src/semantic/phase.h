@@ -9,6 +9,7 @@ struct func_test {
    struct list* funcscope_vars;
    struct func* nested_funcs;
    struct return_stmt* returns;
+   struct func_test* parent;
    bool script;
 };
 
