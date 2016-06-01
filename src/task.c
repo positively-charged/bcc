@@ -765,6 +765,7 @@ struct func_user* t_alloc_func_user( void ) {
    impl->prologue_point = NULL;
    impl->return_table = NULL;
    list_init( &impl->vars );
+   list_init( &impl->funcscope_vars );
    impl->index = 0;
    impl->size = 0;
    impl->usage = 0;

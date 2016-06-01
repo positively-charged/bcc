@@ -92,7 +92,6 @@ static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* );
 static void read_func( struct parse* parse, struct dec* );
-static struct func* alloc_func( void );
 static void read_func_qual( struct parse* parse, struct dec* dec );
 static void read_bfunc( struct parse* parse, struct func* );
 static struct func_aspec* alloc_aspec_impl( void );
@@ -1218,20 +1217,14 @@ void read_func( struct parse* parse, struct dec* dec ) {
    read_ref( parse, &ref );
    dec->ref = ref.head;
    read_name( parse, dec );
-   struct func* func = mem_slot_alloc( sizeof( *func ) );
-   t_init_object( &func->object, NODE_FUNC );
+   struct func* func = t_alloc_func();
    func->object.pos = dec->name_pos;
-   func->type = FUNC_ASPEC;
    func->ref = dec->ref;
    func->structure = dec->structure;
    func->enumeration = dec->enumeration;
    func->path = dec->path;
    func->name = dec->name;
-   func->params = NULL;
-   func->impl = NULL;
    func->return_spec = dec->spec;
-   func->min_param = 0;
-   func->max_param = 0;
    func->hidden = dec->private_visibility;
    func->msgbuild = dec->msgbuild;
    // Parameter list:
@@ -1251,23 +1244,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    // Body:
    if ( parse->tk == TK_BRACE_L ) {
       func->type = FUNC_USER;
-      struct func_user* impl = mem_alloc( sizeof( *impl ) );
-      list_init( &impl->labels );
-      list_init( &impl->vars );
-      list_init( &impl->funcscope_vars );
-      impl->body = NULL;
-      impl->next_nested = NULL;
-      impl->nested_funcs = NULL;
-      impl->nested_calls = NULL;
-      impl->returns = NULL;
-      impl->prologue_point = NULL;
-      impl->return_table = NULL;
-      list_init( &impl->vars );
-      impl->index = 0;
-      impl->size = 0;
-      impl->usage = 0;
-      impl->obj_pos = 0;
-      impl->recursive = RECURSIVE_UNDETERMINED;
+      struct func_user* impl = t_alloc_func_user();
       impl->nested = ( dec->area == DEC_LOCAL );
       func->impl = impl;
       // Only read the function body when it is needed.
@@ -1306,23 +1283,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
    else {
       list_append( dec->vars, func );
    }
-}
-
-struct func* alloc_func( void ) {
-   struct func* func = mem_slot_alloc( sizeof( *func ) );
-   t_init_object( &func->object, NODE_FUNC );
-   func->type = FUNC_ASPEC;
-   func->ref = NULL;
-   func->structure = NULL;
-   func->enumeration = NULL;
-   func->name = NULL;
-   func->params = NULL;
-   func->impl = NULL;
-   func->return_spec = SPEC_VOID;
-   func->min_param = 0;
-   func->max_param = 0;
-   func->hidden = false;
-   return func;
 }
 
 void read_func_qual( struct parse* parse, struct dec* dec ) {
@@ -1820,7 +1780,7 @@ void read_special( struct parse* parse ) {
       minus = true;
    }
    // Special-number/function-index.
-   struct func* func = alloc_func();
+   struct func* func = t_alloc_func();
    func->return_spec = SPEC_INT;
    p_test_tk( parse, TK_LIT_DECIMAL );
    int id = p_extract_literal_value( parse );
