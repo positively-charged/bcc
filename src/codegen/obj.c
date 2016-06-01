@@ -725,14 +725,17 @@ void c_flush( struct codegen* codegen ) {
    fh = fopen( codegen->task->options->object_file, "wb" );
    if ( fh ) {
       struct buffer* buffer = codegen->buffer_head;
+      int total_written = 0;
       while ( buffer ) {
          int written = fwrite( buffer->data, 1, buffer->used, fh );
          if ( written != buffer->used ) {
             failure = true;
             break;
          }
+         total_written += written;
          buffer = buffer->next;
       }
+      codegen->object_size = total_written;
       fclose( fh );
    }
    else {

@@ -103,6 +103,7 @@ struct codegen {
       bool used;
    } shary;
    int null_handler;
+   int object_size;
 };
 
 void c_init( struct codegen*, struct task* );

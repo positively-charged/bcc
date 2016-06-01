@@ -22,6 +22,9 @@ static void print_cache( struct task* task, struct cache* cache );
 static void clear_cache( struct task* task, struct cache* cache );
 static void preprocess( struct task* task );
 static void compile_mainlib( struct task* task, struct cache* cache );
+static void print_acc_stats( struct task* task, struct parse* parse,
+   struct codegen* codegen );
+static const char* get_script_type_label( int type );
 
 int main( int argc, char* argv[] ) {
    int result = EXIT_FAILURE;
@@ -104,6 +107,7 @@ void init_options( struct options* options ) {
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
    options->acc_err = false;
+   options->acc_stats = false;
    options->one_column = false;
    options->help = false;
    options->preprocess = false;
@@ -178,6 +182,9 @@ bool read_options( struct options* options, char** argv ) {
       }
       else if ( strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
+      }
+      else if ( strcmp( option, "acc-stats" ) == 0 ) {
+         options->acc_stats = true;
       }
       else if ( strcmp( option, "cache" ) == 0 ) {
          options->cache.enable = true;
@@ -272,6 +279,8 @@ void print_usage( char* path ) {
       "Options: \n"
       "  -acc-err-file        On error, create an error file like one\n"
       "                       created by the acc compiler\n"
+      "  -acc-stats           Show compilation statistics like those shown\n"
+      "                       by the acc compiler\n"
       "  -h                   Show this help information\n"
       "  -i <directory>       Add a directory to search in for files\n"
       "  -I <directory>       Same as -i\n"
@@ -361,4 +370,129 @@ void compile_mainlib( struct task* task, struct cache* cache ) {
    struct codegen codegen;
    c_init( &codegen, task );
    c_publish( &codegen );
+   if ( task->options->acc_stats ) {
+      print_acc_stats( task, &parse, &codegen );
+   }
+}
+
+void print_acc_stats( struct task* task, struct parse* parse,
+   struct codegen* codegen ) {
+   // acc includes imported functions in the function count. This can cause
+   // confusion. We, instead, have two counts: one for functions in the library
+   // being compiled, and another for imported functions.
+   int imported_funcs = 0;
+   list_iter_t i;
+   list_iter_init( &i, &task->library_main->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->funcs );
+      while ( ! list_end( &k ) ) {
+         struct func* func = list_data( &k );
+         struct func_user* impl = func->impl;
+         imported_funcs += ( int ) ( impl->usage > 0 );
+         list_next( &k );
+      }
+      list_next( &i );
+   }
+   t_diag( task, DIAG_NONE,
+      "\"%s\":\n"
+      "  %d line%s (%d included)\n"
+      "  %d function%s (%d imported)\n"
+      "  %d script%s"
+      "",
+      task->library_main->file->path.value,
+      parse->main_lib_lines,
+      parse->main_lib_lines == 1 ? "" : "s",
+      parse->included_lines,
+      list_size( &task->library_main->funcs ),
+      list_size( &task->library_main->funcs ) == 1 ? "" : "s",
+      imported_funcs,
+      list_size( &task->library_main->scripts ),
+      list_size( &task->library_main->scripts ) == 1 ? "" : "s"
+   );
+   int script_counts[ SCRIPT_TYPE_TOTAL ] = { 0 };
+   list_iter_init( &i, &task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      ++script_counts[ script->type ];
+      list_next( &i );
+   }
+   for ( int i = 0; i < ARRAY_SIZE( script_counts ); ++i ) {
+      if ( script_counts[ i ] > 0 ) {
+         t_diag( task, DIAG_NONE, "    %d %s", script_counts[ i ],
+            get_script_type_label( i ) );
+      }
+   }
+   int map_vars = 0;
+   int world_vars = 0;
+   int world_arrays = 0;
+   int global_vars = 0;
+   int global_arrays = 0;
+   list_iter_init( &i, &task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      switch ( var->storage ) {
+      case STORAGE_MAP:
+         ++map_vars;
+         break;
+      case STORAGE_WORLD:
+         if ( var->desc == DESC_ARRAY ) {
+            ++world_arrays;
+         }
+         else {
+            ++world_vars;
+         }
+         break;
+      case STORAGE_GLOBAL:
+         if ( var->desc == DESC_ARRAY ) {
+            ++global_arrays;
+         }
+         else {
+            ++global_vars;
+         }
+         break;
+      default:
+         break;
+      }
+      list_next( &i );
+   }
+   t_diag( task, DIAG_NONE,
+      "  %d global variable%s\n"
+      "  %d world variable%s\n"
+      "  %d map variable%s\n"
+      "  %d global array%s\n"
+      "  %d world array%s"
+      "",
+      global_vars, global_vars == 1 ? "" : "s",
+      world_vars, world_vars == 1 ? "" : "s",
+      map_vars, map_vars == 1 ? "" : "s",
+      global_arrays, global_arrays == 1 ? "" : "s",
+      world_arrays, world_arrays == 1 ? "" : "s"
+   );
+   t_diag( task, DIAG_NONE,
+      "  object \"%s\": %d bytes",
+      task->options->object_file,
+      codegen->object_size );
+}
+
+const char* get_script_type_label( int type ) {
+   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_EVENT + 1 );
+   switch ( type ) {
+   case SCRIPT_TYPE_CLOSED: return "closed";
+   case SCRIPT_TYPE_OPEN: return "open";
+   case SCRIPT_TYPE_RESPAWN: return "respawn";
+   case SCRIPT_TYPE_DEATH: return "death";
+   case SCRIPT_TYPE_ENTER: return "enter";
+   case SCRIPT_TYPE_PICKUP: return "pickup";
+   case SCRIPT_TYPE_BLUERETURN: return "bluereturn";
+   case SCRIPT_TYPE_REDRETURN: return "redreturn";
+   case SCRIPT_TYPE_WHITERETURN: return "whitereturn";
+   case SCRIPT_TYPE_LIGHTNING: return "lightning";
+   case SCRIPT_TYPE_UNLOADING: return "unloading";
+   case SCRIPT_TYPE_DISCONNECT: return "disconnect";
+   case SCRIPT_TYPE_RETURN: return "return";
+   case SCRIPT_TYPE_EVENT: return "event";
+   default: return "";
+   }
 }

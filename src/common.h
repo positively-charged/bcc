@@ -73,6 +73,7 @@ struct options {
    const char* object_file;
    int tab_size;
    bool acc_err;
+   bool acc_stats;
    bool one_column;
    bool help;
    bool preprocess;

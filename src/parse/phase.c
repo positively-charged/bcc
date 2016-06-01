@@ -30,6 +30,8 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->ns = NULL;
    parse->local_vars = NULL;
    parse->lib = NULL;
+   parse->main_lib_lines = 0;
+   parse->included_lines = 0;
 }
 
 void p_run( struct parse* parse ) {

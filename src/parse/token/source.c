@@ -5,6 +5,8 @@
 
 #include "phase.h"
 
+enum { LINE_OFFSET = 1 };
+
 struct text_buffer {
    char* data;
    unsigned int used;
@@ -174,7 +176,7 @@ struct source* alloc_source( struct parse* parse ) {
 }
 
 void reset_filepos( struct source* source ) {
-   source->line = 1;
+   source->line = LINE_OFFSET;
    source->column = 0;
 }
 
@@ -196,6 +198,12 @@ void p_read_source( struct parse* parse, struct token* token ) {
    if ( parse->source ) {
       read_token( parse, token );
       if ( token->type == TK_END ) {
+         if ( parse->source->file == parse->task->library_main->file ) {
+            parse->main_lib_lines = parse->source->line - LINE_OFFSET;
+         }
+         else {
+            parse->included_lines += parse->source->line - LINE_OFFSET;
+         }
          bool reread = ( ! parse->source->imported );
          unload_source( parse );
          if ( parse->source && reread ) {

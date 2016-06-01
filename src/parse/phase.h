@@ -382,6 +382,8 @@ struct parse {
    struct ns* ns;
    struct list* local_vars;
    struct library* lib;
+   int main_lib_lines;
+   int included_lines;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
