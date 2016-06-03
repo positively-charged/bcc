@@ -1035,6 +1035,7 @@ struct lang_limits {
    int max_script_params;
    int max_strings;
    int max_string_length;
+   int max_id_length;
 };
 
 struct task {

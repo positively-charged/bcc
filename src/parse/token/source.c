@@ -717,10 +717,19 @@ void read_token( struct parse* parse, struct token* token ) {
    id:
    // -----------------------------------------------------------------------
    {
+      int length = 0;
       text = temp_text( parse );
       while ( isalnum( ch ) || ch == '_' ) {
          append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
+         ++length;
+      }
+      if ( parse->lang == LANG_ACS95 &&
+         length > parse->lang_limits->max_id_length ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "identifier too long (its length is %d, but maximum length is %d)",
+            length, parse->lang_limits->max_id_length );
+         p_bail( parse );
       }
       const struct keyword_table* table = &g_keyword_tables.bcs;
       if ( parse->lang == LANG_ACS95 ) {
