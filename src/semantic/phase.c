@@ -125,6 +125,15 @@ void s_test( struct semantic* semantic ) {
          semantic->lang_limits->max_scripts );
       s_bail( semantic );
    }
+   // NOTE: Some strings are generated in the codegen phase, so the check
+   // should be performed there.
+   if ( semantic->task->str_table.size > semantic->lang_limits->max_strings ) {
+      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+         "too many strings (have %d, but maximum is %d)",
+         semantic->task->str_table.size,
+         semantic->lang_limits->max_strings );
+      s_bail( semantic );
+   }
 }
 
 void test_acs( struct semantic* semantic ) {

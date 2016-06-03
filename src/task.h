@@ -1033,6 +1033,7 @@ struct lang_limits {
    int max_global_vars;
    int max_scripts;
    int max_script_params;
+   int max_strings;
 };
 
 struct task {

@@ -826,7 +826,7 @@ int t_dim_size( struct dim* dim ) {
 }
 
 const struct lang_limits* t_get_lang_limits( int lang ) {
-   static const struct lang_limits acs = { 64, 0, 64, 3 };
-   static const struct lang_limits bcs = { 256, 64, 1000, 4 };
+   static const struct lang_limits acs = { 64, 0, 64, 3, 128 };
+   static const struct lang_limits bcs = { 256, 64, 1000, 4, 32768 };
    return ( lang == LANG_ACS95 ) ? &acs : &bcs;
 }
