@@ -110,7 +110,6 @@ int s_spec( struct semantic* semantic, int spec ) {
 void s_test( struct semantic* semantic ) {
    switch ( semantic->lang ) {
    case LANG_ACS95:
-   case LANG_ACS95:
       test_acs( semantic );
       break;
    default:
