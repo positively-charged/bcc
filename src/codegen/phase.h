@@ -139,6 +139,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node );
 void c_visit_expr( struct codegen* codegen, struct expr* );
 void c_visit_var( struct codegen* codegen, struct var* var );
 struct pcode* c_get_pcode_info( int code );
+const struct direct_pcode* c_get_direct_pcode( int code );
 void c_opc( struct codegen* codegen, int code );
 void c_unoptimized_opc( struct codegen* codegen, int code );
 void c_arg( struct codegen* codegen, int value );

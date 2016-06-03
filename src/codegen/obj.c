@@ -213,48 +213,15 @@ void c_add_opc( struct codegen* codegen, int code ) {
       if ( ! codegen->immediate ) {
          goto other;
       }
-      static const struct entry {
-         int code;
-         int count;
-         int direct;
-      } entries[] = {
-         { PCD_LSPEC1, 1, PCD_LSPEC1DIRECT },
-         { PCD_LSPEC2, 2, PCD_LSPEC2DIRECT },
-         { PCD_LSPEC3, 3, PCD_LSPEC3DIRECT },
-         { PCD_LSPEC4, 4, PCD_LSPEC4DIRECT },
-         { PCD_LSPEC5, 5, PCD_LSPEC5DIRECT },
-         { PCD_DELAY, 1, PCD_DELAYDIRECT },
-         { PCD_RANDOM, 2, PCD_RANDOMDIRECT },
-         { PCD_THINGCOUNT, 2, PCD_THINGCOUNTDIRECT },
-         { PCD_TAGWAIT, 1, PCD_TAGWAITDIRECT },
-         { PCD_POLYWAIT, 1, PCD_POLYWAITDIRECT },
-         { PCD_CHANGEFLOOR, 2, PCD_CHANGEFLOORDIRECT },
-         { PCD_CHANGECEILING, 2, PCD_CHANGECEILINGDIRECT },
-         { PCD_SCRIPTWAIT, 1, PCD_SCRIPTWAITDIRECT },
-         { PCD_CONSOLECOMMAND, 3, PCD_CONSOLECOMMANDDIRECT },
-         { PCD_SETGRAVITY, 1, PCD_SETGRAVITYDIRECT },
-         { PCD_SETAIRCONTROL, 1, PCD_SETAIRCONTROLDIRECT },
-         { PCD_GIVEINVENTORY, 2, PCD_GIVEINVENTORYDIRECT },
-         { PCD_TAKEINVENTORY, 2, PCD_TAKEINVENTORYDIRECT },
-         { PCD_CHECKINVENTORY, 1, PCD_CHECKINVENTORYDIRECT },
-         { PCD_SPAWN, 6, PCD_SPAWNDIRECT },
-         { PCD_SPAWNSPOT, 4, PCD_SPAWNSPOTDIRECT },
-         { PCD_SETMUSIC, 3, PCD_SETMUSICDIRECT },
-         { PCD_LOCALSETMUSIC, 3, PCD_LOCALSETMUSIC },
-         { PCD_SETFONT, 1, PCD_SETFONTDIRECT },
-         { PCD_NONE, 0, PCD_NONE } };
-      const struct entry* entry = entries;
-      while ( entry->code != code ) {
-         if ( entry->code == PCD_NONE ) {
-            goto other;
-         }
-         ++entry;
-      }
-      if ( entry->count > codegen->immediate_count ) {
+      const struct direct_pcode* d_pcode = c_get_direct_pcode( code );
+      if ( ! d_pcode ) {
          goto other;
       }
-      else if ( entry->count < codegen->immediate_count ) {
-         push_immediate( codegen, codegen->immediate_count - entry->count );
+      if ( d_pcode->argc > codegen->immediate_count ) {
+         goto other;
+      }
+      else if ( d_pcode->argc < codegen->immediate_count ) {
+         push_immediate( codegen, codegen->immediate_count - d_pcode->argc );
       }
       int count = 0;
       struct immediate* immediate = codegen->immediate;
@@ -262,8 +229,8 @@ void c_add_opc( struct codegen* codegen, int code ) {
          immediate = immediate->next;
          ++count;
       }
-      int direct = entry->direct;
-      if ( codegen->compress && count == entry->count ) {
+      int direct = d_pcode->direct_code;
+      if ( codegen->compress && count == d_pcode->argc ) {
          switch ( code ) {
          case PCD_LSPEC1: direct = PCD_LSPEC1DIRECTB; break;
          case PCD_LSPEC2: direct = PCD_LSPEC2DIRECTB; break;

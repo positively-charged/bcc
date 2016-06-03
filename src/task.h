@@ -395,6 +395,7 @@ struct call {
    struct nested_call* nested_call;
    struct format_item* format_item;
    struct list args;
+   bool constant;
 };
 
 struct nested_call {

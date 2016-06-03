@@ -409,3 +409,39 @@ struct pcode* c_get_pcode_info( int code ) {
    }
    return NULL;
 }
+
+static struct direct_pcode g_direct_pcode_table[] = {
+   { PCD_LSPEC1, PCD_LSPEC1DIRECT, 1 },
+   { PCD_LSPEC2, PCD_LSPEC2DIRECT, 2 },
+   { PCD_LSPEC3, PCD_LSPEC3DIRECT, 3 },
+   { PCD_LSPEC4, PCD_LSPEC4DIRECT, 4 },
+   { PCD_LSPEC5, PCD_LSPEC5DIRECT, 5 },
+   { PCD_DELAY, PCD_DELAYDIRECT, 1 },
+   { PCD_RANDOM, PCD_RANDOMDIRECT, 2 },
+   { PCD_THINGCOUNT, PCD_THINGCOUNTDIRECT, 2 },
+   { PCD_TAGWAIT, PCD_TAGWAITDIRECT, 1 },
+   { PCD_POLYWAIT, PCD_POLYWAITDIRECT, 1 },
+   { PCD_CHANGEFLOOR, PCD_CHANGEFLOORDIRECT, 2 },
+   { PCD_CHANGECEILING, PCD_CHANGECEILINGDIRECT, 2 },
+   { PCD_SCRIPTWAIT, PCD_SCRIPTWAITDIRECT, 1 },
+   { PCD_CONSOLECOMMAND, PCD_CONSOLECOMMANDDIRECT, 3 },
+   { PCD_SETGRAVITY, PCD_SETGRAVITYDIRECT, 1 },
+   { PCD_SETAIRCONTROL, PCD_SETAIRCONTROLDIRECT, 1 },
+   { PCD_GIVEINVENTORY, PCD_GIVEINVENTORYDIRECT, 2 },
+   { PCD_TAKEINVENTORY, PCD_TAKEINVENTORYDIRECT, 2 },
+   { PCD_CHECKINVENTORY, PCD_CHECKINVENTORYDIRECT, 1 },
+   { PCD_SPAWN, PCD_SPAWNDIRECT, 6 },
+   { PCD_SPAWNSPOT, PCD_SPAWNSPOTDIRECT, 4 },
+   { PCD_SETMUSIC, PCD_SETMUSICDIRECT, 3 },
+   { PCD_LOCALSETMUSIC, PCD_LOCALSETMUSIC, 3 },
+   { PCD_SETFONT, PCD_SETFONTDIRECT, 1 }
+};
+
+const struct direct_pcode* c_get_direct_pcode( int code ) { 
+   for ( int i = 0; i < ARRAY_SIZE( g_direct_pcode_table ); ++i ) {
+      if ( g_direct_pcode_table[ i ].code == code ) {
+         return &g_direct_pcode_table[ i ];
+      }
+   }
+   return NULL;
+}

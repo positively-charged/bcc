@@ -813,9 +813,11 @@ struct call* t_alloc_call( void ) {
    call->node.type = NODE_CALL;
    call->operand = NULL;
    call->func = NULL;
+   call->ref_func = NULL;
    call->nested_call = NULL;
    call->format_item = NULL;
    list_init( &call->args );
+   call->constant = false;
    return call;
 }
 

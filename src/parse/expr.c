@@ -867,17 +867,16 @@ void read_post_inc( struct parse* parse, struct expr_reading* reading ) {
 }
 
 void read_call( struct parse* parse, struct expr_reading* reading ) {
-   struct pos pos = parse->tk_pos;
+   struct call* call = t_alloc_call();
+   call->pos = parse->tk_pos;
+   call->operand = reading->node;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct list args;
-   list_init( &args );
-   struct format_item* format_item = NULL;
    if ( peek_format_cast( parse ) ) {
-      format_item = read_format_item_list( parse );
+      call->format_item = read_format_item_list( parse );
       if ( parse->tk == TK_SEMICOLON ) {
          p_read_tk( parse );
-         read_call_args( parse, reading, &args );
+         read_call_args( parse, reading, &call->args );
       }
    }
    else {
@@ -887,22 +886,14 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
          p_read_tk( parse );
          p_test_tk( parse, TK_COLON );
          p_read_tk( parse );
+         call->constant = true;
       }
       if ( parse->tk != TK_PAREN_R ) {
-         read_call_args( parse, reading, &args );
+         read_call_args( parse, reading, &call->args );
       }
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   struct call* call = mem_alloc( sizeof( *call ) );
-   call->node.type = NODE_CALL;
-   call->pos = pos;
-   call->operand = reading->node;
-   call->func = NULL;
-   call->ref_func = NULL;
-   call->nested_call = NULL;
-   call->format_item = format_item;
-   call->args = args;
    reading->node = &call->node;
 }
 

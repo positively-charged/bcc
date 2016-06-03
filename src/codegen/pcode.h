@@ -398,4 +398,10 @@ struct pcode {
    const char* args_format;
 };
 
+struct direct_pcode {
+   int code;
+   int direct_code;
+   int argc;
+};
+
 #endif

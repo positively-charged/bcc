@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "codegen/phase.h"
 #include "phase.h"
 
 struct result {
@@ -1765,6 +1766,11 @@ void test_remaining_arg( struct semantic* semantic,
    if ( is_ref_type( &result ) && result.data_origin ) {
       result.data_origin->addr_taken = true;
    }
+   if ( test->call->constant && ! expr->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+         "non-constant argument in constant function call" );
+      s_bail( semantic );
+   }
 }
 
 void arg_mismatch( struct semantic* semantic, struct pos* pos,
@@ -1853,6 +1859,19 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
          struct func_user* impl = func_test->func->impl;
          impl->recursive = RECURSIVE_POSSIBLY;
          func_test = func_test->parent;
+      }
+   }
+   // Make sure the function can be constant-called.
+   if ( test->call->constant ) {
+      bool supported = ( test->func->type == FUNC_ASPEC );
+      if ( test->func->type == FUNC_DED ) {
+         struct func_ded* impl = test->func->impl;
+         supported = ( c_get_direct_pcode( impl->opcode ) != NULL );
+      }
+      if ( ! supported ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
+            "constant-calling an unsupported function" );
+         s_bail( semantic );
       }
    }
 }
