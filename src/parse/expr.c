@@ -621,6 +621,12 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
 
 void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_LIT_STRING );
+   if ( parse->tk_length > parse->lang_limits->max_string_length ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "string too long (its length is %d, but maximum length is %d)",
+         parse->tk_length, parse->lang_limits->max_string_length );
+      p_bail( parse );
+   }
    struct indexed_string* string = t_intern_string( parse->task,
       parse->tk_text, parse->tk_length );
    struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
