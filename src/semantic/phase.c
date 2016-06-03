@@ -75,6 +75,7 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->free_sweep = NULL;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
+   semantic->lang_limits = t_get_lang_limits( lib->lang );
    s_init_type_info_scalar( &semantic->type_int, SPEC_INT );
    semantic->depth = 0;
    semantic->retest_nss = false;
@@ -115,6 +116,14 @@ void s_test( struct semantic* semantic ) {
    default:
       test_bcs( semantic );
       break;
+   }
+   if ( list_size( &semantic->lib->scripts ) >
+      semantic->lang_limits->max_scripts ) {
+      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+         "too many scripts (have %d, but maximum is %d)",
+         list_size( &semantic->lib->scripts ),
+         semantic->lang_limits->max_scripts );
+      s_bail( semantic );
    }
 }
 

@@ -1030,6 +1030,7 @@ struct library {
 struct lang_limits {
    int max_world_vars;
    int max_global_vars;
+   int max_scripts;
    int max_script_params;
 };
 

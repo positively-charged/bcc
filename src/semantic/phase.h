@@ -79,6 +79,7 @@ struct semantic {
    struct sweep* free_sweep;
    struct func_test* topfunc_test;
    struct func_test* func_test;
+   const struct lang_limits* lang_limits;
    struct type_info type_int;
    int spec_map[ SPEC_TOTAL ];
    int spec_raw;
