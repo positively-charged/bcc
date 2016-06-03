@@ -561,7 +561,8 @@ struct foreach_stmt {
 
 struct expr_stmt {
    struct node node;
-   struct packed_expr* packed_expr;
+   struct list expr_list;
+   struct func* msgbuild_func;
 };
 
 struct dim {
@@ -1015,11 +1016,21 @@ struct library {
       TYPEMODE_WEAK,
       TYPEMODE_STRONG
    } type_mode;
+   enum {
+      LANG_ACS95,
+      LANG_BCS
+   } lang;
    bool importable;
    bool imported;
    bool encrypt_str;
    bool compiletime;
    bool header;
+};
+
+struct lang_limits {
+   int max_world_vars;
+   int max_global_vars;
+   int max_script_params;
 };
 
 struct task {
@@ -1050,6 +1061,7 @@ struct task {
 #define DIAG_ERR 0x10
 #define DIAG_SYNTAX 0x20
 #define DIAG_CUSTOM 0x40
+#define DIAG_INTERNAL 0x80
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
@@ -1100,5 +1112,6 @@ struct param* t_alloc_param( void );
 struct format_item* t_alloc_format_item( void );
 struct call* t_alloc_call( void );
 int t_dim_size( struct dim* dim );
+const struct lang_limits* t_get_lang_limits( int lang );
 
 #endif

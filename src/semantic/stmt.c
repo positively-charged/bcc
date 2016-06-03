@@ -584,8 +584,34 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
-   struct packed_expr_test test = { NULL, NULL, NULL };
-   test_packed_expr( semantic, &test, stmt->packed_expr );
+   if ( stmt->msgbuild_func ) {
+      s_test_nested_func( semantic, stmt->msgbuild_func );
+   }
+   list_iter_t i;
+   list_iter_init( &i, &stmt->expr_list );
+   struct expr* first_expr = list_head( &stmt->expr_list );
+   while ( ! list_end( &i ) ) {
+      struct expr* expr = list_data( &i );
+      if ( semantic->lang == LANG_ACS95 &&
+         first_expr->root->type == NODE_ASSIGN &&
+         expr->root->type != NODE_ASSIGN ) {
+         s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+            "expression not an assignment operation" );
+         s_bail( semantic );
+      }
+      struct expr_test expr_test;
+      s_init_expr_test_packed( &expr_test, stmt->msgbuild_func, false );
+      s_test_expr( semantic, &expr_test, expr );
+      list_next( &i );
+   }
+   if ( stmt->msgbuild_func ) {
+      struct func_user* impl = stmt->msgbuild_func->impl;
+      if ( ! impl->usage ) {
+         s_diag( semantic, DIAG_POS | DIAG_WARN,
+            &stmt->msgbuild_func->object.pos,
+            "one-time message-building function not used" );
+      }
+   }
 }
 
 void test_packed_expr( struct semantic* semantic,

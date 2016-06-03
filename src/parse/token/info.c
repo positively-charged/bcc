@@ -96,6 +96,7 @@ static const struct {
    { "import", TK_IMPORT },
    { "in", TK_IN },
    { "int", TK_INT },
+   { "libdefine", TK_LIBDEFINE },
    { "lightning", TK_LIGHTNING },
    { "msgbuild", TK_MSGBUILD },
    { "namespace", TK_NAMESPACE },
@@ -427,6 +428,12 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "upmost", TKF_KEYWORD ),
       ENTRY( "using", TKF_KEYWORD ),
       ENTRY( "!!", TKF_NONE ),
+      ENTRY( "include", TKF_KEYWORD ),
+      // 130
+      ENTRY( "define", TKF_KEYWORD ),
+      ENTRY( "libdefine", TKF_KEYWORD ),
+      ENTRY( "print", TKF_KEYWORD ),
+      ENTRY( "printbold", TKF_KEYWORD ),
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
       ENTRY( BLANK, TKF_NONE )
@@ -566,8 +573,13 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_NAMESPACE, "`namespace`" },
       { TK_UPMOST, "`upmost`" },
       { TK_USING, "`using`" },
-      { TK_BANGBANG, "`!!`" }, };
-   STATIC_ASSERT( TK_TOTAL == 129 );
+      { TK_BANGBANG, "`!!`" },
+      { TK_INCLUDE, "`include`" },
+      { TK_DEFINE, "`define`" },
+      { TK_LIBDEFINE, "`libdefine`" },
+      { TK_PRINT, "`print`" },
+      { TK_PRINTBOLD, "`printbold`" } };
+   STATIC_ASSERT( TK_TOTAL == 134 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

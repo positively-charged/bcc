@@ -5,6 +5,7 @@
 
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
+static void read_module_item_acs( struct parse* parse );
 static bool peek_header_namespace( struct parse* parse );
 static void read_namespace( struct parse* parse, bool read_header_ns );
 static void read_namespace_name( struct parse* parse, struct ns* parent_ns );
@@ -15,10 +16,13 @@ static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
 static void read_pseudo_dirc( struct parse* parse );
+static void read_pseudo_dirc_acs( struct parse* parse );
+static void read_pseudo_dirc_bcs( struct parse* parse );
+static void read_include( struct parse* parse );
+static void read_define( struct parse* parse );
 static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* );
 static void read_library_name( struct parse* parse, struct pos* pos );
-static void read_libdefine( struct parse* parse );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
@@ -43,19 +47,52 @@ void read_module( struct parse* parse ) {
 }
 
 void read_module_item( struct parse* parse ) {
+   switch ( parse->lang ) {
+   case LANG_ACS95:
+      read_module_item_acs( parse );
+      break;
+   default:
+      switch ( parse->tk ) {
+      case TK_SPECIAL:
+         p_read_special_list( parse );
+         break;
+      case TK_HASH:
+         read_pseudo_dirc( parse );
+         break;
+      case TK_NAMESPACE:
+         read_namespace( parse, peek_header_namespace( parse ) );
+         break;
+      default:
+         read_namespace_member( parse );
+         break;
+      }
+      break;
+   }
+}
+
+void read_module_item_acs( struct parse* parse ) {
    switch ( parse->tk ) {
-   case TK_SPECIAL:
-      p_read_special_list( parse );
+      struct dec dec;
+   case TK_INT:
+   case TK_STR:
+   case TK_WORLD:
+      p_init_dec( &dec );
+      dec.name_offset = parse->ns->body;
+      p_read_var_acs( parse, &dec );
+      break;
+   case TK_SCRIPT:
+      p_read_script( parse );
       break;
    case TK_HASH:
       read_pseudo_dirc( parse );
       break;
-   case TK_NAMESPACE:
-      read_namespace( parse, peek_header_namespace( parse ) );
+   case TK_SPECIAL:
+      p_read_special_list( parse );
       break;
    default:
-      read_namespace_member( parse );
-      break;
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "unexpected %s", p_get_token_name( parse->tk ) );
+      p_bail( parse );
    }
 }
 
@@ -275,6 +312,36 @@ bool p_peek_path( struct parse* parse, struct parsertk_iter* iter ) {
 }
 
 void read_pseudo_dirc( struct parse* parse ) {
+   switch ( parse->lang ) {
+   case LANG_ACS95:
+      read_pseudo_dirc_acs( parse );
+      break;
+   default:
+      read_pseudo_dirc_bcs( parse );
+      break;
+   }
+
+}
+
+void read_pseudo_dirc_acs( struct parse* parse ) {
+   struct pos pos = parse->tk_pos;
+   p_test_tk( parse, TK_HASH );
+   p_read_tk( parse );
+   switch ( parse->tk ) {
+   case TK_INCLUDE:
+      read_include( parse );
+      break;
+   case TK_DEFINE:
+      read_define( parse );
+      break;
+   default:
+      p_diag( parse, DIAG_POS_ERR, &pos,
+         "unknown directive `%s`", parse->tk_text );
+      p_bail( parse );
+   }
+}
+
+void read_pseudo_dirc_bcs( struct parse* parse ) {
    struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_HASH );
    p_read_tk( parse );
@@ -283,7 +350,7 @@ void read_pseudo_dirc( struct parse* parse ) {
       read_import( parse, &pos );
    }
    else if ( strcmp( parse->tk_text, "libdefine" ) == 0 ) {
-      read_libdefine( parse );
+      read_define( parse );
    }
    else if ( strcmp( parse->tk_text, "library" ) == 0 ) {
       p_read_tk( parse );
@@ -314,6 +381,43 @@ void read_pseudo_dirc( struct parse* parse ) {
          "unknown directive '%s'", parse->tk_text );
       p_bail( parse );
    }
+}
+
+void read_include( struct parse* parse ) {
+   p_test_tk( parse, TK_INCLUDE );
+   p_read_tk( parse );
+   if ( parse->lib->imported ) {
+      p_test_tk( parse, TK_LIT_STRING );
+      p_read_tk( parse );
+   }
+   else {
+      p_test_tk( parse, TK_LIT_STRING );
+      p_load_included_source( parse, parse->tk_text, &parse->tk_pos );
+      p_read_tk( parse );
+   }
+}
+
+void read_define( struct parse* parse ) {
+   bool define = ( parse->tk == TK_DEFINE );
+   p_test_tk( parse, define ? TK_DEFINE : TK_LIBDEFINE );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ID );
+   struct constant* constant = t_alloc_constant();
+   constant->object.pos = parse->tk_pos;
+   bool hidden = ( parse->lib->imported && define );
+   //constant->name = t_extend_name( hidden ?
+   //   parse->lib->hidden_names : parse->task->root_name,
+   //   parse->tk_text );
+   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
+   p_read_tk( parse );
+   struct expr_reading value;
+   p_init_expr_reading( &value, true, false, false, true );
+   p_read_expr( parse, &value );
+   constant->value_node = value.output_node;
+   // constant->lib_id = parse->lib->id;
+   p_add_unresolved( parse, &constant->object );
+   list_append( &parse->lib->objects, constant );
+   list_append( &parse->ns->objects, constant );
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
@@ -383,28 +487,23 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
    parse->lib->name_pos = *pos;
 }
 
-void read_libdefine( struct parse* parse ) {
-   p_read_tk( parse );
-   p_test_tk( parse, TK_ID );
-   struct constant* constant = mem_alloc( sizeof( *constant ) );
-   t_init_object( &constant->object, NODE_CONSTANT );
-   constant->object.pos = parse->tk_pos;
-   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
-   p_read_tk( parse );
-   struct expr_reading value;
-   p_init_expr_reading( &value, true, false, false, true );
-   p_read_expr( parse, &value );
-   constant->value_node = value.output_node;
-   constant->value = 0;
-   p_add_unresolved( parse, &constant->object );
-   list_append( &parse->ns->objects, constant );
-}
-
 void p_add_unresolved( struct parse* parse, struct object* object ) {
    t_append_unresolved_namespace_object( parse->ns, object );
 }
 
 void read_imported_libs( struct parse* parse ) {
+   // Implicitly import the library that declares the dedicated and format
+   // functions.
+   switch ( parse->lang ) {
+      struct import_dirc dirc;
+   case LANG_ACS95:
+      dirc.pos = parse->lib->file_pos;
+      dirc.file_path = "lib/acs95/internals.acs";
+      import_lib( parse, &dirc );
+      break;
+   default:
+      break;
+   }
    list_iter_t i;
    list_iter_init( &i, &parse->lib->import_dircs );
    while ( ! list_end( &i ) ) {
@@ -443,6 +542,9 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
    // Read library from source file.
    lib = t_add_library( parse->task );
+   lib->lang = LANG_BCS;
+   parse->lang = lib->lang;
+   parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->lib = lib;
    p_load_imported_lib_source( parse, dirc, query.file );
    lib->imported = true;

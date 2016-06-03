@@ -104,6 +104,7 @@ struct codegen {
    } shary;
    int null_handler;
    int object_size;
+   int lang;
 };
 
 void c_init( struct codegen*, struct task* );
@@ -124,6 +125,7 @@ void c_seek_end( struct codegen* );
 int c_tell( struct codegen* );
 void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
+void c_write_user_code_acs( struct codegen* codegen );
 void c_push_expr( struct codegen* codegen, struct expr* expr );
 void c_push_cond( struct codegen* codegen, struct expr* cond );
 void c_push_initz_expr( struct codegen* codegen, struct ref* ref,

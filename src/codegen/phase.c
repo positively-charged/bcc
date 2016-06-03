@@ -6,6 +6,7 @@
 #define MAX_MAP_LOCATIONS 128
 #define MAX_LIB_FUNCS 256
 
+static void write_acs_obj( struct codegen* codegen );
 static void clarify_vars( struct codegen* codegen );
 static void alloc_dim_counter_var( struct codegen* codegen );
 static void alloc_funcs( struct codegen* codegen );
@@ -59,20 +60,75 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->shary.used = false;
    codegen->null_handler = 0;
    codegen->object_size = 0;
+   codegen->lang = task->library_main->lang;
 }
 
 void c_publish( struct codegen* codegen ) {
-   clarify_vars( codegen );
-   alloc_funcs( codegen );
-   setup_shary( codegen );
-   patch_initz( codegen );
-   sort_vars( codegen );
-   assign_indexes( codegen );
-   if ( codegen->task->options->write_asserts &&
-      list_size( &codegen->task->runtime_asserts ) > 0 ) {
-      create_assert_strings( codegen );
+   switch ( codegen->task->library_main->lang ) {
+   case LANG_ACS95:
+      write_acs_obj( codegen );
+      break;
+   default:
+      clarify_vars( codegen );
+      alloc_funcs( codegen );
+      setup_shary( codegen );
+      patch_initz( codegen );
+      sort_vars( codegen );
+      assign_indexes( codegen );
+      if ( codegen->task->options->write_asserts &&
+         list_size( &codegen->task->runtime_asserts ) > 0 ) {
+         create_assert_strings( codegen );
+      }
+      c_write_chunk_obj( codegen );
+      c_flush( codegen );
+      break;
    }
-   c_write_chunk_obj( codegen );
+}
+
+void write_acs_obj( struct codegen* codegen ) {
+   // Reserve header.
+   c_add_int( codegen, 0 );
+   c_add_int( codegen, 0 );
+   // Write scripts and strings.
+   c_write_user_code_acs( codegen );
+   int string_offset = c_tell( codegen );
+   list_iter_t i;
+   list_iter_init( &i, &codegen->used_strings );
+   while ( ! list_end( &i ) ) {
+      struct indexed_string* string = list_data( &i );
+      // Plus one for the NUL character.
+      c_add_sized( codegen, string->value, string->length + 1 );
+      list_next( &i );
+   }
+   int padding = alignpad( c_tell( codegen ), 4 );
+   while ( padding ) {
+      c_add_byte( codegen, 0 );
+      --padding;
+   }
+   // Write script entries.
+   int dir_offset = c_tell( codegen );
+   c_add_int( codegen, list_size( &codegen->task->library_main->scripts ) );
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      int number = script->assigned_number + ( script->type * 1000 );
+      c_add_int( codegen, number );
+      c_add_int( codegen, script->offset );
+      c_add_int( codegen, script->num_param );
+      list_next( &i );
+   }
+   // Write string entries.
+   c_add_int( codegen, list_size( &codegen->used_strings ) );
+   list_iter_init( &i, &codegen->used_strings );
+   while ( ! list_end( &i ) ) {
+      struct indexed_string* string = list_data( &i );
+      c_add_int( codegen, string_offset );
+      string_offset += string->length + 1;
+      list_next( &i );
+   }
+   c_seek( codegen, 0 );
+   c_add_sized( codegen, "ACS\0", 4 );
+   c_add_int( codegen, dir_offset );
    c_flush( codegen );
 }
 

@@ -32,10 +32,14 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->lib = NULL;
    parse->main_lib_lines = 0;
    parse->included_lines = 0;
+   parse->lang = LANG_BCS;
 }
 
 void p_run( struct parse* parse ) {
    struct library* lib = t_add_library( parse->task );
+   lib->lang = parse->task->options->lang;
+   parse->lang = lib->lang;
+   parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->task->library_main = lib;
    parse->lib = lib;
    parse->ns = lib->upmost_ns;

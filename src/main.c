@@ -24,6 +24,10 @@ static void preprocess( struct task* task );
 static void compile_mainlib( struct task* task, struct cache* cache );
 static void print_acc_stats( struct task* task, struct parse* parse,
    struct codegen* codegen );
+static void print_acc_stats_acs( struct task* task, struct parse* parse,
+   struct codegen* codegen );
+static void print_acc_stats_bcs( struct task* task, struct parse* parse,
+   struct codegen* codegen );
 static const char* get_script_type_label( int type );
 
 int main( int argc, char* argv[] ) {
@@ -106,6 +110,7 @@ void init_options( struct options* options ) {
    options->object_file = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
+   options->lang = LANG_BCS;
    options->acc_err = false;
    options->acc_stats = false;
    options->one_column = false;
@@ -234,6 +239,27 @@ bool read_options( struct options* options, char** argv ) {
             return false;
          }
       }
+      else if ( strcmp( option, "x" ) == 0 ) {
+         if ( *args ) {
+            if ( strcmp( *args, "bcs" ) == 0 ) {
+               options->lang = LANG_BCS;
+               ++args;
+            }
+            else if ( strcmp( *args, "acs95" ) == 0 ) {
+               options->lang = LANG_ACS95;
+               ++args;
+            }
+            else {
+               printf( "error: unsupported language: %s\n", *args );
+               return false;
+            }
+         }
+         else {
+            printf( "error: missing language argument for %s option\n",
+               option );
+            return false;
+         }
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -291,6 +317,10 @@ void print_usage( char* path ) {
       "  -E                   Do preprocessing only\n"
       "  -D <name>            Create a macro with the specified name. The\n"
       "                       macro will have a value of 1\n"
+      "  -x <language>        Specify the language of the source file.\n"
+      "                       Languages supported:\n"
+      "                         acs95\n"
+      "                         bcs (default)\n"
       "Cache options:\n"
       "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"
@@ -376,6 +406,86 @@ void compile_mainlib( struct task* task, struct cache* cache ) {
 }
 
 void print_acc_stats( struct task* task, struct parse* parse,
+   struct codegen* codegen ) {
+   switch ( parse->lang ) {
+   case LANG_ACS95:
+      print_acc_stats_acs( task, parse, codegen );
+      break;
+   default:
+      print_acc_stats_bcs( task, parse, codegen );
+      break;
+   }
+}
+
+void print_acc_stats_acs( struct task* task, struct parse* parse,
+   struct codegen* codegen ) {
+   t_diag( task, DIAG_NONE,
+      "\"%s\":\n"
+      "  %d line%s (%d included)\n"
+      "  %d script%s"
+      "",
+      task->library_main->file->path.value,
+      parse->main_lib_lines,
+      parse->main_lib_lines == 1 ? "" : "s",
+      parse->included_lines,
+      list_size( &task->library_main->scripts ),
+      list_size( &task->library_main->scripts ) == 1 ? "" : "s"
+   );
+   int closed_scripts = 0;
+   int open_scripts = 0;
+   list_iter_t i;
+   list_iter_init( &i, &task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      switch ( script->type ) {
+      case SCRIPT_TYPE_CLOSED:
+         ++closed_scripts;
+         break;
+      case SCRIPT_TYPE_OPEN:
+         ++open_scripts;
+         break;
+      default:
+         break;
+      }
+      list_next( &i );
+   }
+   if ( closed_scripts > 0 ) {
+      t_diag( task, DIAG_NONE, "    %d closed", closed_scripts );
+   }
+   if ( open_scripts > 0 ) {
+      t_diag( task, DIAG_NONE, "    %d open", open_scripts );
+   }
+   int map_vars = 0;
+   int world_vars = 0;
+   list_iter_init( &i, &task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      switch ( var->storage ) {
+      case STORAGE_MAP:
+         ++map_vars;
+         break;
+      case STORAGE_WORLD:
+         ++world_vars;
+         break;
+      default:
+         break;
+      }
+      list_next( &i );
+   }
+   t_diag( task, DIAG_NONE,
+      "  %d world variable%s\n"
+      "  %d map variable%s"
+      "",
+      world_vars, world_vars == 1 ? "" : "s",
+      map_vars, map_vars == 1 ? "" : "s"
+   );
+   t_diag( task, DIAG_NONE,
+      "  object \"%s\": %d bytes",
+      task->options->object_file,
+      codegen->object_size );
+}
+
+void print_acc_stats_bcs( struct task* task, struct parse* parse,
    struct codegen* codegen ) {
    // acc includes imported functions in the function count. This can cause
    // confusion. We, instead, have two counts: one for functions in the library

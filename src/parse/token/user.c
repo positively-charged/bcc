@@ -33,16 +33,20 @@ void read_token( struct parse* parse ) {
    top:
    p_read_stream( parse );
    if ( parse->token->is_id ) {
-      if ( p_expand_macro( parse ) ) {
-         goto top;
+      if ( parse->lang == LANG_BCS ) {
+         if ( p_expand_macro( parse ) ) {
+            goto top;
+         }
       }
    }
    else {
       switch ( parse->token->type ) {
       case TK_HASH:
          if ( parse->line_beginning ) {
-            if ( p_read_dirc( parse ) ) {
-               goto top;
+            if ( parse->lang == LANG_BCS ) {
+               if ( p_read_dirc( parse ) ) {
+                  goto top;
+               }
             }
          }
          break;

@@ -87,6 +87,7 @@ struct semantic {
    int spec_bool;
    int spec_str;
    int depth;
+   int lang;
    bool retest_nss;
    bool resolved_objects;
    bool trigger_err;

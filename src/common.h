@@ -72,6 +72,7 @@ struct options {
    const char* source_file;
    const char* object_file;
    int tab_size;
+   int lang;
    bool acc_err;
    bool acc_stats;
    bool one_column;

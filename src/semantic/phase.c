@@ -17,6 +17,11 @@ struct scope {
 };
 
 static void init_spec_map( struct semantic* semantic );
+static void test_acs( struct semantic* semantic );
+static void test_module_acs( struct semantic* semantic, struct library* lib );
+static void test_module_item_acs( struct semantic* semantic,
+   struct node* node );
+static void test_bcs( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
 static void bind_namespace_object( struct semantic* semantic,
@@ -82,6 +87,7 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->spec_fixed = s_spec( semantic, SPEC_FIXED );
    semantic->spec_bool = s_spec( semantic, SPEC_BOOL );
    semantic->spec_str = s_spec( semantic, SPEC_STR );
+   semantic->lang = lib->lang;
 }
 
 void init_spec_map( struct semantic* semantic ) {
@@ -102,6 +108,80 @@ int s_spec( struct semantic* semantic, int spec ) {
 }
 
 void s_test( struct semantic* semantic ) {
+   switch ( semantic->lang ) {
+   case LANG_ACS95:
+   case LANG_ACS95:
+      test_acs( semantic );
+      break;
+   default:
+      test_bcs( semantic );
+      break;
+   }
+}
+
+void test_acs( struct semantic* semantic ) {
+   semantic->trigger_err = true;
+   // Test imported modules.
+   list_iter_t i;
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      test_module_acs( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   // Test module.
+   test_module_acs( semantic, semantic->lib );
+   check_dup_scripts( semantic );
+   assign_script_numbers( semantic );
+   calc_map_var_size( semantic );
+   calc_map_value_index( semantic );
+}
+
+void test_module_acs( struct semantic* semantic, struct library* lib ) {
+   semantic->ns = lib->upmost_ns;
+   show_private_objects( semantic );
+   list_iter_t i;
+   list_iter_init( &i, &lib->objects );
+   while ( ! list_end( &i ) ) {
+      test_module_item_acs( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   hide_private_objects( semantic );
+}
+
+void test_module_item_acs( struct semantic* semantic, struct node* node ) {
+   switch ( node->type ) {
+      struct constant* constant;
+      struct var* var;
+      struct func* func;
+   case NODE_CONSTANT:
+      constant = ( struct constant* ) node;
+      bind_namespace_object( semantic, &constant->object );
+      s_test_constant( semantic, constant );
+      break;
+   case NODE_VAR:
+      var = ( struct var* ) node;
+      bind_namespace_object( semantic, &var->object );
+      s_test_var( semantic, var );
+      break;
+   case NODE_FUNC:
+      func = ( struct func* ) node;
+      bind_namespace_object( semantic, &func->object );
+      s_test_func( semantic, func );
+      if ( func->type == FUNC_USER ) {
+         s_test_func_body( semantic, func );
+      }
+      break;
+   case NODE_SCRIPT:
+      s_test_script( semantic,
+         ( struct script* ) node );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+}
+
+void test_bcs( struct semantic* semantic ) {
    bind_names( semantic );
    perform_usings( semantic );
    test_objects( semantic );

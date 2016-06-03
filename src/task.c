@@ -273,6 +273,9 @@ void show_diag( struct task* task, int flags, va_list* args ) {
    else if ( flags & DIAG_CUSTOM ) {
       printf( "custom " );
    }
+   else if ( flags & DIAG_INTERNAL ) {
+      printf( "internal " );
+   }
    if ( flags & DIAG_ERR ) {
       printf( "error: " );
    }
@@ -308,6 +311,9 @@ void log_diag( struct task* task, int flags, va_list* args ) {
    }
    else if ( flags & DIAG_CUSTOM ) {
       printf( "custom " );
+   }
+   else if ( flags & DIAG_INTERNAL ) {
+      printf( "internal " );
    }
    if ( flags & DIAG_ERR ) {
       fprintf( task->err_file, "error: " );
@@ -534,6 +540,7 @@ struct library* t_add_library( struct task* task ) {
    lib->id = list_size( &task->libraries );
    lib->format = FORMAT_LITTLE_E;
    lib->type_mode = TYPEMODE_WEAK;
+   lib->lang = LANG_BCS;
    lib->importable = false;
    lib->imported = false;
    lib->encrypt_str = false;
@@ -814,4 +821,10 @@ struct call* t_alloc_call( void ) {
 
 int t_dim_size( struct dim* dim ) {
    return dim->length * dim->element_size;
+}
+
+const struct lang_limits* t_get_lang_limits( int lang ) {
+   static const struct lang_limits acs = { 64, 0, 3 };
+   static const struct lang_limits bcs = { 256, 64, 4 };
+   return ( lang == LANG_ACS95 ) ? &acs : &bcs;
 }

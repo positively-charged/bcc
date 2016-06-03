@@ -1280,6 +1280,12 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
             "array" : "struct variable" );
       s_bail( semantic );
    }
+   if ( semantic->lang == LANG_ACS95 && semantic->in_localscope &&
+      var->storage == STORAGE_WORLD ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "world variable declared inside script" );
+      s_bail( semantic );
+   }
    return true;
 }
 
@@ -1666,40 +1672,40 @@ void s_test_nested_func( struct semantic* semantic, struct func* func ) {
 }
 
 void s_test_script( struct semantic* semantic, struct script* script ) {
-   test_script_number( semantic, script );
+   if ( script->number ) {
+      test_script_number( semantic, script );
+   }
    test_script_body( semantic, script );
 }
 
 void test_script_number( struct semantic* semantic, struct script* script ) {
-   if ( script->number ) {
-      struct expr_test expr;
-      s_init_expr_test( &expr, true, false );
-      s_test_expr( semantic, &expr, script->number );
-      if ( ! script->number->folded ) {
+   struct expr_test expr;
+   s_init_expr_test( &expr, true, false );
+   s_test_expr( semantic, &expr, script->number );
+   if ( ! script->number->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
+         "script number not constant" );
+      s_bail( semantic );
+   }
+   if ( semantic->lib->type_mode == TYPEMODE_STRONG ) {
+      script->named_script = ( script->number->spec == SPEC_STR );
+   }
+   else {
+      script->named_script =
+         ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
+   }
+   if ( ! script->named_script ) {
+      if ( script->number->value < SCRIPT_MIN_NUM ||
+         script->number->value > SCRIPT_MAX_NUM ) {
          s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
-            "script number not constant" );
+            "script number not between %d and %d", SCRIPT_MIN_NUM,
+            SCRIPT_MAX_NUM );
          s_bail( semantic );
       }
-      if ( semantic->lib->type_mode == TYPEMODE_STRONG ) {
-         script->named_script = ( script->number->spec == SPEC_STR );
-      }
-      else {
-         script->named_script =
-            ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
-      }
-      if ( ! script->named_script ) {
-         if ( script->number->value < SCRIPT_MIN_NUM ||
-            script->number->value > SCRIPT_MAX_NUM ) {
-            s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
-               "script number not between %d and %d", SCRIPT_MIN_NUM,
-               SCRIPT_MAX_NUM );
-            s_bail( semantic );
-         }
-         if ( script->number->value == 0 ) {
-            s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
-               "script number 0 not between `<<` and `>>`" );
-            s_bail( semantic );
-         }
+      if ( script->number->value == 0 && semantic->lang == LANG_BCS ) {
+         s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
+            "script number 0 not between `<<` and `>>`" );
+         s_bail( semantic );
       }
    }
 }

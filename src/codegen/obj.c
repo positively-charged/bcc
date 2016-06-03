@@ -88,6 +88,12 @@ void c_add_str( struct codegen* codegen, const char* value ) {
 }
 
 void c_add_opc( struct codegen* codegen, int code ) {
+   if ( codegen->lang == LANG_ACS95 && code > PCD_ENDPRINTBOLD ) {
+      t_diag( codegen->task, DIAG_INTERNAL | DIAG_ERR,
+         "writting an instruction (opcode %d) which is not supported by the "
+         "current language option", code );
+      t_bail( codegen->task );
+   }
    // Number-stacking instructions:
    // -----------------------------------------------------------------------
    {
@@ -586,63 +592,72 @@ void remove_immediate( struct codegen* codegen ) {
 void push_immediate( struct codegen* codegen, int count ) {
    int left = count;
    struct immediate* immediate = codegen->immediate;
-   while ( left ) {
-      int i = 0;
-      struct immediate* temp = immediate;
-      while ( i < left && is_byte_value( temp->value ) ) {
-         temp = temp->next;
-         ++i;
-      }
-      if ( i ) {
-         left -= i;
-         if ( codegen->compress ) {
-            int code = PCD_PUSHBYTES;
-            switch ( i ) {
-            case 1: code = PCD_PUSHBYTE; break;
-            case 2: code = PCD_PUSH2BYTES; break;
-            case 3: code = PCD_PUSH3BYTES; break;
-            case 4: code = PCD_PUSH4BYTES; break;
-            case 5: code = PCD_PUSH5BYTES; break;
-            default: break;
-            }
-            write_opc( codegen, code );
-            if ( code == PCD_PUSHBYTES ) {
-               write_arg( codegen, i );
-            }
-            while ( i ) {
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               --i;
-            }
-         }
-         else {
-            // Optimization: Pack four byte-values into a single 4-byte integer.
-            // The instructions following this one will still be 4-byte aligned.
-            while ( i >= 4 ) {
-               write_opc( codegen, PCD_PUSH4BYTES );
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               i -= 4;
-            }
-            while ( i ) {
-               write_opc( codegen, PCD_PUSHNUMBER );
-               write_arg( codegen, immediate->value );
-               immediate = immediate->next;
-               --i;
-            }
-         }
-      }
-      else {
+   if ( codegen->task->library_main->lang == LANG_ACS95 ) {
+      while ( immediate ) {
          write_opc( codegen, PCD_PUSHNUMBER );
          write_arg( codegen, immediate->value );
          immediate = immediate->next;
-         --left;
+      }
+   }
+   else {
+      while ( left ) {
+         int i = 0;
+         struct immediate* temp = immediate;
+         while ( i < left && is_byte_value( temp->value ) ) {
+            temp = temp->next;
+            ++i;
+         }
+         if ( i ) {
+            left -= i;
+            if ( codegen->compress ) {
+               int code = PCD_PUSHBYTES;
+               switch ( i ) {
+               case 1: code = PCD_PUSHBYTE; break;
+               case 2: code = PCD_PUSH2BYTES; break;
+               case 3: code = PCD_PUSH3BYTES; break;
+               case 4: code = PCD_PUSH4BYTES; break;
+               case 5: code = PCD_PUSH5BYTES; break;
+               default: break;
+               }
+               write_opc( codegen, code );
+               if ( code == PCD_PUSHBYTES ) {
+                  write_arg( codegen, i );
+               }
+               while ( i ) {
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  --i;
+               }
+            }
+            else {
+               // Optimization: Pack four byte-values into a single 4-byte integer.
+               // The instructions following this one will still be 4-byte aligned.
+               while ( i >= 4 ) {
+                  write_opc( codegen, PCD_PUSH4BYTES );
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  i -= 4;
+               }
+               while ( i ) {
+                  write_opc( codegen, PCD_PUSHNUMBER );
+                  write_arg( codegen, immediate->value );
+                  immediate = immediate->next;
+                  --i;
+               }
+            }
+         }
+         else {
+            write_opc( codegen, PCD_PUSHNUMBER );
+            write_arg( codegen, immediate->value );
+            immediate = immediate->next;
+            --left;
+         }
       }
    }
    left = count;

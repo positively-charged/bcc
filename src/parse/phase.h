@@ -149,6 +149,12 @@ enum tk {
    TK_UPMOST,
    TK_USING,
    TK_BANGBANG,
+   TK_INCLUDE,
+   // 130
+   TK_DEFINE,
+   TK_LIBDEFINE,
+   TK_PRINT,
+   TK_PRINTBOLD,
 
    TK_TOTAL,
 
@@ -310,6 +316,7 @@ struct stmt_reading {
    struct node* node;
    struct block* block_node;
    struct packed_expr* packed_expr;
+   struct func* msgbuild_func;
 };
 
 struct expr_reading {
@@ -384,6 +391,8 @@ struct parse {
    struct library* lib;
    int main_lib_lines;
    int included_lines;
+   int lang;
+   const struct lang_limits* lang_limits;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -473,5 +482,6 @@ void p_clear_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
+void p_read_var_acs( struct parse* parse, struct dec* dec );
 
 #endif

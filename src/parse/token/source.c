@@ -28,6 +28,134 @@ static char* save_text( struct parse* parse );
 static unsigned int calc_buffer_size( struct parse* parse );
 static void append_ch( struct str* str, char ch );
 
+struct keyword_entry {
+   const char* name;
+   enum tk tk;
+};
+
+struct keyword_table {
+   const struct keyword_entry* entries;
+   int max;
+   int mid;
+};
+
+// NOTE: Reserved identifiers must be listed in ascending order.
+static const struct keyword_entry g_keywords_acs95[] = {
+   { "break", TK_BREAK },
+   { "case", TK_CASE },
+   { "const", TK_CONST },
+   { "continue", TK_CONTINUE },
+   { "default", TK_DEFAULT },
+   { "define", TK_DEFINE },
+   { "do", TK_DO },
+   { "else", TK_ELSE },
+   { "for", TK_FOR },
+   { "goto", TK_GOTO },
+   { "if", TK_IF },
+   { "include", TK_INCLUDE },
+   { "int", TK_INT },
+   { "open", TK_OPEN },
+   { "print", TK_PRINT },
+   { "printbold", TK_PRINTBOLD },
+   { "restart", TK_RESTART },
+   { "script", TK_SCRIPT },
+   { "special", TK_SPECIAL },
+   { "str", TK_STR },
+   { "suspend", TK_SUSPEND },
+   { "switch", TK_SWITCH },
+   { "terminate", TK_TERMINATE },
+   { "until", TK_UNTIL },
+   { "void", TK_VOID },
+   { "while", TK_WHILE },
+   { "world", TK_WORLD },
+   // Terminator.
+   { "\x7F", TK_END }
+};
+
+static const struct keyword_entry g_keywords_bcs[] = {
+   { "assert", TK_ASSERT },
+   { "auto", TK_AUTO },
+   { "bluereturn", TK_BLUE_RETURN },
+   { "bool", TK_BOOL },
+   { "break", TK_BREAK },
+   { "case", TK_CASE },
+   { "cast", TK_CAST },
+   { "clientside", TK_CLIENTSIDE },
+   { "const", TK_CONST },
+   { "continue", TK_CONTINUE },
+   { "createtranslation", TK_PALTRANS },
+   { "death", TK_DEATH },
+   { "default", TK_DEFAULT },
+   { "disconnect", TK_DISCONNECT },
+   { "do", TK_DO },
+   { "else", TK_ELSE },
+   { "enter", TK_ENTER },
+   { "enum", TK_ENUM },
+   { "event", TK_EVENT },
+   { "extspec", TK_EXTSPEC },
+   { "false", TK_FALSE },
+   { "fixed", TK_FIXED },
+   { "for", TK_FOR },
+   { "foreach", TK_FOREACH },
+   { "function", TK_FUNCTION },
+   { "global", TK_GLOBAL },
+   { "goto", TK_GOTO },
+   { "if", TK_IF },
+   { "import", TK_IMPORT },
+   { "in", TK_IN },
+   { "int", TK_INT },
+   { "libdefine", TK_LIBDEFINE },
+   { "lightning", TK_LIGHTNING },
+   { "msgbuild", TK_MSGBUILD },
+   { "namespace", TK_NAMESPACE },
+   { "net", TK_NET },
+   { "null", TK_NULL },
+   { "objcpy", TK_OBJCPY },
+   { "open", TK_OPEN },
+   { "pickup", TK_PICKUP },
+   { "private", TK_PRIVATE },
+   { "raw", TK_RAW },
+   { "redreturn", TK_RED_RETURN },
+   { "ref", TK_REF },
+   { "respawn", TK_RESPAWN },
+   { "restart", TK_RESTART },
+   { "return", TK_RETURN },
+   { "script", TK_SCRIPT },
+   { "special", TK_SPECIAL },
+   { "static", TK_STATIC },
+   { "str", TK_STR },
+   { "strcpy", TK_STRCPY },
+   { "struct", TK_STRUCT },
+   { "suspend", TK_SUSPEND },
+   { "switch", TK_SWITCH },
+   { "terminate", TK_TERMINATE },
+   { "true", TK_TRUE },
+   { "typedef", TK_TYPEDEF },
+   { "unloading", TK_UNLOADING },
+   { "until", TK_UNTIL },
+   { "upmost", TK_UPMOST },
+   { "using", TK_USING },
+   { "void", TK_VOID },
+   { "while", TK_WHILE },
+   { "whitereturn", TK_WHITE_RETURN },
+   { "world", TK_WORLD },
+   // Terminator.
+   { "\x7F", TK_END }
+};
+
+#define KEYWORDTABLE_ENTRY( keywords ) \
+   keywords, \
+   ARRAY_SIZE( keywords ), \
+   ARRAY_SIZE( keywords ) / 2
+
+static struct {
+   const struct keyword_table acs95;
+   const struct keyword_table bcs;
+} g_keyword_tables = {
+   { KEYWORDTABLE_ENTRY( g_keywords_acs95 ) },
+   { KEYWORDTABLE_ENTRY( g_keywords_bcs ) }
+};
+
 void p_load_main_source( struct parse* parse ) {
    struct request request;
    p_init_request( &request, NULL, parse->task->options->source_file );
@@ -594,92 +722,24 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
       }
-      // NOTE: Reserved identifiers must be listed in ascending order.
-      static const struct { const char* name; enum tk tk; }
-      reserved[] = {
-         { "assert", TK_ASSERT },
-         { "auto", TK_AUTO },
-         { "bluereturn", TK_BLUE_RETURN },
-         { "bool", TK_BOOL },
-         { "break", TK_BREAK },
-         { "case", TK_CASE },
-         { "cast", TK_CAST },
-         { "clientside", TK_CLIENTSIDE },
-         { "const", TK_CONST },
-         { "continue", TK_CONTINUE },
-         { "createtranslation", TK_PALTRANS },
-         { "death", TK_DEATH },
-         { "default", TK_DEFAULT },
-         { "disconnect", TK_DISCONNECT },
-         { "do", TK_DO },
-         { "else", TK_ELSE },
-         { "enter", TK_ENTER },
-         { "enum", TK_ENUM },
-         { "event", TK_EVENT },
-         { "extspec", TK_EXTSPEC },
-         { "false", TK_FALSE },
-         { "fixed", TK_FIXED },
-         { "for", TK_FOR },
-         { "foreach", TK_FOREACH },
-         { "function", TK_FUNCTION },
-         { "global", TK_GLOBAL },
-         { "goto", TK_GOTO },
-         { "if", TK_IF },
-         { "import", TK_IMPORT },
-         { "in", TK_IN },
-         { "int", TK_INT },
-         { "lightning", TK_LIGHTNING },
-         { "msgbuild", TK_MSGBUILD },
-         { "namespace", TK_NAMESPACE },
-         { "net", TK_NET },
-         { "null", TK_NULL },
-         { "objcpy", TK_OBJCPY },
-         { "open", TK_OPEN },
-         { "pickup", TK_PICKUP },
-         { "private", TK_PRIVATE },
-         { "raw", TK_RAW },
-         { "redreturn", TK_RED_RETURN },
-         { "ref", TK_REF },
-         { "respawn", TK_RESPAWN },
-         { "restart", TK_RESTART },
-         { "return", TK_RETURN },
-         { "script", TK_SCRIPT },
-         { "special", TK_SPECIAL },
-         { "static", TK_STATIC },
-         { "str", TK_STR },
-         { "strcpy", TK_STRCPY },
-         { "struct", TK_STRUCT },
-         { "suspend", TK_SUSPEND },
-         { "switch", TK_SWITCH },
-         { "terminate", TK_TERMINATE },
-         { "true", TK_TRUE },
-         { "typedef", TK_TYPEDEF },
-         { "unloading", TK_UNLOADING },
-         { "until", TK_UNTIL },
-         { "upmost", TK_UPMOST },
-         { "using", TK_USING },
-         { "void", TK_VOID },
-         { "while", TK_WHILE },
-         { "whitereturn", TK_WHITE_RETURN },
-         { "world", TK_WORLD },
-         // Terminator.
-         { "\x7F", TK_END } };
-      #define RESERVED_MAX ARRAY_SIZE( reserved )
-      #define RESERVED_MID ( RESERVED_MAX / 2 )
+      const struct keyword_table* table = &g_keyword_tables.bcs;
+      if ( parse->lang == LANG_ACS95 ) {
+         table = &g_keyword_tables.acs95;
+      }
       int i = 0;
       const char* id = text->value;
-      if ( strcmp( id, reserved[ RESERVED_MID ].name ) >= 0 ) {
-         i = RESERVED_MID;
+      if ( strcmp( id, table->entries[ table->mid ].name ) >= 0 ) {
+         i = table->mid;
       }
       while ( true ) {
          // Identifier.
-         if ( reserved[ i ].name[ 0 ] > *id ) {
+         if ( table->entries[ i ].name[ 0 ] > *id ) {
             tk = TK_ID;
             break;
          }
          // Reserved identifier.
-         else if ( strcmp( reserved[ i ].name, id ) == 0 ) {
-            tk = reserved[ i ].tk;
+         else if ( strcmp( table->entries[ i ].name, id ) == 0 ) {
+            tk = table->entries[ i ].tk;
             text = NULL;
             break;
          }

@@ -78,19 +78,21 @@ void read_peeked_token( struct parse* parse ) {
 // not present, or there are no more tokens available in the macro expansion,
 // reads a token from the source file.
 void read_token( struct parse* parse ) {
-   // Read from a predefined-macro expansion.
-   if ( parse->predef_macro_expan != PREDEFMACROEXPAN_NONE ) {
-      p_read_sourcepos_token( parse, parse->macro_expan ?
-         &parse->macro_expan->pos : &parse->token->pos );
-      parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
-      return;
-   }
-   // Read from a macro expansion.
-   parse->token = NULL;
-   while ( parse->macro_expan ) {
-      read_token_expan( parse );
-      if ( parse->token ) {
+   if ( parse->lang == LANG_BCS ) {
+      // Read from a predefined-macro expansion.
+      if ( parse->predef_macro_expan != PREDEFMACROEXPAN_NONE ) {
+         p_read_sourcepos_token( parse, parse->macro_expan ?
+            &parse->macro_expan->pos : &parse->token->pos );
+         parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
          return;
+      }
+      // Read from a macro expansion.
+      parse->token = NULL;
+      while ( parse->macro_expan ) {
+         read_token_expan( parse );
+         if ( parse->token ) {
+            return;
+         }
       }
    }
    // Read from a source file.

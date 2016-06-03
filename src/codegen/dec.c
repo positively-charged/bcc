@@ -83,6 +83,16 @@ void c_write_user_code( struct codegen* codegen ) {
    }
 }
 
+void c_write_user_code_acs( struct codegen* codegen ) {
+   // Scripts.
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      write_script( codegen, list_data( &i ) );
+      list_next( &i );
+   }
+}
+
 void write_script( struct codegen* codegen, struct script* script ) {
    struct func_record record;
    init_func_record( &record, NULL );
