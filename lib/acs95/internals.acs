@@ -1,0 +1,30 @@
+#library
+
+// Dedicated functions
+// Tail format: += <opcode> , <is-latent>
+function void Delay( int ) += 55, 1;
+function int Random( int, int ) += 57, 0;
+function int ThingCount( int, int ) += 59, 0;
+function void TagWait( int ) += 61, 1;
+function void PolyWait( int ) += 63, 1;
+function void ChangeFloor( int, str ) += 65, 0;
+function void ChangeCeiling( int, str ) += 67, 0;
+function int LineSide() += 80, 0;
+function void ScriptWait( int ) += 81, 1;
+function void ClearLineSpecial() += 83, 0;
+function int PlayerCount() += 90, 0;
+function int GameType() += 91, 0;
+function int GameSkill() += 92, 0;
+function int Timer() += 93, 0;
+function void SectorSound( str, int ) += 94, 0;
+function void AmbientSound( str, int ) += 95, 0;
+function void SoundSequence( str ) += 96, 0;
+function void SetLineTexture( int, int, int, str ) += 97, 0;
+function void SetLineBlocking( int, int ) += 98, 0;
+function void SetLineSpecial( int, int, int, int, int, int, int ) += 99, 0;
+function void ThingSound( int, str, int ) += 100, 0;
+
+// Format functions
+// Tail format: *= <terminating-opcode>
+function void Print() *= 86;
+function void PrintBold() *= 101;
