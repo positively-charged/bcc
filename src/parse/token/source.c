@@ -878,7 +878,7 @@ void read_token( struct parse* parse, struct token* token ) {
          struct pos pos = { parse->source->line, parse->source->column,
             parse->source->file->id };
          p_diag( parse, DIAG_POS_ERR, &pos,
-            "invalid digit in octal literal" );
+            "invalid digit in decimal literal" );
          p_bail( parse );
       }
       else {
