@@ -1863,7 +1863,8 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
    }
    // Make sure the function can be constant-called.
    if ( test->call->constant ) {
-      bool supported = ( test->func->type == FUNC_ASPEC );
+      bool supported = ( test->func->type == FUNC_ASPEC ||
+         test->func->type == FUNC_EXT );
       if ( test->func->type == FUNC_DED ) {
          struct func_ded* impl = test->func->impl;
          supported = ( c_get_direct_pcode( impl->opcode ) != NULL );

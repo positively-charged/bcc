@@ -886,15 +886,16 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
       }
    }
    else {
-      // This relic is not necessary in new code. The compiler is smart enough
-      // to figure out when to use the constant variant of an instruction.
-      if ( parse->tk == TK_CONST ) {
-         p_read_tk( parse );
-         p_test_tk( parse, TK_COLON );
-         p_read_tk( parse );
-         call->constant = true;
-      }
       if ( parse->tk != TK_PAREN_R ) {
+         // This relic is not necessary in new code. The compiler is smart
+         // enough to figure out when to use the constant variant of an
+         // instruction.
+         if ( parse->tk == TK_CONST ) {
+            p_read_tk( parse );
+            p_test_tk( parse, TK_COLON );
+            p_read_tk( parse );
+            call->constant = true;
+         }
          read_call_args( parse, reading, &call->args );
       }
    }
