@@ -434,6 +434,19 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "libdefine", TKF_KEYWORD ),
       ENTRY( "print", TKF_KEYWORD ),
       ENTRY( "printbold", TKF_KEYWORD ),
+      ENTRY( "wadauthor", TKF_KEYWORD ),
+      ENTRY( "nowadauthor", TKF_KEYWORD ),
+      ENTRY( "nocompact", TKF_KEYWORD ),
+      ENTRY( "library", TKF_KEYWORD ),
+      ENTRY( "encryptstrings", TKF_KEYWORD ),
+      ENTRY( "region", TKF_KEYWORD ),
+      // 140
+      ENTRY( "endregion", TKF_KEYWORD ),
+      ENTRY( "log", TKF_KEYWORD ),
+      ENTRY( "hudmessage", TKF_KEYWORD ),
+      ENTRY( "hudmessagebold", TKF_KEYWORD ),
+      ENTRY( "strparam", TKF_KEYWORD ),
+
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
       ENTRY( BLANK, TKF_NONE )
@@ -578,8 +591,19 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_DEFINE, "`define`" },
       { TK_LIBDEFINE, "`libdefine`" },
       { TK_PRINT, "`print`" },
-      { TK_PRINTBOLD, "`printbold`" } };
-   STATIC_ASSERT( TK_TOTAL == 134 );
+      { TK_PRINTBOLD, "`printbold`" },
+      { TK_WADAUTHOR, "`wadauthor`" },
+      { TK_NOWADAUTHOR, "`nowadauthor`" },
+      { TK_NOCOMPACT, "`nocompact`" },
+      { TK_LIBRARY, "`library`" },
+      { TK_ENCRYPTSTRINGS, "`encryptstrings`" },
+      { TK_REGION, "`region`" },
+      { TK_ENDREGION, "`endregion`" },
+      { TK_LOG, "`log`" },
+      { TK_HUDMESSAGE, "`hudmessage`" },
+      { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
+      { TK_STRPARAM, "`strparam`" } };
+   STATIC_ASSERT( TK_TOTAL == 145 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

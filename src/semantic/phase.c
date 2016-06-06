@@ -60,6 +60,8 @@ static void bind_func_name( struct semantic* semantic, struct name* name,
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static bool implicitly_imported( struct object* object );
+static void dupnameglobal_err( struct semantic* semantic, struct name* name,
+   struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct scope* scope,
    struct name* name, struct object* object );
 static void confirm_compiletime_content( struct semantic* semantic );
@@ -110,6 +112,7 @@ int s_spec( struct semantic* semantic, int spec ) {
 
 void s_test( struct semantic* semantic ) {
    switch ( semantic->lang ) {
+   case LANG_ACS:
    case LANG_ACS95:
       test_acs( semantic );
       break;
@@ -156,7 +159,18 @@ void test_acs( struct semantic* semantic ) {
 void test_module_acs( struct semantic* semantic, struct library* lib ) {
    semantic->ns = lib->upmost_ns;
    show_private_objects( semantic );
+   // In ACS, one can use functions before they are declared.
    list_iter_t i;
+   list_iter_init( &i, &lib->objects );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_FUNC ) {
+         struct func* func = ( struct func* ) node;
+         bind_namespace_object( semantic, &func->object );
+         s_test_func( semantic, func );
+      }
+      list_next( &i );
+   }
    list_iter_init( &i, &lib->objects );
    while ( ! list_end( &i ) ) {
       test_module_item_acs( semantic, list_data( &i ) );
@@ -182,8 +196,6 @@ void test_module_item_acs( struct semantic* semantic, struct node* node ) {
       break;
    case NODE_FUNC:
       func = ( struct func* ) node;
-      bind_namespace_object( semantic, &func->object );
-      s_test_func( semantic, func );
       if ( func->type == FUNC_USER ) {
          s_test_func_body( semantic, func );
       }
@@ -830,6 +842,10 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    }
    // Function scope.
    else if ( s_func_scope_forced( semantic ) ) {
+      if ( semantic->lang == LANG_ACS && name->object &&
+         name->object->depth == 0 ) {
+         dupnameglobal_err( semantic, name, object );
+      }
       bind_func_name( semantic, name, object );
    }
    // Block scope.
@@ -898,6 +914,18 @@ bool implicitly_imported( struct object* object ) {
       return alias->implicit;
    }
    return false;
+}
+
+void dupnameglobal_err( struct semantic* semantic, struct name* name,
+   struct object* object ) {
+   struct str str;
+   str_init( &str );
+   t_copy_name( name, false, &str );
+   s_diag( semantic, DIAG_POS_ERR, &object->pos,
+      "duplicate name `%s`", str.value );
+   s_diag( semantic, DIAG_POS, &name->object->pos,
+      "name already used by a global object found here", str.value );
+   s_bail( semantic );
 }
 
 void add_sweep_name( struct semantic* semantic, struct scope* scope,

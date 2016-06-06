@@ -110,7 +110,7 @@ void init_options( struct options* options ) {
    options->object_file = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
    options->tab_size = 4;
-   options->lang = LANG_BCS;
+   options->lang = LANG_ACS;
    options->acc_err = false;
    options->acc_stats = false;
    options->one_column = false;
@@ -241,12 +241,16 @@ bool read_options( struct options* options, char** argv ) {
       }
       else if ( strcmp( option, "x" ) == 0 ) {
          if ( *args ) {
-            if ( strcmp( *args, "bcs" ) == 0 ) {
-               options->lang = LANG_BCS;
+            if ( strcmp( *args, "acs" ) == 0 ) {
+               options->lang = LANG_ACS;
                ++args;
             }
             else if ( strcmp( *args, "acs95" ) == 0 ) {
                options->lang = LANG_ACS95;
+               ++args;
+            }
+            else if ( strcmp( *args, "bcs" ) == 0 ) {
+               options->lang = LANG_BCS;
                ++args;
             }
             else {
@@ -317,10 +321,11 @@ void print_usage( char* path ) {
       "  -E                   Do preprocessing only\n"
       "  -D <name>            Create a macro with the specified name. The\n"
       "                       macro will have a value of 1\n"
-      "  -x <language>        Specify the language of the source file.\n"
-      "                       Languages supported:\n"
+      "  -x <language>        Specify the language of the source file. The\n"
+      "                       language must be one of the following:\n"
+      "                         acs (default)\n"
       "                         acs95\n"
-      "                         bcs (default)\n"
+      "                         bcs\n"
       "Cache options:\n"
       "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"

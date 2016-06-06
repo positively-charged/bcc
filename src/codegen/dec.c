@@ -13,6 +13,7 @@ struct nestedfunc_writing {
    int local_size;
 };
 
+static void write_null_handler( struct codegen* codegen );
 static void write_script( struct codegen* codegen, struct script* script );
 static void write_func( struct codegen* codegen, struct func* func );
 static void init_func_record( struct func_record* record, struct func* func );
@@ -46,18 +47,9 @@ static void patch_nestedfunc_addresses( struct codegen* codegen,
    struct func* func );
 
 void c_write_user_code( struct codegen* codegen ) {
-   #define NULLDEREF_MSG "\\cgerror: using null reference"
-   struct indexed_string* string = t_intern_string( codegen->task,
-      NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
-   string->used = true;
-   c_append_string( codegen, string );
-   codegen->null_handler = c_tell( codegen );
-   c_add_opc( codegen, PCD_BEGINPRINT );
-   c_add_opc( codegen, PCD_PUSHNUMBER );
-   c_add_arg( codegen, string->index_runtime );
-   c_add_opc( codegen, PCD_PRINTSTRING );
-   c_add_opc( codegen, PCD_ENDLOG );
-   c_add_opc( codegen, PCD_TERMINATE );
+   if ( codegen->lang == LANG_BCS ) {
+      write_null_handler( codegen );
+   }
    // Scripts.
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->scripts );
@@ -81,6 +73,34 @@ void c_write_user_code( struct codegen* codegen ) {
          --i;
       }
    }
+   // Dummy script, for compatibility with older WAD editors. acc generates a
+   // separate body per script. Since the bodies are all the same, generate a
+   // single body, then have each script entry refer to the same body. (Not
+   // sure if this will work though, but I don't see why it wouldn't.)
+   if ( codegen->task->library_main->wadauthor ) {
+      codegen->dummy_script_offset = c_tell( codegen );
+      c_add_opc( codegen, PCD_TERMINATE );
+      if ( codegen->compress ) {
+         c_add_opc( codegen, PCD_NONE );
+         c_add_opc( codegen, PCD_NONE );
+         c_add_opc( codegen, PCD_NONE );
+      }
+   }
+}
+
+void write_null_handler( struct codegen* codegen ) {
+   #define NULLDEREF_MSG "\\cgerror: using null reference"
+   struct indexed_string* string = t_intern_string( codegen->task,
+      NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
+   string->used = true;
+   c_append_string( codegen, string );
+   codegen->null_handler = c_tell( codegen );
+   c_add_opc( codegen, PCD_BEGINPRINT );
+   c_add_opc( codegen, PCD_PUSHNUMBER );
+   c_add_arg( codegen, string->index_runtime );
+   c_add_opc( codegen, PCD_PRINTSTRING );
+   c_add_opc( codegen, PCD_ENDLOG );
+   c_add_opc( codegen, PCD_TERMINATE );
 }
 
 void c_write_user_code_acs( struct codegen* codegen ) {

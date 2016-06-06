@@ -40,6 +40,71 @@ struct keyword_table {
 };
 
 // NOTE: Reserved identifiers must be listed in ascending order.
+static const struct keyword_entry g_keywords_acs[] = {
+   //{ "acs_executewait", TK_ACSEXECUTEWAIT },
+   //{ "acs_namedexecutewait", TK_ACSNAMEDEXECUTEWAIT },
+   { "bluereturn", TK_BLUE_RETURN },
+   { "bool", TK_BOOL },
+   { "break", TK_BREAK },
+   { "case", TK_CASE },
+   { "clientside", TK_CLIENTSIDE },
+   { "const", TK_CONST },
+   { "continue", TK_CONTINUE },
+   { "createtranslation", TK_PALTRANS },
+   { "death", TK_DEATH },
+   { "default", TK_DEFAULT },
+   { "define", TK_DEFINE },
+   { "disconnect", TK_DISCONNECT },
+   { "do", TK_DO },
+   { "else", TK_ELSE },
+   { "encryptstrings", TK_ENCRYPTSTRINGS },
+   { "endregion", TK_ENDREGION },
+   { "enter", TK_ENTER },
+   { "event", TK_EVENT },
+   { "for", TK_FOR },
+   { "function", TK_FUNCTION },
+   { "global", TK_GLOBAL },
+   { "goto", TK_GOTO },
+   { "hudmessage", TK_HUDMESSAGE },
+   { "hudmessagebold", TK_HUDMESSAGEBOLD },
+   { "if", TK_IF },
+   { "import", TK_IMPORT },
+   { "include", TK_INCLUDE },
+   { "int", TK_INT },
+   { "libdefine", TK_LIBDEFINE },
+   { "library", TK_LIBRARY },
+   { "lightning", TK_LIGHTNING },
+   { "log", TK_LOG },
+   { "net", TK_NET },
+   { "nocompact", TK_NOCOMPACT },
+   { "nowadauthor", TK_NOWADAUTHOR },
+   { "open", TK_OPEN },
+   { "pickup", TK_PICKUP },
+   { "redreturn", TK_RED_RETURN },
+   { "region", TK_REGION },
+   { "respawn", TK_RESPAWN },
+   { "restart", TK_RESTART },
+   { "return", TK_RETURN },
+   { "script", TK_SCRIPT },
+   { "special", TK_SPECIAL },
+   { "static", TK_STATIC },
+   { "str", TK_STR },
+   { "strcpy", TK_STRCPY },
+   { "strparam", TK_STRPARAM },
+   { "suspend", TK_SUSPEND },
+   { "switch", TK_SWITCH },
+   { "terminate", TK_TERMINATE },
+   { "unloading", TK_UNLOADING },
+   { "until", TK_UNTIL },
+   { "void", TK_VOID },
+   { "wadauthor", TK_WADAUTHOR },
+   { "while", TK_WHILE },
+   { "whitereturn", TK_WHITE_RETURN },
+   { "world", TK_WORLD },
+   // Terminator.
+   { "\x7F", TK_END }
+};
+
 static const struct keyword_entry g_keywords_acs95[] = {
    { "break", TK_BREAK },
    { "case", TK_CASE },
@@ -101,7 +166,6 @@ static const struct keyword_entry g_keywords_bcs[] = {
    { "global", TK_GLOBAL },
    { "goto", TK_GOTO },
    { "if", TK_IF },
-   { "import", TK_IMPORT },
    { "in", TK_IN },
    { "int", TK_INT },
    { "libdefine", TK_LIBDEFINE },
@@ -149,9 +213,11 @@ static const struct keyword_entry g_keywords_bcs[] = {
    ARRAY_SIZE( keywords ) / 2
 
 static struct {
+   const struct keyword_table acs;
    const struct keyword_table acs95;
    const struct keyword_table bcs;
 } g_keyword_tables = {
+   { KEYWORDTABLE_ENTRY( g_keywords_acs ) },
    { KEYWORDTABLE_ENTRY( g_keywords_acs95 ) },
    { KEYWORDTABLE_ENTRY( g_keywords_bcs ) }
 };
@@ -732,8 +798,15 @@ void read_token( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       const struct keyword_table* table = &g_keyword_tables.bcs;
-      if ( parse->lang == LANG_ACS95 ) {
+      switch ( parse->lang ) {
+      case LANG_ACS:
+         table = &g_keyword_tables.acs;
+         break;
+      case LANG_ACS95:
          table = &g_keyword_tables.acs95;
+         break;
+      default:
+         break;
       }
       int i = 0;
       const char* id = text->value;

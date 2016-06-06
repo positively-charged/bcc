@@ -82,39 +82,70 @@ void c_write_chunk_obj( struct codegen* codegen ) {
    while ( c_tell( codegen ) < 32 ) {
       c_add_byte( codegen, 0 );
    }
-   c_seek( codegen, 0 );
-   if ( codegen->task->library_main->format == FORMAT_LITTLE_E ) {
-      c_add_str( codegen, "ACSe" );
-   }
-   else {
-      c_add_str( codegen, "ACSE" );
-   }
    c_add_int( codegen, chunk_pos );
-   c_flush( codegen );
-}
-
-void do_sptr( struct codegen* codegen ) {
-   if ( list_size( &codegen->task->library_main->scripts ) ) {
-      struct {
-         short number;
-         short type;
-         int offset;
-         int num_param;
-      } entry;
-      c_add_str( codegen, "SPTR" );
-      c_add_int( codegen, sizeof( entry ) *
-         list_size( &codegen->task->library_main->scripts ) );
+   c_add_str( codegen, codegen->compress ? "ACSe" : "ACSE" );
+   int dummy_offset = c_tell( codegen );
+   // Write dummy scripts.
+   if ( codegen->task->library_main->wadauthor ) {
+      int count = 0;
       list_iter_t i;
       list_iter_init( &i, &codegen->task->library_main->scripts );
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
-         entry.number = ( short ) script->assigned_number;
-         entry.type = ( short ) script->type;
-         entry.offset = script->offset;
-         entry.num_param = script->num_param;
-         c_add_sized( codegen, &entry, sizeof( entry ) );
+         if ( script->assigned_number >= 0 &&
+            script->assigned_number <= 255 ) {
+            ++count;
+         }
          list_next( &i );
       }
+      c_add_int( codegen, count );
+      list_iter_init( &i, &codegen->task->library_main->scripts );
+      while ( ! list_end( &i ) ) {
+         struct script* script = list_data( &i );
+         if ( script->assigned_number >= 0 &&
+            script->assigned_number <= 255 ) {
+            c_add_int( codegen, script->assigned_number );
+            c_add_int( codegen, codegen->dummy_script_offset );
+            c_add_int( codegen, script->num_param );
+         }
+         list_next( &i );
+      }
+   }
+   else {
+      c_add_int( codegen, 0 );
+   }
+   // Write dummy strings.
+   c_add_int( codegen, 0 );
+   // Write header.
+   c_seek( codegen, 0 );
+   c_add_sized( codegen, "ACS\0", 4 );
+   c_add_int( codegen, dummy_offset );
+   c_flush( codegen );
+}
+
+void do_sptr( struct codegen* codegen ) {
+   if ( ! list_size( &codegen->task->library_main->scripts ) ) {
+      return;
+   }
+   struct {
+      short number;
+      char type;
+      char num_param;
+      int offset;
+   } entry;
+   c_add_str( codegen, "SPTR" );
+   c_add_int( codegen, sizeof( entry ) *
+      list_size( &codegen->task->library_main->scripts ) );
+   list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->scripts );
+   while ( ! list_end( &i ) ) {
+      struct script* script = list_data( &i );
+      entry.number = ( short ) script->assigned_number;
+      entry.type = ( char ) script->type;
+      entry.num_param = ( char ) script->num_param;
+      entry.offset = script->offset;
+      c_add_sized( codegen, &entry, sizeof( entry ) );
+      list_next( &i );
    }
 }
 

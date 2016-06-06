@@ -401,6 +401,8 @@ static struct pcode pcode_info[] = {
    { PCD_PRINTSCRIPTCHARARRAY, 0, "" },
    { PCD_PRINTSCRIPTCHRANGE, 0, "" },
    { PCD_STRCPYTOSCRIPTCHRANGE, 0, "" },
+   { PCD_LSPEC5EX, 1, "ne" },
+   { PCD_LSPEC5EXRESULT, 1, "ne" },
 };
 
 struct pcode* c_get_pcode_info( int code ) {

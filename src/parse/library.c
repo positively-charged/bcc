@@ -3,6 +3,22 @@
 #include "phase.h"
 #include "cache/cache.h"
 
+enum pseudo_dirc {
+   PSEUDODIRC_UNKNOWN,
+   PSEUDODIRC_DEFINE,
+   PSEUDODIRC_LIBDEFINE,
+   PSEUDODIRC_INCLUDE,
+   PSEUDODIRC_IMPORT,
+   PSEUDODIRC_LIBRARY,
+   PSEUDODIRC_ENCRYPTSTRINGS,
+   PSEUDODIRC_WADAUTHOR,
+   PSEUDODIRC_NOWADAUTHOR,
+   PSEUDODIRC_NOCOMPACT,
+   PSEUDODIRC_REGION,
+   PSEUDODIRC_ENDREGION,
+   PSEUDODIRC_MNEMONIC
+};
+
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
@@ -15,13 +31,13 @@ static struct using_dirc* alloc_using( struct pos* pos );
 static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
 static struct path* alloc_path( struct pos pos );
-static void read_pseudo_dirc( struct parse* parse );
-static void read_pseudo_dirc_acs( struct parse* parse );
-static void read_pseudo_dirc_bcs( struct parse* parse );
+static void read_pseudo_dirc( struct parse* parse, bool first_object );
+static enum tk determine_bcs_pseudo_dirc( struct parse* parse );
 static void read_include( struct parse* parse );
 static void read_define( struct parse* parse );
 static void read_import( struct parse* parse, struct pos* pos );
-static void read_library( struct parse* parse, struct pos* );
+static void read_library( struct parse* parse, struct pos* pos,
+   bool first_object );
 static void read_library_name( struct parse* parse, struct pos* pos );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
@@ -37,17 +53,23 @@ void p_read_target_lib( struct parse* parse ) {
 }
 
 void read_module( struct parse* parse ) {
+   if ( parse->tk == TK_HASH ) {
+      read_pseudo_dirc( parse, true ); 
+   }
    while ( parse->tk != TK_END ) {
       read_module_item( parse );
    }
-   // Enable strong mode.
-   if ( p_find_macro( parse, "__strongmode" ) ) {
-      parse->lib->type_mode = TYPEMODE_STRONG;
+   if ( parse->lang == LANG_BCS ) {
+      // Enable strong mode.
+      if ( p_find_macro( parse, "__strongmode" ) ) {
+         parse->lib->type_mode = TYPEMODE_STRONG;
+      }
    }
 }
 
 void read_module_item( struct parse* parse ) {
    switch ( parse->lang ) {
+   case LANG_ACS:
    case LANG_ACS95:
       read_module_item_acs( parse );
       break;
@@ -57,7 +79,7 @@ void read_module_item( struct parse* parse ) {
          p_read_special_list( parse );
          break;
       case TK_HASH:
-         read_pseudo_dirc( parse );
+         read_pseudo_dirc( parse, false );
          break;
       case TK_NAMESPACE:
          read_namespace( parse, peek_header_namespace( parse ) );
@@ -71,28 +93,28 @@ void read_module_item( struct parse* parse ) {
 }
 
 void read_module_item_acs( struct parse* parse ) {
-   switch ( parse->tk ) {
+   if ( p_is_dec( parse ) || parse->tk == TK_FUNCTION ) {
       struct dec dec;
-   case TK_INT:
-   case TK_STR:
-   case TK_WORLD:
       p_init_dec( &dec );
       dec.name_offset = parse->ns->body;
-      p_read_var_acs( parse, &dec );
-      break;
-   case TK_SCRIPT:
-      p_read_script( parse );
-      break;
-   case TK_HASH:
-      read_pseudo_dirc( parse );
-      break;
-   case TK_SPECIAL:
-      p_read_special_list( parse );
-      break;
-   default:
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "unexpected %s", p_get_token_name( parse->tk ) );
-      p_bail( parse );
+      p_read_dec( parse, &dec );
+   }
+   else {
+      switch ( parse->tk ) {
+      case TK_SCRIPT:
+         p_read_script( parse );
+         break;
+      case TK_HASH:
+         read_pseudo_dirc( parse, false );
+         break;
+      case TK_SPECIAL:
+         p_read_special_list( parse );
+         break;
+      default:
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "unexpected %s", p_get_token_name( parse->tk ) );
+         p_bail( parse );
+      }
    }
 }
 
@@ -311,76 +333,114 @@ bool p_peek_path( struct parse* parse, struct parsertk_iter* iter ) {
    return true;
 }
 
-void read_pseudo_dirc( struct parse* parse ) {
-   switch ( parse->lang ) {
-   case LANG_ACS95:
-      read_pseudo_dirc_acs( parse );
-      break;
-   default:
-      read_pseudo_dirc_bcs( parse );
-      break;
-   }
-
-}
-
-void read_pseudo_dirc_acs( struct parse* parse ) {
+void read_pseudo_dirc( struct parse* parse, bool first_object ) {
    struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_HASH );
    p_read_tk( parse );
-   switch ( parse->tk ) {
+   // Determine the directive to read.
+   enum tk dirc = TK_NONE;
+   switch ( parse->lang ) {
+   case LANG_ACS:
+      switch ( parse->tk ) {
+      case TK_DEFINE:
+      case TK_LIBDEFINE:
+      case TK_INCLUDE:
+      case TK_IMPORT:
+      case TK_LIBRARY:
+      case TK_ENCRYPTSTRINGS:
+      case TK_NOCOMPACT:
+      case TK_WADAUTHOR:
+      case TK_NOWADAUTHOR:
+      case TK_REGION:
+      case TK_ENDREGION:
+         dirc = parse->tk;
+         break;
+      default:
+         break;
+      }
+      break;
+   case LANG_ACS95:
+      switch ( parse->tk ) {
+      case TK_DEFINE:
+      case TK_INCLUDE:
+         dirc = parse->tk;
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      dirc = determine_bcs_pseudo_dirc( parse );
+   }
+   // Read directive.
+   switch ( dirc ) {
+   case TK_DEFINE:
+   case TK_LIBDEFINE:
+      read_define( parse );
+      break;
    case TK_INCLUDE:
       read_include( parse );
       break;
-   case TK_DEFINE:
-      read_define( parse );
+   case TK_IMPORT:
+      read_import( parse, &pos );
+      break;
+   case TK_LIBRARY:
+      read_library( parse, &pos, first_object );
+      break;
+   case TK_ENCRYPTSTRINGS:
+      parse->lib->encrypt_str = true;
+      p_read_tk( parse );
+      break;
+   case TK_NOCOMPACT:
+      // NOTE: This restriction doesn't apply to our compiler, but keep it to
+      // stay compatible with acc. 
+      if ( parse->lang == LANG_ACS && (
+         list_size( &parse->lib->scripts ) > 0 ||
+         list_size( &parse->lib->funcs ) > 0 ) ) {
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "`%s` directive found after a script or a function",
+            parse->tk_text );
+         p_bail( parse );
+      }
+      parse->lib->format = FORMAT_BIG_E;
+      p_read_tk( parse );
+      break;
+   case TK_WADAUTHOR:
+   case TK_NOWADAUTHOR:
+      parse->lib->wadauthor = ( dirc == TK_WADAUTHOR );
+      p_read_tk( parse );
+      break;
+   case TK_REGION:
+   case TK_ENDREGION:
+      p_read_tk( parse );
+      break;
+   case TK_MNEMONIC:
+      p_read_mnemonic( parse );
       break;
    default:
       p_diag( parse, DIAG_POS_ERR, &pos,
-         "unknown directive `%s`", parse->tk_text );
+         "unknown directive: %s", parse->tk_text );
       p_bail( parse );
    }
 }
 
-void read_pseudo_dirc_bcs( struct parse* parse ) {
-   struct pos pos = parse->tk_pos;
-   p_test_tk( parse, TK_HASH );
-   p_read_tk( parse );
-   if ( parse->tk == TK_IMPORT ) {
-      p_read_tk( parse );
-      read_import( parse, &pos );
+enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
+   static const struct { const char* text; enum tk tk; } table[] = {
+      { "libdefine", TK_LIBDEFINE },
+      { "import", TK_IMPORT },
+      { "library", TK_LIBRARY },
+      { "encryptstrings", TK_ENCRYPTSTRINGS },
+      { "nocompact", TK_NOCOMPACT },
+      { "wadauthor", TK_WADAUTHOR },
+      { "nowadauthor", TK_NOWADAUTHOR },
+      { "mnemonic", TK_MNEMONIC },
+   };
+   for ( int i = 0; i < ARRAY_SIZE( table ); ++i ) {
+      if ( strcmp( parse->tk_text, table[ i ].text ) == 0 ) {
+         return table[ i ].tk;
+      }
    }
-   else if ( strcmp( parse->tk_text, "libdefine" ) == 0 ) {
-      read_define( parse );
-   }
-   else if ( strcmp( parse->tk_text, "library" ) == 0 ) {
-      p_read_tk( parse );
-      read_library( parse, &pos );
-   }
-   else if ( strcmp( parse->tk_text, "encryptstrings" ) == 0 ) {
-      parse->lib->encrypt_str = true;
-      p_read_tk( parse );
-   }
-   else if ( strcmp( parse->tk_text, "nocompact" ) == 0 ) {
-      parse->lib->format = FORMAT_BIG_E;
-      p_read_tk( parse );
-   }
-   else if ( strcmp( parse->tk_text, "mnemonic" ) == 0 ) {
-      p_read_tk( parse );
-      p_read_mnemonic( parse );
-   }
-   else if (
-      // NOTE: Not sure what these two are.
-      strcmp( parse->tk_text, "wadauthor" ) == 0 ||
-      strcmp( parse->tk_text, "nowadauthor" ) == 0 ) {
-      p_diag( parse, DIAG_POS_ERR, &pos, "directive `%s` not supported",
-         parse->tk_text );
-      p_bail( parse );
-   }
-   else {
-      p_diag( parse, DIAG_POS_ERR, &pos,
-         "unknown directive '%s'", parse->tk_text );
-      p_bail( parse );
-   }
+   return TK_NONE;
 }
 
 void read_include( struct parse* parse ) {
@@ -404,23 +464,20 @@ void read_define( struct parse* parse ) {
    p_test_tk( parse, TK_ID );
    struct constant* constant = t_alloc_constant();
    constant->object.pos = parse->tk_pos;
-   bool hidden = ( parse->lib->imported && define );
-   //constant->name = t_extend_name( hidden ?
-   //   parse->lib->hidden_names : parse->task->root_name,
-   //   parse->tk_text );
    constant->name = t_extend_name( parse->ns->body, parse->tk_text );
    p_read_tk( parse );
    struct expr_reading value;
    p_init_expr_reading( &value, true, false, false, true );
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
-   // constant->lib_id = parse->lib->id;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->lib->objects, constant );
    list_append( &parse->ns->objects, constant );
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_IMPORT );
+   p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
    struct import_dirc* dirc = mem_alloc( sizeof( *dirc ) );
    dirc->file_path = parse->tk_text;
@@ -429,13 +486,22 @@ void read_import( struct parse* parse, struct pos* pos ) {
    p_read_tk( parse );
 }
 
-void read_library( struct parse* parse, struct pos* pos ) {
+void read_library( struct parse* parse, struct pos* pos, bool first_object ) {
+   p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_LIBRARY );
+   p_read_tk( parse );
    parse->lib->header = true;
    if ( parse->tk == TK_LIT_STRING ) {
       read_library_name( parse, pos );
    }
    else {
       parse->lib->compiletime = true;
+   }
+   // In ACS, the #library header must be the first object in the module. In
+   // BCS, it can appear anywhere.
+   if ( parse->lang == LANG_ACS && ! first_object ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "`library` directive not at the very top" );
+      p_bail( parse );
    }
 }
 
@@ -496,9 +562,12 @@ void read_imported_libs( struct parse* parse ) {
    // functions.
    switch ( parse->lang ) {
       struct import_dirc dirc;
+   case LANG_ACS:
    case LANG_ACS95:
       dirc.pos = parse->lib->file_pos;
-      dirc.file_path = "lib/acs95/internals.acs";
+      dirc.file_path = ( parse->lang == LANG_ACS ) ?
+         "lib/acs/internals.acs" :
+         "lib/acs95/internals.acs";
       import_lib( parse, &dirc );
       break;
    default:
@@ -554,6 +623,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    p_define_cmdline_macros( parse );
    p_read_tk( parse );
    read_module( parse );
+   parse->lib = parse->task->library_main;
    // An imported library must have a #library directive.
    if ( ! lib->header ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,

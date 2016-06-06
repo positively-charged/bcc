@@ -155,6 +155,18 @@ enum tk {
    TK_LIBDEFINE,
    TK_PRINT,
    TK_PRINTBOLD,
+   TK_WADAUTHOR,
+   TK_NOWADAUTHOR,
+   TK_NOCOMPACT,
+   TK_LIBRARY,
+   TK_ENCRYPTSTRINGS,
+   TK_REGION,
+   // 140
+   TK_ENDREGION,
+   TK_LOG,
+   TK_HUDMESSAGE,
+   TK_HUDMESSAGEBOLD,
+   TK_STRPARAM,
 
    TK_TOTAL,
 
@@ -163,6 +175,7 @@ enum tk {
    TK_STRINGIZE,
    TK_PLACEMARKER,
    TK_PROCESSEDHASH,
+   TK_MNEMONIC,
 };
 
 struct token {
@@ -482,6 +495,5 @@ void p_clear_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
-void p_read_var_acs( struct parse* parse, struct dec* dec );
 
 #endif

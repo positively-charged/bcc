@@ -7,6 +7,7 @@
 enum { FIXEDNUMBER_WHOLE = 1 << 16 };
 enum { NULLVALUE_ARRAYSTRUCT = SHAREDARRAYFIELD_NULL };
 enum { NULLVALUE_FUNC = USHRT_MAX };
+enum { EXTENDEDASPEC_STARTID = 256 };
 
 struct result {
    struct ref* ref;
@@ -582,6 +583,7 @@ void visit_logical( struct codegen* codegen,
    }
    else {
       switch ( codegen->lang ) {
+      case LANG_ACS:
       case LANG_ACS95:
          write_logical_acs( codegen, result, logical );
          break;
@@ -1439,20 +1441,35 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
    int count = push_aspecext_arg_list( codegen, call );
    struct func_aspec* aspec = call->func->impl;
-   if ( result->push ) {
+   if ( aspec->id >= EXTENDEDASPEC_STARTID ) {
       while ( count < 5 ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          ++count;
       }
-      c_pcd( codegen, PCD_LSPEC5RESULT, aspec->id );
-      result->status = R_VALUE;
-   }
-   else if ( count ) {
-      c_pcd( codegen, g_aspec_code[ count - 1 ], aspec->id );
+      if ( result->push ) {
+         c_pcd( codegen, PCD_LSPEC5EXRESULT, aspec->id );
+         result->status = R_VALUE;
+      }
+      else {
+         c_pcd( codegen, PCD_LSPEC5EX, aspec->id );
+      }
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_LSPEC1, aspec->id );
+      if ( result->push ) {
+         while ( count < 5 ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+            ++count;
+         }
+         c_pcd( codegen, PCD_LSPEC5RESULT, aspec->id );
+         result->status = R_VALUE;
+      }
+      else if ( count > 0 ) {
+         c_pcd( codegen, g_aspec_code[ count - 1 ], aspec->id );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         c_pcd( codegen, PCD_LSPEC1, aspec->id );
+      }
    }
 }
 

@@ -113,6 +113,8 @@ struct fs_timestamp {
    time_t value;
 };
 
+#define strcasecmp _stricmp
+
 #else
 
 #include <sys/types.h>

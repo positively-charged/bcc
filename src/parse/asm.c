@@ -12,6 +12,8 @@ static void read_arg( struct parse* parse, struct inline_asm* inline_asm );
 static struct inline_asm_arg* alloc_inline_asm_arg( struct pos* pos );
 
 void p_read_mnemonic( struct parse* parse ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
    struct mnemonic* mnemonic = alloc_mnemonic();
    p_test_tk( parse, TK_ID );
    mnemonic->name = parse->tk_text;

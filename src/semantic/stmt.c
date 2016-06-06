@@ -510,7 +510,7 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    test_packed_expr( semantic, &expr_test, stmt->return_value );
    if ( func->return_spec == SPEC_VOID ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
-         "returning a value in void function" );
+         "returning a value from void function" );
       s_bail( semantic );
    }
    // Return value must be of the same type as the return type.
@@ -589,15 +589,21 @@ void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
    }
    list_iter_t i;
    list_iter_init( &i, &stmt->expr_list );
+   bool require_assign = ( list_size( &stmt->expr_list ) > 1 );
    struct expr* first_expr = list_head( &stmt->expr_list );
    while ( ! list_end( &i ) ) {
       struct expr* expr = list_data( &i );
-      if ( semantic->lang == LANG_ACS95 &&
-         first_expr->root->type == NODE_ASSIGN &&
-         expr->root->type != NODE_ASSIGN ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr->pos,
-            "expression not an assignment operation" );
-         s_bail( semantic );
+      switch ( semantic->lang ) {
+      case LANG_ACS:
+      case LANG_ACS95:
+         if ( require_assign && expr->root->type != NODE_ASSIGN ) {
+            s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+               "expression not an assignment operation" );
+            s_bail( semantic );
+         }
+         break;
+      default:
+         break;
       }
       struct expr_test expr_test;
       s_init_expr_test_packed( &expr_test, stmt->msgbuild_func, false );

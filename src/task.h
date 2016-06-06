@@ -1018,6 +1018,7 @@ struct library {
       TYPEMODE_STRONG
    } type_mode;
    enum {
+      LANG_ACS,
       LANG_ACS95,
       LANG_BCS
    } lang;
@@ -1026,6 +1027,7 @@ struct library {
    bool encrypt_str;
    bool compiletime;
    bool header;
+   bool wadauthor;
 };
 
 struct lang_limits {
@@ -1118,5 +1120,6 @@ struct format_item* t_alloc_format_item( void );
 struct call* t_alloc_call( void );
 int t_dim_size( struct dim* dim );
 const struct lang_limits* t_get_lang_limits( int lang );
+const char* t_get_storage_name( int storage );
 
 #endif

@@ -548,6 +548,7 @@ struct library* t_add_library( struct task* task ) {
    lib->file = NULL;
    lib->header = false;
    lib->compiletime = false;
+   lib->wadauthor = false;
    return lib;
 }
 
@@ -829,4 +830,13 @@ const struct lang_limits* t_get_lang_limits( int lang ) {
    static const struct lang_limits acs = { 64, 0, 64, 3, 128, 256, 32 };
    static const struct lang_limits bcs = { 256, 64, 1000, 4, 32768, 32768, 0 };
    return ( lang == LANG_ACS95 ) ? &acs : &bcs;
+}
+
+const char* t_get_storage_name( int storage ) {
+   switch ( storage ) {
+   case STORAGE_MAP: return "map";
+   case STORAGE_WORLD: return "world";
+   case STORAGE_GLOBAL: return "global";
+   default: return "local";
+   }
 }

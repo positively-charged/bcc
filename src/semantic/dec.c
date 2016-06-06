@@ -701,11 +701,31 @@ bool test_var_name( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_var_dim( struct semantic* semantic, struct var* var ) {
-   // No need to continue when the variable is not an array.
    if ( var->dim ) {
       struct dim_test test;
       init_dim_test( &test, var->dim, false );
       test_dim_list( semantic, &test );
+      if ( test.resolved && semantic->lang == LANG_ACS ) {
+         struct dim* dim = var->dim;
+         while ( dim ) {
+            if ( dim->length_node && ( dim == var->dim &&
+               ( var->storage == STORAGE_WORLD ||
+               var->storage == STORAGE_GLOBAL ) ) ) {
+               s_diag( semantic, DIAG_POS_ERR, &dim->pos,
+                  "length specified for dimension of %s array",
+                  t_get_storage_name( var->storage ) );
+               s_bail( semantic );
+            }
+            if ( ! dim->length_node && ! ( dim == var->dim &&
+               ( var->storage == STORAGE_WORLD ||
+               var->storage == STORAGE_GLOBAL ) ) ) {
+               s_diag( semantic, DIAG_POS_ERR, &dim->pos,
+                  "dimension missing length" );
+               s_bail( semantic );
+            }
+            dim = dim->next;
+         }
+      }
       return test.resolved;
    }
    else {
@@ -766,7 +786,7 @@ bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    }
    if ( dim->length_node->value <= 0 ) {
       s_diag( semantic, DIAG_POS_ERR, &dim->length_node->pos,
-         "dimension length <= 0" );
+         "dimension length less than or equal to 0" );
       s_bail( semantic );
    }
    dim->length = dim->length_node->value;
@@ -1280,11 +1300,27 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
             "array" : "struct variable" );
       s_bail( semantic );
    }
-   if ( semantic->lang == LANG_ACS95 && semantic->in_localscope &&
-      var->storage == STORAGE_WORLD ) {
-      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "world variable declared inside script" );
-      s_bail( semantic );
+   switch ( semantic->lang ) {
+   case LANG_ACS:
+   case LANG_ACS95:
+      if ( semantic->in_localscope && (
+         var->storage == STORAGE_WORLD ||
+         var->storage == STORAGE_GLOBAL ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "%s variable declared inside script",
+            t_get_storage_name( var->storage ) );
+         s_bail( semantic );
+      }
+      if ( var->dim && var->dim->next && ( var->storage == STORAGE_WORLD ||
+         var->storage == STORAGE_GLOBAL ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "multidimensional %s array",
+            t_get_storage_name( var->storage ) );
+         s_bail( semantic );
+      }
+      break;
+   default:
+      break;
    }
    return true;
 }
@@ -1615,6 +1651,18 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    }
    s_pop_scope( semantic );
    deinit_builtin_aliases( semantic, &builtin_aliases );
+   if ( semantic->lang == LANG_ACS ) {
+      bool return_stmt_at_end = false;
+      if ( list_size( &impl->body->stmts ) > 0 ) {
+         struct node* node = list_tail( &impl->body->stmts );
+         return_stmt_at_end = ( node->type == NODE_RETURN );
+      }
+      if ( func->return_spec != SPEC_VOID && ! return_stmt_at_end ) {
+         s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+            "function missing return statement at end of body" );
+         s_bail( semantic );
+      }
+   }
 }
 
 // THOUGHT: Instead of creating an alias for each builtin object, maybe making
@@ -1687,14 +1735,26 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
          "script number not constant" );
       s_bail( semantic );
    }
-   if ( semantic->lib->type_mode == TYPEMODE_STRONG ) {
-      script->named_script = ( script->number->spec == SPEC_STR );
+   switch ( semantic->lang ) {
+   case LANG_ACS:
+   case LANG_BCS:
+      script->named_script = ( semantic->lib->type_mode == TYPEMODE_STRONG ) ?
+         ( script->number->spec == SPEC_STR ) :
+         ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
+      break;
+   default:
+      break;
+   }
+   if ( script->named_script ) {
+      struct indexed_string* string = t_lookup_string( semantic->task,
+         script->number->value );
+      if ( strcasecmp( string->value, "none" ) == 0 ) {
+         s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
+            "\"%s\" is a reserved script name", string->value );
+         s_bail( semantic );
+      }
    }
    else {
-      script->named_script =
-         ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
-   }
-   if ( ! script->named_script ) {
       if ( script->number->value < SCRIPT_MIN_NUM ||
          script->number->value > SCRIPT_MAX_NUM ) {
          s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
@@ -1702,10 +1762,17 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
             SCRIPT_MAX_NUM );
          s_bail( semantic );
       }
-      if ( script->number->value == 0 && semantic->lang == LANG_BCS ) {
-         s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
-            "script number 0 not between `<<` and `>>`" );
-         s_bail( semantic );
+      switch ( semantic->lang ) {
+      case LANG_ACS:
+      case LANG_BCS:
+         if ( script->number->value == 0 ) {
+            s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
+               "script number 0 not between `<<` and `>>`" );
+            s_bail( semantic );
+         }
+         break;
+      default:
+         break;
       }
    }
 }

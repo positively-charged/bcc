@@ -10,20 +10,19 @@ static void read_implicit_block( struct parse* parse,
    struct stmt_reading* reading );
 static void read_block_item( struct parse* parse, struct stmt_reading* reading,
    struct block* block );
-void read_block_item_acs( struct parse* parse, struct stmt_reading* reading,
-   struct block* block );
-void read_block_item_bcs( struct parse* parse, struct stmt_reading* reading,
-   struct block* block );
 static void read_case( struct parse* parse, struct stmt_reading* );
 static void read_default_case( struct parse* parse, struct stmt_reading* );
 static void read_label( struct parse* parse, struct stmt_reading* );
-static void read_stmt( struct parse* parse, struct stmt_reading* );
+static void read_stmt( struct parse* parse, struct stmt_reading* reading,
+   struct block* block );
 static void read_if( struct parse* parse, struct stmt_reading* );
 static void read_switch( struct parse* parse, struct stmt_reading* );
 static struct switch_stmt* alloc_switch_stmt( void );
 static void read_while( struct parse* parse, struct stmt_reading* );
 static void read_do( struct parse* parse, struct stmt_reading* );
 static void read_for( struct parse* parse, struct stmt_reading* );
+static void read_for_init( struct parse* parse, struct for_stmt* stmt );
+static void read_for_post( struct parse* parse, struct for_stmt* stmt );
 static void read_foreach( struct parse* parse, struct stmt_reading* reading );
 static struct foreach_stmt* alloc_foreach( void );
 static void read_jump( struct parse* parse, struct stmt_reading* );
@@ -115,35 +114,82 @@ void read_implicit_block( struct parse* parse, struct stmt_reading* reading ) {
 void read_block_item( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
    reading->node = NULL;
-   switch ( parse->lang ) {
-   case LANG_ACS95:
-      read_block_item_acs( parse, reading, block );
-      break;
-   default:
-      read_block_item_bcs( parse, reading, block );
-      break;
+   read_stmt( parse, reading, block );
+   if ( reading->node ) {
+      list_append( &block->stmts, reading->node );
    }
 }
 
-void read_block_item_acs( struct parse* parse, struct stmt_reading* reading,
+// In certain programming languages, constructs like declarations and case
+// labels can only occur in block statements. In ACS, these are parsed as a
+// statement, so you can get weird code like the following:
+//    if ( 0 ) int a = 123;
+//    switch ( 0 ) default:
+// For the sake of being compatible with ACS, we do the same in BCS.
+void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
-   switch ( parse->tk ) {
+   // Declaration.
+   if ( p_is_dec( parse ) ) {
       struct dec dec;
-   case TK_INT:
-   case TK_STR:
-   case TK_WORLD:
       p_init_dec( &dec );
       dec.area = DEC_LOCAL;
       dec.name_offset = parse->ns->body;
       dec.vars = &block->stmts;
-      p_read_var_acs( parse, &dec );
+      p_read_dec( parse, &dec );
+      return;
+   }
+   // goto label.
+   if ( parse->lang == LANG_BCS && parse->tk == TK_ID &&
+      p_peek( parse ) == TK_COLON ) {
+      read_label( parse, reading );
+      return;
+   }
+   // assert/static-assert.
+   if ( parse->tk == TK_ASSERT ||
+      ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
+      read_assert( parse, reading );
+      return;
+   }
+   // Determine which statement to read.
+   enum tk stmt = TK_NONE;
+   switch ( parse->lang ) {
+   case LANG_ACS:
+   case LANG_ACS95:
+      switch ( parse->tk ) {
+      case TK_CASE:
+      case TK_DEFAULT:
+      case TK_BRACE_L:
+      case TK_IF:
+      case TK_SWITCH:
+      case TK_WHILE:
+      case TK_UNTIL:
+      case TK_DO:
+      case TK_BREAK:
+      case TK_CONTINUE:
+      case TK_TERMINATE:
+      case TK_RESTART:
+      case TK_SUSPEND:
+      case TK_SEMICOLON:
+      // ACS.
+      case TK_RETURN:
+      case TK_PALTRANS:
+         stmt = parse->tk;
+         break;
+      case TK_FOR:
+         // for-loop not available in ACS95.
+         if ( parse->lang == LANG_ACS ) {
+            stmt = TK_FOR;
+         }
+         break;
+      default:
+         break;
+      }
       break;
-   case TK_CASE:
-      read_case( parse, reading );
-      break;
-   case TK_DEFAULT:
-      read_default_case( parse, reading );
-      break;
+   default:
+      stmt = parse->tk;
+   }
+   // Read statement.
+   switch ( stmt ) {
    case TK_BRACE_L:
       read_block( parse, reading );
       break;
@@ -153,12 +199,24 @@ void read_block_item_acs( struct parse* parse, struct stmt_reading* reading,
    case TK_SWITCH:
       read_switch( parse, reading );
       break;
+   case TK_CASE:
+      read_case( parse, reading );
+      break;
+   case TK_DEFAULT:
+      read_default_case( parse, reading );
+      break;
    case TK_WHILE:
    case TK_UNTIL:
       read_while( parse, reading );
       break;
    case TK_DO:
       read_do( parse, reading );
+      break;
+   case TK_FOR:
+      read_for( parse, reading );
+      break;
+   case TK_FOREACH:
+      read_foreach( parse, reading );
       break;
    case TK_BREAK:
    case TK_CONTINUE:
@@ -169,53 +227,27 @@ void read_block_item_acs( struct parse* parse, struct stmt_reading* reading,
    case TK_SUSPEND:
       read_script_jump( parse, reading );
       break;
+   case TK_RETURN:
+      read_return( parse, reading );
+      break;
+   case TK_GOTO:
+      read_goto( parse, reading );
+      break;
+   case TK_USING:
+      p_read_using( parse, &block->stmts );
+      break;
+   case TK_PALTRANS:
+      read_paltrans( parse, reading );
+      break;
+   case TK_GT:
+      p_read_asm( parse, reading );
+      break;
    case TK_SEMICOLON:
       p_read_tk( parse );
       break;
    default:
       read_expr_stmt( parse, reading );
       break;
-   }
-   if ( reading->node ) {
-      list_append( &block->stmts, reading->node );
-   }
-}
-
-void read_block_item_bcs( struct parse* parse, struct stmt_reading* reading,
-   struct block* block ) {
-   if ( p_is_dec( parse ) ) {
-      struct dec dec;
-      p_init_dec( &dec );
-      dec.area = DEC_LOCAL;
-      dec.name_offset = parse->ns->body;
-      dec.vars = &block->stmts;
-      p_read_dec( parse, &dec );
-   }
-   else if ( parse->tk == TK_CASE ) {
-      read_case( parse, reading );
-      list_append( &block->stmts, reading->node );
-   }
-   else if ( parse->tk == TK_DEFAULT ) {
-      read_default_case( parse, reading );
-      list_append( &block->stmts, reading->node );
-   }
-   else if ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON ) {
-      read_label( parse, reading );
-      list_append( &block->stmts, reading->node );
-   }
-   else if ( parse->tk == TK_USING ) {
-      p_read_using( parse, &block->stmts );
-   }
-   else if ( parse->tk == TK_ASSERT ||
-      ( parse->tk == TK_STATIC && p_peek( parse ) == TK_ASSERT ) ) {
-      read_assert( parse, reading );
-      list_append( &block->stmts, reading->node );
-   }
-   else {
-      read_stmt( parse, reading );
-      if ( reading->node->type != NODE_NONE ) {
-         list_append( &block->stmts, reading->node );
-      }
    }
 }
 
@@ -266,64 +298,6 @@ struct label* alloc_label( const char* name, struct pos* pos ) {
    return label;
 }
 
-void read_stmt( struct parse* parse, struct stmt_reading* reading ) {
-   switch ( parse->tk ) {
-   case TK_BRACE_L:
-      read_block( parse, reading );
-      break;
-   case TK_IF:
-      read_if( parse, reading );
-      break;
-   case TK_SWITCH:
-      read_switch( parse, reading );
-      break;
-   case TK_WHILE:
-   case TK_UNTIL:
-      read_while( parse, reading );
-      break;
-   case TK_DO:
-      read_do( parse, reading );
-      break;
-   case TK_FOR:
-      read_for( parse, reading );
-      break;
-   case TK_FOREACH:
-      read_foreach( parse, reading );
-      break;
-   case TK_BREAK:
-   case TK_CONTINUE:
-      read_jump( parse, reading );
-      break;
-   case TK_TERMINATE:
-   case TK_RESTART:
-   case TK_SUSPEND:
-      read_script_jump( parse, reading );
-      break;
-   case TK_RETURN:
-      read_return( parse, reading );
-      break;
-   case TK_GOTO:
-      read_goto( parse, reading );
-      break;
-   case TK_PALTRANS:
-      read_paltrans( parse, reading );
-      break;
-   case TK_GT:
-      p_read_asm( parse, reading );
-      break;
-   case TK_SEMICOLON:
-      {
-         static struct node node = { NODE_NONE };
-         reading->node = &node;
-         p_read_tk( parse );
-      }
-      break;
-   default:
-      read_expr_stmt( parse, reading );
-      break;
-   }
-}
-
 void read_if( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct if_stmt* stmt = mem_alloc( sizeof( *stmt ) );
@@ -339,8 +313,8 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    // Warn when the body of an `if` statement is empty. It is assumed that a
    // semicolon is the empty statement.
    if ( parse->tk == TK_SEMICOLON ) {
-      p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &parse->tk_pos, "body of `if` statement is empty (`;`)" );
+      p_diag( parse, DIAG_WARN | DIAG_POS, &parse->tk_pos,
+         "body of `if` statement is empty (`;`)" );
    }
    read_implicit_block( parse, reading );
    stmt->body = reading->node;
@@ -348,8 +322,8 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    if ( parse->tk == TK_ELSE ) {
       p_read_tk( parse );
       if ( parse->tk == TK_SEMICOLON ) {
-         p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &parse->tk_pos, "body of `else` is empty (`;`)" );
+         p_diag( parse, DIAG_WARN | DIAG_POS, &parse->tk_pos,
+            "body of `else` is empty (`;`)" );
       }
       read_implicit_block( parse, reading );
       stmt->else_body = reading->node;
@@ -442,6 +416,7 @@ void read_do( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_for( struct parse* parse, struct stmt_reading* reading ) {
+   p_test_tk( parse, TK_FOR );
    p_read_tk( parse );
    struct for_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_FOR;
@@ -453,55 +428,48 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    stmt->jump_continue = NULL;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   // Optional initialization:
+   // Optional initialization.
    if ( parse->tk != TK_SEMICOLON ) {
-      if ( p_is_dec( parse ) ) {
-         struct dec dec;
-         p_init_dec( &dec );
-         dec.area = DEC_FOR;
-         dec.name_offset = parse->ns->body;
-         dec.vars = &stmt->init;
-         p_read_dec( parse, &dec );
-      }
-      else {
-         while ( true ) {
-            struct expr_reading expr;
-            p_init_expr_reading( &expr, false, false, false, true );
-            p_read_expr( parse, &expr );
-            list_append( &stmt->init, expr.output_node );
-            if ( parse->tk == TK_COMMA ) {
-               p_read_tk( parse );
-            }
-            else {
-               break;
-            }
-         }
-         p_test_tk( parse, TK_SEMICOLON );
-         p_read_tk( parse );
-      }
+      read_for_init( parse, stmt );
    }
    else {
       p_read_tk( parse );
    }
-   // Optional condition:
-   if ( parse->tk != TK_SEMICOLON ) {
+   // In BCS, the condition is optional.
+   if ( ! ( parse->lang == LANG_BCS && parse->tk == TK_SEMICOLON ) ) {
       struct expr_reading cond;
       p_init_expr_reading( &cond, false, false, false, true );
       p_read_expr( parse, &cond );
       stmt->cond = cond.output_node;
-      p_test_tk( parse, TK_SEMICOLON );
-      p_read_tk( parse );
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
+   // In BCS, the post-expression is optional.
+   if ( ! ( parse->lang == LANG_BCS && parse->tk == TK_PAREN_R ) ) {
+      read_for_post( parse, stmt );
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_implicit_block( parse, reading );
+   stmt->body = reading->node;
+   reading->node = &stmt->node;
+}
+
+void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
+   if ( p_is_dec( parse ) ) {
+      struct dec dec;
+      p_init_dec( &dec );
+      dec.area = DEC_FOR;
+      dec.name_offset = parse->ns->body;
+      dec.vars = &stmt->init;
+      p_read_dec( parse, &dec );
    }
    else {
-      p_read_tk( parse );
-   }
-   // Optional post-expression:
-   if ( parse->tk != TK_PAREN_R ) {
       while ( true ) {
          struct expr_reading expr;
          p_init_expr_reading( &expr, false, false, false, true );
          p_read_expr( parse, &expr );
-         list_append( &stmt->post, expr.output_node );
+         list_append( &stmt->init, expr.output_node );
          if ( parse->tk == TK_COMMA ) {
             p_read_tk( parse );
          }
@@ -509,12 +477,24 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
             break;
          }
       }
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
    }
-   p_test_tk( parse, TK_PAREN_R );
-   p_read_tk( parse );
-   read_implicit_block( parse, reading );
-   stmt->body = reading->node;
-   reading->node = &stmt->node;
+}
+
+void read_for_post( struct parse* parse, struct for_stmt* stmt ) {
+   while ( true ) {
+      struct expr_reading expr;
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      list_append( &stmt->post, expr.output_node );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
 }
 
 void read_foreach( struct parse* parse, struct stmt_reading* reading ) {

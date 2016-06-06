@@ -40,6 +40,7 @@ void p_run( struct parse* parse ) {
    lib->lang = parse->task->options->lang;
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
+   lib->wadauthor = ( lib->lang == LANG_ACS );
    parse->task->library_main = lib;
    parse->lib = lib;
    parse->ns = lib->upmost_ns;

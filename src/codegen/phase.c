@@ -61,6 +61,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->null_handler = 0;
    codegen->object_size = 0;
    codegen->lang = task->library_main->lang;
+   codegen->dummy_script_offset = 0;
 }
 
 void c_publish( struct codegen* codegen ) {

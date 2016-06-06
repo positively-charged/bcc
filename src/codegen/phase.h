@@ -105,6 +105,7 @@ struct codegen {
    int null_handler;
    int object_size;
    int lang;
+   int dummy_script_offset;
 };
 
 void c_init( struct codegen*, struct task* );
