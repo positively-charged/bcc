@@ -79,6 +79,7 @@ struct options {
    bool help;
    bool preprocess;
    bool write_asserts;
+   bool lang_specified;
    struct {
       const char* dir_path;
       int lifetime;

@@ -495,5 +495,6 @@ void p_clear_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
+int p_determine_lang_from_file_path( const char* path );
 
 #endif

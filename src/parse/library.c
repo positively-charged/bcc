@@ -605,7 +605,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
    // Read library from source file.
    lib = t_add_library( parse->task );
-   lib->lang = LANG_BCS;
+   lib->lang = p_determine_lang_from_file_path( query.file->full_path.value );
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->lib = lib;

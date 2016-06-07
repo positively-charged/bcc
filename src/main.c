@@ -117,6 +117,7 @@ void init_options( struct options* options ) {
    options->help = false;
    options->preprocess = false;
    options->write_asserts = true;
+   options->lang_specified = false;
    options->cache.dir_path = NULL;
    options->cache.lifetime = -1;
    options->cache.enable = false;
@@ -240,6 +241,7 @@ bool read_options( struct options* options, char** argv ) {
          }
       }
       else if ( strcmp( option, "x" ) == 0 ) {
+         options->lang_specified = true;
          if ( *args ) {
             if ( strcmp( *args, "acs" ) == 0 ) {
                options->lang = LANG_ACS;

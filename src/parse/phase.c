@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "phase.h"
 #include "cache/cache.h"
 
@@ -37,7 +39,9 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
 
 void p_run( struct parse* parse ) {
    struct library* lib = t_add_library( parse->task );
-   lib->lang = parse->task->options->lang;
+   lib->lang = ( parse->task->options->lang_specified ) ?
+      parse->task->options->lang : p_determine_lang_from_file_path(
+      parse->task->options->source_file );
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
    lib->wadauthor = ( lib->lang == LANG_ACS );
@@ -84,6 +88,18 @@ return;
    //p_next_tk( parse, &iter );
 
    // alloc_string_indexes( parse );
+}
+
+int p_determine_lang_from_file_path( const char* path ) {
+   const char* ext = "";
+   for ( int i = 0; path[ i ]; ++i ) {
+      if ( path[ i ] == '.' ) {
+         ext = path + i + 1;
+      }
+   }
+   return ( strcasecmp( ext, "bcs" ) == 0 ) ?
+      LANG_BCS :
+      LANG_ACS;
 }
 
 void p_diag( struct parse* parse, int flags, ... ) {
