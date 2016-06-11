@@ -137,6 +137,7 @@ static void visit_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct call* call );
+static int push_aspec_args( struct codegen* codegen, struct call* call );
 static void visit_ext_call( struct codegen* codegen, struct result* result,
    struct call* call );
 static int push_aspecext_arg_list( struct codegen* codegen,
@@ -1439,7 +1440,7 @@ void visit_call( struct codegen* codegen, struct result* result,
 
 void visit_aspec_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   int count = push_aspecext_arg_list( codegen, call );
+   int count = push_aspec_args( codegen, call );
    struct func_aspec* aspec = call->func->impl;
    if ( aspec->id >= EXTENDEDASPEC_STARTID ) {
       while ( count < 5 ) {
@@ -1471,6 +1472,65 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
          c_pcd( codegen, PCD_LSPEC1, aspec->id );
       }
    }
+}
+
+int push_aspec_args( struct codegen* codegen, struct call* call ) {
+   // Determine the amount of arguments to push.
+   struct param* param = call->func->params;
+   int i = 0;
+   int count = 0;
+   list_iter_t k;
+   list_iter_init( &k, &call->args );
+   while ( ! list_end( &k ) ) {
+      struct expr* arg = list_data( &k );
+      bool tagged_str = (
+         arg->has_str &&
+         codegen->task->library_main->importable );
+      bool skippable_arg = (
+         arg->folded &&
+         arg->value == 0 &&
+         tagged_str == false );
+      if ( ! skippable_arg ) {
+         count = i + 1;
+      }
+      list_next( &k );
+      if ( param ) {
+         param = param->next;
+      }
+      ++i;
+   }
+   // Determine the amount of default arguments to push.
+   while ( param ) {
+      bool skippable_arg = (
+         param->default_value &&
+         param->default_value->folded &&
+         param->default_value->value == 0 &&
+         param->default_value->has_str == false );
+      if ( ! skippable_arg ) {
+         count = i + 1;
+      }
+      param = param->next;
+      ++i;
+   }
+   // Push arguments.
+   i = 0;
+   param = call->func->params;
+   list_iter_init( &k, &call->args );
+   while ( ! list_end( &k ) && i < count ) {
+      c_push_expr( codegen, list_data( &k ) );
+      list_next( &k );
+      if ( param ) {
+         param = param->next;
+      }
+      ++i;
+   }
+   // Push default arguments.
+   while ( param && i < count ) {
+      c_push_expr( codegen, param->default_value );
+      param = param->next;
+      ++i;
+   }
+   return count;
 }
 
 void visit_ext_call( struct codegen* codegen, struct result* result,
