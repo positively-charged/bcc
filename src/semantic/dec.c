@@ -1555,6 +1555,17 @@ bool test_param_name( struct semantic* semantic, struct param* param ) {
 
 bool test_param_after_ref( struct semantic* semantic, struct func* func,
    struct param* param ) {
+   // Builtin functions accept only primitive arguments.
+   if ( func->type != FUNC_USER ) {
+      struct type_info type;
+      s_init_type_info( &type, param->ref, param->structure,
+         param->enumeration, NULL, param->spec );
+      if ( ! s_is_value_type( &type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
+            "parameter of builtin function of non-primitive type" );
+         s_bail( semantic );
+      }
+   }
    if ( param->default_value ) {
       return test_param_default_value( semantic, func, param );
    }
