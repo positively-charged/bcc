@@ -2032,7 +2032,7 @@ void read_script_body( struct parse* parse, struct script* script ) {
 void p_read_special_list( struct parse* parse ) {
    p_test_tk( parse, TK_SPECIAL );
    p_read_tk( parse );
-   if ( parse->lib->imported ) {
+   if ( parse->lang == LANG_ACS && parse->lib->imported ) {
       p_skip_semicolon( parse );
    }
    else {
