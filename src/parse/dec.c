@@ -42,6 +42,15 @@ struct script_reading {
    bool param_specified;
 };
 
+struct special_reading {
+   struct param* param;
+   struct param* param_tail;
+   int return_spec;
+   int min_param;
+   int max_param;
+   bool optional;
+};
+
 static bool is_dec_bcs( struct parse* parse );
 static bool peek_dec_beginning_with_id( struct parse* parse );
 static void read_enum( struct parse* parse, struct dec* );
@@ -136,6 +145,17 @@ static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
 static void read_special( struct parse* parse );
+static void init_special_reading( struct special_reading* reading );
+static void read_special_param_dec( struct parse* parse,
+   struct special_reading* reading );
+static void read_special_param_list_minmax( struct parse* parse,
+   struct special_reading* reading );
+static void read_special_param_list( struct parse* parse,
+   struct special_reading* reading );
+static void read_special_param( struct parse* parse,
+   struct special_reading* reading );
+static void read_special_return_type( struct parse* parse,
+   struct special_reading* reading );
 
 bool p_is_dec( struct parse* parse ) {
    switch ( parse->lang ) {
@@ -2031,6 +2051,8 @@ void p_read_special_list( struct parse* parse ) {
 }
 
 void read_special( struct parse* parse ) {
+   struct special_reading reading;
+   init_special_reading( &reading );
    bool minus = false;
    switch ( parse->lang ) {
    case LANG_ACS:
@@ -2045,7 +2067,6 @@ void read_special( struct parse* parse ) {
    }
    // Special-number/function-index.
    struct func* func = t_alloc_func();
-   func->return_spec = SPEC_INT;
    p_test_tk( parse, TK_LIT_DECIMAL );
    int id = p_extract_literal_value( parse );
    p_read_tk( parse );
@@ -2056,30 +2077,27 @@ void read_special( struct parse* parse ) {
    func->object.pos = parse->tk_pos;
    func->name = t_extend_name( parse->ns->body, parse->tk_text );
    p_read_tk( parse );
+   // Parameters.
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   // Parameter count, in two formats:
-   // 1. Maximum parameters
-   // 2. Minimum parameters , maximum-parameters
-   p_test_tk( parse, TK_LIT_DECIMAL );
-   func->max_param = p_extract_literal_value( parse );
-   func->min_param = func->max_param;
+   read_special_param_dec( parse, &reading );
+   func->min_param = reading.min_param;
+   func->max_param = reading.max_param;
+   func->params = reading.param;
+   p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+   // Return type.
+   func->return_spec = SPEC_RAW;
    switch ( parse->lang ) {
-   case LANG_ACS:
    case LANG_BCS:
-      if ( parse->tk == TK_COMMA ) {
-         p_read_tk( parse );
-         p_test_tk( parse, TK_LIT_DECIMAL );
-         func->max_param = p_extract_literal_value( parse );
-         p_read_tk( parse );
+      if ( parse->tk == TK_COLON ) {
+         read_special_return_type( parse, &reading );
+         func->return_spec = reading.return_spec;
       }
       break;
    default:
       break;
    }
-   p_test_tk( parse, TK_PAREN_R );
-   p_read_tk( parse );
    // Done.
    if ( minus ) {
       struct func_ext* impl = mem_alloc( sizeof( *impl ) );
@@ -2093,8 +2111,138 @@ void read_special( struct parse* parse ) {
       impl->script_callable = true;
       func->type = FUNC_ASPEC;
       func->impl = impl;
+      if ( parse->tk == TK_COLON ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_LIT_DECIMAL );
+         impl->script_callable = ( p_extract_literal_value( parse ) != 0 );
+         func->impl = impl;
+         p_read_tk( parse );
+      }
    }
    p_add_unresolved( parse, &func->object );
    list_append( &parse->ns->objects, func );
    list_append( &parse->lib->objects, func );
+}
+
+void init_special_reading( struct special_reading* reading ) { 
+   reading->param = NULL;
+   reading->param_tail = NULL;
+   reading->return_spec = SPEC_NONE;
+   reading->min_param = 0;
+   reading->max_param = 0;
+   reading->optional = false;
+}
+
+void read_special_param_dec( struct parse* parse,
+   struct special_reading* reading ) {
+   if ( parse->lang == LANG_ACS || parse->lang == LANG_ACS95 ||
+      parse->tk == TK_LIT_DECIMAL ) {
+      read_special_param_list_minmax( parse, reading );
+   }
+   else {
+      read_special_param_list( parse, reading );
+   }
+}
+
+void read_special_param_list_minmax( struct parse* parse,
+   struct special_reading* reading ) {
+   // Two formats:
+   // 1. <maximum-parameters>
+   // 2. <minimum-parameters> , <maximum-parameters>
+   p_test_tk( parse, TK_LIT_DECIMAL );
+   reading->max_param = p_extract_literal_value( parse );
+   reading->min_param = reading->max_param;
+   p_read_tk( parse );
+   switch ( parse->lang ) {
+   case LANG_ACS:
+   case LANG_BCS:
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_LIT_DECIMAL );
+         reading->max_param = p_extract_literal_value( parse );
+         p_read_tk( parse );
+      }
+      break;
+   default:
+      break;
+   }
+}
+
+void read_special_param_list( struct parse* parse,
+   struct special_reading* reading ) {
+   // Required parameters.
+   while ( true ) {
+      read_special_param( parse, reading );
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
+   }
+   // Optional parameters.
+   if ( parse->tk == TK_SEMICOLON ) {
+      reading->optional = true;
+      p_read_tk( parse );
+      while ( true ) {
+         read_special_param( parse, reading );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
+      }
+   }
+}
+
+void read_special_param( struct parse* parse,
+   struct special_reading* reading ) {
+   struct param* param = t_alloc_param();
+   param->object.pos = parse->tk_pos;
+   switch ( parse->tk ) {
+   case TK_RAW: param->spec = SPEC_RAW; break;
+   case TK_INT: param->spec = SPEC_INT; break;
+   case TK_FIXED: param->spec = SPEC_FIXED; break;
+   case TK_BOOL: param->spec = SPEC_BOOL; break;
+   case TK_STR: param->spec = SPEC_STR; break;
+   default:
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, "parameter type" );
+      p_bail( parse );
+   }
+   p_read_tk( parse );
+   if ( reading->param ) {
+      reading->param_tail->next = param;
+   }
+   else {
+      reading->param = param;
+   }
+   reading->param_tail = param;
+   if ( reading->optional ) {
+      ++reading->max_param;
+   }
+   else {
+      ++reading->min_param;
+      ++reading->max_param;
+   }
+}
+
+void read_special_return_type( struct parse* parse,
+   struct special_reading* reading ) {
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
+   switch ( parse->tk ) {
+   case TK_RAW: reading->return_spec = SPEC_RAW; break;
+   case TK_INT: reading->return_spec = SPEC_INT; break;
+   case TK_FIXED: reading->return_spec = SPEC_FIXED; break;
+   case TK_BOOL: reading->return_spec = SPEC_BOOL; break;
+   case TK_STR: reading->return_spec = SPEC_STR; break;
+   case TK_VOID: reading->return_spec = SPEC_VOID; break;
+   default:
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, "return type" );
+      p_bail( parse );
+   }
+   p_read_tk( parse );
 }
