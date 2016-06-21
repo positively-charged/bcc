@@ -86,14 +86,12 @@ int main( int argc, char* argv[] ) {
       goto deinit_object_file;
    }
    jmp_buf bail;
-   struct task task;
-   t_init( &task, &options, &bail );
    if ( setjmp( bail ) == 0 ) {
+      struct task task;
+      t_init( &task, &options, &bail );
       perform_task( &task );
+      t_deinit( &task );
       result = EXIT_SUCCESS;
-   }
-   if ( task.err_file ) {
-      fclose( task.err_file );
    }
    deinit_object_file:
    str_deinit( &compiler_dir );

@@ -4,8 +4,6 @@
 
 #include "task.h"
 
-enum { ALTERN_FILENAME_INITIAL_ID = -1 };
-
 static void init_str_table( struct str_table* table );
 static void open_logfile( struct task* task );
 void show_diag( struct task* task, int flags, va_list* args );
@@ -56,6 +54,19 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    func->impl = format_impl;
    task->append_func = func;
    func->name = t_extend_name( task->root_name, ".append" );
+
+   // Dummy nodes.
+   struct expr* expr = t_alloc_expr();
+   expr->pos.id = ALTERN_FILENAME_COMPILER;
+   expr->pos.line = 0;
+   expr->pos.column = 0;
+   expr->spec = SPEC_RAW;
+   struct literal* literal = t_alloc_literal();
+   expr->root = &literal->node;
+   expr->folded = true;
+   task->dummy_expr = expr;
+
+   t_create_builtins( task );
 }
 
 struct ns* t_alloc_ns( struct task* task, struct name* name ) {
@@ -367,16 +378,24 @@ void decode_pos( struct task* task, struct pos* pos, const char** file,
    const char* filename = "";
    // Negative IDs indicate an alternative filename.
    if ( pos->id < 0 ) {
-      int id = ALTERN_FILENAME_INITIAL_ID;
-      list_iter_t i;
-      list_iter_init( &i, &task->altern_filenames );
-      while ( ! list_end( &i ) ) {
-         if ( id == pos->id ) {
-            filename = list_data( &i );
-            break;
+      switch ( pos->id ) {
+         int id;
+      case ALTERN_FILENAME_COMPILER:
+         filename = "compiler";
+         break;
+      default:
+         id = ALTERN_FILENAME_INITIAL_ID;
+         list_iter_t i;
+         list_iter_init( &i, &task->altern_filenames );
+         while ( ! list_end( &i ) ) {
+            if ( id == pos->id ) {
+               filename = list_data( &i );
+               break;
+            }
+            --id;
+            list_next( &i );
          }
-         --id;
-         list_next( &i );
+         break;
       }
    }
    else {
@@ -415,7 +434,14 @@ const char* t_decode_pos_file( struct task* task, struct pos* pos ) {
 }
  
 void t_bail( struct task* task ) {
+   t_deinit( task );
    longjmp( *task->bail, 1 );
+}
+
+void t_deinit( struct task* task ) {
+   if ( task->err_file ) {
+      fclose( task->err_file );
+   }
 }
 
 bool t_same_pos( struct pos* a, struct pos* b ) {
@@ -839,4 +865,35 @@ const char* t_get_storage_name( int storage ) {
    case STORAGE_GLOBAL: return "global";
    default: return "local";
    }
+}
+
+struct literal* t_alloc_literal( void ) {
+   struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
+   literal->node.type = NODE_LITERAL;
+   literal->value = 0;
+   return literal;
+}
+
+struct expr* t_alloc_expr( void ) {
+   struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
+   expr->node.type = NODE_EXPR;
+   expr->root = NULL;
+   expr->spec = SPEC_NONE;
+   expr->value = 0;
+   expr->folded = false;
+   expr->has_str = false;
+   return expr;
+}
+
+struct indexed_string_usage* t_alloc_indexed_string_usage( void ) {
+   struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
+   usage->node.type = NODE_INDEXED_STRING_USAGE;
+   usage->string = NULL;
+   return usage;
+}
+
+void t_init_pos_id( struct pos* pos, int id ) {
+   pos->id = id;
+   pos->line = 0;
+   pos->column = 0;
 }

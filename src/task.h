@@ -28,6 +28,11 @@ struct file_query {
    bool success;
 };
 
+enum {
+   ALTERN_FILENAME_COMPILER = -1,
+   ALTERN_FILENAME_INITIAL_ID = -2,
+};
+
 struct pos {
    int line;
    int column;
@@ -1058,6 +1063,7 @@ struct task {
    struct name* root_name;
    struct name* array_name;
    struct func* append_func;
+   struct expr* dummy_expr;
 };
 
 #define DIAG_NONE 0
@@ -1084,6 +1090,7 @@ void t_intern_diag( struct task* task, const char* file, int line,
 void t_unhandlednode_diag( struct task*, const char* file, int line,
    struct node* node );
 void t_bail( struct task* );
+void t_deinit( struct task* task );
 bool t_same_pos( struct pos*, struct pos* );
 void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
@@ -1121,5 +1128,10 @@ struct call* t_alloc_call( void );
 int t_dim_size( struct dim* dim );
 const struct lang_limits* t_get_lang_limits( int lang );
 const char* t_get_storage_name( int storage );
+struct literal* t_alloc_literal( void );
+struct expr* t_alloc_expr( void );
+void t_create_builtins( struct task* task );
+struct indexed_string_usage* t_alloc_indexed_string_usage( void );
+void t_init_pos_id( struct pos* pos, int id );
 
 #endif

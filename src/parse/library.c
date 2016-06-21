@@ -558,15 +558,6 @@ void p_add_unresolved( struct parse* parse, struct object* object ) {
 }
 
 void read_imported_libs( struct parse* parse ) {
-   // Implicitly import the library that declares the dedicated and format
-   // functions.
-   struct import_dirc dirc;
-   dirc.pos = parse->lib->file_pos;
-   dirc.file_path = ( parse->lang == LANG_ACS95 ) ?
-      "lib/acs95/internals.bcs" :
-      "lib/acs/internals.bcs";
-   import_lib( parse, &dirc );
-   // Explicit imports.
    list_iter_t i;
    list_iter_init( &i, &parse->lib->import_dircs );
    while ( ! list_end( &i ) ) {
