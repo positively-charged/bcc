@@ -762,7 +762,8 @@ enum {
    IS_INPROGRESS,
    IS_BOSSFIGHT,
    IS_WAVECOMPLETE,
-   IS_COUNDOWN
+   IS_COUNDOWN,
+   IS_MISSIONFAILED
 }
 
 enum {
@@ -1072,8 +1073,8 @@ enum {
    GAMEEVENT_ROUND_ABORTED
 }
 
-enum DB_ORDER_DESC = false;
-enum DB_ORDER_ASC = true;
+enum DB_ORDER_ASC = false;
+enum DB_ORDER_DESC = true;
 
 enum {
    TM_SECOND,
@@ -1091,417 +1092,393 @@ enum INT_MAX = 2147483647;
 // Functions
 // ==========================================================================
 
-// Action specials
-// Tail format: = <action-special-number> , <script-callable>
-function int Polyobj_StartLine( int, int, int, int ) = 1, 0;
-function int Polyobj_RotateLeft( int, int, int ) = 2, 1;
-function int Polyobj_RotateRight( int, int, int ) = 3, 1;
-function int Polyobj_Move( int, int, int, int ) = 4, 1;
-function int Polyobj_ExplicitLine( int, int, int, int, int ) = 5, 0;
-function int Polyobj_MoveTimes8( int, int, int, int ) = 6, 1;
-function int Polyobj_DoorSwing( int, int, int, int ) = 7, 1;
-function int Polyobj_DoorSlide( int, int, int, int, int ) = 8, 1;
-function int Line_Horizon() = 9, 0;
-function int Door_Close( int, int, int = 0 ) = 10, 1;
-function int Door_Open( int, int, int = 0 ) = 11, 1;
-function int Door_Raise( int, int, int, int = 0 ) = 12, 1;
-function int Door_LockedRaise( int, int, int, int, int = 0 ) = 13, 1;
-function int Door_Animated( int, int, int, int = 0 ) = 14, 1;
-function int Autosave() = 15, 1;
-function int Transfer_WallLight( int, int ) = 16, 0;
-function int Thing_Raise( int ) = 17, 1;
-function int StartConversation( int, int = 0 ) = 18, 1;
-function int Thing_Stop( int ) = 19, 1;
-function int Floor_LowerByValue( int, int, int, int = 0 ) = 20, 1;
-function int Floor_LowerToLowest( int, int, int = 0 ) = 21, 1;
-function int Floor_LowerToNearest( int, int, int = 0 ) = 22, 1;
-function int Floor_RaiseByValue( int, int, int, int = 0, int = 0 ) = 23, 1;
-function int Floor_RaiseToHighest( int, int, int = 0, int = 0,
-   int = 0 ) = 24, 1;
-function int Floor_RaiseToNearest( int, int, int = 0, int = 0 ) = 25, 1;
-function int Stairs_BuildDown( int, int, int, int, int ) = 26, 1;
-function int Stairs_BuildUp( int, int, int, int, int ) = 27, 1;
-function int Floor_RaiseAndCrush( int, int, int, int = 0 ) = 28, 1;
-function int Pillar_Build( int, int, int ) = 29, 1;
-function int Pillar_Open( int, int, int, int ) = 30, 1;
-function int Stairs_BuildDownSync( int, int, int, int ) = 31, 1;
-function int Stairs_BuildUpSync( int, int, int, int ) = 32, 1;
-function int ForceField() = 33, 1;
-function int ClearForceField( int ) = 34, 1;
-function int Floor_RaiseByValueTimes8( int, int, int, int = 0,
-   int = 0 ) = 35, 1;
-function int Floor_LowerByValueTimes8( int, int, int, int = 0 ) = 36, 1;
-function int Floor_MoveToValue( int, int, int, int = 0, int = 0 ) = 37, 1;
-function int Ceiling_Waggle( int, int, int, int, int ) = 38, 1;
-function int Teleport_ZombieChanger( int, int ) = 39, 1;
-function int Ceiling_LowerByValue( int, int, int, int = 0 ) = 40, 1;
-function int Ceiling_RaiseByValue( int, int, int, int = 0 ) = 41, 1;
-function int Ceiling_CrushAndRaise( int, int, int, int = 0 ) = 42, 1;
-function int Ceiling_LowerAndCrush( int, int, int, int = 0 ) = 43, 1;
-function int Ceiling_CrushStop( int ) = 44, 1;
-function int Ceiling_CrushRaiseAndStay( int, int, int, int = 0 ) = 45, 1;
-function int Floor_CrushStop( int ) = 46, 1;
-function int Ceiling_MoveToValue( int, int, int, int = 0, int = 0 ) = 47, 1;
-function int Sector_Attach3dMidTex( int, int, int ) = 48, 0;
-function int GlassBreak( int = 0 ) = 49, 1;
-function int ExtraFloor_LightOnly( int, int ) = 50, 0;
-function int Sector_SetLink( int, int, int, int ) = 51, 1;
-function int Scroll_Wall( int, int, int, int, int ) = 52, 1;
-function int Line_SetTextureOffset( int, int, int, int, int ) = 53, 1;
-function int Sector_ChangeFlags( int, int, int ) = 54, 1;
-function int Line_SetBlocking( int, int, int ) = 55, 1;
-function int Line_SetTextureScale( int, int, int, int, int ) = 56, 1;
-function int Sector_SetPortal( int, int, int, int, int ) = 57, 0;
-function int Sector_CopyScroller( int, int ) = 58, 0;
-function int Polyobj_Or_MoveToSpot( int, int, int ) = 59, 1;
-function int Plat_PerpetualRaise( int, int, int ) = 60, 1;
-function int Plat_Stop( int ) = 61, 1;
-function int Plat_DownWaitUpStay( int, int, int ) = 62, 1;
-function int Plat_DownByValue( int, int, int, int ) = 63, 1;
-function int Plat_UpWaitDownStay( int, int, int ) = 64, 1;
-function int Plat_UpByValue( int, int, int, int ) = 65, 1;
-function int Floor_LowerInstant( int, int, int, int = 0 ) = 66, 1;
-function int Floor_RaiseInstant( int, int, int, int = 0, int = 0 ) = 67, 1;
-function int Floor_MoveToValueTimes8( int, int, int, int, int = 0 ) = 68, 1;
-function int Ceiling_MoveToValueTimes8( int, int, int, int, int = 0 ) = 69, 1;
-function int Teleport( int, int = 0, int = 0 ) = 70, 1;
-function int Teleport_NoFog( int, int = 0, int = 0, int = 0 ) = 71, 1;
-function int ThrustThing( int, int, int = 0, int = 0 ) = 72, 1;
-function int DamageThing( int, int = 0 ) = 73, 1;
-function int Teleport_NewMap( int, int, int = 0 ) = 74, 1;
-function int Teleport_EndGame() = 75, 1;
-function int TeleportOther( int, int, int ) = 76, 1;
-function int TeleportGroup( int, int, int, int, int ) = 77, 1;
-function int TeleportInSector( int, int, int, int, int = 0 ) = 78, 1;
-function int Thing_SetConversation( int, int ) = 79, 1;
-function int Acs_Execute( int, int, int = 0, int = 0, int = 0 ) = 80, 1;
-function int Acs_Suspend( int, int ) = 81, 1;
-function int Acs_Terminate( int, int ) = 82, 1;
-function int Acs_LockedExecute( int, int, int, int, int ) = 83, 1;
-function int Acs_ExecuteWithResult( int, int = 0, int = 0, int = 0,
-   int = 0 ) = 84, 1;
-function int Acs_LockedExecuteDoor( int, int, int, int, int ) = 85, 1;
-function int Polyobj_MoveToSpot( int, int, int ) = 86, 1;
-function int Polyobj_Stop( int ) = 87, 1;
-function int Polyobj_MoveTo( int, int, int, int ) = 88, 1;
-function int Polyobj_Or_MoveTo( int, int, int, int ) = 89, 1;
-function int Polyobj_Or_RotateLeft( int, int, int ) = 90, 1;
-function int Polyobj_Or_RotateRight( int, int, int ) = 91, 1;
-function int Polyobj_Or_Move( int, int, int, int ) = 92, 1;
-function int Polyobj_Or_MoveTimes8( int, int, int, int ) = 93, 1;
-function int Pillar_BuildAndCrush( int, int, int, int, int = 0 ) = 94, 1;
-function int FloorAndCeiling_LowerByValue( int, int, int ) = 95, 1;
-function int FloorAndCeiling_RaiseByValue( int, int, int ) = 96, 1;
-function int Ceiling_LowerAndCrushDist( int, int, int, int = 0,
-   int = 0 ) = 97, 1;
-function int Sector_SetTranslucent( int, int, int, int = 0 ) = 98, 1;
-function int Floor_RaiseAndCrushDoom( int, int, int, int = 0 ) = 99, 1;
-function int Scroll_Texture_Left( int, int = 0 ) = 100, 0;
-function int Scroll_Texture_Right( int, int = 0 ) = 101, 0;
-function int Scroll_Texture_Up( int, int = 0 ) = 102, 0;
-function int Scroll_Texture_Down( int, int = 0 ) = 103, 0;
-function int Ceiling_CrushAndRaiseSilentDist( int, int, int, int,
-   int = 0 ) = 104, 1;
-function int Door_WaitRaise( int, int, int, int, int = 0 ) = 105, 1;
-function int Door_WaitClose( int, int, int, int = 0 ) = 106, 1;
-function int Line_SetPortalTarget( int, int ) = 107, 1;
-function int Light_ForceLightning( int ) = 109, 1;
-function int Light_RaiseByValue( int, int ) = 110, 1;
-function int Light_LowerByValue( int, int ) = 111, 1;
-function int Light_ChangeToValue( int, int ) = 112, 1;
-function int Light_Fade( int, int, int ) = 113, 1;
-function int Light_Glow( int, int, int, int ) = 114, 1;
-function int Light_Flicker( int, int, int ) = 115, 1;
-function int Light_Strobe( int, int, int, int, int ) = 116, 1;
-function int Light_Stop( int ) = 117, 1;
-function int Plane_Copy( int, int, int, int, int ) = 118, 0;
-function int Thing_Damage( int, int, int = 0 ) = 119, 1;
-function int Radius_Quake( int, int, int, int, int ) = 120, 1;
-function int Line_SetIdentification( int, int, int, int, int ) = 121, 0;
-function int Thing_Move( int, int, int = 0 ) = 125, 1;
-function int Thing_SetSpecial( int, int, int, int, int ) = 127, 1;
-function int ThrustThingZ( int, int, int, int ) = 128, 1;
-function int UsePuzzleItem() = 129, 0;
-function int Thing_Activate( int ) = 130, 1;
-function int Thing_Deactivate( int ) = 131, 1;
-function int Thing_Remove( int ) = 132, 1;
-function int Thing_Destroy( int, int = 0, int = 0 ) = 133, 1;
-function int Thing_Projectile( int, int, int, int, int ) = 134, 1;
-function int Thing_Spawn( int, int, int, int = 0 ) = 135, 1;
-function int Thing_ProjectileGravity( int, int, int, int, int ) = 136, 1;
-function int Thing_SpawnNoFog( int, int, int, int = 0 ) = 137, 1;
-function int Floor_Waggle( int, int, int, int, int ) = 138, 1;
-function int Thing_SpawnFacing( int, int, int = 0, int = 0 ) = 139, 1;
-function int Sector_ChangeSound( int, int ) = 140, 1;
-function int Player_SetTeam( int ) = 145, 1;
-function int Team_Score( int, int ) = 152, 1;
-function int Team_GivePoints( int, int, int ) = 153, 1;
-function int Teleport_NoStop( int, int, int = 0 ) = 154, 1;
-function int SetGlobalFogParameter( int, int ) = 157, 1;
-function int Fs_Excute( int, int = 0, int = 0, int = 0 ) = 158, 1;
-function int Sector_SetPlaneReflection( int, int, int ) = 159, 1;
-function int Sector_Set3dFloor( int, int, int, int, int ) = 160, 0;
-function int Sector_SetContents( int, int, int ) = 161, 0;
-function int Ceiling_CrushAndRaiseDist( int, int, int, int = 0,
-   int = 0 ) = 168, 1;
-function int Generic_Crusher2( int, int, int, int, int ) = 169, 1;
-function int Sector_SetCeilingScale2( int, int, int ) = 170, 1;
-function int Sector_SetFloorScale2( int, int, int ) = 171, 1;
-function int Plat_UpNearestWaitDownStay( int, int, int ) = 172, 1;
-function int NoiseAlert( int, int ) = 173, 1;
-function int SendToCommunicator( int, int, int, int ) = 174, 1;
-function int Thing_ProjectileIntercept( int, int, int, int, int ) = 175, 1;
-function int Thing_ChangeTid( int, int ) = 176, 1;
-function int Thing_Hate( int, int, int = 0 ) = 177, 1;
-function int Thing_ProjectileAimed( int, int, int, int, int = 0 ) = 178, 1;
-function int ChangeSkill( int ) = 179, 1;
-function int Thing_SetTranslation( int, int ) = 180, 1;
-function int Plane_Align( int, int, int ) = 181, 0;
-function int Line_Mirror() = 182, 0;
-function int Line_AlignCeiling( int, int ) = 183, 1;
-function int Line_AlignFloor( int, int ) = 184, 1;
-function int Sector_SetRotation( int, int, int ) = 185, 1;
-function int Sector_SetCeilingPanning( int, int, int, int, int ) = 186, 1;
-function int Sector_SetFloorPanning( int, int, int, int, int ) = 187, 1;
-function int Sector_SetCeilingScale( int, int, int, int, int ) = 188, 1;
-function int Sector_SetFloorScale( int, int, int, int, int ) = 189, 1;
-function int Static_Init( int, int, int, int ) = 190, 0;
-function int SetPlayerProperty( int, int, int ) = 191, 1;
-function int Ceiling_LowerToHighestFloor( int, int, int = 0,
-   int = 0 ) = 192, 1;
-function int Ceiling_LowerInstant( int, int, int, int = 0, int = 0 ) = 193, 1;
-function int Ceiling_RaiseInstant( int, int, int, int = 0 ) = 194, 1;
-function int Ceiling_CrushRaiseAndStayA( int, int, int, int,
-   int = 0 ) = 195, 1;
-function int Ceiling_CrushAndRaiseA( int, int, int, int, int = 0 ) = 196, 1;
-function int Ceiling_CrushAndRaiseSilentA( int, int, int, int,
-   int = 0 ) = 197, 1;
-function int Ceiling_RaiseByValueTimes8( int, int, int, int = 0 ) = 198, 1;
-function int Ceiling_LowerByValueTImes8( int, int, int, int = 0 ) = 199, 1;
-function int Generic_Floor( int, int, int, int, int ) = 200, 1;
-function int Generic_Ceiling( int, int, int, int, int ) = 201, 1;
-function int Generic_Door( int, int, int, int, int ) = 202, 1;
-function int Generic_Lift( int, int, int, int, int ) = 203, 1;
-function int Generic_Stairs( int, int, int, int, int ) = 204, 1;
-function int Generic_Crusher( int, int, int, int, int ) = 205, 1;
-function int Plat_DownWaitUpStayLip( int, int, int, int, int = 0 ) = 206, 1;
-function int Plat_PerpetualRaiseLip( int, int, int, int ) = 207, 1;
-function int TranslucentLine( int, int, int = 0 ) = 208, 1;
-function int Transfer_Heights( int, int ) = 209, 0;
-function int Transfer_FloorLight( int ) = 210, 0;
-function int Transfer_CeilingLight( int ) = 211, 0;
-function int Sector_SetColor( int, int, int, int, int = 0 ) = 212, 1;
-function int Sector_SetFade( int, int, int, int ) = 213, 1;
-function int Sector_SetDamage( int, int, int, int = 0, int = 0 ) = 214, 1;
-function int Teleport_Line( int, int ) = 215, 1;
-function int Sector_SetGravity( int, int, int ) = 216, 1;
-function int Stairs_BuildUpDoom( int, int, int, int, int ) = 217, 1;
-function int Sector_SetWind( int, int, int, int ) = 218, 1;
-function int Sector_SetFriction( int, int ) = 219, 1;
-function int Sector_SetCurrent( int, int, int, int ) = 220, 1;
-function int Scroll_Texture_Both( int, int, int, int, int ) = 221, 1;
-function int Scroll_Texture_Model( int, int ) = 222, 0;
-function int Scroll_Floor( int, int, int, int ) = 223, 1;
-function int Scroll_Ceiling( int, int, int, int ) = 224, 1;
-function int Scroll_Texture_Offsets( int ) = 225, 0;
-function int Acs_ExecuteAlways( int, int, int = 0, int = 0, int = 0 ) = 226, 1;
-function int PointPush_SetForce( int, int, int, int ) = 227, 0;
-function int Plat_RaiseAndStayTx0( int, int, int = 0 ) = 228, 1;
-function int Thing_SetGoal( int, int, int, int = 0 ) = 229, 1;
-function int Plat_UpByValueStayTx( int, int, int ) = 230, 1;
-function int Plat_ToggleCeiling( int ) = 231, 1;
-function int Light_StrobeDoom( int, int, int ) = 232, 1;
-function int Light_MinNeighbor( int ) = 233, 1;
-function int Light_MaxNeighbor( int ) = 234, 1;
-function int Floor_TransferTrigger( int ) = 235, 1;
-function int Floor_TransferNumeric( int ) = 236, 1;
-function int ChangeCamera( int, int, int ) = 237, 1;
-function int Floor_RaiseToLowestCeiling( int, int, int = 0, int = 0 ) = 238, 1;
-function int Floor_RaiseByValueTxTy( int, int, int ) = 239, 1;
-function int Floor_RaiseByTexture( int, int, int = 0, int = 0 ) = 240, 1;
-function int Floor_LowerToLowestTxTy( int, int ) = 241, 1;
-function int Floor_LowerToHighest( int, int, int, int = 0 ) = 242, 1;
-function int Exit_Normal( int ) = 243, 1;
-function int Exit_Secret( int ) = 244, 1;
-function int Elevator_RaiseToNearest( int, int ) = 245, 1;
-function int Elevator_MoveToFloor( int, int ) = 246, 1;
-function int Elevator_LowerToNearest( int, int ) = 247, 1;
-function int HealThing( int, int = 0 ) = 248, 1;
-function int Door_CloseWaitOpen( int, int, int, int = 0 ) = 249, 1;
-function int Floor_Donut( int, int, int ) = 250, 1;
-function int FloorAndCeiling_LowerRaise( int, int, int, int = 0 ) = 251, 1;
-function int Ceiling_RaiseToNearest( int, int, int = 0 ) = 252, 1;
-function int Ceiling_LowerToLowest( int, int, int = 0, int = 0 ) = 253, 1;
-function int Ceiling_LowerToFloor( int, int, int = 0, int = 0 ) = 254, 1;
-function int Ceiling_CrushRaiseAndStaySilA( int, int, int, int,
-   int = 0 ) = 255, 1;
-function int Floor_LowerToHighestEE( int, int, int = 0 ) = 256, 1;
-function int Floor_RaiseToLowest( int, int, int = 0 ) = 257, 1;
-function int Floor_LowerToLowestCeiling( int, int, int = 0 ) = 258, 1;
-function int Floor_RaiseToCeiling( int, int, int = 0, int = 0 ) = 259, 1;
-function int Floor_ToCeilingInstant( int, int = 0, int = 0 ) = 260, 1;
-function int Floor_LowerByTexture( int, int, int = 0 ) = 261, 1;
-function int Ceiling_RaiseToHighest( int, int, int = 0 ) = 262, 1;
-function int Ceiling_ToHighestInstant( int, int = 0, int = 0 ) = 263, 1;
-function int Ceiling_LowerToNearest( int, int, int = 0, int = 0 ) = 264, 1;
-function int Ceiling_RaiseToLowest( int, int, int = 0 ) = 265, 1;
-function int Ceiling_RaiseToHighestFloor( int, int, int = 0 ) = 266, 1;
-function int Ceiling_ToFloorInstant( int, int = 0, int = 0 ) = 267, 1;
-function int Ceiling_RaiseByTexture( int, int, int = 0 ) = 268, 1;
-function int Ceiling_LowerByTexture( int, int, int = 0, int = 0 ) = 269, 1;
-function int Stairs_BuildDownDoom( int, int, int, int, int ) = 270, 1;
-function int Stairs_BuildUpDoomSync( int, int, int, int ) = 271, 1;
-function int Stairs_BuildDownDoomSync( int, int, int, int ) = 272, 1;
+special
+   // Action specials
+   // Tail format: <script-callable>
+   1:Polyobj_StartLine(int,int,int,int):int:0,
+   2:Polyobj_RotateLeft(int,int,int):int,
+   3:Polyobj_RotateRight(int,int,int):int,
+   4:Polyobj_Move(int,int,int,int):int,
+   5:Polyobj_ExplicitLine(int,int,int,int,int):int:0,
+   6:Polyobj_MoveTimes8(int,int,int,int):int,
+   7:Polyobj_DoorSwing(int,int,int,int):int,
+   8:Polyobj_DoorSlide(int,int,int,int,int):int,
+   9:Line_Horizon():int:0,
+   10:Door_Close(int,int;int):int,
+   11:Door_Open(int,int;int):int,
+   12:Door_Raise(int,int,int;int):int,
+   13:Door_LockedRaise(int,int,int,int;int):int,
+   14:Door_Animated(int,int,int;int):int,
+   15:Autosave():int,
+   16:Transfer_WallLight(int,int):int:0,
+   17:Thing_Raise(int):int,
+   18:StartConversation(int;int):int,
+   19:Thing_Stop(int):int,
+   20:Floor_LowerByValue(int,int,int;int):int,
+   21:Floor_LowerToLowest(int,int;int):int,
+   22:Floor_LowerToNearest(int,int;int):int,
+   23:Floor_RaiseByValue(int,int,int;int,int):int,
+   24:Floor_RaiseToHighest(int,int;int,int,int):int,
+   25:Floor_RaiseToNearest(int,int;int,int):int,
+   26:Stairs_BuildDown(int,int,int,int,int):int,
+   27:Stairs_BuildUp(int,int,int,int,int):int,
+   28:Floor_RaiseAndCrush(int,int,int;int):int,
+   29:Pillar_Build(int,int,int):int,
+   30:Pillar_Open(int,int,int,int):int,
+   31:Stairs_BuildDownSync(int,int,int,int):int,
+   32:Stairs_BuildUpSync(int,int,int,int):int,
+   33:ForceField():int,
+   34:ClearForceField(int):int,
+   35:Floor_RaiseByValueTimes8(int,int,int;int,int):int,
+   36:Floor_LowerByValueTimes8(int,int,int;int):int,
+   37:Floor_MoveToValue(int,int,int;int,int):int,
+   38:Ceiling_Waggle(int,int,int,int,int):int,
+   39:Teleport_ZombieChanger(int,int):int,
+   40:Ceiling_LowerByValue(int,int,int;int):int,
+   41:Ceiling_RaiseByValue(int,int,int;int):int,
+   42:Ceiling_CrushAndRaise(int,int,int;int):int,
+   43:Ceiling_LowerAndCrush(int,int,int;int):int,
+   44:Ceiling_CrushStop(int):int,
+   45:Ceiling_CrushRaiseAndStay(int,int,int;int):int,
+   46:Floor_CrushStop(int):int,
+   47:Ceiling_MoveToValue(int,int,int;int,int):int,
+   48:Sector_Attach3dMidTex(int,int,int):int:0,
+   49:GlassBreak(int):int,
+   50:ExtraFloor_LightOnly(int,int):int:0,
+   51:Sector_SetLink(int,int,int,int):int,
+   52:Scroll_Wall(int,int,int,int,int):int,
+   53:Line_SetTextureOffset(int,int,int,int,int):int,
+   54:Sector_ChangeFlags(int,int,int):int,
+   55:Line_SetBlocking(int,int,int):int,
+   56:Line_SetTextureScale(int,int,int,int,int):int,
+   57:Sector_SetPortal(int,int,int,int,int):int:0,
+   58:Sector_CopyScroller(int,int):int:0,
+   59:Polyobj_Or_MoveToSpot(int,int,int):int,
+   60:Plat_PerpetualRaise(int,int,int):int,
+   61:Plat_Stop(int):int,
+   62:Plat_DownWaitUpStay(int,int,int):int,
+   63:Plat_DownByValue(int,int,int,int):int,
+   64:Plat_UpWaitDownStay(int,int,int):int,
+   65:Plat_UpByValue(int,int,int,int):int,
+   66:Floor_LowerInstant(int,int,int;int):int,
+   67:Floor_RaiseInstant(int,int,int;int,int):int,
+   68:Floor_MoveToValueTimes8(int,int,int,int;int):int,
+   69:Ceiling_MoveToValueTimes8(int,int,int,int;int):int,
+   70:Teleport(int;int,int):int,
+   71:Teleport_NoFog(int;int,int,int):int,
+   72:ThrustThing(int,int;int,int):int,
+   73:DamageThing(int;int):int,
+   74:Teleport_NewMap(int,int;int):int,
+   75:Teleport_EndGame():int,
+   76:TeleportOther(int,int,int):int,
+   77:TeleportGroup(int,int,int,int,int):int,
+   78:TeleportInSector(int,int,int,int;int):int,
+   79:Thing_SetConversation(int,int):int,
+   80:Acs_Execute(int,int;int,int,int):int,
+   81:Acs_Suspend(int,int):int,
+   82:Acs_Terminate(int,int):int,
+   83:Acs_LockedExecute(int,int,int,int,int):int,
+   84:Acs_ExecuteWithResult(int;int,int,int,int):int,
+   85:Acs_LockedExecuteDoor(int,int,int,int,int):int,
+   86:Polyobj_MoveToSpot(int,int,int):int,
+   87:Polyobj_Stop(int):int,
+   88:Polyobj_MoveTo(int,int,int,int):int,
+   89:Polyobj_Or_MoveTo(int,int,int,int):int,
+   90:Polyobj_Or_RotateLeft(int,int,int):int,
+   91:Polyobj_Or_RotateRight(int,int,int):int,
+   92:Polyobj_Or_Move(int,int,int,int):int,
+   93:Polyobj_Or_MoveTimes8(int,int,int,int):int,
+   94:Pillar_BuildAndCrush(int,int,int,int;int):int,
+   95:FloorAndCeiling_LowerByValue(int,int,int):int,
+   96:FloorAndCeiling_RaiseByValue(int,int,int):int,
+   97:Ceiling_LowerAndCrushDist(int,int,int;int,int):int,
+   98:Sector_SetTranslucent(int,int,int;int):int,
+   99:Floor_RaiseAndCrushDoom(int,int,int;int):int,
+   100:Scroll_Texture_Left(int;int):int:0,
+   101:Scroll_Texture_Right(int;int):int:0,
+   102:Scroll_Texture_Up(int;int):int:0,
+   103:Scroll_Texture_Down(int;int):int:0,
+   104:Ceiling_CrushAndRaiseSilentDist(int,int,int,int;int):int,
+   105:Door_WaitRaise(int,int,int,int;int):int,
+   106:Door_WaitClose(int,int,int;int):int,
+   107:Line_SetPortalTarget(int,int):int,
+   109:Light_ForceLightning(int):int,
+   110:Light_RaiseByValue(int,int):int,
+   111:Light_LowerByValue(int,int):int,
+   112:Light_ChangeToValue(int,int):int,
+   113:Light_Fade(int,int,int):int,
+   114:Light_Glow(int,int,int,int):int,
+   115:Light_Flicker(int,int,int):int,
+   116:Light_Strobe(int,int,int,int,int):int,
+   117:Light_Stop(int):int,
+   118:Plane_Copy(int,int,int,int,int):int:0,
+   119:Thing_Damage(int,int;int):int,
+   120:Radius_Quake(int,int,int,int,int):int,
+   121:Line_SetIdentification(int,int,int,int,int):int:0,
+   125:Thing_Move(int,int;int):int,
+   127:Thing_SetSpecial(int,int,int,int,int):int,
+   128:ThrustThingZ(int,int,int,int):int,
+   129:UsePuzzleItem():int:0,
+   130:Thing_Activate(int):int,
+   131:Thing_Deactivate(int):int,
+   132:Thing_Remove(int):int,
+   133:Thing_Destroy(int;int,int):int,
+   134:Thing_Projectile(int,int,int,int,int):int,
+   135:Thing_Spawn(int,int,int;int):int,
+   136:Thing_ProjectileGravity(int,int,int,int,int):int,
+   137:Thing_SpawnNoFog(int,int,int;int):int,
+   138:Floor_Waggle(int,int,int,int,int):int,
+   139:Thing_SpawnFacing(int,int;int,int):int,
+   140:Sector_ChangeSound(int,int):int,
+   145:Player_SetTeam(int):int,
+   152:Team_Score(int,int):int,
+   153:Team_GivePoints(int,int,int):int,
+   154:Teleport_NoStop(int,int;int):int,
+   157:SetGlobalFogParameter(int,int):int,
+   158:Fs_Excute(int;int,int,int):int,
+   159:Sector_SetPlaneReflection(int,int,int):int,
+   160:Sector_Set3dFloor(int,int,int,int,int):int:0,
+   161:Sector_SetContents(int,int,int):int:0,
+   168:Ceiling_CrushAndRaiseDist(int,int,int;int,int):int,
+   169:Generic_Crusher2(int,int,int,int,int):int,
+   170:Sector_SetCeilingScale2(int,int,int):int,
+   171:Sector_SetFloorScale2(int,int,int):int,
+   172:Plat_UpNearestWaitDownStay(int,int,int):int,
+   173:NoiseAlert(int,int):int,
+   174:SendToCommunicator(int,int,int,int):int,
+   175:Thing_ProjectileIntercept(int,int,int,int,int):int,
+   176:Thing_ChangeTid(int,int):int,
+   177:Thing_Hate(int,int;int):int,
+   178:Thing_ProjectileAimed(int,int,int,int;int):int,
+   179:ChangeSkill(int):int,
+   180:Thing_SetTranslation(int,int):int,
+   181:Plane_Align(int,int,int):int:0,
+   182:Line_Mirror():int:0,
+   183:Line_AlignCeiling(int,int):int,
+   184:Line_AlignFloor(int,int):int,
+   185:Sector_SetRotation(int,int,int):int,
+   186:Sector_SetCeilingPanning(int,int,int,int,int):int,
+   187:Sector_SetFloorPanning(int,int,int,int,int):int,
+   188:Sector_SetCeilingScale(int,int,int,int,int):int,
+   189:Sector_SetFloorScale(int,int,int,int,int):int,
+   190:Static_Init(int,int,int,int):int:0,
+   191:SetPlayerProperty(int,int,int):int,
+   192:Ceiling_LowerToHighestFloor(int,int;int,int):int,
+   193:Ceiling_LowerInstant(int,int,int;int,int):int,
+   194:Ceiling_RaiseInstant(int,int,int;int):int,
+   195:Ceiling_CrushRaiseAndStayA(int,int,int,int;int):int,
+   196:Ceiling_CrushAndRaiseA(int,int,int,int;int):int,
+   197:Ceiling_CrushAndRaiseSilentA(int,int,int,int;int):int,
+   198:Ceiling_RaiseByValueTimes8(int,int,int;int):int,
+   199:Ceiling_LowerByValueTImes8(int,int,int;int):int,
+   200:Generic_Floor(int,int,int,int,int):int,
+   201:Generic_Ceiling(int,int,int,int,int):int,
+   202:Generic_Door(int,int,int,int,int):int,
+   203:Generic_Lift(int,int,int,int,int):int,
+   204:Generic_Stairs(int,int,int,int,int):int,
+   205:Generic_Crusher(int,int,int,int,int):int,
+   206:Plat_DownWaitUpStayLip(int,int,int,int;int):int,
+   207:Plat_PerpetualRaiseLip(int,int,int,int):int,
+   208:TranslucentLine(int,int;int):int,
+   209:Transfer_Heights(int,int):int:0,
+   210:Transfer_FloorLight(int):int:0,
+   211:Transfer_CeilingLight(int):int:0,
+   212:Sector_SetColor(int,int,int,int;int):int,
+   213:Sector_SetFade(int,int,int,int):int,
+   214:Sector_SetDamage(int,int,int;int,int):int,
+   215:Teleport_Line(int,int):int,
+   216:Sector_SetGravity(int,int,int):int,
+   217:Stairs_BuildUpDoom(int,int,int,int,int):int,
+   218:Sector_SetWind(int,int,int,int):int,
+   219:Sector_SetFriction(int,int):int,
+   220:Sector_SetCurrent(int,int,int,int):int,
+   221:Scroll_Texture_Both(int,int,int,int,int):int,
+   222:Scroll_Texture_Model(int,int):int:0,
+   223:Scroll_Floor(int,int,int,int):int,
+   224:Scroll_Ceiling(int,int,int,int):int,
+   225:Scroll_Texture_Offsets(int):int:0,
+   226:Acs_ExecuteAlways(int,int;int,int,int):int,
+   227:PointPush_SetForce(int,int,int,int):int:0,
+   228:Plat_RaiseAndStayTx0(int,int;int):int,
+   229:Thing_SetGoal(int,int,int;int):int,
+   230:Plat_UpByValueStayTx(int,int,int):int,
+   231:Plat_ToggleCeiling(int):int,
+   232:Light_StrobeDoom(int,int,int):int,
+   233:Light_MinNeighbor(int):int,
+   234:Light_MaxNeighbor(int):int,
+   235:Floor_TransferTrigger(int):int,
+   236:Floor_TransferNumeric(int):int,
+   237:ChangeCamera(int,int,int):int,
+   238:Floor_RaiseToLowestCeiling(int,int;int,int):int,
+   239:Floor_RaiseByValueTxTy(int,int,int):int,
+   240:Floor_RaiseByTexture(int,int;int,int):int,
+   241:Floor_LowerToLowestTxTy(int,int):int,
+   242:Floor_LowerToHighest(int,int,int;int):int,
+   243:Exit_Normal(int):int,
+   244:Exit_Secret(int):int,
+   245:Elevator_RaiseToNearest(int,int):int,
+   246:Elevator_MoveToFloor(int,int):int,
+   247:Elevator_LowerToNearest(int,int):int,
+   248:HealThing(int;int):int,
+   249:Door_CloseWaitOpen(int,int,int;int):int,
+   250:Floor_Donut(int,int,int):int,
+   251:FloorAndCeiling_LowerRaise(int,int,int;int):int,
+   252:Ceiling_RaiseToNearest(int,int;int):int,
+   253:Ceiling_LowerToLowest(int,int;int,int):int,
+   254:Ceiling_LowerToFloor(int,int;int,int):int,
+   255:Ceiling_CrushRaiseAndStaySilA(int,int,int,int;int):int,
+   256:Floor_LowerToHighestEE(int,int;int):int,
+   257:Floor_RaiseToLowest(int,int;int):int,
+   258:Floor_LowerToLowestCeiling(int,int;int):int,
+   259:Floor_RaiseToCeiling(int,int;int,int):int,
+   260:Floor_ToCeilingInstant(int;int,int):int,
+   261:Floor_LowerByTexture(int,int;int):int,
+   262:Ceiling_RaiseToHighest(int,int;int):int,
+   263:Ceiling_ToHighestInstant(int;int,int):int,
+   264:Ceiling_LowerToNearest(int,int;int,int):int,
+   265:Ceiling_RaiseToLowest(int,int;int):int,
+   266:Ceiling_RaiseToHighestFloor(int,int;int):int,
+   267:Ceiling_ToFloorInstant(int;int,int):int,
+   268:Ceiling_RaiseByTexture(int,int;int):int,
+   269:Ceiling_LowerByTexture(int,int;int,int):int,
+   270:Stairs_BuildDownDoom(int,int,int,int,int):int,
+   271:Stairs_BuildUpDoomSync(int,int,int,int):int,
+   272:Stairs_BuildDownDoomSync(int,int,int,int):int,
 
-// Extension functions
-// Tail format: -= <function-index>
-function int GetLineUdmfInt( int, str ) -= 1;
-function fixed GetLineUdmfFixed( int, str ) -= 2;
-function int GetThingUdmfInt( int, str ) -= 3;
-function fixed GetThingUdmfFixed( int, str ) -= 4;
-function int GetSectorUdmfInt( int, str ) -= 5;
-function fixed GetSectorUdmfFixed( int, str ) -= 6;
-function int GetSideUdmfInt( int, bool, str ) -= 7;
-function fixed GetSideUdmfFixed( int, bool, str ) -= 8;
-function fixed GetActorVelX( int ) -= 9;
-function fixed GetActorVelY( int ) -= 10;
-function fixed GetActorVelZ( int ) -= 11;
-function bool SetActivator( int, int = AAPTR_DEFAULT ) -= 12;
-function bool SetActivatorToTarget( int ) -= 13;
-function fixed GetActorViewHeight( int ) -= 14;
-function int GetChar( str, int ) -= 15;
-function int GetAirSupply( int ) -= 16;
-function bool SetAirSupply( int, int ) -= 17;
-function void SetSkyScrollSpeed( int, fixed ) -= 18;
-function int GetArmorType( str, int ) -= 19;
-function int SpawnSpotForced( str, int, int = 0, int = 0 ) -= 20;
-function int SpawnSpotFacingForced( str, int, int = 0 ) -= 21;
-function bool CheckActorProperty( int, int, raw ) -= 22;
-function bool SetActorVelocity( int, fixed, fixed, fixed, bool, bool ) -= 23;
-function void SetUserVariable( int, str, raw ) -= 24;
-function raw GetUserVariable( int, str ) -= 25;
-function void Radius_Quake2( int, int, int, int, int, str ) -= 26;
-function bool CheckActorClass( int, str ) -= 27;
-function void SetUserArray( int, str, int, raw ) -= 28;
-function raw GetUserArray( int, str, int ) -= 29;
-function void SoundSequenceOnActor( int, str ) -= 30;
-function void SoundSequenceOnSector( int, str, int ) -= 31;
-function void SoundSequenceOnPolyobj( int, str ) -= 32;
-function fixed GetPolyobjX( int ) -= 33;
-function fixed GetPolyobjY( int ) -= 34;
-function bool CheckSight( int, int, int ) -= 35;
-function int SpawnForced( str, fixed, fixed, fixed, int = 0, int = 0 ) -= 36;
-function void AnnouncerSound( str, int ) -= 37;
-function bool SetPointer( int, int, int = 0, int = 0 ) -= 38;
-function bool Acs_NamedExecute( str, int, raw = 0, raw = 0, raw = 0 ) -= 39;
-function bool Acs_NamedSuspend( str, int ) -= 40;
-function bool Acs_NamedTerminate( str, int ) -= 41;
-function bool Acs_NamedLockedExecute( str, int, raw, raw, raw ) -= 42;
-function bool Acs_NamedLockedExecuteDoor( str, int, raw, raw, raw ) -= 43;
-function int Acs_NamedExecuteWithResult( str, raw = 0, raw = 0, raw = 0,
-   raw = 0 ) -= 44;
-function bool Acs_NamedExecuteAlways( str, int, raw = 0, raw = 0,
-   raw = 0 ) -= 45;
-function int UniqueTid( int = 0, int = 0 ) -= 46;
-function bool IsTidUsed( int ) -= 47;
-function int Sqrt( int ) -= 48;
-function fixed FixedSqrt( fixed ) -= 49;
-function int VectorLength( int, int ) -= 50;
-function void SetHudClipRect( int, int, int, int, int = 0, bool = true ) -= 51;
-function void SetHudWrapWidth( int ) -= 52;
-function bool SetCVar( str, int ) -= 53;
-function int GetUserCVar( int, str ) -= 54;
-function bool SetUserCVar( int, str, int ) -= 55;
-function str GetCVarString( str ) -= 56;
-function bool SetCVarString( str, str ) -= 57;
-function str GetUserCVarString( int, str ) -= 58;
-function bool SetUserCVarString( int, str, str ) -= 59;
-function void LineAttack( int, fixed, fixed, int, str = "BulletPuff",
-   str = "None", fixed = 2048.0, int = 0, int = 0 ) -= 60;
-function void PlaySound( int, str, int = 0, fixed = 0.0, bool = false,
-   fixed = 0.0 ) -= 61;
-function void StopSound( int, int = CHAN_BODY ) -= 62;
-function int Strcmp( str, str, int = 0 ) -= 63;
-function int Stricmp( str, str, int = 0 ) -= 64;
-function int Strcasecmp( str, str, int = 0 ) -= 64;
-function str StrLeft( str, int ) -= 65;
-function str StrRight( str, int ) -= 66;
-function str StrMid( str, int, int ) -= 67;
-function str GetActorClass( int ) -= 68;
-function str GetWeapon() -= 69;
-function void SoundVolume( int, int, fixed ) -= 70;
-function void PlayActorSound( int, int, int = 0, fixed = 0.0, bool = false,
-   fixed = 0.0 ) -= 71;
-function int SpawnDecal( int, str, int = 0, fixed = 0.0, fixed = 0.0,
-   fixed = 0.0 ) -= 72;
-function bool CheckFont( str ) -= 73;
-function int DropItem( int, str, int = 0, int = 0 ) -= 74;
-function bool CheckFlag( int, str ) -= 75;
-function void SetLineActivation( int, int ) -= 76;
-function int GetLineActivation( int ) -= 77;
-function int GetActorPowerupTics( int, str ) -= 78;
-function void ChangeActorAngle( int, fixed, bool = false ) -= 79;
-function void ChangeActorPitch( int, fixed, bool = false ) -= 80;
-function int GetArmorInfo( int ) -= 81;
-function void DropInventory( int, str ) -= 82;
-function bool PickActor( int, fixed, fixed, fixed, int, int = MF_SHOOTABLE,
-   int = ML_BLOCKEVERYTHING | ML_BLOCKHITSCAN, bool = false ) -= 83;
-function bool IsPointerEqual( int, int, int = 0, int = 0 ) -= 84;
-function bool CanRaiseActor( int ) -= 85;
-function void SetActorTeleFog( int, str, str ) -= 86;
-function int SwapActorTeleFog( int ) -= 87;
-function void SetActorRoll( int, fixed ) -= 88;
-function void ChangeActorRoll( int, fixed, bool = false ) -= 89;
-function fixed GetActorRoll( int ) -= 90;
-// NOTE: The default values given here are not correct. The engine already
-// provides the correct values. Set the default parameters to zero so the
-// compiler doesn't pass the default values. Figure out a better way to
-// specify the minimum number of arguments.
-function bool QuakeEx( int, int, int, int, int, int, int, str, int = 0,
-   fixed = 0.0, fixed = 0.0, fixed = 0.0, int = 0, int = 0 ) -= 91;
-function bool Warp( int, fixed, fixed, fixed, fixed, int, str = "",
-   bool = false, fixed = 0.0, fixed = 0.0, fixed = 0.0 ) -= 92;
-function int GetMaxInventory( int, str ) -= 93;
-function void SetSectorDamage( int, int, str = "None", int = 32,
-   int = 0 ) -= 94;
-function void SetSectorTerrain( int, int, str ) -= 95;
-function void SpawnParticle( int, bool = false, int = 35, int = 1, fixed = 0.0,
-   fixed = 0.0, fixed = 0.0, fixed = 0.0, fixed = 0.0, fixed = 0.0,
-   fixed = 0.0, fixed = 0.0, fixed = 0.0, int = 255, int = 1 ) -= 96;
-function void SetMusicVolume( fixed ) -= 97;
-function bool CheckProximity( str, str, fixed, int = 1, int = 0,
-   int = AAPTR_DEFAULT ) -= 98;
-function bool ResetMap() -= 100;
-function bool PlayerIsSpectator( int ) -= 101;
-function int ConsolePlayerNumber() -= 102;
-function int GetTeamProperty( int, int ) -= 103;
-function int GetPlayerLivesLeft( int ) -= 104;
-function bool SetPlayerLivesLeft( int, int ) -= 105;
-function bool KickFromGame( int, str ) -= 106;
-function int GetGamemodeState() -= 107;
-function void SetDBEntry( str, str, int ) -= 108;
-function int GetDBEntry( str, str ) -= 109;
-function void SetDBEntryString( str, str, str ) -= 110;
-function str GetDBEntryString( str, str ) -= 111;
-function void IncrementDBEntry( str, str, int ) -= 112;
-function bool PlayerIsLoggedIn( int ) -= 113;
-function str GetPlayerAccountName( int ) -= 114;
-function int SortDBEntries( str, int, int, bool ) -= 115;
-function int CountDBResults( int ) -= 116;
-function void FreeDBResults( int ) -= 117;
-function str GetDBResultKeyString( int, int ) -= 118;
-function str GetDBResultValueString( int, int ) -= 119;
-function int GetDBResultValue( int, int ) -= 120;
-function int GetDBEntryRank( str, str, bool ) -= 121;
-function int RequestScriptPuke( int, int = 0, int = 0, int = 0,
-   int = 0 ) -= 122;
-function void BeginDBTransaction() -= 123;
-function void EndDBTransaction() -= 124;
-function int GetDBEntries( str ) -= 125;
-function int NamedRequestScriptPuke( str, int = 0, int = 0, int = 0,
-   int = 0 ) -= 126;
-function int SystemTime() -= 127;
-function int GetTimeProperty( int, int, bool = false ) -= 128;
-function str Strftime( int, str, bool = false ) -= 129;
-function int GetTeamScore( int ) -= 19620;
-function void SetTeamScore( int, int ) -= 19621;
+   // Extension functions
+   -1:GetLineUdmfInt(int,str):int,
+   -2:GetLineUdmfFixed(int,str):fixed,
+   -3:GetThingUdmfInt(int,str):int,
+   -4:GetThingUdmfFixed(int,str):fixed,
+   -5:GetSectorUdmfInt(int,str):int,
+   -6:GetSectorUdmfFixed(int,str):fixed,
+   -7:GetSideUdmfInt(int,bool,str):int,
+   -8:GetSideUdmfFixed(int,bool,str):fixed,
+   -9:GetActorVelX(int):fixed,
+   -10:GetActorVelY(int):fixed,
+   -11:GetActorVelZ(int):fixed,
+   -12:SetActivator(int;int):bool,
+   -13:SetActivatorToTarget(int):bool,
+   -14:GetActorViewHeight(int):fixed,
+   -15:GetChar(str,int):int,
+   -16:GetAirSupply(int):int,
+   -17:SetAirSupply(int,int):bool,
+   -18:SetSkyScrollSpeed(int,fixed):void,
+   -19:GetArmorType(str,int):int,
+   -20:SpawnSpotForced(str,int;int,int):int,
+   -21:SpawnSpotFacingForced(str,int;int):int,
+   -22:CheckActorProperty(int,int,raw):bool,
+   -23:SetActorVelocity(int,fixed,fixed,fixed,bool,bool):bool,
+   -24:SetUserVariable(int,str,raw):void,
+   -25:GetUserVariable(int,str),
+   -26:Radius_Quake2(int,int,int,int,int,str):void,
+   -27:CheckActorClass(int,str):bool,
+   -28:SetUserArray(int,str,int,raw):void,
+   -29:GetUserArray(int,str,int),
+   -30:SoundSequenceOnActor(int,str):void,
+   -31:SoundSequenceOnSector(int,str,int):void,
+   -32:SoundSequenceOnPolyobj(int,str):void,
+   -33:GetPolyobjX(int):fixed,
+   -34:GetPolyobjY(int):fixed,
+   -35:CheckSight(int,int,int):bool,
+   -36:SpawnForced(str,fixed,fixed,fixed;int,int):int,
+   -37:AnnouncerSound(str,int):void,
+   -38:SetPointer(int,int;int,int):bool,
+   -39:Acs_NamedExecute(str,int;raw,raw,raw):bool,
+   -40:Acs_NamedSuspend(str,int):bool,
+   -41:Acs_NamedTerminate(str,int):bool,
+   -42:Acs_NamedLockedExecute(str,int,raw,raw,raw):bool,
+   -43:Acs_NamedLockedExecuteDoor(str,int,raw,raw,raw):bool,
+   -44:Acs_NamedExecuteWithResult(str;raw,raw,raw,raw):int,
+   -45:Acs_NamedExecuteAlways(str,int;raw,raw,raw):bool,
+   -46:UniqueTid(;int,int):int,
+   -47:IsTidUsed(int):bool,
+   -48:Sqrt(int):int,
+   -49:FixedSqrt(fixed):fixed,
+   -50:VectorLength(int,int):int,
+   -51:SetHudClipRect(int,int,int,int;int,bool):void,
+   -52:SetHudWrapWidth(int):void,
+   -53:SetCVar(str,int):bool,
+   -54:GetUserCVar(int,str):int,
+   -55:SetUserCVar(int,str,int):bool,
+   -56:GetCVarString(str):str,
+   -57:SetCVarString(str,str):bool,
+   -58:GetUserCVarString(int,str):str,
+   -59:SetUserCVarString(int,str,str):bool,
+   -60:LineAttack(int,fixed,fixed,int;str,str,fixed,int,int):void,
+   -61:PlaySound(int,str;int,fixed,bool,fixed):void,
+   -62:StopSound(int;int):void,
+   -63:Strcmp(str,str;int):int,
+   -64:Stricmp(str,str;int):int,
+   -64:Strcasecmp(str,str;int):int,
+   -65:StrLeft(str,int):str,
+   -66:StrRight(str,int):str,
+   -67:StrMid(str,int,int):str,
+   -68:GetActorClass(int):str,
+   -69:GetWeapon():str,
+   -70:SoundVolume(int,int,fixed):void,
+   -71:PlayActorSound(int,int;int,fixed,bool,fixed):void,
+   -72:SpawnDecal(int,str;int,fixed,fixed,fixed):int,
+   -73:CheckFont(str):bool,
+   -74:DropItem(int,str;int,int):int,
+   -75:CheckFlag(int,str):bool,
+   -76:SetLineActivation(int,int):void,
+   -77:GetLineActivation(int):int,
+   -78:GetActorPowerupTics(int,str):int,
+   -79:ChangeActorAngle(int,fixed;bool):void,
+   -80:ChangeActorPitch(int,fixed;bool):void,
+   -81:GetArmorInfo(int):int,
+   -82:DropInventory(int,str):void,
+   -83:PickActor(int,fixed,fixed,fixed,int;int,int,bool):bool,
+   -84:IsPointerEqual(int,int;int,int):bool,
+   -85:CanRaiseActor(int):bool,
+   -86:SetActorTeleFog(int,str,str):void,
+   -87:SwapActorTeleFog(int):int,
+   -88:SetActorRoll(int,fixed):void,
+   -89:ChangeActorRoll(int,fixed;bool):void,
+   -90:GetActorRoll(int):fixed,
+   -91:QuakeEx(int,int,int,int,int,int,int,str;int,fixed,fixed,fixed,int,
+      int):bool,
+   -92:Warp(int,fixed,fixed,fixed,fixed,int;str,bool,fixed,fixed,fixed):bool,
+   -93:GetMaxInventory(int,str):int,
+   -94:SetSectorDamage(int,int;str,int,int):void,
+   -95:SetSectorTerrain(int,int,str):void,
+   -96:SpawnParticle(int;bool,int,int,fixed,fixed,fixed,fixed,fixed,fixed,
+      fixed,fixed,fixed,int,int,int):void,
+   -97:SetMusicVolume(fixed):void,
+   -98:CheckProximity(str,str,fixed;int,int,int):bool,
+   -100:ResetMap():bool,
+   -101:PlayerIsSpectator(int):bool,
+   -102:ConsolePlayerNumber():int,
+   -103:GetTeamProperty(int,int):int,
+   -104:GetPlayerLivesLeft(int):int,
+   -105:SetPlayerLivesLeft(int,int):bool,
+   -106:KickFromGame(int,str):bool,
+   -107:GetGamemodeState():int,
+   -108:SetDBEntry(str,str,int):void,
+   -109:GetDBEntry(str,str):int,
+   -110:SetDBEntryString(str,str,str):void,
+   -111:GetDBEntryString(str,str):str,
+   -112:IncrementDBEntry(str,str,int):void,
+   -113:PlayerIsLoggedIn(int):bool,
+   -114:GetPlayerAccountName(int):str,
+   -115:SortDBEntries(str,int,int,bool):int,
+   -116:CountDBResults(int):int,
+   -117:FreeDBResults(int):void,
+   -118:GetDBResultKeyString(int,int):str,
+   -119:GetDBResultValueString(int,int):str,
+   -120:GetDBResultValue(int,int):int,
+   -121:GetDBEntryRank(str,str,bool):int,
+   -122:RequestScriptPuke(int;int,int,int,int):int,
+   -123:BeginDBTransaction():void,
+   -124:EndDBTransaction():void,
+   -125:GetDBEntries(str):int,
+   -126:NamedRequestScriptPuke(str;int,int,int,int):int,
+   -127:SystemTime():int,
+   -128:GetTimeProperty(int,int;bool):int,
+   -129:Strftime(int,str;bool):str,
+   -19620:GetTeamScore(int):int,
+   -19621:SetTeamScore(int,int):void,
+
+   // End.
+   -100000:__EndOfList__(10);
