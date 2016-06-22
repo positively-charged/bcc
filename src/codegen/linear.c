@@ -293,11 +293,13 @@ void write_node( struct codegen* codegen, struct c_node* node ) {
 }
 
 void write_pcode( struct codegen* codegen, struct c_pcode* pcode ) {
-   if ( pcode->obj_pos ) {
-      c_seek( codegen, pcode->obj_pos );
-   }
-   else {
-      pcode->obj_pos = c_tell( codegen );
+   if ( pcode->patch ) {
+      if ( pcode->obj_pos ) {
+         c_seek( codegen, pcode->obj_pos );
+      }
+      else {
+         pcode->obj_pos = c_tell( codegen );
+      }
    }
    if ( pcode->optimize ) {
       c_add_opc( codegen, pcode->code );
