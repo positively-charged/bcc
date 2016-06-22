@@ -173,7 +173,7 @@ struct {
    { "hudmessage", ";iiifff;fff" },
    { "hudmessagebold", ";iiifff;fff" },
    { "log", "" },
-   { "strparam", "" },
+   { "strparam", "s" },
    // Internal functions (Must be last.)
    // -----------------------------------------------------------------------
    { "acs_executewait", ";i;rrrr" },
