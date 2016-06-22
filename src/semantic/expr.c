@@ -2221,6 +2221,14 @@ void select_func( struct semantic* semantic, struct result* result,
       result->usable = true;
       result->folded = true;
    }
+   // An extension function can also decay into an integer.
+   else if ( func->type == FUNC_EXT ) {
+      result->spec = semantic->spec_int;
+      struct func_ext* impl = func->impl;
+      result->value = -impl->id;
+      result->usable = true;
+      result->folded = true;
+   }
    result->func = func;
    result->complete = true;
 }
@@ -2463,6 +2471,7 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
             result->func->msgbuild );
          break;
       case FUNC_ASPEC:
+      case FUNC_EXT:
          s_init_type_info_scalar( type, semantic->spec_int );
          break;
       default:

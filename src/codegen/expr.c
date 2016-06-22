@@ -2212,6 +2212,10 @@ void visit_func( struct codegen* codegen, struct result* result,
       struct func_aspec* impl = func->impl;
       c_pcd( codegen, PCD_PUSHNUMBER, impl->id );
    }
+   else if ( func->type == FUNC_EXT ) {
+      struct func_ext* impl = func->impl;
+      c_pcd( codegen, PCD_PUSHNUMBER, -impl->id );
+   }
 }
 
 void visit_strcpy( struct codegen* codegen, struct result* result,
