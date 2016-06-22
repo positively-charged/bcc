@@ -46,6 +46,7 @@ struct c_pcode {
    struct c_node node;
    int code;
    struct c_pcode_arg* args;
+   int obj_pos;
    bool optimize;
    bool patch;
 };

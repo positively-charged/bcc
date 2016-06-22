@@ -142,6 +142,7 @@ void create_pcode( struct codegen* codegen, int code, bool optimize ) {
    init_node( &pcode->node, C_NODE_PCODE );
    pcode->code = code;
    pcode->args = NULL;
+   pcode->obj_pos = 0;
    pcode->optimize = optimize;
    pcode->patch = false;
    c_append_node( codegen, &pcode->node );
@@ -292,6 +293,12 @@ void write_node( struct codegen* codegen, struct c_node* node ) {
 }
 
 void write_pcode( struct codegen* codegen, struct c_pcode* pcode ) {
+   if ( pcode->obj_pos ) {
+      c_seek( codegen, pcode->obj_pos );
+   }
+   else {
+      pcode->obj_pos = c_tell( codegen );
+   }
    if ( pcode->optimize ) {
       c_add_opc( codegen, pcode->code );
       struct c_pcode_arg* arg = pcode->args;
