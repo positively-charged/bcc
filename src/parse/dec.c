@@ -2140,7 +2140,9 @@ void read_special_param_dec( struct parse* parse,
       read_special_param_list_minmax( parse, reading );
    }
    else {
-      read_special_param_list( parse, reading );
+      if ( parse->tk != TK_PAREN_R ) {
+         read_special_param_list( parse, reading );
+      }
    }
 }
 
@@ -2171,13 +2173,15 @@ void read_special_param_list_minmax( struct parse* parse,
 void read_special_param_list( struct parse* parse,
    struct special_reading* reading ) {
    // Required parameters.
-   while ( true ) {
-      read_special_param( parse, reading );
-      if ( parse->tk == TK_COMMA ) {
-         p_read_tk( parse );
-      }
-      else {
-         break;
+   if ( parse->tk != TK_SEMICOLON ) {
+      while ( true ) {
+         read_special_param( parse, reading );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
       }
    }
    // Optional parameters.
