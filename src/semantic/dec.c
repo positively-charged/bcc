@@ -41,7 +41,7 @@ struct initz_test {
    int spec;
    int count;
    bool constant;
-   bool has_string;
+   bool has_str;
 };
 
 struct scalar_initz_test {
@@ -49,7 +49,7 @@ struct scalar_initz_test {
    struct initz_test* initz_test;
    struct type_info* type;
    bool constant;
-   bool has_string;
+   bool has_str;
 };
 
 struct initz_pres {
@@ -865,7 +865,7 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
          return false;
       }
    }
-   var->initial_has_str = test.has_string;
+   var->initial_has_str = test.has_str;
    return true;
 }
 
@@ -882,7 +882,7 @@ void init_initz_test( struct initz_test* test, struct initz_test* parent,
    test->spec = spec;
    test->count = 0;
    test->constant = constant;
-   test->has_string = false;
+   test->has_str = false;
 }
 
 void init_root_initz_test( struct initz_test* test, struct var* var ) {
@@ -953,8 +953,8 @@ bool test_multi_value_array_child( struct semantic* semantic,
          test->structure, test->enumeration, test->ref, test->constant );
       bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
-      if ( nested_test.has_string ) {
-         test->has_string = true;
+      if ( nested_test.has_str ) {
+         test->has_str = true;
       }
       return resolved;
    }
@@ -1021,8 +1021,8 @@ bool test_multi_value_struct_child( struct semantic* semantic,
          member->structure, member->enumeration, member->ref, test->constant );
       bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
-      if ( nested_test.has_string ) {
-         test->has_string = true;
+      if ( nested_test.has_str ) {
+         test->has_str = true;
       }
       return resolved;
    }
@@ -1058,8 +1058,8 @@ bool test_value( struct semantic* semantic, struct initz_test* test,
       if ( ! test_scalar_initz( semantic, &scalar_test, value ) ) {
          return false;
       }
-      if ( scalar_test.has_string ) {
-         test->has_string = true;
+      if ( scalar_test.has_str ) {
+         test->has_str = true;
       }
       return true;
    }
@@ -1079,7 +1079,7 @@ void init_scalar_initz_test( struct scalar_initz_test* test,
    test->initz_test = initz_test;
    test->type = type;
    test->constant = constant;
-   test->has_string = false;
+   test->has_str = false;
 }
 
 void init_scalar_initz_test_auto( struct scalar_initz_test* test,
@@ -1117,10 +1117,10 @@ bool test_scalar_initz( struct semantic* semantic,
          s_bail( semantic );
       }
    }
-   test->has_string = expr.has_string;
+   test->has_str = expr.has_str;
    value->var = expr.var;
    value->func = expr.func;
-   if ( expr.has_string ) {
+   if ( expr.has_str ) {
       value->type = VALUE_STRING;
    }
    else if ( expr.func ) {
@@ -1356,7 +1356,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
    assign_inferred_type( var, &initz_test.initz_type );
    var->func_scope = s_func_scope_forced( semantic );
-   var->initial_has_str = initz_test.has_string;
+   var->initial_has_str = initz_test.has_str;
    // For now, keep an auto-declaration in local scope.
    if ( ! semantic->in_localscope ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,

@@ -152,11 +152,11 @@ static void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
-static void select_object( struct semantic* semantic, struct result* result,
-   struct object* object );
-static void select_constant( struct semantic* semantic, struct result* result,
-   struct constant* constant );
-static void select_enumerator( struct result* result,
+static void select_object( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct object* object );
+static void select_constant( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct constant* constant );
+static void select_enumerator( struct expr_test* test, struct result* result,
    struct enumerator* enumerator );
 static void select_var( struct semantic* semantic, struct result* result,
    struct var* var );
@@ -166,8 +166,8 @@ static void select_member( struct semantic* semantic, struct result* result,
    struct structure_member* member );
 static void select_func( struct semantic* semantic, struct result* result,
    struct func* func );
-static void select_alias( struct semantic* semantic, struct result* result,
-   struct alias* alias );
+static void select_alias( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct alias* alias );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_objcpy( struct semantic* semantic, struct expr_test* test,
@@ -197,7 +197,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    test->var = NULL;
    test->func = NULL;
    test->result_required = result_required;
-   test->has_string = false;
+   test->has_str = false;
    test->undef_erred = false;
    test->suggest_paren_assign = suggest_paren_assign;
 }
@@ -273,13 +273,14 @@ void test_root( struct semantic* semantic, struct expr_test* test,
    expr->spec = result->spec;
    expr->folded = result->folded;
    expr->value = result->value;
+   expr->has_str = test->has_str;
 }
 
 void test_nested_root( struct semantic* semantic, struct expr_test* parent,
    struct expr_test* test, struct result* result, struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
       test_root( semantic, test, result, expr );
-      parent->has_string = test->has_string;
+      parent->has_str = test->has_str;
    }
    else {
       longjmp( parent->bail, 1 );
@@ -1317,7 +1318,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
-   select_object( semantic, result, object );
+   select_object( semantic, test, result, object );
    access->rside = &object->node;
    if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
       result->data_origin = lside.data_origin;
@@ -2008,7 +2009,7 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   test->has_string = true;
+   test->has_str = true;
 }
 
 void test_boolean( struct semantic* semantic, struct result* result,
@@ -2032,7 +2033,7 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
-      select_object( semantic, result, object );
+      select_object( semantic, test, result, object );
       usage->object = &object->node;
    }
    // Object not found or isn't valid.
@@ -2055,15 +2056,15 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_object( struct semantic* semantic, struct result* result,
-   struct object* object ) {
+void select_object( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
-      select_constant( semantic, result, 
+      select_constant( semantic, test, result, 
          ( struct constant* ) object );
       break;
    case NODE_ENUMERATOR:
-      select_enumerator( result,
+      select_enumerator( test, result,
          ( struct enumerator* ) object );
       break;
    case NODE_VAR:
@@ -2087,7 +2088,7 @@ void select_object( struct semantic* semantic, struct result* result,
       result->object = object;
       break;
    case NODE_ALIAS:
-      select_alias( semantic, result,
+      select_alias( semantic, test, result,
          ( struct alias* ) object );
       break;
    case NODE_STRUCTURE:
@@ -2098,16 +2099,17 @@ void select_object( struct semantic* semantic, struct result* result,
    }
 }
 
-void select_constant( struct semantic* semantic, struct result* result,
-   struct constant* constant ) {
+void select_constant( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct constant* constant ) {
    result->spec = s_spec( semantic, constant->spec );
    result->value = constant->value;
    result->folded = true;
    result->complete = true;
    result->usable = true;
+   test->has_str = constant->value_node->has_str;
 }
 
-void select_enumerator( struct result* result,
+void select_enumerator( struct expr_test* test, struct result* result,
    struct enumerator* enumerator ) {
    result->enumeration = enumerator->enumeration;
    result->spec = SPEC_ENUM;
@@ -2115,6 +2117,9 @@ void select_enumerator( struct result* result,
    result->folded = true;
    result->complete = true;
    result->usable = true;
+   if ( enumerator->initz ) {
+      test->has_str = enumerator->initz->has_str;
+   }
 }
 
 void select_var( struct semantic* semantic, struct result* result,
@@ -2233,9 +2238,9 @@ void select_func( struct semantic* semantic, struct result* result,
    result->complete = true;
 }
 
-void select_alias( struct semantic* semantic, struct result* result,
-   struct alias* alias ) {
-   select_object( semantic, result, alias->target );
+void select_alias( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct alias* alias ) {
+   select_object( semantic, test, result, alias->target );
 }
 
 void test_strcpy( struct semantic* semantic, struct expr_test* test,

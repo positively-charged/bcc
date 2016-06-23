@@ -35,7 +35,7 @@ struct expr_test {
       struct ref_func func;
    } temp_ref;
    bool result_required;
-   bool has_string;
+   bool has_str;
    bool undef_erred;
    bool suggest_paren_assign;
 };

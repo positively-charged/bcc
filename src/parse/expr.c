@@ -73,7 +73,6 @@ void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
    reading->node = NULL;
    reading->output_node = NULL;
-   reading->has_str = false;
    reading->in_constant = in_constant;
    reading->skip_assign = skip_assign;
    reading->skip_call = skip_call;
@@ -83,14 +82,9 @@ void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
 void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
    reading->pos = parse->tk_pos;
    read_op( parse, reading );
-   struct expr* expr = mem_slot_alloc( sizeof( *expr ) );
-   expr->node.type = NODE_EXPR;
+   struct expr* expr = t_alloc_expr();
    expr->root = reading->node;
    expr->pos = reading->pos;
-   expr->spec = SPEC_NONE;
-   expr->value = 0;
-   expr->folded = false;
-   expr->has_str = reading->has_str;
    reading->output_node = expr;
 }
 
@@ -654,13 +648,18 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
          parse->tk_length, parse->lang_limits->max_string_length );
       p_bail( parse );
    }
-   struct indexed_string* string = t_intern_string( parse->task,
-      parse->tk_text, parse->tk_length );
-   struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
-   usage->node.type = NODE_INDEXED_STRING_USAGE;
-   usage->string = string;
-   reading->node = &usage->node;
-   reading->has_str = true;
+   // In ACS, a string in an imported library is discarded.
+   if ( parse->lang == LANG_ACS && parse->lib->imported ) {
+      reading->node = ( struct node* ) t_alloc_literal();
+   }
+   else {
+      struct indexed_string* string = t_intern_string( parse->task,
+         parse->tk_text, parse->tk_length );
+      struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
+      usage->node.type = NODE_INDEXED_STRING_USAGE;
+      usage->string = string;
+      reading->node = &usage->node;
+   }
    p_read_tk( parse );
 }
 

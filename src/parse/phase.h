@@ -313,7 +313,6 @@ struct dec {
       struct initial* initial;
       struct pos pos;
       bool specified;
-      bool has_str;
    } initz;
    int spec;
    bool private_visibility;
@@ -336,7 +335,6 @@ struct expr_reading {
    struct node* node;
    struct expr* output_node;
    struct pos pos;
-   bool has_str;
    bool in_constant;
    bool skip_assign;
    bool skip_call;

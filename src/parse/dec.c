@@ -265,7 +265,6 @@ void p_init_dec( struct dec* dec ) {
    dec->storage_index.specified = false;
    dec->initz.initial = NULL;
    dec->initz.specified = false;
-   dec->initz.has_str = false;
    dec->spec = SPEC_NONE;
    dec->private_visibility = false;
    dec->static_qual = false;
@@ -1082,7 +1081,6 @@ void read_init( struct parse* parse, struct dec* dec ) {
       struct value* value = alloc_value();
       value->expr = expr.output_node;
       dec->initz.initial = &value->initial;
-      dec->initz.has_str = expr.has_str;
    }
 }
 

@@ -185,8 +185,6 @@ static void visit_name_usage( struct codegen* codegen, struct result* result,
    struct name_usage* usage );
 static void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant );
-static void push_constant( struct codegen* codegen, struct result* result,
-   int spec, int value );
 static void visit_enumerator( struct codegen* codegen,
    struct result* result, struct enumerator* enumerator );
 static void visit_var( struct codegen* codegen, struct result* result,
@@ -2021,24 +2019,29 @@ void visit_name_usage( struct codegen* codegen, struct result* result,
 
 void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant ) {
-   push_constant( codegen, result, constant->spec, constant->value );
-}
-
-void push_constant( struct codegen* codegen, struct result* result,
-   int spec, int value ) {
-   if ( spec == SPEC_STR ) {
-      c_push_string( codegen, t_lookup_string( codegen->task, value ) );
+   struct indexed_string* string = constant->value_node->has_str ?
+      t_lookup_string( codegen->task, constant->value_node->value ) : NULL;
+   if ( string ) {
+      c_push_string( codegen, string );
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, value );
+      c_pcd( codegen, PCD_PUSHNUMBER, constant->value );
    }
    result->status = R_VALUE;
 }
 
 void visit_enumerator( struct codegen* codegen, struct result* result,
    struct enumerator* enumerator ) {
-   push_constant( codegen, result, enumerator->enumeration->base_type,
-      enumerator->value );
+   struct indexed_string* string = enumerator->initz &&
+      enumerator->initz->has_str ? t_lookup_string( codegen->task,
+      enumerator->initz->value ) : NULL;
+   if ( string ) {
+      c_push_string( codegen, string );
+   }
+   else {
+      c_pcd( codegen, PCD_PUSHNUMBER, enumerator->value );
+   }
+   result->status = R_VALUE;
 }
 
 void visit_var( struct codegen* codegen, struct result* result,
