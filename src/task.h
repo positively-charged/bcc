@@ -877,6 +877,7 @@ struct constant {
    struct expr* value_node;
    int spec;
    int value;
+   bool hidden;
 };
 
 struct indexed_string {

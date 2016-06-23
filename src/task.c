@@ -653,8 +653,10 @@ struct constant* t_alloc_constant( void ) {
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
    t_init_object( &constant->object, NODE_CONSTANT );
    constant->name = NULL;
-   constant->value = 0;
    constant->value_node = NULL;
+   constant->spec = SPEC_NONE;
+   constant->value = 0;
+   constant->hidden = false;
    return constant;
 }
 

@@ -470,6 +470,7 @@ void read_define( struct parse* parse ) {
    p_init_expr_reading( &value, true, false, false, true );
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
+   constant->hidden = define;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->lib->objects, constant );
    list_append( &parse->ns->objects, constant );

@@ -158,7 +158,6 @@ void test_acs( struct semantic* semantic ) {
 
 void test_module_acs( struct semantic* semantic, struct library* lib ) {
    semantic->ns = lib->upmost_ns;
-   show_private_objects( semantic );
    // In ACS, one can use functions before they are declared.
    list_iter_t i;
    list_iter_init( &i, &lib->objects );
@@ -176,7 +175,19 @@ void test_module_acs( struct semantic* semantic, struct library* lib ) {
       test_module_item_acs( semantic, list_data( &i ) );
       list_next( &i );
    }
-   hide_private_objects( semantic );
+   // Constants created through #define are visible only in the library in
+   // which they are created.
+   list_iter_init( &i, &lib->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      if ( object->node.type == NODE_CONSTANT ) {
+         struct constant* constant = ( struct constant* ) object;
+         if ( constant->hidden ) {
+            constant->name->object = NULL;
+         }
+      }
+      list_next( &i );
+   }
 }
 
 void test_module_item_acs( struct semantic* semantic, struct node* node ) {
