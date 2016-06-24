@@ -102,7 +102,12 @@ void read_module_item_acs( struct parse* parse ) {
    else {
       switch ( parse->tk ) {
       case TK_SCRIPT:
-         p_read_script( parse );
+         if ( ! parse->lib->imported ) {
+            p_read_script( parse );
+         }
+         else {
+            p_skip_block( parse );
+         }
          break;
       case TK_HASH:
          read_pseudo_dirc( parse, false );

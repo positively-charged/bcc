@@ -22,6 +22,7 @@ static void test_module_acs( struct semantic* semantic, struct library* lib );
 static void test_module_item_acs( struct semantic* semantic,
    struct node* node );
 static void test_bcs( struct semantic* semantic );
+static void test_imported_acs_libs( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic, struct ns* ns );
 static void bind_namespace_object( struct semantic* semantic,
@@ -208,7 +209,10 @@ void test_module_item_acs( struct semantic* semantic, struct node* node ) {
    case NODE_FUNC:
       func = ( struct func* ) node;
       if ( func->type == FUNC_USER ) {
-         s_test_func_body( semantic, func );
+         struct func_user* impl = func->impl;
+         if ( impl->body ) {
+            s_test_func_body( semantic, func );
+         }
       }
       break;
    case NODE_SCRIPT:
@@ -222,6 +226,7 @@ void test_module_item_acs( struct semantic* semantic, struct node* node ) {
 }
 
 void test_bcs( struct semantic* semantic ) {
+   test_imported_acs_libs( semantic );
    bind_names( semantic );
    perform_usings( semantic );
    test_objects( semantic );
@@ -252,12 +257,28 @@ void test_bcs( struct semantic* semantic ) {
    }
 }
 
+void test_imported_acs_libs( struct semantic* semantic ) {
+   semantic->trigger_err = true;
+   list_iter_t i;
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      if ( lib->lang == LANG_ACS ) {
+         test_module_acs( semantic, lib );
+      }
+      list_next( &i );
+   }
+   semantic->trigger_err = false;
+}
+
 void bind_names( struct semantic* semantic ) {
    list_iter_t i;
    list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      bind_namespace( semantic, lib->upmost_ns );
+      if ( lib->lang == LANG_BCS ) {
+         bind_namespace( semantic, lib->upmost_ns );
+      }
       list_next( &i );
    }
    bind_namespace( semantic, semantic->lib->upmost_ns );
@@ -421,7 +442,10 @@ void perform_usings( struct semantic* semantic ) {
    list_iter_t i;
    list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
-      perform_lib_usings( semantic, list_data( &i ) );
+      struct library* lib = list_data( &i );
+      if ( lib->lang == LANG_BCS ) {
+         perform_lib_usings( semantic, lib );
+      }
       list_next( &i );
    }
    perform_lib_usings( semantic, semantic->lib );
@@ -616,7 +640,9 @@ void test_all( struct semantic* semantic ) {
    list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      test_namespace( semantic, lib->upmost_ns );
+      if ( lib->lang == LANG_BCS ) {
+         test_namespace( semantic, lib->upmost_ns );
+      }
       list_next( &i );
    }
    test_namespace( semantic, semantic->lib->upmost_ns );
