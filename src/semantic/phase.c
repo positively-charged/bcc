@@ -803,6 +803,17 @@ void assign_script_numbers( struct semantic* semantic ) {
 
 void calc_map_var_size( struct semantic* semantic ) {
    list_iter_t i;
+   list_iter_init( &i, &semantic->lib->dynamic );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->vars );
+      while ( ! list_end( &k ) ) {
+         s_calc_var_size( list_data( &k ) );
+         list_next( &k );
+      }
+      list_next( &i );
+   }
    list_iter_init( &i, &semantic->lib->vars );
    while ( ! list_end( &i ) ) {
       s_calc_var_size( list_data( &i ) );
