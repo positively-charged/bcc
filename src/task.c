@@ -636,6 +636,7 @@ struct indexed_string* intern_string( struct str_table* table,
    }
    return string;
 }
+
 struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length ) {
    struct indexed_string* string = intern_string( &task->script_name_table,

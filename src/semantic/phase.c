@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "phase.h"
 
 #define SWEEP_MAX_SIZE 20
@@ -762,25 +764,30 @@ void check_dup_scripts( struct semantic* semantic ) {
 
 void match_dup_script( struct semantic* semantic, struct script* script,
    struct script* prev_script ) {
-   bool match = ( t_get_script_number( script ) ==
-      t_get_script_number( prev_script ) && script->named_script ==
-      prev_script->named_script );
-   if ( match ) {
-      if ( script->named_script ) {
-         struct indexed_string* name = t_lookup_string( semantic->task,
-            script->number->value );
+   // Script names.
+   if ( script->named_script && prev_script->named_script ) {
+      struct indexed_string* name =
+         t_lookup_string( semantic->task, script->number->value );
+      struct indexed_string* prev_name =
+         t_lookup_string( semantic->task, prev_script->number->value );
+      if ( strcasecmp( name->value, prev_name->value ) == 0 ) {
          s_diag( semantic, DIAG_POS_ERR, &script->pos,
             "duplicate script \"%s\"", name->value );
          s_diag( semantic, DIAG_POS, &prev_script->pos,
-            "script \"%s\" already found here", name->value );
+            "script already found here" );
+         s_bail( semantic );
       }
-      else {
+   }
+   // Script numbers.
+   else if ( ! script->named_script && ! prev_script->named_script ) {
+      if ( t_get_script_number( script ) ==
+         t_get_script_number( prev_script ) ) {
          s_diag( semantic, DIAG_POS_ERR, &script->pos,
             "duplicate script %d", t_get_script_number( script ) );
          s_diag( semantic, DIAG_POS, &prev_script->pos,
-            "script %d already found here", t_get_script_number( script ) );
+            "script already found here" );
+         s_bail( semantic );
       }
-      s_bail( semantic );
    }
 }
 
