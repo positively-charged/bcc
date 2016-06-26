@@ -23,13 +23,13 @@ static void alloc_funcscopevars_indexes( struct func_record* func,
    struct list* vars );
 static void visit_local_var( struct codegen* codegen, struct var* var );
 static void visit_world_var( struct codegen* codegen, struct var* var );
-static void write_world_initz( struct codegen* codegen, struct var* var );
-static void write_stringinitz( struct codegen* codegen, struct var* var,
-   struct value* value, bool include_nul );
-static void write_world_multi_initz( struct codegen* codegen,
+static void write_multi_initz( struct codegen* codegen,
    struct var* var );
+static void write_string_initz( struct codegen* codegen, struct var* var,
+   struct value* value, bool include_nul );
 static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size );
+static void write_multi_initz_acs( struct codegen* codegen, struct var* var );
 static void add_default_params( struct codegen* codegen, struct func* func,
     int count_param, bool reset_count_param );
 static void write_default_init( struct codegen* codegen, struct func* func,
@@ -257,12 +257,18 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
          var->index = codegen->func->array_index;
          ++codegen->func->array_index;
       }
-      struct value* value = var->value;
-      while ( value ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, value->index );
-         c_push_initz_expr( codegen, var->ref, value->expr );
-         c_update_element( codegen, var->storage, var->index, AOP_NONE );
-         value = value->next;
+      if ( var->initial ) {
+         if ( codegen->lang == LANG_ACS ) {
+            write_multi_initz_acs( codegen, var );
+         }
+         else {
+            if ( ! var->initial->multi && var->value->string_initz ) {
+               write_string_initz( codegen, var, var->value, true );
+            }
+            else {
+               write_multi_initz( codegen, var );
+            }
+         }
       }
       break;
    case DESC_REFVAR:
@@ -290,25 +296,19 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
 void visit_world_var( struct codegen* codegen, struct var* var ) {
    if ( var->initial ) {
       if ( var->initial->multi ) {
-         write_world_multi_initz( codegen, var );
+         write_multi_initz( codegen, var );
+      }
+      else if ( var->value->string_initz ) {
+         write_string_initz( codegen, var, var->value, true );
       }
       else {
-         write_world_initz( codegen, var );
+         c_push_expr( codegen, var->value->expr );
+         c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
       }
    }
 }
 
-void write_world_initz( struct codegen* codegen, struct var* var ) {
-   if ( var->value->string_initz ) {
-      write_stringinitz( codegen, var, var->value, true );
-   }
-   else {
-      c_push_expr( codegen, var->value->expr );
-      c_update_indexed( codegen, var->storage, var->index, AOP_NONE );
-   }
-}
-
-void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
+void write_multi_initz( struct codegen* codegen, struct var* var ) {
    // Determine segment of the array to nullify.
    // -----------------------------------------------------------------------
    // The segment begins at the first element with a value of zero, or at the
@@ -357,7 +357,7 @@ void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
             ( struct indexed_string_usage* ) value->expr->root;
          int nul_index = value->index + usage->string->length;
          bool include_nul = ( ! ( nul_index >= start && nul_index < end ) );
-         write_stringinitz( codegen, var, value, include_nul );
+         write_string_initz( codegen, var, value, include_nul );
       }
       else {
          bool zero = ( value->expr->folded && value->expr->value == 0 );
@@ -373,8 +373,8 @@ void write_world_multi_initz( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void write_stringinitz( struct codegen* codegen, struct var* var,
-   struct value* value, bool include_nul ) {
+void write_string_initz( struct codegen* codegen, struct var* var,
+   struct value* value, bool nul_element ) {
    struct indexed_string_usage* usage =
       ( struct indexed_string_usage* ) value->expr->root;
    // Optimization: If the string is small enough, initialize each element
@@ -382,7 +382,7 @@ void write_stringinitz( struct codegen* codegen, struct var* var,
    enum { UNROLL_LIMIT = 3 };
    if ( usage->string->length <= UNROLL_LIMIT ) {
       int length = usage->string->length;
-      if ( include_nul ) {
+      if ( nul_element ) {
          ++length;
       }
       int i = 0;
@@ -397,26 +397,39 @@ void write_stringinitz( struct codegen* codegen, struct var* var,
       }
    }
    else {
-      // Element index.
-      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
-      // Variable index.
-      c_pcd( codegen, PCD_PUSHNUMBER, var->index );
-      // Element offset. Not used.
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      // Number of characters to copy.
-      c_pcd( codegen, PCD_PUSHNUMBER, usage->string->length );
-      // String index.
-      c_pcd( codegen, PCD_PUSHNUMBER, usage->string->index );
-      // String offset. Not used.
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, var->storage == STORAGE_WORLD ?
-         PCD_STRCPYTOWORLDCHRANGE : PCD_STRCPYTOGLOBALCHRANGE );
-      c_pcd( codegen, PCD_DROP );
-      if ( include_nul ) {
+      if ( nul_element ) {
          c_pcd( codegen, PCD_PUSHNUMBER,
             value->index + usage->string->length );
-         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      }
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, var->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      c_pcd( codegen, PCD_PUSHNUMBER, usage->string->length );
+      c_push_string( codegen, usage->string );
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      int opcode = PCD_STRCPYTOSCRIPTCHRANGE;
+      switch ( var->storage ) {
+      case STORAGE_GLOBAL:
+         opcode = PCD_STRCPYTOGLOBALCHRANGE;
+         break;
+      case STORAGE_WORLD:
+         opcode = PCD_STRCPYTOWORLDCHRANGE;
+         break;
+      case STORAGE_LOCAL:
+         break;
+      default:
+         UNREACHABLE();
+      }
+      c_pcd( codegen, opcode );
+      if ( nul_element ) {
+         // Instead of dropping the result of StrCpy() and then pushing a zero,
+         // convert the result of StrCpy() to zero and use that. The result of
+         // StrCpy() is 1 for a successful copy, so just negate it.
+         c_pcd( codegen, PCD_NEGATELOGICAL );
          c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      }
+      else {
+         c_pcd( codegen, PCD_DROP );
       }
       usage->string->used = true;
    }
@@ -432,12 +445,16 @@ void nullify_array( struct codegen* codegen, int storage, int index,
       while ( i < size ) {
          c_pcd( codegen, PCD_PUSHNUMBER, start + i );
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         ++i;
+      }
+      i = 0;
+      while ( i < size ) {
          c_update_element( codegen, storage, index, AOP_NONE );
          ++i;
       }
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, start + size - 1 );
+      c_pcd( codegen, PCD_PUSHNUMBER, start );
       struct c_point* loop_point = c_create_point( codegen );
       c_append_node( codegen, &loop_point->node );
       c_pcd( codegen, PCD_DUP );
@@ -446,14 +463,24 @@ void nullify_array( struct codegen* codegen, int storage, int index,
       struct c_casejump* exit_jump = c_create_casejump( codegen, 0, NULL );
       c_append_node( codegen, &exit_jump->node );
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
-      c_pcd( codegen, PCD_SUBTRACT );
+      c_pcd( codegen, PCD_ADD );
       struct c_jump* loop_jump = c_create_jump( codegen, PCD_GOTO );
       c_append_node( codegen, &loop_jump->node );
       loop_jump->point = loop_point;
       struct c_point* exit_point = c_create_point( codegen );
       c_append_node( codegen, &exit_point->node );
-      exit_jump->value = start - 1;
+      exit_jump->value = start + size - 1;
       exit_jump->point = exit_point;
+   }
+}
+
+void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
+   struct value* value = var->value;
+   while ( value ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
+      c_pcd( codegen, PCD_PUSHNUMBER, value->expr->value );
+      c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      value = value->next;
    }
 }
 

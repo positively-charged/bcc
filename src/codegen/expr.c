@@ -2227,7 +2227,7 @@ void visit_strcpy( struct codegen* codegen, struct result* result,
    init_result( &object, false );
    visit_operand( codegen, &object, call->array->root );
    if ( object.status != R_ARRAYINDEX ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );;
+      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
    c_pcd( codegen, PCD_PUSHNUMBER, object.index );
    // Offset within the array.
