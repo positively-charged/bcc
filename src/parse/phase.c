@@ -42,6 +42,8 @@ void p_run( struct parse* parse ) {
    lib->lang = ( parse->task->options->lang_specified ) ?
       parse->task->options->lang : p_determine_lang_from_file_path(
       parse->task->options->source_file );
+   lib->type_mode = ( lib->lang == LANG_BCS ) ?
+      TYPEMODE_STRONG : TYPEMODE_WEAK;
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
    lib->wadauthor = ( lib->lang == LANG_ACS );
