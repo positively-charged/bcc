@@ -338,17 +338,21 @@ void setup_shary( struct codegen* codegen ) {
 // duplicates.
 void setup_diminfo( struct codegen* codegen ) {
    codegen->shary.diminfo_offset = codegen->shary.size;
+   // Variables.
    list_iter_t i;
+   list_iter_init( &i, &codegen->task->library_main->vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->dim && var->addr_taken ) {
+         var->diminfo_start = append_dim( codegen, var->dim );
+      }
+      list_next( &i );
+   }
+   // Structures.
    list_iter_init( &i, &codegen->task->library_main->objects );
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
-      if ( object->node.type == NODE_VAR ) {
-         struct var* var = ( struct var* ) object;
-         if ( var->dim && var->addr_taken ) {
-            var->diminfo_start = append_dim( codegen, var->dim );
-         }
-      }
-      else if ( object->node.type == NODE_STRUCTURE ) {
+      if ( object->node.type == NODE_STRUCTURE ) {
          struct structure* structure = ( struct structure* ) object;
          struct structure_member* member = structure->member;
          while ( member ) {

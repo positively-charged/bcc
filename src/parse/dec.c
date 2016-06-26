@@ -1241,14 +1241,12 @@ void add_var( struct parse* parse, struct dec* dec ) {
       }
    }
    else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
+      list_append( dec->vars, var );
       if ( dec->static_qual ) {
          var->hidden = true;
          list_append( &parse->lib->vars, var );
-         list_append( &parse->lib->objects, var );
-         list_append( dec->vars, var );
       }
       else {
-         list_append( dec->vars, var );
          list_append( parse->local_vars, var );
       }
    }
