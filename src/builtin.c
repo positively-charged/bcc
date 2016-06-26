@@ -177,7 +177,7 @@ struct {
    // Internal functions (Must be last.)
    // -----------------------------------------------------------------------
    { "acs_executewait", ";i;rrrr" },
-   { "acs_namedexecutewait", ";i;rrrr" },
+   { "acs_namedexecutewait", ";s;rrrr" },
 };
 
 struct {
