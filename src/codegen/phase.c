@@ -6,7 +6,8 @@
 #define MAX_MAP_LOCATIONS 128
 #define MAX_LIB_FUNCS 256
 
-static void write_acs_obj( struct codegen* codegen );
+static void publish_acs95( struct codegen* codegen );
+static void publish( struct codegen* codegen );
 static void clarify_vars( struct codegen* codegen );
 static void alloc_dim_counter_var( struct codegen* codegen );
 static void alloc_funcs( struct codegen* codegen );
@@ -23,6 +24,7 @@ static bool array_var( struct var* var );
 static bool scalar_var( struct var* var );
 static void assign_indexes( struct codegen* codegen );
 static void create_assert_strings( struct codegen* codegen );
+static void append_all_strings( struct codegen* codegen );
 
 void c_init( struct codegen* codegen, struct task* task ) {
    codegen->task = task;
@@ -67,26 +69,15 @@ void c_init( struct codegen* codegen, struct task* task ) {
 void c_publish( struct codegen* codegen ) {
    switch ( codegen->task->library_main->lang ) {
    case LANG_ACS95:
-      write_acs_obj( codegen );
+      publish_acs95( codegen );
       break;
    default:
-      clarify_vars( codegen );
-      alloc_funcs( codegen );
-      setup_shary( codegen );
-      patch_initz( codegen );
-      sort_vars( codegen );
-      assign_indexes( codegen );
-      if ( codegen->task->options->write_asserts &&
-         list_size( &codegen->task->runtime_asserts ) > 0 ) {
-         create_assert_strings( codegen );
-      }
-      c_write_chunk_obj( codegen );
-      c_flush( codegen );
+      publish( codegen );
       break;
    }
 }
 
-void write_acs_obj( struct codegen* codegen ) {
+void publish_acs95( struct codegen* codegen ) {
    // Reserve header.
    c_add_int( codegen, 0 );
    c_add_int( codegen, 0 );
@@ -130,6 +121,40 @@ void write_acs_obj( struct codegen* codegen ) {
    c_seek( codegen, 0 );
    c_add_sized( codegen, "ACS\0", 4 );
    c_add_int( codegen, dir_offset );
+   c_flush( codegen );
+}
+
+void publish( struct codegen* codegen ) {
+   switch ( codegen->lang ) {
+   case LANG_ACS:
+      append_all_strings( codegen );
+      break;
+   default:
+      break;
+   }
+   clarify_vars( codegen );
+   alloc_funcs( codegen );
+   switch ( codegen->lang ) {
+   case LANG_BCS:
+      setup_shary( codegen );
+      patch_initz( codegen );
+      break;
+   default:
+      break;
+   }
+   sort_vars( codegen );
+   assign_indexes( codegen );
+   switch ( codegen->lang ) {
+   case LANG_BCS:
+      if ( codegen->task->options->write_asserts &&
+         list_size( &codegen->task->runtime_asserts ) > 0 ) {
+         create_assert_strings( codegen );
+      }
+      break;
+   default:
+      break;
+   }
+   c_write_chunk_obj( codegen );
    c_flush( codegen );
 }
 
@@ -572,5 +597,13 @@ void c_append_string( struct codegen* codegen,
       string->index_runtime = codegen->runtime_index;
       ++codegen->runtime_index;
       list_append( &codegen->used_strings, string );
+   }
+}
+
+void append_all_strings( struct codegen* codegen ) {
+   struct indexed_string* string = codegen->task->str_table.head;
+   while ( string ) {
+      c_append_string( codegen, string );
+      string = string->next;
    }
 }

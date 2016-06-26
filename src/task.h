@@ -1052,6 +1052,7 @@ struct task {
    jmp_buf* bail;
    struct file_entry* file_entries;
    struct str_table str_table;
+   struct str_table script_name_table;
    struct library* library_main;
    struct list libraries;
    // List of alternative filenames. Each entry is a string.
@@ -1134,5 +1135,7 @@ struct expr* t_alloc_expr( void );
 void t_create_builtins( struct task* task );
 struct indexed_string_usage* t_alloc_indexed_string_usage( void );
 void t_init_pos_id( struct pos* pos, int id );
+struct indexed_string* t_intern_script_name( struct task* task,
+   const char* value, int length );
 
 #endif

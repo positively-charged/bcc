@@ -1773,6 +1773,17 @@ void read_script_number( struct parse* parse, struct script* script ) {
          p_bail( parse );
       }
    }
+   else if ( parse->lang == LANG_ACS && parse->tk == TK_LIT_STRING ) {
+      struct indexed_string* string = t_intern_script_name( parse->task,
+         parse->tk_text, parse->tk_length );
+      struct indexed_string_usage* usage = t_alloc_indexed_string_usage();
+      usage->string = string;
+      struct expr* expr = t_alloc_expr();
+      expr->pos = parse->tk_pos;
+      expr->root = &usage->node;
+      script->number = expr;
+      p_read_tk( parse );
+   }
    else {
       // When reading the script number, the left parenthesis of the parameter
       // list can be mistaken for a function call. Don't read function calls.

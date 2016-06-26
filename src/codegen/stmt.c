@@ -286,7 +286,7 @@ void write_switch_casegoto( struct codegen* codegen,
    set_jumps_point( codegen, stmt->jump_break, exit_point );
 }
 
-void write_switch ( struct codegen* codegen, struct switch_stmt* stmt ) {
+void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Case selection.
    c_push_expr( codegen, stmt->cond );

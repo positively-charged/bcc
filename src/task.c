@@ -4,6 +4,12 @@
 
 #include "task.h"
 
+enum { STRTABLE_MAXSIZE = 65536 };
+enum {
+   STRTABLE_STR,
+   STRTABLE_SCRIPTNAME,
+};
+
 static void init_str_table( struct str_table* table );
 static void open_logfile( struct task* task );
 void show_diag( struct task* task, int flags, va_list* args );
@@ -16,8 +22,8 @@ static struct file_entry* add_file( struct task* task,
 static struct file_entry* create_file_entry( struct task* task,
    struct file_query* query );
 static void link_file_entry( struct task* task, struct file_entry* entry );
-static struct indexed_string* intern_string( struct task* task,
-   const char* value, int length, bool* first_time );
+static struct indexed_string* intern_string( struct str_table* table,
+   const char* value, int length );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->options = options;
@@ -25,6 +31,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->bail = bail;
    task->file_entries = NULL;
    init_str_table( &task->str_table );
+   init_str_table( &task->script_name_table );
    task->library_main = NULL;
    list_init( &task->libraries );
    list_init( &task->altern_filenames );
@@ -580,8 +587,13 @@ struct library* t_add_library( struct task* task ) {
 
 struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length ) {
+   return intern_string( &task->str_table, value, length );
+}
+
+struct indexed_string* intern_string( struct str_table* table,
+   const char* value, int length ) {
    struct indexed_string* prev_string = NULL;
-   struct indexed_string* string =  task->str_table.head_sorted;
+   struct indexed_string* string = table->head_sorted;
    while ( string ) {
       int result = strcmp( string->value, value );
       if ( result == 0 ) {
@@ -599,34 +611,46 @@ struct indexed_string* t_intern_string( struct task* task,
       string = mem_alloc( sizeof( *string ) );
       string->value = value;
       string->length = length;
-      string->index = task->str_table.size;
+      string->index = table->size;
       string->index_runtime = -1;
       string->next = NULL;
       string->next_sorted = NULL;
       string->used = false;
-      if ( task->str_table.head ) {
-         task->str_table.tail->next = string;
+      if ( table->head ) {
+         table->tail->next = string;
       }
       else {
-         task->str_table.head = string;
+         table->head = string;
       }
-      task->str_table.tail = string;
+      table->tail = string;
       // List sorted alphabetically.
       if ( prev_string ) {
          string->next_sorted = prev_string->next_sorted;
          prev_string->next_sorted = string;
       }
       else {
-         string->next_sorted = task->str_table.head_sorted;
-         task->str_table.head_sorted = string;
+         string->next_sorted = table->head_sorted;
+         table->head_sorted = string;
       }
-      ++task->str_table.size;
+      ++table->size;
+   }
+   return string;
+}
+struct indexed_string* t_intern_script_name( struct task* task,
+   const char* value, int length ) {
+   struct indexed_string* string = intern_string( &task->script_name_table,
+      value, length );
+   // Encode number of string table in index.
+   if ( string->index < STRTABLE_MAXSIZE ) {
+      string->index += STRTABLE_SCRIPTNAME * STRTABLE_MAXSIZE;
    }
    return string;
 }
 
 struct indexed_string* t_lookup_string( struct task* task, int index ) {
-   struct indexed_string* string = task->str_table.head;
+   struct str_table* table = index / STRTABLE_MAXSIZE ==
+      STRTABLE_SCRIPTNAME ? &task->script_name_table : &task->str_table;
+   struct indexed_string* string = table->head;
    while ( string && string->index != index ) {
       string = string->next;
    }
