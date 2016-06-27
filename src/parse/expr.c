@@ -922,6 +922,7 @@ struct access* alloc_access( const char* name, struct pos pos ) {
    access->pos = pos;
    access->lside = NULL;
    access->rside = NULL;
+   access->type = ACCESS_STRUCTURE;
    return access;
 }
 

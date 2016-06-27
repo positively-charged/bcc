@@ -28,6 +28,7 @@ struct result {
    bool push_func;
    bool skip_negate;
    bool null;
+   bool safe;
 };
 
 static void init_result( struct result* result, bool push );
@@ -274,6 +275,7 @@ void init_result( struct result* result, bool push ) {
    result->push_func = false;
    result->skip_negate = false;
    result->null = false;
+   result->safe = false;
 }
 
 void push_operand( struct codegen* codegen, struct node* node ) {
@@ -1234,7 +1236,7 @@ void subscript_array_reference( struct codegen* codegen,
    if ( lside->ref_dim == 0 ) {
       struct ref_array* array = ( struct ref_array* ) lside->ref;
       lside->ref_dim = array->dim_count;
-      if ( array->ref.nullable ) {
+      if ( array->ref.nullable && ! lside->safe ) {
          c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
       }
    }
@@ -1315,27 +1317,56 @@ void subscript_str( struct codegen* codegen, struct subscript* subscript,
 
 void visit_access( struct codegen* codegen, struct result* result,
    struct access* access ) {
-   struct result lside;
-   init_result( &lside, true );
-   visit_suffix( codegen, &lside, access->lside );
-   if ( access->rside->type == NODE_STRUCTURE_MEMBER ) {
-      access_structure_member( codegen,
-         ( struct structure_member* ) access->rside, &lside, result );
-   }
-   else if ( access->rside->type == NODE_CONSTANT ) {
-      visit_constant( codegen, result,
-         ( struct constant* ) access->rside );
-   }
-   else if ( access->rside->type == NODE_ENUMERATOR ) {
-      visit_enumerator( codegen, result,
-         ( struct enumerator* ) access->rside );
-   }
-   else if ( access->rside->type == NODE_VAR ) {
-      visit_var( codegen, result,
-         ( struct var* ) access->rside );
-   }
-   else if ( access->rside->type == NODE_FUNC ) {
-      *result = lside;
+   switch ( access->type ) {
+      struct result lside;
+   case ACCESS_STRUCTURE:
+   case ACCESS_ARRAY:
+      init_result( &lside, true );
+      visit_suffix( codegen, &lside, access->lside );
+      if ( lside.ref && lside.ref->nullable && ! lside.safe ) {
+         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+      }
+      switch ( access->rside->type ) {
+      case NODE_STRUCTURE_MEMBER:
+         access_structure_member( codegen,
+            ( struct structure_member* ) access->rside, &lside, result );
+         break;
+      case NODE_FUNC:
+         *result = lside;
+         break;
+      default:
+         UNREACHABLE();
+      }
+      break;
+   case ACCESS_ENUMERATION:
+      switch ( access->rside->type ) {
+      case NODE_ENUMERATOR:
+         visit_enumerator( codegen, result,
+            ( struct enumerator* ) access->rside );
+         break;
+      default:
+         UNREACHABLE();
+      }
+      break;
+   case ACCESS_NAMESPACE:
+      switch ( access->rside->type ) {
+      case NODE_CONSTANT:
+         visit_constant( codegen, result,
+            ( struct constant* ) access->rside );
+         break;
+      case NODE_VAR:
+         visit_var( codegen, result,
+            ( struct var* ) access->rside );
+         break;
+      case NODE_FUNC:
+         visit_func( codegen, result,
+            ( struct func* ) access->rside );
+         break;
+      case NODE_NAMESPACE:
+         break;
+      default:
+         UNREACHABLE();
+      }
    }
 }
 
@@ -1343,9 +1374,6 @@ void access_structure_member( struct codegen* codegen,
    struct structure_member* member, struct result* lside,
    struct result* result ) {
    if ( lside->status == R_ARRAYINDEX ) {
-      if ( lside->ref && lside->ref->nullable ) {
-         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
-      }
       // Adding a zero doesn't change the final offset.
       if ( member->offset > 0 ) {
          c_pcd( codegen, PCD_PUSHNUMBER, member->offset );
@@ -1900,6 +1928,7 @@ void visit_sure( struct codegen* codegen, struct result* result,
    result->storage = operand.storage;
    result->index = operand.index;
    result->status = operand.status;
+   result->safe = true;
 }
 
 void write_null_check( struct codegen* codegen, struct result* result ) {

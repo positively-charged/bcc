@@ -1337,14 +1337,17 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       return name->object;
    }
    else if ( lside->object && lside->object->node.type == NODE_ENUMERATION ) {
+      access->type = ACCESS_ENUMERATION;
       struct enumeration* enumeration = ( struct enumeration* ) lside->object;
       struct name* name = t_extend_name( enumeration->body, access->name );
       return name->object;
    }
    else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
+      access->type = ACCESS_NAMESPACE;
       return s_get_nsobject( ( struct ns* ) lside->object, access->name );
    }
    else if ( is_array( lside ) ) {
+      access->type = ACCESS_ARRAY;
       struct name* name = t_extend_name( semantic->task->array_name, "." );
       name = t_extend_name( name, access->name );
       return name->object;

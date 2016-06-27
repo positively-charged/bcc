@@ -85,8 +85,8 @@ struct node {
       NODE_CONDITIONAL,
       NODE_STRCPY,
       NODE_LOGICAL,
-      NODE_INC,
       // 40
+      NODE_INC,
       NODE_FIXED_LITERAL,
       NODE_CAST,
       NODE_INLINE_ASM,
@@ -96,8 +96,8 @@ struct node {
       NODE_NULL,
       NODE_NAMESPACE,
       NODE_UPMOST,
-      NODE_USING,
       // 50
+      NODE_USING,
       NODE_OBJCPY,
       NODE_CONVERSION,
       NODE_SURE
@@ -389,6 +389,12 @@ struct access {
    struct node* lside;
    struct node* rside;
    const char* name;
+   enum {
+      ACCESS_STRUCTURE,
+      ACCESS_ENUMERATION,
+      ACCESS_NAMESPACE,
+      ACCESS_ARRAY
+   } type;
 };
 
 struct call {
