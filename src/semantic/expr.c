@@ -464,6 +464,10 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       result->complete = true;
       result->usable = true;
       binary->operand_type = lside->spec;
+      if ( lside->spec == SPEC_RAW || rside->spec == SPEC_RAW ) {
+         result->spec = SPEC_RAW;
+         binary->operand_type = SPEC_RAW;
+      }
       return true;
    }
    // Reference type.
