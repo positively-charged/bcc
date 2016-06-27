@@ -35,7 +35,7 @@ struct {
 } g_funcs[] = {
    // Format:
    // [<return-type>] [; <required-parameters> [; <optional-parameters> ]]
-   { "delay", "i;i" },
+   { "delay", ";i" },
    { "random", "i;ii" },
    { "thingcount", "i;i;i" },
    { "tagwait", ";i" },
