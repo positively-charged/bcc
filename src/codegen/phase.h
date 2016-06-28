@@ -90,6 +90,7 @@ struct codegen {
    struct list used_strings;
    struct list vars;
    struct list imported_vars;
+   struct list funcs;
    struct {
       struct list vars;
       struct list dims;

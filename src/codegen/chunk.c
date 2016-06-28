@@ -274,28 +274,10 @@ void do_snam( struct codegen* codegen ) {
 }
 
 void do_func( struct codegen* codegen ) {
-   int count = list_size( &codegen->task->library_main->funcs );
-   // Imported functions:
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            ++count;
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   if ( ! count ) {
+   if ( list_size( &codegen->funcs ) == 0 ) {
       return;
    }
-   struct  {
+   struct {
       char params;
       char size;
       char value;
@@ -304,36 +286,22 @@ void do_func( struct codegen* codegen ) {
    } entry;
    entry.padding = 0;
    c_add_str( codegen, "FUNC" );
-   c_add_int( codegen, sizeof( entry ) * count );
-   // Imported functions:
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
-      entry.size = 0;
-      entry.offset = 0;
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            entry.params = ( char ) c_total_param_size( func );
-            entry.value = ( char ) ( func->return_spec != SPEC_VOID );
-            c_add_sized( codegen, &entry, sizeof( entry ) );
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // Visible functions:
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   c_add_int( codegen, sizeof( entry ) * list_size( &codegen->funcs ) );
+   list_iter_t i;
+   list_iter_init( &i, &codegen->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
       entry.params = ( char ) c_total_param_size( func );
-      entry.size = ( char ) ( impl->size - entry.params );
       entry.value = ( char ) ( func->return_spec != SPEC_VOID );
-      entry.offset = impl->obj_pos;
+      if ( func->imported ) {
+         entry.size = 0;
+         entry.offset = 0;
+      }
+      else {
+         struct func_user* impl = func->impl;
+         entry.size = ( char ) ( impl->size - entry.params );
+         entry.offset = impl->obj_pos;
+      }
       c_add_sized( codegen, &entry, sizeof( entry ) );
       list_next( &i );
    }
@@ -358,26 +326,8 @@ int c_total_param_size( struct func* func ) {
 void do_fnam( struct codegen* codegen ) {
    int count = 0;
    int size = 0;
-   // Imported functions:
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            size += t_full_name_length( func->name ) + 1;
-            ++count;
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // Functions:
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   list_iter_init( &i, &codegen->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
@@ -386,7 +336,7 @@ void do_fnam( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   if ( ! count ) {
+   if ( count == 0 ) {
       return;
    }
    int offset =
@@ -396,27 +346,8 @@ void do_fnam( struct codegen* codegen ) {
    c_add_str( codegen, "FNAM" );
    c_add_int( codegen, offset + size + padding );
    c_add_int( codegen, count );
-   // Offsets:
-   // -----------------------------------------------------------------------
-   // Imported functions.
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            c_add_int( codegen, offset );
-            offset += t_full_name_length( func->name ) + 1;
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // Functions.
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   // Offsets.
+   list_iter_init( &i, &codegen->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
@@ -425,29 +356,10 @@ void do_fnam( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   // Names:
-   // -----------------------------------------------------------------------
-   // Imported functions.
+   // Names.
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         struct func_user* impl = func->impl;
-         if ( impl->usage ) {
-            t_copy_name( func->name, true, &str );
-            c_add_sized( codegen, str.value, str.length + 1 );
-         }
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // Functions.
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   list_iter_init( &i, &codegen->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {

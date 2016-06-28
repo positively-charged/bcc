@@ -1349,6 +1349,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->return_spec = dec->spec;
    func->hidden = dec->private_visibility;
    func->msgbuild = dec->msgbuild;
+   func->imported = parse->lib->imported;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    read_func_param_list( parse, func );

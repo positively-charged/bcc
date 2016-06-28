@@ -812,6 +812,7 @@ struct func* t_alloc_func( void ) {
    func->max_param = 0;
    func->hidden = false;
    func->msgbuild = false;
+   func->imported = false;
    return func;
 }
 

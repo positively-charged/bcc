@@ -695,6 +695,7 @@ struct func {
    int max_param;
    bool hidden;
    bool msgbuild;
+   bool imported;
 };
 
 struct func_aspec {

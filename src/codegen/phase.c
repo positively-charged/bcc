@@ -10,7 +10,7 @@ static void publish_acs95( struct codegen* codegen );
 static void publish( struct codegen* codegen );
 static void clarify_vars( struct codegen* codegen );
 static void alloc_dim_counter_var( struct codegen* codegen );
-static void alloc_funcs( struct codegen* codegen );
+static void clarify_funcs( struct codegen* codegen );
 static void setup_shary( struct codegen* codegen );
 static void setup_diminfo( struct codegen* codegen );
 static int append_dim( struct codegen* codegen, struct dim* dim );
@@ -50,6 +50,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    list_init( &codegen->used_strings );
    list_init( &codegen->vars );
    list_init( &codegen->imported_vars );
+   list_init( &codegen->funcs );
    list_init( &codegen->shary.vars );
    list_init( &codegen->shary.dims );
    codegen->shary.index = 0;
@@ -133,7 +134,7 @@ void publish( struct codegen* codegen ) {
       break;
    }
    clarify_vars( codegen );
-   alloc_funcs( codegen );
+   clarify_funcs( codegen );
    switch ( codegen->lang ) {
    case LANG_BCS:
       setup_shary( codegen );
@@ -257,12 +258,11 @@ void alloc_dim_counter_var( struct codegen* codegen ) {
    codegen->shary.dim_counter_var = true;
 }
 
-void alloc_funcs( struct codegen* codegen ) {
-   // Order of allocation:
-   // - imported functions
-   // - functions
-   // - hidden functions
-   int index = 0;
+// Order of functions:
+// - imported functions
+// - functions
+// - hidden functions
+void clarify_funcs( struct codegen* codegen ) {
    // Imported functions.
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->dynamic );
@@ -274,8 +274,7 @@ void alloc_funcs( struct codegen* codegen ) {
          struct func* func = list_data( &k );
          struct func_user* impl = func->impl;
          if ( impl->usage ) {
-            impl->index = index;
-            ++index;
+            list_append( &codegen->funcs, func );
          }
          list_next( &k );
       }
@@ -286,9 +285,7 @@ void alloc_funcs( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
-         struct func_user* impl = func->impl;
-         impl->index = index;
-         ++index;
+         list_append( &codegen->funcs, func );
       }
       list_next( &i );
    }
@@ -297,18 +294,16 @@ void alloc_funcs( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( func->hidden ) {
-         struct func_user* impl = func->impl;
-         impl->index = index;
-         ++index;
+         list_append( &codegen->funcs, func );
       }
       list_next( &i );
    }
    // In Little-E, the field of the function-call instruction that stores the
    // index of the function is a byte in size, allowing up to 256 different
    // functions to be called.
-   // NOTE: Maybe automatically switch to the Big-E format? 
+   // NOTE: Maybe automatically switch to the Big-E format?
    if ( codegen->task->library_main->format == FORMAT_LITTLE_E &&
-      index > MAX_LIB_FUNCS ) {
+      list_size( &codegen->funcs ) > MAX_LIB_FUNCS ) {
       t_diag( codegen->task, DIAG_ERR | DIAG_FILE,
          &codegen->task->library_main->file_pos,
          "library uses over maximum %d functions", MAX_LIB_FUNCS );
@@ -564,6 +559,16 @@ void assign_indexes( struct codegen* codegen ) {
          codegen->shary.dim_counter = index;
          ++index;
       }
+   }
+   // Functions.
+   index = 0;
+   list_iter_init( &i, &codegen->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      impl->index = index;
+      ++index;
+      list_next( &i );
    }
 }
 
