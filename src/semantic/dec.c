@@ -105,6 +105,7 @@ static void merge_type( struct semantic* semantic, struct name_spec_test* test,
    struct type_alias* alias );
 static void merge_ref( struct semantic* semantic,
    struct name_spec_test* test, struct type_alias* alias );
+static struct ref* get_last_ref_part( struct ref* ref );
 static bool test_var_ref( struct semantic* semantic, struct var* var );
 static void init_ref_test( struct ref_test* test, struct ref* ref, int spec );
 static void test_ref( struct semantic* semantic, struct ref_test* test );
@@ -367,11 +368,14 @@ bool test_member_spec( struct semantic* semantic, struct structure* structure,
       member->dim = test.dim;
       member->spec = test.spec;
    }
-   if ( member->spec == SPEC_VOID &&
-      ! ( member->ref && member->ref->type == REF_FUNCTION ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &member->object.pos,
-         "struct-member of void type" );
-      s_bail( semantic );
+   if ( member->spec == SPEC_VOID ) {
+      struct ref* ref = get_last_ref_part( member->ref );
+      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
+         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &member->object.pos,
+            "%s of void type", ref ? "non-function reference" :
+            "struct member" );
+         s_bail( semantic );
+      }
    }
    if ( member->spec == SPEC_STRUCT ) {
       return member->structure->object.resolved ||
@@ -433,11 +437,13 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
       alias->dim = test.dim;
       alias->spec = test.spec;
    }
-   if ( alias->spec == SPEC_VOID &&
-      ! ( alias->ref && alias->ref->type == REF_FUNCTION ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &alias->object.pos,
-         "typedef of void type" );
-      s_bail( semantic );
+   if ( alias->spec == SPEC_VOID ) {
+      struct ref* ref = get_last_ref_part( alias->ref );
+      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
+         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &alias->object.pos,
+            "%s of void type", ref ? "non-function reference" : "typedef" );
+         s_bail( semantic );
+      }
    }
    if ( alias->spec == SPEC_STRUCT ) {
       return alias->structure->object.resolved;
@@ -503,11 +509,13 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
       var->dim = test.dim;
       var->spec = test.spec;
    }
-   if ( var->spec == SPEC_VOID &&
-      ! ( var->ref && var->ref->type == REF_FUNCTION ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "variable of void type" );
-      s_bail( semantic );
+   if ( var->spec == SPEC_VOID ) {
+      struct ref* ref = get_last_ref_part( var->ref );
+      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
+         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &var->object.pos,
+            "%s of void type", ref ? "non-function reference" : "variable" );
+         s_bail( semantic );
+      }
    }
    var->spec = s_spec( semantic, var->spec );
    var->func_scope = s_func_scope_forced( semantic );
@@ -646,6 +654,13 @@ void merge_ref( struct semantic* semantic, struct name_spec_test* test,
    else {
       UNREACHABLE();
    }
+}
+
+struct ref* get_last_ref_part( struct ref* ref ) {
+   while ( ref && ref->next ) {
+      ref = ref->next;
+   }
+   return ref;
 }
 
 bool test_var_ref( struct semantic* semantic, struct var* var ) {
@@ -1522,11 +1537,13 @@ bool test_param_spec( struct semantic* semantic, struct param* param ) {
       param->enumeration = test.enumeration;
       param->spec = test.spec;
    }
-   if ( param->spec == SPEC_VOID &&
-      ! ( param->ref && param->ref->type == REF_FUNCTION ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
-         "parameter of void type" );
-      s_bail( semantic );
+   if ( param->spec == SPEC_VOID ) {
+      struct ref* ref = get_last_ref_part( param->ref );
+      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
+         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &param->object.pos,
+            "%s of void type", ref ? "non-function reference" : "parameter" );
+         s_bail( semantic );
+      }
    }
    if ( param->spec == SPEC_STRUCT ) {
       return param->structure->object.resolved;
