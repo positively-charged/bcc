@@ -321,6 +321,7 @@ struct dec {
    bool read_func;
    bool msgbuild;
    bool extended_spec;
+   bool type_alias;
 };
 
 struct stmt_reading {

@@ -24,6 +24,7 @@ static struct file_entry* create_file_entry( struct task* task,
 static void link_file_entry( struct task* task, struct file_entry* entry );
 static struct indexed_string* intern_string( struct str_table* table,
    const char* value, int length );
+static void init_ref( struct ref* ref, int type );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->options = options;
@@ -924,4 +925,20 @@ void t_init_pos_id( struct pos* pos, int id ) {
    pos->id = id;
    pos->line = 0;
    pos->column = 0;
+}
+
+void init_ref( struct ref* ref, int type ) {
+   ref->next = NULL;
+   ref->type = type;
+   ref->nullable = false;
+}
+
+struct ref_func* t_alloc_ref_func( void ) {
+   struct ref_func* func = mem_alloc( sizeof( *func ) );
+   init_ref( &func->ref, REF_FUNCTION );
+   func->params = NULL;
+   func->min_param = 0;
+   func->max_param = 0;
+   func->msgbuild = false;
+   return func;
 }

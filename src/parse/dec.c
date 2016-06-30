@@ -272,6 +272,7 @@ void p_init_dec( struct dec* dec ) {
    dec->read_func = false;
    dec->msgbuild = false;
    dec->extended_spec = false;
+   dec->type_alias = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -564,20 +565,26 @@ struct structure_member* create_structure_member( struct dec* dec ) {
 void read_typedef( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_TYPEDEF );
    p_read_tk( parse );
-   read_extended_spec( parse, dec );
-   struct ref_reading ref;
-   init_ref_reading( &ref );
-   read_ref( parse, &ref );
-   dec->ref = ref.head;
-   while ( true ) {
-      read_name( parse, dec );
-      read_dim( parse, dec );
-      finish_typedef( parse, dec );
-      if ( parse->tk == TK_COMMA ) {
-         p_read_tk( parse );
-      }
-      else {
-         break;
+   dec->type_alias = true;
+   if ( parse->tk == TK_FUNCTION ) {
+      read_func( parse, dec );
+   }
+   else {
+      read_extended_spec( parse, dec );
+      struct ref_reading ref;
+      init_ref_reading( &ref );
+      read_ref( parse, &ref );
+      dec->ref = ref.head;
+      while ( true ) {
+         read_name( parse, dec );
+         read_dim( parse, dec );
+         finish_typedef( parse, dec );
+         if ( parse->tk == TK_COMMA ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
       }
    }
    p_test_tk( parse, TK_SEMICOLON );
@@ -930,12 +937,8 @@ void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
 }
 
 void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
-   struct ref_func* part = mem_alloc( sizeof( *part ) );
-   init_ref( &part->ref, REF_FUNCTION, &parse->tk_pos );
-   part->params = NULL;
-   part->min_param = 0;
-   part->max_param = 0;
-   part->msgbuild = false;
+   struct ref_func* part = t_alloc_ref_func();
+   part->ref.pos = parse->tk_pos;
    p_test_tk( parse, TK_FUNCTION );
    p_read_tk( parse );
    // Read parameter list.
@@ -1355,7 +1358,12 @@ void read_func( struct parse* parse, struct dec* dec ) {
    read_func_param_list( parse, func );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   read_func_body( parse, dec, func );
+   if ( dec->type_alias ) {
+      func->type = FUNC_ALIAS;
+   }
+   else {
+      read_func_body( parse, dec, func );
+   }
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &func->object );
       list_append( &parse->ns->objects, func );

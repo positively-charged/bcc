@@ -681,7 +681,8 @@ struct func {
       FUNC_FORMAT,
       FUNC_USER,
       FUNC_INTERNAL,
-      FUNC_SAMPLE
+      FUNC_SAMPLE,
+      FUNC_ALIAS
    } type;
    struct ref* ref;
    struct structure* structure;
@@ -1144,5 +1145,6 @@ struct indexed_string_usage* t_alloc_indexed_string_usage( void );
 void t_init_pos_id( struct pos* pos, int id );
 struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length );
+struct ref_func* t_alloc_ref_func( void );
 
 #endif
