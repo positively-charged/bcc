@@ -421,7 +421,7 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
    }
    struct enumerator* enumerator = t_alloc_enumerator();
    enumerator->object.pos = parse->tk_pos;
-   enumerator->name = t_extend_name( enumeration->body, parse->tk_text );
+   enumerator->name = t_extend_name( parse->ns->body, parse->tk_text );
    enumerator->enumeration = enumeration;
    p_read_tk( parse );
    if ( parse->tk == TK_ASSIGN ) {

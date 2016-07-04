@@ -1354,16 +1354,6 @@ void visit_access( struct codegen* codegen, struct result* result,
          UNREACHABLE();
       }
       break;
-   case ACCESS_ENUMERATION:
-      switch ( access->rside->type ) {
-      case NODE_ENUMERATOR:
-         visit_enumerator( codegen, result,
-            ( struct enumerator* ) access->rside );
-         break;
-      default:
-         UNREACHABLE();
-      }
-      break;
    case ACCESS_NAMESPACE:
       switch ( access->rside->type ) {
       case NODE_CONSTANT:

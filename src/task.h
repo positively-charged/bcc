@@ -391,7 +391,6 @@ struct access {
    const char* name;
    enum {
       ACCESS_STRUCTURE,
-      ACCESS_ENUMERATION,
       ACCESS_NAMESPACE,
       ACCESS_ARRAY
    } type;

@@ -1336,12 +1336,6 @@ struct object* access_object( struct semantic* semantic, struct access* access,
          access->name );
       return name->object;
    }
-   else if ( lside->object && lside->object->node.type == NODE_ENUMERATION ) {
-      access->type = ACCESS_ENUMERATION;
-      struct enumeration* enumeration = ( struct enumeration* ) lside->object;
-      struct name* name = t_extend_name( enumeration->body, access->name );
-      return name->object;
-   }
    else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
       access->type = ACCESS_NAMESPACE;
       return s_get_nsobject( ( struct ns* ) lside->object, access->name );
@@ -1386,17 +1380,6 @@ void unknown_member( struct semantic* semantic, struct access* access,
             str.value );
          str_deinit( &str );
       }
-   }
-   else if ( lside->object &&
-      lside->object->node.type == NODE_ENUMERATION ) {
-      struct enumeration* enumeration = ( struct enumeration* ) lside->object;
-      struct str str;
-      str_init( &str );
-      t_copy_name( enumeration->name, false, &str );
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "`%s` not an enumerator of enumeration `%s`", access->name,
-         str.value );
-      str_deinit( &str );
    }
    else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
       s_unknown_ns_object( semantic, ( struct ns* ) lside->object,
@@ -2090,7 +2073,6 @@ void select_object( struct semantic* semantic, struct expr_test* test,
       select_func( semantic, result,
          ( struct func* ) object );
       break;
-   case NODE_ENUMERATION:
    case NODE_NAMESPACE:
       result->object = object;
       break;
@@ -2099,6 +2081,7 @@ void select_object( struct semantic* semantic, struct expr_test* test,
          ( struct alias* ) object );
       break;
    case NODE_STRUCTURE:
+   case NODE_ENUMERATION:
    case NODE_TYPE_ALIAS:
       break;
    default:
