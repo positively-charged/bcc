@@ -31,27 +31,27 @@ enum {
    TEXTURE_TOP,
    TEXTURE_MIDDLE,
    TEXTURE_BOTTOM
-}
+};
 
 enum {
    TEXFLAG_TOP = 1,
    TEXFLAG_MIDDLE = 2,
    TEXFLAG_BOTTOM = 4,
    TEXFLAG_ADDOFFSET = 8
-}
+};
 
 enum {
    GAME_SINGLE_PLAYER,
    GAME_NET_COOPERATIVE,
    GAME_NET_DEATHMATCH,
    GAME_TITLE_MAP
-}
+};
 
 enum {
    CLASS_FIGHTER,
    CLASS_CLERIC,
    CLASS_MAGE
-}
+};
 
 enum {
    SKILL_VERY_EASY,
@@ -59,7 +59,7 @@ enum {
    SKILL_NORMAL,
    SKILL_HARD,
    SKILL_VERY_HARD
-}
+};
 
 enum {
    BLOCK_NOTHING,
@@ -67,13 +67,13 @@ enum {
    BLOCK_EVERYTHING,
    BLOCK_RAILING,
    BLOCK_PLAYERS
-}
+};
 
 enum {
    SCROLL,
    CARRY,
    SCROLL_AND_CARRY
-}
+};
 
 enum {
    MOD_UNKNOWN,
@@ -100,7 +100,7 @@ enum {
    MOD_DISINTEGRATE,
    MOD_POISON,
    MOD_ELECTRIC
-}
+};
 
 enum MOVIE_PLAYED = 0;
 enum MOVIE_PLAYED_NOVIDEO = 1;
@@ -123,7 +123,7 @@ enum {
    PROP_FLIGHT,
    PROP_SPEED = 15,
    PROP_BUDDHA
-}
+};
 
 enum {
    INPUT_OLDBUTTONS,
@@ -134,7 +134,7 @@ enum {
    INPUT_FORWARDMOVE,
    INPUT_SIDEMOVE,
    INPUT_UPMOVE
-}
+};
 
 enum {
    MODINPUT_OLDBUTTONS = 8,
@@ -145,7 +145,7 @@ enum {
    MODINPUT_FORWARDMOVE,
    MODINPUT_SIDEMOVE,
    MODINPUT_UPMOVE
-}
+};
 
 enum BT_ATTACK = 0x1;
 enum BT_USE = 0x2;
@@ -198,7 +198,7 @@ enum {
    CR_DARKGRAY,
    CR_DARKGREY = CR_DARKGRAY,
    CR_CYAN
-}
+};
 
 enum HUDMSG_PLAIN = 0;
 enum HUDMSG_FADEOUT = 1;
@@ -229,7 +229,7 @@ enum {
    MARINEWEAPON_PLASMARIFLE,
    MARINEWEAPON_RAILGUN,
    MARINEWEAPON_BFG
-}
+};
 
 enum {
    APROP_HEALTH,
@@ -278,7 +278,7 @@ enum {
    APROP_DAMAGEMULTIPLIER,
    APROP_MAXSTEPHEIGHT,
    APROP_MAXDROPOFFHEIGHT
-}
+};
 
 enum {
    STYLE_NONE,
@@ -295,7 +295,7 @@ enum {
    STYLE_TRANSLUCENTSTENCIL,
    STYLE_SHADOW,
    STYLE_SUBTRACT
-}
+};
 
 enum {
    LEVELINFO_PAR_TIME,
@@ -308,7 +308,7 @@ enum {
    LEVELINFO_TOTAL_MONSTERS,
    LEVELINFO_KILLED_MONSTERS,
    LEVELINFO_SUCK_TIME
-}
+};
 
 enum {
    PLAYERINFO_TEAM,
@@ -321,7 +321,7 @@ enum {
    PLAYERINFO_PLAYERCLASS,
    PLAYERINFO_FOV,
    PLAYERINFO_DESIREDFOV
-}
+};
 
 enum NOT_BOTTOM = 1;
 enum NOT_MIDDLE = 2;
@@ -368,7 +368,7 @@ enum {
    T_STAINEDGLASS8,
    T_STAINEDGLASS9,
    T_STAINEDGLASS0
-}
+};
 
 enum {
    T_NONE,
@@ -459,7 +459,7 @@ enum {
    T_HEALTHBONUS,
    T_MANCUBUSSHOT,
    T_BARONBALL
-}
+};
 
 enum {
    T_CLINK = 1,
@@ -550,7 +550,7 @@ enum {
    T_WHIRLWIND,
    T_REDTELEGLITTER,
    T_BLUETELEGLITTER
-}
+};
 
 enum {
    T_CENTAUR = 1,
@@ -633,7 +633,7 @@ enum {
    T_FLESH_DRIP1,
    T_FLESH_DRIP2,
    T_SPARK_DRIP
-}
+};
 
 enum ACTOR_NONE = 0x0;
 enum ACTOR_WORLD = 0x1;
@@ -651,7 +651,7 @@ enum {
    SECSEQ_CEILING,
    SECSEQ_FULLHEIGHT,
    SECSEQ_INTERIOR
-}
+};
 
 enum CHAN_AUTO = 0;
 enum CHAN_WEAPON = 1;
@@ -682,7 +682,7 @@ enum {
    SOUND_WALLBOUNCE,
    SOUND_CRUSHPAIN,
    SOUND_HOWL
-}
+};
 
 enum SDF_ABSANGLE = 0x1;
 enum SDF_PERMANENT = 0x2;
@@ -729,7 +729,7 @@ enum {
    ARMORINFO_MAXABSORB,
    ARMORINFO_MAXFULLABSORB,
    ARMORINFO_ACTUALSAVEAMOUNT,
-}
+};
 
 enum TEAM_BLUE = 0;
 enum TEAM_RED = 1;
@@ -754,7 +754,7 @@ enum {
    TPROP_TEAMITEM,
    TPROP_WINNERTHEME,
    TPROP_LOSERTHEME
-}
+};
 
 enum {
    IS_WAITINGFORPLAYERS,
@@ -764,7 +764,7 @@ enum {
    IS_WAVECOMPLETE,
    IS_COUNDOWN,
    IS_MISSIONFAILED
-}
+};
 
 enum {
    T_GRENADE = 216,
@@ -772,7 +772,7 @@ enum {
    T_DARKIMPFIREBALL,
    T_CACOLANTERNSHOT,
    T_ABADDONSHOT = 221
-}
+};
 
 enum {
    T_DARKIMP = 155,
@@ -782,7 +782,7 @@ enum {
    T_CACOLANTERN,
    T_BELPHEGOR = 215,
    T_ABADDON = 220
-}
+};
 
 enum {
    T_PISTOL = 162,
@@ -790,13 +790,13 @@ enum {
    T_RAILGUN,
    T_BFG10000,
    T_MINIGUN = 214
-}
+};
 
 enum {
    T_MAXHEALTHBONUS = 166,
    T_MAXARMORBONUS,
    T_REDARMOR
-}
+};
 
 enum {
    T_TURBOSPHERE = 169,
@@ -807,13 +807,13 @@ enum {
    T_TRANSLUCENCY,
    T_DOOMSPHERE,
    T_RANDOMPOWERUP
-}
+};
 
 enum {
    T_BLUEFLAG = 177,
    T_REDFLAG,
    T_WHITEFLAG
-}
+};
 
 enum {
    T_STRENGTH = 180,
@@ -826,7 +826,7 @@ enum {
    T_REFLECTION,
    T_HIGHJUMP,
    T_HASTE
-}
+};
 
 enum {
    EV_KEYDOWN = 1,
@@ -845,7 +845,7 @@ enum {
    EV_RBUTTONDBLCLICK,
    EV_WHEELDOWN,
    EV_WHEELUP
-}
+};
 
 enum GKM_SHIFT = 0x100;
 enum GKM_CTRL = 0x200;
@@ -888,7 +888,7 @@ enum {
    GK_FREE2,
    GK_FREE3,
    GK_CESCAPE
-}
+};
 
 enum CHANGELEVEL_KEEPFACING = 0x1;
 enum CHANGELEVEL_RESETINVENTORY = 0x2;
@@ -979,7 +979,7 @@ enum {
    MF_NOLIFTDROP = 0x2000_0000,
    MF_STEALTH = 0x4000_0000,
    MF_ICECORPSE = 0x8000_0000
-}
+};
 
 enum {
    ML_BLOCKING = 0x1,
@@ -1008,7 +1008,7 @@ enum {
    ML_BLOCKUSE = 0x200_0000,
    ML_BLOCKSIGHT = 0x400_0000,
    ML_BLOCKHITSCAN = 0x800_0000
-}
+};
 
 enum {
    QF_RELATIVE = 0x1,
@@ -1017,7 +1017,7 @@ enum {
    QF_MAX = 0x8,
    QF_FULLINTENSITY = 0x10,
    QF_WAVE = 0x20
-}
+};
 
 enum {
    WARPF_ABSOLUTEOFFSET = 0x1,
@@ -1036,7 +1036,7 @@ enum {
    WARPF_USEPTR = 0x2000,
    WARPF_COPYVELOCITY = 0x4000,
    WARPF_COPYPITCH = 0x8000
-}
+};
 
 enum {
    CPXF_ANCESTOR = 0x1,
@@ -1052,7 +1052,7 @@ enum {
    CPXF_CLOSEST = 0x400,
    CPXF_SETONPTR = 0x800,
    CPXF_CHECKSIGHT = 0x1000
-}
+};
 
 enum {
    GAMESTATE_UNSPECIFIED = -1,
@@ -1060,7 +1060,7 @@ enum {
    GAMESTATE_COUNTDOWN,
    GAMESTATE_INPROGRESS,
    GAMESTATE_INRESULTSEQUENCE
-}
+};
 
 enum {
    GAMEEVENT_PLAYERFRAGS,
@@ -1071,7 +1071,7 @@ enum {
    GAMEEVENT_ROUND_STARTS,
    GAMEEVENT_ROUND_ENDS,
    GAMEEVENT_ROUND_ABORTED
-}
+};
 
 enum DB_ORDER_ASC = false;
 enum DB_ORDER_DESC = true;
@@ -1084,7 +1084,7 @@ enum {
    TM_MONTH,
    TM_YEAR,
    TM_WEEKDAY
-}
+};
 
 enum INT_MIN = -INT_MAX - 1;
 enum INT_MAX = 2147483647;
