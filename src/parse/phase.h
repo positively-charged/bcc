@@ -141,7 +141,6 @@ enum tk {
    TK_MEMCPY,
    // 120
    TK_MSGBUILD,
-   TK_EXTSPEC,
    TK_IN,
    TK_NULL,
    TK_SPECIAL,
@@ -150,8 +149,8 @@ enum tk {
    TK_USING,
    TK_BANGBANG,
    TK_INCLUDE,
-   // 130
    TK_DEFINE,
+   // 130
    TK_LIBDEFINE,
    TK_PRINT,
    TK_PRINTBOLD,
@@ -161,8 +160,8 @@ enum tk {
    TK_LIBRARY,
    TK_ENCRYPTSTRINGS,
    TK_REGION,
-   // 140
    TK_ENDREGION,
+   // 140
    TK_LOG,
    TK_HUDMESSAGE,
    TK_HUDMESSAGEBOLD,

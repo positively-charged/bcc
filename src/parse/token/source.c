@@ -157,7 +157,6 @@ static const struct keyword_entry g_keywords_bcs[] = {
    { "enter", TK_ENTER },
    { "enum", TK_ENUM },
    { "event", TK_EVENT },
-   { "extspec", TK_EXTSPEC },
    { "false", TK_FALSE },
    { "fixed", TK_FIXED },
    { "for", TK_FOR },

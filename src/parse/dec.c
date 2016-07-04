@@ -206,7 +206,6 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_AUTO:
       case TK_TYPEDEF:
       case TK_PRIVATE:
-      case TK_EXTSPEC:
          return true;
       default:
          return false;

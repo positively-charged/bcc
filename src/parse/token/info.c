@@ -84,7 +84,6 @@ static const struct {
    { "enter", TK_ENTER },
    { "enum", TK_ENUM },
    { "event", TK_EVENT },
-   { "extspec", TK_EXTSPEC },
    { "false", TK_FALSE },
    { "fixed", TK_FIXED },
    { "for", TK_FOR },
@@ -420,7 +419,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "memcpy", TKF_KEYWORD ),
       // 120
       ENTRY( "msgbuild", TKF_KEYWORD ),
-      ENTRY( "extspec", TKF_KEYWORD ),
       ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
       ENTRY( "special", TKF_KEYWORD ),
@@ -429,8 +427,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "using", TKF_KEYWORD ),
       ENTRY( "!!", TKF_NONE ),
       ENTRY( "include", TKF_KEYWORD ),
-      // 130
       ENTRY( "define", TKF_KEYWORD ),
+      // 130
       ENTRY( "libdefine", TKF_KEYWORD ),
       ENTRY( "print", TKF_KEYWORD ),
       ENTRY( "printbold", TKF_KEYWORD ),
@@ -440,8 +438,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "library", TKF_KEYWORD ),
       ENTRY( "encryptstrings", TKF_KEYWORD ),
       ENTRY( "region", TKF_KEYWORD ),
-      // 140
       ENTRY( "endregion", TKF_KEYWORD ),
+      // 140
       ENTRY( "log", TKF_KEYWORD ),
       ENTRY( "hudmessage", TKF_KEYWORD ),
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
@@ -579,7 +577,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_PRIVATE, "`private`" },
       { TK_MEMCPY, "`memcpy`" },
       { TK_MSGBUILD, "`msgbuild`" },
-      { TK_EXTSPEC, "`extspec`" },
       { TK_IN, "`in`" },
       { TK_NULL, "`null`" },
       { TK_SPECIAL, "`special`" },
@@ -603,7 +600,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
       { TK_STRPARAM, "`strparam`" } };
-   STATIC_ASSERT( TK_TOTAL == 145 );
+   STATIC_ASSERT( TK_TOTAL == 144 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
