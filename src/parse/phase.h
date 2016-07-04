@@ -291,6 +291,7 @@ struct dec {
    struct pos type_pos;
    struct pos name_pos;
    struct pos static_qual_pos;
+   struct pos rbrace_pos;
    struct structure* structure;
    struct enumeration* enumeration;
    struct path* path;

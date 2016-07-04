@@ -60,10 +60,11 @@ static void read_enum_name( struct parse* parse,
    struct enumeration* enumeration );
 static void read_enum_base_type( struct parse* parse,
    struct enumeration* enumeration );
-static void read_enum_body( struct parse* parse,
+static void read_enum_body( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration );
 static void read_enumerator( struct parse* parse,
    struct enumeration* enumeration );
+static void read_term_semicolon( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static void read_struct( struct parse* parse, struct dec* dec );
 static void read_struct_name( struct parse* parse,
@@ -281,9 +282,13 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    switch ( parse->tk ) {
    case TK_ENUM:
       read_enum( parse, dec );
+      if ( dec->enumeration ) {
+         read_term_semicolon( parse, dec );
+      }
       break;
    case TK_STRUCT:
       read_struct( parse, dec );
+      read_term_semicolon( parse, dec );
       break;
    case TK_TYPEDEF:
       read_typedef( parse, dec );
@@ -341,7 +346,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    enumeration->object.pos = dec->type_pos;
    read_enum_name( parse, enumeration );
    read_enum_base_type( parse, enumeration );
-   read_enum_body( parse, enumeration );
+   read_enum_body( parse, dec, enumeration );
    dec->enumeration = enumeration;
    dec->spec = SPEC_ENUM;
    if ( dec->vars ) {
@@ -394,7 +399,8 @@ void read_enum_base_type( struct parse* parse,
    }
 }
 
-void read_enum_body( struct parse* parse, struct enumeration* enumeration ) {
+void read_enum_body( struct parse* parse, struct dec* dec,
+   struct enumeration* enumeration ) {
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    while ( true ) {
@@ -409,6 +415,7 @@ void read_enum_body( struct parse* parse, struct enumeration* enumeration ) {
          break;
       }
    }
+   dec->rbrace_pos = parse->tk_pos;
    p_test_tk( parse, TK_BRACE_R );
    p_read_tk( parse );
 }
@@ -438,6 +445,18 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
       p_unexpect_last( parse, NULL, TK_BRACE_R );
       p_bail( parse );
    }
+}
+
+void read_term_semicolon( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk != TK_SEMICOLON ) {
+      p_unexpect_diag( parse );
+      p_increment_pos( &dec->rbrace_pos, TK_BRACE_R );
+      p_unexpect_item( parse, &dec->rbrace_pos, TK_SEMICOLON );
+      p_unexpect_last_name( parse, NULL, "object name" );
+      p_bail( parse );
+   }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
 }
 
 void read_manifest_constant( struct parse* parse, struct dec* dec ) {
@@ -512,10 +531,12 @@ void read_struct_body( struct parse* parse, struct dec* dec,
    while ( true ) {
       read_struct_member( parse, dec, structure );
       if ( parse->tk == TK_BRACE_R ) {
-         p_read_tk( parse );
          break;
       }
    }
+   dec->rbrace_pos = parse->tk_pos;
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
 }
 
 void read_struct_member( struct parse* parse, struct dec* parent_dec,
