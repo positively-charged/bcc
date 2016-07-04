@@ -71,7 +71,8 @@ static void write_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
 static void push_logical_operand( struct codegen* codegen,
    struct node* node, int spec );
-static void convert_to_boolean( struct codegen* codegen, int spec );
+static void convert_to_boolean( struct codegen* codegen, struct result* result,
+   int spec );
 static void visit_assign( struct codegen* codegen, struct result* result,
    struct assign* assign );
 static void assign_array_reference( struct codegen* codegen,
@@ -253,8 +254,16 @@ void c_push_expr( struct codegen* codegen, struct expr* expr ) {
    push_operand( codegen, expr->root );
 }
 
-void c_push_cond( struct codegen* codegen, struct expr* cond ) {
+void c_push_bool_expr( struct codegen* codegen, struct expr* cond ) {
    push_logical_operand( codegen, cond->root, cond->spec );
+}
+
+void c_push_bool_cond_var( struct codegen* codegen, struct var* var ) {
+   struct result result;
+   init_result( &result, true );
+   result.skip_negate = true;
+   visit_var( codegen, &result, var );
+   convert_to_boolean( codegen, &result, var->spec );
 }
 
 void c_push_initz_expr( struct codegen* codegen, struct ref* ref,
@@ -632,17 +641,22 @@ void push_logical_operand( struct codegen* codegen,
    init_result( &result, true );
    result.skip_negate = true;
    visit_operand( codegen, &result, node );
-   convert_to_boolean( codegen, spec );
-   if ( result.ref && result.ref->type == REF_FUNCTION ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
-      c_pcd( codegen, PCD_NE );
-   }
+   convert_to_boolean( codegen, &result, spec );
 }
 
-void convert_to_boolean( struct codegen* codegen, int spec ) {
-   if ( spec == SPEC_STR ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+void convert_to_boolean( struct codegen* codegen, struct result* result,
+   int spec ) {
+   if ( result->ref ) {
+      if ( result->ref->type == REF_FUNCTION ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
+         c_pcd( codegen, PCD_NE );
+      }
+   }
+   else {
+      if ( spec == SPEC_STR ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
+      }
    }
 }
 
@@ -903,9 +917,11 @@ void write_conditional( struct codegen* codegen, struct result* result,
 
 void write_middleless_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond ) {
-   push_operand( codegen, cond->left );
+   struct result left;
+   init_result( &left, true );
+   push_operand_result( codegen, &left, cond->left );
    c_pcd( codegen, PCD_DUP );
-   convert_to_boolean( codegen, cond->left_spec );
+   convert_to_boolean( codegen, &left, cond->left_spec );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &exit_jump->node );
    c_pcd( codegen, PCD_DROP );

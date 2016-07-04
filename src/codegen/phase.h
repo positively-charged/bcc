@@ -129,7 +129,8 @@ void c_flush( struct codegen* );
 void c_write_user_code( struct codegen* );
 void c_write_user_code_acs( struct codegen* codegen );
 void c_push_expr( struct codegen* codegen, struct expr* expr );
-void c_push_cond( struct codegen* codegen, struct expr* cond );
+void c_push_bool_expr( struct codegen* codegen, struct expr* cond );
+void c_push_bool_cond_var( struct codegen* codegen, struct var* var );
 void c_push_initz_expr( struct codegen* codegen, struct ref* ref,
    struct expr* expr );
 void c_update_indexed( struct codegen* codegen, int, int, int );

@@ -16,6 +16,8 @@ static void read_label( struct parse* parse, struct stmt_reading* );
 static void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block );
 static void read_if( struct parse* parse, struct stmt_reading* );
+static void read_cond( struct parse* parse, struct cond* cond );
+static void init_cond( struct cond* cond );
 static void read_switch( struct parse* parse, struct stmt_reading* );
 static struct switch_stmt* alloc_switch_stmt( void );
 static void read_while( struct parse* parse, struct stmt_reading* );
@@ -304,10 +306,7 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    stmt->node.type = NODE_IF;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct expr_reading cond;
-   p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( parse, &cond );
-   stmt->cond = cond.output_node;
+   read_cond( parse, &stmt->cond );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    // Warn when the body of an `if` statement is empty. It is assumed that a
@@ -331,15 +330,28 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
+void read_cond( struct parse* parse, struct cond* cond ) {
+   if ( parse->lang == LANG_BCS && p_is_dec( parse ) ) {
+      cond->u.var = p_read_cond_var( parse );
+   }
+   else {
+      struct expr_reading expr;
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      cond->u.expr = expr.output_node;
+   }
+}
+
+void init_cond( struct cond* cond ) {
+   cond->u.node = NULL;
+}
+
 void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct switch_stmt* stmt = alloc_switch_stmt();
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct expr_reading cond;
-   p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( parse, &cond );
-   stmt->cond = cond.output_node;
+   read_cond( parse, &stmt->cond );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    read_implicit_block( parse, reading );
@@ -350,7 +362,7 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
 struct switch_stmt* alloc_switch_stmt( void ) {
    struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SWITCH;
-   stmt->cond = NULL;
+   init_cond( &stmt->cond );
    stmt->case_head = NULL;
    stmt->case_default = NULL;
    stmt->jump_break = NULL;
@@ -372,10 +384,7 @@ void read_while( struct parse* parse, struct stmt_reading* reading ) {
    }
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct expr_reading cond;
-   p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( parse, &cond );
-   stmt->cond = cond.output_node;
+   read_cond( parse, &stmt->cond );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    read_implicit_block( parse, reading );
@@ -404,10 +413,10 @@ void read_do( struct parse* parse, struct stmt_reading* reading ) {
    }
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct expr_reading cond;
-   p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( parse, &cond );
-   stmt->cond = cond.output_node;
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   stmt->cond.u.expr = expr.output_node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    p_test_tk( parse, TK_SEMICOLON );
@@ -422,7 +431,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    stmt->node.type = NODE_FOR;
    list_init( &stmt->init );
    list_init( &stmt->post );
-   stmt->cond = NULL;
+   init_cond( &stmt->cond );
    stmt->body = NULL;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
@@ -437,10 +446,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    }
    // In BCS, the condition is optional.
    if ( ! ( parse->lang == LANG_BCS && parse->tk == TK_SEMICOLON ) ) {
-      struct expr_reading cond;
-      p_init_expr_reading( &cond, false, false, false, true );
-      p_read_expr( parse, &cond );
-      stmt->cond = cond.output_node;
+      read_cond( parse, &stmt->cond );
    }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );

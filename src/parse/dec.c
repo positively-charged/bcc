@@ -133,6 +133,7 @@ static void read_name( struct parse* parse, struct dec* );
 static void missing_name( struct parse* parse, struct dec* dec );
 static void read_dim( struct parse* parse, struct dec* );
 static void read_init( struct parse* parse, struct dec* );
+static void read_single_init( struct parse* parse, struct dec* dec );
 static void read_init_acs( struct parse* parse, struct dec* dec );
 static void init_initial( struct initial*, bool );
 static struct value* alloc_value( void );
@@ -1078,13 +1079,17 @@ void read_init( struct parse* parse, struct dec* dec ) {
          break;
       }
       // Single-value initializer.
-      struct expr_reading expr;
-      p_init_expr_reading( &expr, false, false, false, true );
-      p_read_expr( parse, &expr );
-      struct value* value = alloc_value();
-      value->expr = expr.output_node;
-      dec->initz.initial = &value->initial;
+      read_single_init( parse, dec );
    }
+}
+
+void read_single_init( struct parse* parse, struct dec* dec ) {
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   struct value* value = alloc_value();
+   value->expr = expr.output_node;
+   dec->initz.initial = &value->initial;
 }
 
 void read_multi_init( struct parse* parse, struct dec* dec,
@@ -1679,6 +1684,35 @@ struct func_aspec* alloc_aspec_impl( void ) {
    impl->id = 0;
    impl->script_callable = false;
    return impl;
+}
+
+
+struct var* p_read_cond_var( struct parse* parse ) {
+   struct dec dec;
+   p_init_dec( &dec );
+   dec.area = DEC_LOCAL;
+   dec.name_offset = parse->ns->body;
+   if ( parse->tk == TK_AUTO ) {
+      dec.spec = SPEC_AUTO;
+      p_read_tk( parse );
+   }
+   else {
+      struct spec_reading spec;
+      init_spec_reading( &spec, AREA_VAR );
+      read_spec( parse, &spec );
+      dec.type_pos = spec.pos;
+      dec.spec = spec.type;
+      dec.path = spec.path;
+      struct ref_reading ref;
+      init_ref_reading( &ref );
+      read_ref( parse, &ref );
+      dec.ref = ref.head;
+   }
+   read_name( parse, &dec );
+   p_test_tk( parse, TK_ASSIGN );
+   p_read_tk( parse );
+   read_single_init( parse, &dec );
+   return alloc_var( &dec );
 }
 
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {

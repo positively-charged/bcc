@@ -20,8 +20,11 @@ static void test_assert( struct semantic* semantic, struct assert* assert );
 static void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node );
 static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
+static void test_cond( struct semantic* semantic, struct cond* cond );
 static void test_switch( struct semantic* semantic, struct stmt_test*,
    struct switch_stmt* );
+static void test_switch_cond( struct semantic* semantic,
+   struct switch_stmt* stmt );
 static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* );
@@ -154,7 +157,8 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    // Check case type.
    struct type_info cond_type;
    s_init_type_info( &cond_type, NULL, NULL, NULL, NULL,
-      switch_stmt->cond->spec );
+      switch_stmt->cond.u.node->type == NODE_VAR ?
+      switch_stmt->cond.u.var->spec : switch_stmt->cond.u.expr->spec );
    struct type_info case_type;
    s_init_type_info( &case_type, NULL, NULL, NULL, NULL,
       label->number->spec );
@@ -217,7 +221,7 @@ void test_label( struct semantic* semantic, struct stmt_test* test,
 }
 
 void test_assert( struct semantic* semantic, struct assert* assert ) {
-   s_test_cond( semantic, assert->cond );
+   s_test_bool_expr( semantic, assert->cond );
    if ( assert->is_static ) {
       if ( ! assert->cond->folded ) {
          s_diag( semantic, DIAG_POS_ERR, &assert->cond->pos,
@@ -287,7 +291,8 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
 
 void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt ) {
-   s_test_cond( semantic, stmt->cond );
+   s_add_scope( semantic, false );
+   test_cond( semantic, &stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    test_stmt( semantic, &body, stmt->body );
@@ -295,24 +300,49 @@ void test_if( struct semantic* semantic, struct stmt_test* test,
       s_init_stmt_test( &body, test );
       test_stmt( semantic, &body, stmt->else_body );
    }
+   s_pop_scope( semantic );
+}
+
+void test_cond( struct semantic* semantic, struct cond* cond ) {
+   if ( cond->u.node->type == NODE_VAR ) {
+      s_test_local_var( semantic, cond->u.var );
+      // NOTE: For now, we don't check to see if the variable or its
+      // initializer can be converted to a boolean. We assume it can.
+   }
+   else {
+      s_test_bool_expr( semantic, cond->u.expr );
+   }
 }
 
 void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
-   struct expr_test expr;
-   s_init_expr_test( &expr, true, true );
-   s_test_expr( semantic, &expr, stmt->cond );
+   s_add_scope( semantic, false );
+   test_switch_cond( semantic, stmt );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.switch_stmt = stmt;
    test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = body.jump_break;
+   s_pop_scope( semantic );
+}
+
+// TODO: Make sure the type of the condition is a primitive.
+void test_switch_cond( struct semantic* semantic, struct switch_stmt* stmt ) {
+   if ( stmt->cond.u.node->type == NODE_VAR ) {
+      s_test_local_var( semantic, stmt->cond.u.var );
+   }
+   else {
+      struct expr_test expr;
+      s_init_expr_test( &expr, true, true );
+      s_test_expr( semantic, &expr, stmt->cond.u.expr );
+   }
 }
 
 void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
+   s_add_scope( semantic, false );
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
-      s_test_cond( semantic, stmt->cond );
+      test_cond( semantic, &stmt->cond );
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
@@ -321,8 +351,9 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
    stmt->jump_break = body.jump_break;
    stmt->jump_continue = body.jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
-      s_test_cond( semantic, stmt->cond );
+      test_cond( semantic, &stmt->cond );
    }
+   s_pop_scope( semantic );
 }
 
 void test_for( struct semantic* semantic, struct stmt_test* test,
@@ -353,8 +384,8 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
       list_next( &i );
    }
    // Condition.
-   if ( stmt->cond ) {
-      s_test_cond( semantic, stmt->cond );
+   if ( stmt->cond.u.node ) {
+      test_cond( semantic, &stmt->cond );
    }
    // Post expressions.
    list_iter_init( &i, &stmt->post );

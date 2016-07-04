@@ -242,7 +242,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void s_test_cond( struct semantic* semantic, struct expr* expr ) {
+void s_test_bool_expr( struct semantic* semantic, struct expr* expr ) {
    struct expr_test test;
    s_init_expr_test( &test, true, true );
    struct result result;

@@ -512,7 +512,13 @@ struct block {
 
 struct if_stmt {
    struct node node;
-   struct expr* cond;
+   struct cond {
+      union {
+         struct node* node;
+         struct expr* expr;
+         struct var* var;
+      } u;
+   } cond;
    struct node* body;
    struct node* else_body;
 };
@@ -528,7 +534,7 @@ struct case_label {
 
 struct switch_stmt {
    struct node node;
-   struct expr* cond;
+   struct cond cond;
    // Cases are sorted by their value, in ascending order. Default case not
    // included in this list.
    struct case_label* case_head;
@@ -545,7 +551,7 @@ struct while_stmt {
       WHILE_DO_WHILE,
       WHILE_DO_UNTIL
    } type;
-   struct expr* cond;
+   struct cond cond;
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;
@@ -555,7 +561,7 @@ struct for_stmt {
    struct node node;
    struct list init;
    struct list post;
-   struct expr* cond;
+   struct cond cond;
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;

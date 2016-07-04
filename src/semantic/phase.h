@@ -116,7 +116,7 @@ void s_init_expr_test_packed( struct expr_test* test,
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
 void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    struct type_info* result_type, struct expr* expr );
-void s_test_cond( struct semantic* semantic, struct expr* expr );
+void s_test_bool_expr( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_body( struct semantic* semantic, struct node* node );
 void s_add_scope( struct semantic* semantic, bool func_scope );
