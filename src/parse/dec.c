@@ -85,6 +85,7 @@ static void init_spec_reading( struct spec_reading* spec, int area );
 static void read_spec( struct parse* parse, struct spec_reading* spec );
 static void missing_spec( struct parse* parse, struct spec_reading* spec );
 static void read_extended_spec( struct parse* parse, struct dec* dec );
+static void read_after_spec( struct parse* parse, struct dec* dec );
 static void init_ref( struct ref* ref, int type, struct pos* pos );
 static void prepend_ref( struct ref_reading* reading, struct ref* part );
 static void init_ref_reading( struct ref_reading* reading );
@@ -275,6 +276,7 @@ void p_init_dec( struct dec* dec ) {
    dec->msgbuild = false;
    dec->extended_spec = false;
    dec->type_alias = false;
+   dec->semicolon_absent = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -449,14 +451,13 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
 
 void read_term_semicolon( struct parse* parse, struct dec* dec ) {
    if ( parse->tk != TK_SEMICOLON ) {
-      p_unexpect_diag( parse );
-      p_increment_pos( &dec->rbrace_pos, TK_BRACE_R );
-      p_unexpect_item( parse, &dec->rbrace_pos, TK_SEMICOLON );
-      p_unexpect_last_name( parse, NULL, "object name" );
-      p_bail( parse );
+      dec->semicolon_absent = true;
+      read_after_spec( parse, dec );
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
+   else {
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
+   }
 }
 
 void read_manifest_constant( struct parse* parse, struct dec* dec ) {
@@ -692,18 +693,14 @@ void read_var_bcs( struct parse* parse, struct dec* dec ) {
       dec->spec = SPEC_AUTO;
       p_read_tk( parse );
       read_auto_instance_list( parse, dec );
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
    }
    else {
       read_storage( parse, dec );
       read_extended_spec( parse, dec );
-      struct ref_reading ref;
-      init_ref_reading( &ref );
-      read_ref( parse, &ref );
-      dec->ref = ref.head;
-      read_instance_list( parse, dec );
+      read_after_spec( parse, dec );
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
 }
 
 void read_qual( struct parse* parse, struct dec* dec ) {
@@ -812,15 +809,13 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
 }
 
 void read_extended_spec( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_EXTSPEC ) {
-      p_read_tk( parse );
+   if ( parse->tk == TK_ENUM ) {
+      read_enum( parse, dec );
       dec->extended_spec = true;
-      if ( parse->tk == TK_STRUCT ) {
-         read_struct( parse, dec );
-      }
-      else {
-         read_enum( parse, dec );
-      }
+   }
+   else if ( parse->tk == TK_STRUCT ) {
+      read_struct( parse, dec );
+      dec->extended_spec = true;
    }
    else {
       struct spec_reading spec;
@@ -832,6 +827,16 @@ void read_extended_spec( struct parse* parse, struct dec* dec ) {
       dec->spec = spec.type;
       dec->path = spec.path;
    }
+}
+
+void read_after_spec( struct parse* parse, struct dec* dec ) {
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   dec->ref = ref.head;
+   read_instance_list( parse, dec );
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
 }
 
 void init_ref_reading( struct ref_reading* reading ) {
@@ -986,6 +991,15 @@ void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
 }
 
 void read_instance_list( struct parse* parse, struct dec* dec ) {
+   if ( dec->semicolon_absent && ! ( parse->tk == TK_ID ||
+      parse->tk == TK_LIT_DECIMAL || dec->ref ) ) {
+      p_unexpect_diag( parse );
+      p_increment_pos( &dec->rbrace_pos, TK_BRACE_R );
+      p_unexpect_name( parse, NULL,
+         "continuation of variable declaration" );
+      p_unexpect_last( parse, &dec->rbrace_pos, TK_SEMICOLON );
+      p_bail( parse );
+   }
    while ( true ) {
       read_instance( parse, dec );
       if ( parse->tk == TK_COMMA ) {
@@ -1042,7 +1056,7 @@ void missing_name( struct parse* parse, struct dec* dec ) {
       subject = "struct-member name";
    }
    else {
-      subject = "object name";
+      subject = "variable name";
    }
    p_unexpect_diag( parse );
    p_unexpect_last_name( parse, NULL, subject );
@@ -1364,6 +1378,7 @@ void test_storage( struct parse* parse, struct dec* dec ) {
 void read_func( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_FUNCTION );
    p_read_tk( parse );
+   dec->read_func = true;
    read_func_qual( parse, dec );
    read_func_spec( parse, dec );
    read_func_ref( parse, dec );

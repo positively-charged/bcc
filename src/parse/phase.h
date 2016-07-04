@@ -323,6 +323,7 @@ struct dec {
    bool msgbuild;
    bool extended_spec;
    bool type_alias;
+   bool semicolon_absent;
 };
 
 struct stmt_reading {
