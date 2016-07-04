@@ -66,7 +66,7 @@ static void read_sure( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy_call( struct parse* parse,
    struct strcpy_reading* reading );
-static void read_objcpy( struct parse* parse, struct expr_reading* reading );
+static void read_memcpy( struct parse* parse, struct expr_reading* reading );
 static void read_paren( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
@@ -597,8 +597,8 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_STRCPY:
       read_strcpy( parse, reading );
       break;
-   case TK_OBJCPY:
-      read_objcpy( parse, reading );
+   case TK_MEMCPY:
+      read_memcpy( parse, reading );
       break;
    case TK_RAW:
    case TK_INT:
@@ -1210,19 +1210,19 @@ void read_strcpy_call( struct parse* parse, struct strcpy_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_objcpy( struct parse* parse, struct expr_reading* reading ) {
-   p_test_tk( parse, TK_OBJCPY );
+void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
+   p_test_tk( parse, TK_MEMCPY );
    p_read_tk( parse );
    struct strcpy_reading call_r;
    read_strcpy_call( parse, &call_r );
-   struct objcpy_call* call = mem_alloc( sizeof( *call ) );
-   call->node.type = NODE_OBJCPY;
+   struct memcpy_call* call = mem_alloc( sizeof( *call ) );
+   call->node.type = NODE_MEMCPY;
    call->destination = call_r.array;
    call->destination_offset = call_r.array_offset;
    call->destination_length = call_r.array_length;
    call->source = call_r.string;
    call->source_offset = call_r.offset;
-   call->type = OBJCPY_ARRAY;
+   call->type = MEMCPY_ARRAY;
    call->array_cast = call_r.array_cast;
    reading->node = &call->node;
 }

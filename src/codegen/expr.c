@@ -201,10 +201,10 @@ static void visit_func( struct codegen* codegen, struct result* result,
    struct func* func );
 static void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
-static void visit_objcpy( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call );
+static void visit_memcpy( struct codegen* codegen, struct result* result,
+   struct memcpy_call* call );
 static void copy_array( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call );
+   struct memcpy_call* call );
 static void scale_offset( struct codegen* codegen, struct result* result,
    int offset_var );
 static void push_array_length( struct codegen* codegen, struct result* result,
@@ -214,7 +214,7 @@ static void push_ref_array_length( struct codegen* codegen,
 static void copy_elements( struct codegen* codegen, struct result* dst,
    struct result* src, int dst_ofs, int src_ofs, int length );
 static void copy_struct( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call );
+   struct memcpy_call* call );
 static void visit_conversion( struct codegen* codegen, struct result* result,
    struct conversion* conv );
 static void visit_null( struct codegen* codegen, struct result* result );
@@ -1980,9 +1980,9 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_strcpy( codegen, result,
          ( struct strcpy_call* ) node );
       break;
-   case NODE_OBJCPY:
-      visit_objcpy( codegen, result,
-         ( struct objcpy_call* ) node );
+   case NODE_MEMCPY:
+      visit_memcpy( codegen, result,
+         ( struct memcpy_call* ) node );
       break;
    case NODE_CONVERSION:
       visit_conversion( codegen, result,
@@ -2317,13 +2317,13 @@ void visit_strcpy( struct codegen* codegen, struct result* result,
    result->status = R_VALUE;
 }
 
-void visit_objcpy( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call ) {
+void visit_memcpy( struct codegen* codegen, struct result* result,
+   struct memcpy_call* call ) {
    switch ( call->type ) {
-   case OBJCPY_ARRAY:
+   case MEMCPY_ARRAY:
       copy_array( codegen, result, call );
       break;
-   case OBJCPY_STRUCT:
+   case MEMCPY_STRUCT:
       copy_struct( codegen, result, call );
       break;
    default:
@@ -2332,7 +2332,7 @@ void visit_objcpy( struct codegen* codegen, struct result* result,
 }
 
 void copy_array( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call ) {
+   struct memcpy_call* call ) {
    int dst_ofs = c_alloc_script_var( codegen );
    int src_ofs = c_alloc_script_var( codegen );
    int length = c_alloc_script_var( codegen );
@@ -2566,7 +2566,7 @@ void copy_elements( struct codegen* codegen, struct result* dst,
 }
 
 void copy_struct( struct codegen* codegen, struct result* result,
-   struct objcpy_call* call ) {
+   struct memcpy_call* call ) {
    int dst_ofs;
    struct result dst;
    init_result( &dst, true );

@@ -98,7 +98,7 @@ struct node {
       NODE_UPMOST,
       // 50
       NODE_USING,
-      NODE_OBJCPY,
+      NODE_MEMCPY,
       NODE_CONVERSION,
       NODE_SURE
    } type;
@@ -426,7 +426,7 @@ struct strcpy_call {
    struct expr* offset;
 };
 
-struct objcpy_call {
+struct memcpy_call {
    struct node node;
    struct expr* destination;
    struct expr* destination_offset;
@@ -434,8 +434,8 @@ struct objcpy_call {
    struct expr* source;
    struct expr* source_offset;
    enum {
-      OBJCPY_ARRAY,
-      OBJCPY_STRUCT,
+      MEMCPY_ARRAY,
+      MEMCPY_STRUCT,
    } type;
    bool array_cast;
 };

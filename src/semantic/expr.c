@@ -170,8 +170,8 @@ static void select_alias( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct alias* alias );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
-static void test_objcpy( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct objcpy_call* call );
+static void test_memcpy( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct memcpy_call* call );
 static bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result );
 static bool is_int_value( struct semantic* semantic, struct result* result );
@@ -1965,9 +1965,9 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_strcpy( semantic, test, result,
          ( struct strcpy_call* ) node );
       break;
-   case NODE_OBJCPY:
-      test_objcpy( semantic, test, result,
-         ( struct objcpy_call* ) node );
+   case NODE_MEMCPY:
+      test_memcpy( semantic, test, result,
+         ( struct memcpy_call* ) node );
       break;
    case NODE_CONVERSION:
       test_conversion( semantic, test, result,
@@ -2305,8 +2305,8 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    result->usable = true;
 }
 
-void test_objcpy( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct objcpy_call* call ) {
+void test_memcpy( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct memcpy_call* call ) {
    // Destination.
    struct result dst;
    init_result( &dst );
@@ -2379,7 +2379,7 @@ void test_objcpy( struct semantic* semantic, struct expr_test* test,
    result->complete = true;
    result->usable = true;
    if ( is_struct( &dst ) ) {
-      call->type = OBJCPY_STRUCT;
+      call->type = MEMCPY_STRUCT;
    }
 }
 
