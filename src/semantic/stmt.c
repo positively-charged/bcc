@@ -142,13 +142,11 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
 
 void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct switch_stmt* switch_stmt = NULL;
-   struct stmt_test* switch_stmt_test = test;
-   while ( switch_stmt_test && ! switch_stmt ) {
-      switch_stmt = switch_stmt_test->switch_stmt;
-      switch_stmt_test = switch_stmt_test->parent;
+   struct stmt_test* switch_test = test;
+   while ( switch_test && ! switch_test->switch_stmt ) {
+      switch_test = switch_test->parent;
    }
-   if ( ! switch_stmt ) {
+   if ( ! switch_test ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
       s_bail( semantic );
@@ -163,15 +161,15 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
       s_bail( semantic );
    }
    // Check case type.
-   if ( ! s_same_type( &type, &switch_stmt_test->cond_type ) ) {
+   if ( ! s_same_type( &type, &switch_test->cond_type ) ) {
       s_type_mismatch( semantic, "case-value", &type,
-         "switch-condition", &switch_stmt_test->cond_type,
+         "switch-condition", &switch_test->cond_type,
          &label->number->pos );
       s_bail( semantic );
    }
    // Check for a duplicate case.
    struct case_label* prev = NULL;
-   struct case_label* curr = switch_stmt->case_head;
+   struct case_label* curr = switch_test->switch_stmt->case_head;
    while ( curr && curr->number->value < label->number->value ) {
       prev = curr;
       curr = curr->next;
@@ -189,33 +187,31 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
       prev->next = label;
    }
    else {
-      label->next = switch_stmt->case_head;
-      switch_stmt->case_head = label;
+      label->next = switch_test->switch_stmt->case_head;
+      switch_test->switch_stmt->case_head = label;
    }
 }
 
 void test_default_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct switch_stmt* switch_stmt = NULL;
-   struct stmt_test* search_test = test;
-   while ( search_test && ! switch_stmt ) {
-      switch_stmt = search_test->switch_stmt;
-      search_test = search_test->parent;
+   struct stmt_test* switch_test = test;
+   while ( switch_test && ! switch_test->switch_stmt ) {
+      switch_test = switch_test->parent;
    }
-   if ( ! switch_stmt ) {
+   if ( ! switch_test ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "default outside switch statement" );
       s_bail( semantic );
    }
-   if ( switch_stmt->case_default ) {
+   if ( switch_test->switch_stmt->case_default ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "duplicate default case" );
       s_diag( semantic, DIAG_POS,
-         &switch_stmt->case_default->pos,
+         &switch_test->switch_stmt->case_default->pos,
          "default case found here" );
       s_bail( semantic );
    }
-   switch_stmt->case_default = label;
+   switch_test->switch_stmt->case_default = label;
 }
 
 void test_label( struct semantic* semantic, struct stmt_test* test,
@@ -318,13 +314,13 @@ void test_cond( struct semantic* semantic, struct cond* cond ) {
 
 void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
+   test->switch_stmt = stmt;
    s_add_scope( semantic, false );
    test_switch_cond( semantic, test, stmt );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   body.switch_stmt = stmt;
    test_stmt( semantic, &body, stmt->body );
-   stmt->jump_break = body.jump_break;
+   stmt->jump_break = test->jump_break;
    s_pop_scope( semantic );
 }
 
@@ -353,16 +349,16 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
 
 void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
+   test->in_loop = true;
    s_add_scope( semantic, false );
    if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
       test_cond( semantic, &stmt->cond );
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   body.in_loop = true;
    test_stmt( semantic, &body, stmt->body );
-   stmt->jump_break = body.jump_break;
-   stmt->jump_continue = body.jump_continue;
+   stmt->jump_break = test->jump_break;
+   stmt->jump_continue = test->jump_continue;
    if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
       test_cond( semantic, &stmt->cond );
    }
@@ -371,6 +367,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
 
 void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* stmt ) {
+   test->in_loop = true;
    s_add_scope( semantic, false );
    // Initialization.
    list_iter_t i;
@@ -410,15 +407,15 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    }
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   body.in_loop = true;
    test_stmt( semantic, &body, stmt->body );
-   stmt->jump_break = body.jump_break;
-   stmt->jump_continue = body.jump_continue;
+   stmt->jump_break = test->jump_break;
+   stmt->jump_continue = test->jump_continue;
    s_pop_scope( semantic );
 }
 
 void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct foreach_stmt* stmt ) {
+   test->in_loop = true;
    s_add_scope( semantic, false );
    struct var* key = stmt->key;
    struct var* value = stmt->value;
@@ -453,7 +450,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_test_foreach_var( semantic, &iter.value, value );
    struct type_info type;
    s_init_type_info( &type, value->ref, value->structure, value->enumeration,
-      value->dim, value->spec );;
+      value->dim, value->spec );
    if ( ! s_instance_of( &type, &iter.value ) ) {
       s_type_mismatch( semantic, "value", &type,
          "collection-value", &iter.value, &value->object.pos );
@@ -462,10 +459,9 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    // Body.
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   body.in_loop = true;
    test_stmt( semantic, &body, stmt->body );
-   stmt->jump_break = body.jump_break;
-   stmt->jump_continue = body.jump_continue;
+   stmt->jump_break = test->jump_break;
+   stmt->jump_continue = test->jump_continue;
    s_pop_scope( semantic );
 }
 
