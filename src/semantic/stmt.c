@@ -10,39 +10,46 @@ struct packed_expr_test {
 
 static void test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block );
-static void test_block_item( struct semantic* semantic, struct stmt_test*, struct node* );
+static void test_block_item( struct semantic* semantic, struct stmt_test* test,
+   struct node* node );
 static void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label );
 static void test_default_case( struct semantic* semantic,
    struct stmt_test* test, struct case_label* label );
-static void test_label( struct semantic* semantic, struct stmt_test*, struct label* );
+static void test_label( struct semantic* semantic, struct stmt_test* test,
+   struct label* label );
 static void test_assert( struct semantic* semantic, struct assert* assert );
 static void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node );
-static void test_if( struct semantic* semantic, struct stmt_test*, struct if_stmt* );
+static void test_if( struct semantic* semantic, struct stmt_test* test,
+   struct if_stmt* stmt );
 static void test_cond( struct semantic* semantic, struct cond* cond );
-static void test_switch( struct semantic* semantic, struct stmt_test*,
-   struct switch_stmt* );
+static void test_switch( struct semantic* semantic, struct stmt_test* test,
+   struct switch_stmt* stmt );
 static void test_switch_cond( struct semantic* semantic,
    struct switch_stmt* stmt );
-static void test_while( struct semantic* semantic, struct stmt_test*, struct while_stmt* );
+static void test_while( struct semantic* semantic, struct stmt_test* test,
+   struct while_stmt* stmt );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
-   struct for_stmt* );
+   struct for_stmt* stmt );
 static void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct foreach_stmt* stmt );
-static void test_jump( struct semantic* semantic, struct stmt_test*, struct jump* );
+static void test_jump( struct semantic* semantic, struct stmt_test* test,
+   struct jump* stmt );
 static void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
 static void test_continue( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
-static void test_script_jump( struct semantic* semantic, struct stmt_test*,
-   struct script_jump* );
-static void test_return( struct semantic* semantic, struct stmt_test*,
-   struct return_stmt* );
+static void test_script_jump( struct semantic* semantic,
+   struct stmt_test* test, struct script_jump* stmt );
+static void test_return( struct semantic* semantic, struct stmt_test* test,
+   struct return_stmt* stmt );
 static void test_return_value( struct semantic* semantic,
    struct stmt_test* test, struct return_stmt* stmt );
-static void test_goto( struct semantic* semantic, struct stmt_test*, struct goto_stmt* );
-static void test_paltrans( struct semantic* semantic, struct stmt_test*, struct paltrans* );
+static void test_goto( struct semantic* semantic, struct stmt_test* test,
+   struct goto_stmt* stmt );
+static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
+   struct paltrans* stmt );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
