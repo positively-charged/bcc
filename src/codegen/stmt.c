@@ -370,11 +370,34 @@ void write_string_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
       c_push_string( codegen, t_lookup_string( codegen->task,
          label->number->value ) );
       c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_STRCMP );
-      struct c_jump* jump = c_create_jump( codegen, PCD_IFNOTGOTO );
-      c_append_node( codegen, &jump->node );
-      label->point = c_create_point( codegen );
-      jump->point = label->point;
+      struct c_jump* next_jump = c_create_jump( codegen, PCD_IFGOTO );
+      c_append_node( codegen, &next_jump->node );
+      if ( label->next ) {
+         // Match.
+         c_pcd( codegen, PCD_DROP );
+         struct c_jump* jump = c_create_jump( codegen, PCD_GOTO );
+         c_append_node( codegen, &jump->node );
+         label->point = c_create_point( codegen );
+         jump->point = label->point;
+         // Jump to next case.
+         struct c_point* next_point = c_create_point( codegen );
+         c_append_node( codegen, &next_point->node );
+         next_jump->point = next_point;
+      }
+      else {
+         // On the last case, there is no need to drop the duplicated condition
+         // string because it's not duplicated, so just go directly to the case
+         // if a match is made.
+         next_jump->opcode = PCD_IFNOTGOTO;
+         label->point = c_create_point( codegen );
+         next_jump->point = label->point;
+      }
       label = label->next;
+   }
+   // The last case eats up the condition string. If no cases are present, the
+   // string needs to be manually dropped.
+   if ( ! stmt->case_head ) {
+      c_pcd( codegen, PCD_DROP );
    }
    struct c_point* default_point = exit_point;
    if ( stmt->case_default ) {
