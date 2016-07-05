@@ -392,6 +392,10 @@ bool s_is_value_type( struct type_info* type ) {
    return ( ! s_is_ref_type( type ) );
 }
 
+bool s_is_primitive_type( struct type_info* type ) {
+   return ( ! s_is_ref_type( type ) );
+}
+
 // Initializes @type with the type of the key used by the iterable type. Right
 // now, only an integer key is possible.
 void s_iterate_type( struct semantic* semantic, struct type_info* type,

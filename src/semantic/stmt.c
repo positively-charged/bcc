@@ -27,7 +27,7 @@ static void test_cond( struct semantic* semantic, struct cond* cond );
 static void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt );
 static void test_switch_cond( struct semantic* semantic,
-   struct switch_stmt* stmt );
+   struct stmt_test* test, struct switch_stmt* stmt );
 static void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
@@ -143,35 +143,30 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
 void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
    struct switch_stmt* switch_stmt = NULL;
-   struct stmt_test* search_test = test;
-   while ( search_test && ! switch_stmt ) {
-      switch_stmt = search_test->switch_stmt;
-      search_test = search_test->parent;
+   struct stmt_test* switch_stmt_test = test;
+   while ( switch_stmt_test && ! switch_stmt ) {
+      switch_stmt = switch_stmt_test->switch_stmt;
+      switch_stmt_test = switch_stmt_test->parent;
    }
    if ( ! switch_stmt ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
       s_bail( semantic );
    }
+   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr( semantic, &expr, label->number );
+   s_test_expr_type( semantic, &expr, &type, label->number );
    if ( ! label->number->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &label->number->pos,
          "case value not constant" );
       s_bail( semantic );
    }
    // Check case type.
-   struct type_info cond_type;
-   s_init_type_info( &cond_type, NULL, NULL, NULL, NULL,
-      switch_stmt->cond.u.node->type == NODE_VAR ?
-      switch_stmt->cond.u.var->spec : switch_stmt->cond.u.expr->spec );
-   struct type_info case_type;
-   s_init_type_info( &case_type, NULL, NULL, NULL, NULL,
-      label->number->spec );
-   if ( ! s_same_type( &case_type, &cond_type ) ) {
-      s_type_mismatch( semantic, "case-value", &case_type,
-         "switch-condition", &cond_type, &label->number->pos );
+   if ( ! s_same_type( &type, &switch_stmt_test->cond_type ) ) {
+      s_type_mismatch( semantic, "case-value", &type,
+         "switch-condition", &switch_stmt_test->cond_type,
+         &label->number->pos );
       s_bail( semantic );
    }
    // Check for a duplicate case.
@@ -324,7 +319,7 @@ void test_cond( struct semantic* semantic, struct cond* cond ) {
 void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    s_add_scope( semantic, false );
-   test_switch_cond( semantic, stmt );
+   test_switch_cond( semantic, test, stmt );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    body.switch_stmt = stmt;
@@ -333,15 +328,26 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-// TODO: Make sure the type of the condition is a primitive.
-void test_switch_cond( struct semantic* semantic, struct switch_stmt* stmt ) {
+void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
+   struct switch_stmt* stmt ) {
    if ( stmt->cond.u.node->type == NODE_VAR ) {
       s_test_local_var( semantic, stmt->cond.u.var );
+      s_init_type_info( &test->cond_type, stmt->cond.u.var->ref,
+         stmt->cond.u.var->structure, stmt->cond.u.var->enumeration,
+         stmt->cond.u.var->dim, stmt->cond.u.var->spec );
+      s_decay( &test->cond_type );
    }
    else {
       struct expr_test expr;
       s_init_expr_test( &expr, true, true );
-      s_test_expr( semantic, &expr, stmt->cond.u.expr );
+      s_test_expr_type( semantic, &expr, &test->cond_type, stmt->cond.u.expr );
+   }
+   // Only condition of a primitive type is supported.
+   if ( ! s_is_primitive_type( &test->cond_type ) ) {
+      s_diag( semantic, DIAG_POS_ERR, stmt->cond.u.node->type == NODE_VAR ?
+         &stmt->cond.u.var->object.pos : &stmt->cond.u.expr->pos,
+         "condition of switch statement not of primitive type" );
+      s_bail( semantic );
    }
 }
 

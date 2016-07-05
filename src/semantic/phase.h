@@ -3,6 +3,22 @@
 
 #include "task.h"
 
+struct type_info {
+   struct ref* ref;
+   struct structure* structure;
+   struct enumeration* enumeration;
+   struct dim* dim;
+   int spec;
+   union {
+      struct ref ref;
+      struct ref_struct structure;
+      struct ref_array array;
+      struct ref_func func;
+   } implicit_ref_part;
+   bool implicit_ref;
+   bool builtin_func;
+};
+
 struct func_test {
    struct func* func;
    struct list* labels;
@@ -18,6 +34,7 @@ struct stmt_test {
    struct switch_stmt* switch_stmt;
    struct jump* jump_break;
    struct jump* jump_continue;
+   struct type_info cond_type;
    bool in_loop;
    bool manual_scope;
 };
@@ -38,22 +55,6 @@ struct expr_test {
    bool has_str;
    bool undef_erred;
    bool suggest_paren_assign;
-};
-
-struct type_info {
-   struct ref* ref;
-   struct structure* structure;
-   struct enumeration* enumeration;
-   struct dim* dim;
-   int spec;
-   union {
-      struct ref ref;
-      struct ref_struct structure;
-      struct ref_array array;
-      struct ref_func func;
-   } implicit_ref_part;
-   bool implicit_ref;
-   bool builtin_func;
 };
 
 struct type_snapshot {
@@ -150,6 +151,7 @@ bool s_instance_of( struct type_info* type, struct type_info* instance );
 void s_present_type( struct type_info* type, struct str* string );
 bool s_is_ref_type( struct type_info* type );
 bool s_is_value_type( struct type_info* type );
+bool s_is_primitive_type( struct type_info* type );
 void s_iterate_type( struct semantic* semantic, struct type_info* type,
    struct type_iter* iter );
 struct object* s_search_object( struct semantic* semantic,
