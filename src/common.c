@@ -224,6 +224,20 @@ void str_append_number( struct str* str, int number ) {
    str_append( str, buffer );
 }
 
+void str_append_format( struct str* str, const char* format, va_list* args ) {
+   va_list args_copy;
+   va_copy( args_copy, *args );
+   int length = vsnprintf( NULL, 0, format, *args );
+   if ( length >= 0 ) {
+      if ( str->length + length >= str->buffer_length ) {
+         str_grow( str, str->length + length + 1 );
+      }
+      vsnprintf( str->value + str->length, str->buffer_length - str->length,
+         format, args_copy );
+   }
+   va_end( args_copy );
+}
+
 void str_clear( struct str* str ) {
    str->length = 0;
    if ( str->value ) {
