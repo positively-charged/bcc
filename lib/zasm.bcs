@@ -752,7 +752,7 @@ enum {
    PCD_STRCPYTOSCRIPTCHRANGE,
    PCD_LSPEC5EX,
    PCD_LSPEC5EXRESULT
-}
+};
 
 // Extension functions.
 enum {
@@ -887,4 +887,4 @@ enum {
    ACSF_STRFTIME,
    ACSF_GETTEAMSCORE = 19620,
    ACSF_SETTEAMSCORE
-}
+};
