@@ -130,7 +130,7 @@ void do_svct( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       if ( svct_script( script ) ) {
-         entry.number = ( short ) t_get_script_number( script );
+         entry.number = ( short ) script->assigned_number;
          entry.size = ( short ) script->size;
          c_add_sized( codegen, &entry, sizeof( entry ) );
       }
@@ -165,7 +165,7 @@ void do_sflg( struct codegen* codegen ) {
       while ( ! list_end( &i ) ) {
          struct script* script = list_data( &i );
          if ( script->flags ) {
-            entry.number = ( short ) t_get_script_number( script );
+            entry.number = ( short ) script->assigned_number;
             entry.flags = ( short ) script->flags;
             c_add_sized( codegen, &entry, sizeof( entry ) );
          }
