@@ -413,7 +413,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "assert", TKF_KEYWORD ),
       ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
-      ENTRY( "typedef", TKF_KEYWORD ),
+      ENTRY( "synon", TKF_KEYWORD ),
       ENTRY( "foreach", TKF_KEYWORD ),
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "memcpy", TKF_KEYWORD ),

@@ -83,6 +83,7 @@ struct ns* t_alloc_ns( struct task* task, struct name* name ) {
    ns->parent = NULL;
    ns->name = name;
    ns->body = t_extend_name( name, "." );
+   ns->body_types = t_extend_name( name, ".!t." );
    ns->unresolved = NULL;
    ns->unresolved_tail = NULL;
    ns->links = NULL;

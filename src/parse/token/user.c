@@ -74,6 +74,14 @@ struct token* p_peek_tk( struct parse* parse ) {
    return iter.token;
 }
 
+enum tk p_peek_2nd( struct parse* parse ) {
+   struct parsertk_iter iter;
+   p_init_parsertk_iter( parse, &iter );
+   p_next_tk( parse, &iter );
+   p_next_tk( parse, &iter );
+   return iter.token->type;
+}
+
 void p_init_parsertk_iter( struct parse* parse, struct parsertk_iter* iter ) {
    iter->entry = parse->parser_tkque.head;
    iter->token = NULL;

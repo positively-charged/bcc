@@ -52,7 +52,6 @@ struct special_reading {
 };
 
 static bool is_dec_bcs( struct parse* parse );
-static bool peek_dec_beginning_with_id( struct parse* parse );
 static void read_enum( struct parse* parse, struct dec* );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
@@ -64,9 +63,10 @@ static void read_enum_body( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration );
 static void read_enumerator( struct parse* parse,
    struct enumeration* enumeration );
-static void read_term_semicolon( struct parse* parse, struct dec* dec );
 static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static void read_struct( struct parse* parse, struct dec* dec );
+static bool is_struct_def( struct parse* parse );
+static void read_struct_def( struct parse* parse, struct dec* dec );
 static void read_struct_name( struct parse* parse,
    struct structure* structure );
 static void read_struct_body( struct parse* parse, struct dec* dec,
@@ -75,6 +75,7 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
 static void read_synon( struct parse* parse, struct dec* dec );
+static void read_synon_def( struct parse* parse, struct dec* dec );
 static void finish_synon( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_var_acs( struct parse* parse, struct dec* dec );
@@ -182,10 +183,7 @@ bool p_is_dec( struct parse* parse ) {
 }
 
 bool is_dec_bcs( struct parse* parse ) {
-   if ( parse->tk == TK_ID || parse->tk == TK_UPMOST ) {
-      return peek_dec_beginning_with_id( parse );
-   }
-   else if ( parse->tk == TK_STATIC ) {
+   if ( parse->tk == TK_STATIC ) {
       // The `static` keyword is also used by static-assert.
       return ( p_peek( parse ) != TK_ASSERT );
    }
@@ -213,44 +211,6 @@ bool is_dec_bcs( struct parse* parse ) {
    }
 }
 
-bool peek_dec_beginning_with_id( struct parse* parse ) {
-   // When an identifier is allowed to start a declaration, the situation
-   // becomes ambiguous because an identifier can also start an expression.
-   // To disambiguate the situation, we look ahead of the variable type.
-   struct parsertk_iter iter;
-   p_init_parsertk_iter( parse, &iter );
-   p_next_tk( parse, &iter );
-   if ( ! p_peek_path( parse, &iter ) ) {
-      return false;
-   }
-   // The variable type should be followed by one of these:
-   if (
-      // - variable name
-      iter.token->type == TK_ID ||
-      // - storage index
-      iter.token->type == TK_LIT_DECIMAL ||
-      // - Structure reference. NOTE: In this context, the ampersand can also
-      // indicate a bitwise-and operation. However, it doesn't look like such a
-      // bitwise-and operation can be used in any meaningful way in real code,
-      // so a declaration takes precedence.
-      iter.token->type == TK_BIT_AND ||
-      iter.token->type == TK_QUESTION_MARK ||
-      // - Function reference.
-      iter.token->type == TK_FUNCTION
-   ) {
-      return true;
-   }
-   else if (
-      // - Array reference.
-      iter.token->type == TK_BRACKET_L ) {
-      p_next_tk( parse, &iter );
-      return ( iter.token->type == TK_BRACKET_R );
-   }
-   else {
-      return false;
-   }
-}
-
 void p_init_dec( struct dec* dec ) {
    dec->area = DEC_TOP;
    dec->structure = NULL;
@@ -273,7 +233,6 @@ void p_init_dec( struct dec* dec ) {
    dec->leave = false;
    dec->read_func = false;
    dec->msgbuild = false;
-   dec->extended_spec = false;
    dec->type_alias = false;
    dec->semicolon_absent = false;
 }
@@ -283,13 +242,9 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    switch ( parse->tk ) {
    case TK_ENUM:
       read_enum( parse, dec );
-      if ( dec->enumeration ) {
-         read_term_semicolon( parse, dec );
-      }
       break;
    case TK_STRUCT:
       read_struct( parse, dec );
-      read_term_semicolon( parse, dec );
       break;
    case TK_SYNON:
       read_synon( parse, dec );
@@ -311,38 +266,52 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
-   dec->type_pos = parse->tk_pos;
-   p_test_tk( parse, TK_ENUM );
-   p_read_tk( parse );
-   if ( is_enum_def( parse ) ) {
-      read_enum_def( parse, dec );
-   }
-   else if ( parse->tk == TK_ID ) {
-      read_manifest_constant( parse, dec );
+   if ( parse->tk == TK_ENUM && p_peek( parse ) == TK_ID &&
+      ( p_peek_2nd( parse ) == TK_ID || p_peek_2nd( parse ) == TK_UPMOST ) ) {
+      read_var( parse, dec );
    }
    else {
-      p_unexpect_diag( parse );
-      p_unexpect_item( parse, NULL, TK_BRACE_L );
-      p_unexpect_item( parse, NULL, TK_COLON );
-      p_unexpect_name( parse, NULL, "enumeration name" );
-      p_unexpect_last_name( parse, NULL, "name of constant" );
-      p_bail( parse );
-   }
-   STATIC_ASSERT( DEC_TOTAL == 4 );
-   if ( dec->area == DEC_FOR ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "enum in for-loop initialization" );
-      p_bail( parse );
+      if ( is_enum_def( parse ) ) {
+         read_enum_def( parse, dec );
+         if ( parse->tk == TK_SEMICOLON ) {
+            p_read_tk( parse );
+         }
+         else {
+            dec->semicolon_absent = true;
+            read_after_spec( parse, dec );
+         }
+      }
+      else {
+         p_test_tk( parse, TK_ENUM );
+         p_read_tk( parse );
+         if ( parse->tk == TK_ID ) {
+            read_manifest_constant( parse, dec );
+         }
+         else {
+            p_unexpect_diag( parse );
+            p_unexpect_item( parse, NULL, TK_BRACE_L );
+            p_unexpect_item( parse, NULL, TK_COLON );
+            p_unexpect_name( parse, NULL, "enumeration name" );
+            p_unexpect_last_name( parse, NULL, "name of constant" );
+            p_bail( parse );
+         }
+      }
    }
 }
 
 inline bool is_enum_def( struct parse* parse ) {
-   return parse->tk == TK_BRACE_L || parse->tk == TK_COLON ||
-      ( parse->tk == TK_ID && ( p_peek( parse ) == TK_BRACE_L ||
-         p_peek( parse ) == TK_COLON ) );
+   return parse->tk == TK_ENUM && (
+      p_peek( parse ) == TK_BRACE_L ||
+      p_peek( parse ) == TK_COLON || (
+      p_peek( parse ) == TK_ID && (
+         p_peek_2nd( parse ) == TK_BRACE_L ||
+         p_peek_2nd( parse ) == TK_COLON ) ) );
 }
 
 void read_enum_def( struct parse* parse, struct dec* dec ) {
+   dec->type_pos = parse->tk_pos;
+   p_test_tk( parse, TK_ENUM );
+   p_read_tk( parse );
    struct enumeration* enumeration = t_alloc_enumeration();
    enumeration->object.pos = dec->type_pos;
    read_enum_name( parse, enumeration );
@@ -358,11 +327,18 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns->objects, enumeration );
       list_append( &parse->lib->objects, enumeration );
    }
+   STATIC_ASSERT( DEC_TOTAL == 4 );
+   if ( dec->area == DEC_FOR ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
+         "enum in for-loop initialization" );
+      p_bail( parse );
+   }
 }
 
 void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
    if ( parse->tk == TK_ID ) {
-      enumeration->name = t_extend_name( parse->ns->body, parse->tk_text );
+      enumeration->name = t_extend_name( parse->ns->body_types,
+         parse->tk_text );
       enumeration->body = t_extend_name( enumeration->name, "." );
       enumeration->object.pos = parse->tk_pos;
       p_read_tk( parse );
@@ -448,17 +424,6 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
    }
 }
 
-void read_term_semicolon( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk != TK_SEMICOLON ) {
-      dec->semicolon_absent = true;
-      read_after_spec( parse, dec );
-   }
-   else {
-      p_test_tk( parse, TK_SEMICOLON );
-      p_read_tk( parse );
-   }
-}
-
 void read_manifest_constant( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_ID );
    struct constant* constant = t_alloc_constant();
@@ -484,19 +449,41 @@ void read_manifest_constant( struct parse* parse, struct dec* dec ) {
 }
 
 void read_struct( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_STRUCT && p_peek( parse ) == TK_ID &&
+      ( p_peek_2nd( parse ) == TK_ID || p_peek_2nd( parse ) == TK_UPMOST ) ) {
+      read_var( parse, dec );
+   }
+   else {
+      read_struct_def( parse, dec );
+      if ( parse->tk == TK_SEMICOLON ) {
+         if ( dec->structure->anon ) {
+            p_diag( parse, DIAG_POS_ERR, &dec->structure->object.pos,
+               "unnamed and unused struct" );
+            p_diag( parse, DIAG_POS, &dec->structure->object.pos,
+               "a struct must have a name or be used as an object type" );
+            p_bail( parse );
+         }
+         p_read_tk( parse );
+      }
+      else {
+         dec->semicolon_absent = true;
+         read_after_spec( parse, dec );
+      }
+   }
+}
+
+inline bool is_struct_def( struct parse* parse ) {
+   return parse->tk == TK_STRUCT && ( p_peek( parse ) == TK_BRACE_L ||
+      ( p_peek( parse ) == TK_ID && p_peek_2nd( parse ) == TK_BRACE_L ) );
+}
+
+void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct structure* structure = t_alloc_structure();
    structure->object.pos = parse->tk_pos;
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
    read_struct_name( parse, structure );
    read_struct_body( parse, dec, structure );
-   if ( structure->anon && ! dec->extended_spec ) {
-      p_diag( parse, DIAG_POS_ERR, &structure->object.pos,
-         "unnamed and unused struct" );
-      p_diag( parse, DIAG_POS, &structure->object.pos,
-         "a struct must have a name or be used as an object type" );
-      p_bail( parse );
-   }
    dec->structure = structure;
    dec->spec = SPEC_STRUCT;
    // Nested struct is in the same scope as the parent struct.
@@ -512,7 +499,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
 
 void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
-      structure->name = t_extend_name( parse->ns->body, parse->tk_text );
+      structure->name = t_extend_name( parse->ns->body_types, parse->tk_text );
       structure->object.pos = parse->tk_pos;
       p_read_tk( parse );
    }
@@ -585,6 +572,16 @@ struct structure_member* create_structure_member( struct dec* dec ) {
 }
 
 void read_synon( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_SYNON && ( p_peek( parse ) == TK_ID ||
+      p_peek( parse ) == TK_UPMOST ) ) {
+      read_var( parse, dec );
+   }
+   else {
+      read_synon_def( parse, dec );
+   }
+}
+
+void read_synon_def( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_SYNON );
    p_read_tk( parse );
    dec->type_alias = true;
@@ -598,7 +595,10 @@ void read_synon( struct parse* parse, struct dec* dec ) {
       read_ref( parse, &ref );
       dec->ref = ref.head;
       while ( true ) {
-         read_name( parse, dec );
+         p_test_tk( parse, TK_ID );
+         dec->name = t_extend_name( parse->ns->body_types, parse->tk_text );
+         dec->name_pos = parse->tk_pos;
+         p_read_tk( parse );
          read_dim( parse, dec );
          finish_synon( parse, dec );
          if ( parse->tk == TK_COMMA ) {
@@ -778,9 +778,19 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
          spec->type = SPEC_VOID;
          p_read_tk( parse );
          break;
-      case TK_ID:
-      case TK_UPMOST:
-         spec->type = SPEC_NAME;
+      case TK_ENUM:
+      case TK_STRUCT:
+      case TK_SYNON:
+         if ( parse->tk == TK_ENUM ) {
+            spec->type = SPEC_NAME + SPEC_ENUM;
+         }
+         else if ( parse->tk == TK_STRUCT ) {
+            spec->type = SPEC_NAME + SPEC_STRUCT;
+         }
+         else {
+            spec->type = SPEC_NAME;
+         }
+         p_read_tk( parse );
          spec->path = p_read_path( parse );
          break;
       default:
@@ -808,13 +818,11 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
 }
 
 void read_extended_spec( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_ENUM ) {
-      read_enum( parse, dec );
-      dec->extended_spec = true;
+   if ( is_enum_def( parse ) ) {
+      read_enum_def( parse, dec );
    }
-   else if ( parse->tk == TK_STRUCT ) {
-      read_struct( parse, dec );
-      dec->extended_spec = true;
+   else if ( is_struct_def( parse ) ) {
+      read_struct_def( parse, dec );
    }
    else {
       struct spec_reading spec;

@@ -99,8 +99,8 @@ static bool test_typedef_dim( struct semantic* semantic,
    struct type_alias* alias );
 static bool test_var_spec( struct semantic* semantic, struct var* var );
 static void init_name_spec_test( struct name_spec_test* test,
-   struct path* path, struct object* object, struct ref* ref,
-   struct dim* dim );
+   struct path* path, struct object* object, struct ref* ref, struct dim* dim,
+   int spec );
 static void test_name_spec( struct semantic* semantic,
    struct name_spec_test* test );
 static void merge_type( struct semantic* semantic, struct name_spec_test* test,
@@ -362,10 +362,10 @@ void test_member( struct semantic* semantic, struct structure* structure,
 
 bool test_member_spec( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
-   if ( member->spec == SPEC_NAME ) {
+   if ( member->spec >= SPEC_NAME ) {
       struct name_spec_test test;
       init_name_spec_test( &test, member->path, &member->object, member->ref,
-         member->dim );
+         member->dim, member->spec );
       test_name_spec( semantic, &test );
       member->ref = test.ref;
       member->structure = test.structure;
@@ -432,10 +432,10 @@ void s_test_type_alias( struct semantic* semantic, struct type_alias* alias ) {
 }
 
 bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
-   if ( alias->spec == SPEC_NAME ) {
+   if ( alias->spec >= SPEC_NAME ) {
       struct name_spec_test test;
       init_name_spec_test( &test, alias->path, &alias->object, alias->ref,
-         alias->dim );
+         alias->dim, alias->spec );
       test_name_spec( semantic, &test );
       alias->ref = test.ref;
       alias->structure = test.structure;
@@ -505,10 +505,10 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_var_spec( struct semantic* semantic, struct var* var ) {
-   if ( var->spec == SPEC_NAME ) {
+   if ( var->spec >= SPEC_NAME ) {
       struct name_spec_test test;
       init_name_spec_test( &test, var->type_path, &var->object, var->ref,
-         var->dim );
+         var->dim, var->spec );
       test.object = &var->object;
       test_name_spec( semantic, &test );
       var->ref = test.ref;
@@ -539,38 +539,72 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
 }
 
 void init_name_spec_test( struct name_spec_test* test, struct path* path,
-   struct object* object, struct ref* ref, struct dim* dim ) {
+   struct object* object, struct ref* ref, struct dim* dim, int spec ) {
    test->object = object;
    test->ref = ref;
    test->structure = NULL;
    test->enumeration = NULL;
    test->dim = dim;
    test->path = path;
-   test->spec = SPEC_NONE;
+   test->spec = spec - SPEC_NAME;
 }
 
 void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
-   struct object* object = s_follow_path( semantic, test->path );
-   if ( object->node.type == NODE_STRUCTURE ) {
-      test->structure = ( struct structure* ) object;
-      test->spec = SPEC_STRUCT;
-   }
-   else if ( object->node.type == NODE_ENUMERATION ) {
+   struct object* object = s_follow_type_path( semantic, test->path );
+   switch ( test->spec ) {
+   case SPEC_ENUM:
+      if ( ! object ) {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "enum `%s` not found", path->text );
+         s_bail( semantic );
+      }
+      if ( object->node.type != NODE_ENUMERATION ) {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "`%s` not an enumeration", path->text );
+         s_bail( semantic );
+      }
       test->enumeration = ( struct enumeration* ) object;
       test->spec = SPEC_ENUM;
-   }
-   else if ( object->node.type == NODE_TYPE_ALIAS ) {
-      merge_type( semantic, test, ( struct type_alias* ) object );
-   }
-   else if ( object->node.type == NODE_FUNC &&
-      ( ( struct func* ) object )->type == FUNC_ALIAS ) {
-      merge_func_type( semantic, test, ( struct func* ) object );
-   }
-   else {
-      struct path* path = s_last_path_part( test->path );
-      s_diag( semantic, DIAG_POS_ERR, &path->pos,
-         "`%s` not a valid type", path->text );
-      s_bail( semantic );
+      break;
+   case SPEC_STRUCT:
+      if ( ! object ) {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "struct `%s` not found", path->text );
+         s_bail( semantic );
+      }
+      if ( object->node.type != NODE_STRUCTURE ) {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "`%s` not a structure", path->text );
+         s_bail( semantic );
+      }
+      test->structure = ( struct structure* ) object;
+      test->spec = SPEC_STRUCT;
+      break;
+   default:
+      if ( ! object ) {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "synon `%s` not found", path->text );
+         s_bail( semantic );
+      }
+      if ( object->node.type == NODE_TYPE_ALIAS ) {
+         merge_type( semantic, test, ( struct type_alias* ) object );
+      }
+      else if ( object->node.type == NODE_FUNC &&
+         ( ( struct func* ) object )->type == FUNC_ALIAS ) {
+         merge_func_type( semantic, test, ( struct func* ) object );
+      }
+      else {
+         struct path* path = s_last_path_part( test->path );
+         s_diag( semantic, DIAG_POS_ERR, &path->pos,
+            "`%s` not a type synonym", path->text );
+         s_bail( semantic );
+      }
+      break;
    }
 }
 
@@ -1508,9 +1542,10 @@ bool test_func_qual( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
-   if ( func->return_spec == SPEC_NAME ) {
+   if ( func->return_spec >= SPEC_NAME ) {
       struct name_spec_test test;
-      init_name_spec_test( &test, func->path, &func->object, func->ref, NULL );
+      init_name_spec_test( &test, func->path, &func->object, func->ref, NULL,
+         func->return_spec );
       test_name_spec( semantic, &test );
       func->ref = test.ref;
       func->structure = test.structure;
@@ -1588,10 +1623,10 @@ void test_param( struct semantic* semantic, struct func* func,
 }
 
 bool test_param_spec( struct semantic* semantic, struct param* param ) {
-   if ( param->spec == SPEC_NAME ) {
+   if ( param->spec >= SPEC_NAME ) {
       struct name_spec_test test;
       init_name_spec_test( &test, param->path, &param->object, param->ref,
-         NULL );
+         NULL, param->spec );
       test_name_spec( semantic, &test );
       param->ref = test.ref;
       param->structure = test.structure;

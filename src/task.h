@@ -144,10 +144,11 @@ enum {
    SPEC_STR,
    SPEC_ENUM,
    SPEC_STRUCT,
-   SPEC_NAME,
    SPEC_AUTO,
    SPEC_VOID,
-   SPEC_TOTAL
+   SPEC_TOTAL,
+
+   SPEC_NAME = SPEC_TOTAL
 };
 
 struct enumeration {
@@ -971,6 +972,7 @@ struct ns {
    struct ns* parent;
    struct name* name;
    struct name* body;
+   struct name* body_types;
    struct object* unresolved;
    struct object* unresolved_tail;
    struct ns_link* links;

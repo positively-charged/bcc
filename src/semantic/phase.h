@@ -156,7 +156,11 @@ void s_iterate_type( struct semantic* semantic, struct type_info* type,
    struct type_iter* iter );
 struct object* s_search_object( struct semantic* semantic,
    const char* object_name );
+struct object* s_search_type_object( struct semantic* semantic,
+   const char* object_name );
 struct object* s_follow_path( struct semantic* semantic, struct path* path );
+struct object* s_follow_type_path( struct semantic* semantic,
+   struct path* path );
 struct path* s_last_path_part( struct path* path );
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc );
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
@@ -176,6 +180,7 @@ void s_type_mismatch( struct semantic* semantic, const char* label_a,
 void s_test_nested_func( struct semantic* semantic, struct func* func );
 int s_spec( struct semantic* semantic, int spec );
 struct object* s_get_nsobject( struct ns* ns, const char* object_name );
+struct object* s_get_nstypeobject( struct ns* ns, const char* object_name );
 bool s_func_scope_forced( struct semantic* semantic );
 
 #endif

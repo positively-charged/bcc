@@ -45,7 +45,11 @@ static void import_selection( struct semantic* semantic, struct ns* ns,
 static void import_item( struct semantic* semantic, struct ns* ns,
    struct using_item* item );
 static struct object* follow_path( struct semantic* semantic,
-   struct path* path, bool only_ns );
+   struct path* path, bool only_ns, bool get_type );
+static struct object* search_object( struct semantic* semantic,
+   const char* object_name, bool get_type );
+static struct object* get_nsobject( struct ns* ns, const char* object_name,
+   bool get_type );
 static void test_objects( struct semantic* semantic );
 static void test_all( struct semantic* semantic );
 static void test_namespace( struct semantic* semantic, struct ns* ns );
@@ -97,7 +101,7 @@ void s_init( struct semantic* semantic, struct task* task,
 }
 
 void init_spec_map( struct semantic* semantic ) {
-   STATIC_ASSERT( SPEC_TOTAL == 11 );
+   STATIC_ASSERT( SPEC_TOTAL == 10 );
    for ( int i = 0; i < SPEC_TOTAL; i++ ) {
       semantic->spec_map[ i ] = i;
    }
@@ -471,7 +475,8 @@ void perform_lib_usings( struct semantic* semantic, struct library* lib ) {
 }
 
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
-   struct ns* ns = ( struct ns* ) follow_path( semantic, dirc->path, true );
+   struct ns* ns = ( struct ns* ) follow_path( semantic, dirc->path, true,
+      false );
    switch ( dirc->type ) {
    case USING_ALL:
       import_all( semantic, ns, dirc );
@@ -545,11 +550,16 @@ void import_item( struct semantic* semantic, struct ns* ns,
 }
 
 struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
-   return follow_path( semantic, path, false );
+   return follow_path( semantic, path, false, false );
+}
+
+struct object* s_follow_type_path( struct semantic* semantic,
+   struct path* path ) {
+   return follow_path( semantic, path, false, true );
 }
 
 struct object* follow_path( struct semantic* semantic, struct path* path,
-   bool only_ns ) {
+   bool only_ns, bool get_type ) {
    struct ns* ns = NULL;
    struct object* object = NULL;
    if ( path->upmost ) {
@@ -558,20 +568,26 @@ struct object* follow_path( struct semantic* semantic, struct path* path,
       path = path->next;
    }
    while ( path ) {
-      object = ns ? s_get_nsobject( ns, path->text ) :
-         s_search_object( semantic, path->text );
-      if ( ! object ) {
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "`%s` not found", path->text );
-         s_bail( semantic );
+      if ( get_type && ! path->next ) {
+         object = ns ? s_get_nstypeobject( ns, path->text ) :
+            s_search_type_object( semantic, path->text );
       }
-      if ( path->next || only_ns ) {
-         if ( object->node.type != NODE_NAMESPACE ) {
+      else {
+         object = ns ? s_get_nsobject( ns, path->text ) :
+            s_search_object( semantic, path->text );
+         if ( ! object ) {
             s_diag( semantic, DIAG_POS_ERR, &path->pos,
-               "`%s` not a namespace", path->text );
+               "`%s` not found", path->text );
             s_bail( semantic );
          }
-         ns = ( struct ns* ) object;
+         if ( path->next || only_ns ) {
+            if ( object->node.type != NODE_NAMESPACE ) {
+               s_diag( semantic, DIAG_POS_ERR, &path->pos,
+                  "`%s` not a namespace", path->text );
+               s_bail( semantic );
+            }
+            ns = ( struct ns* ) object;
+         }
       }
       path = path->next;
    }
@@ -587,10 +603,21 @@ struct path* s_last_path_part( struct path* path ) {
 
 struct object* s_search_object( struct semantic* semantic,
    const char* object_name ) {
+   return search_object( semantic, object_name, false );
+}
+
+struct object* s_search_type_object( struct semantic* semantic,
+   const char* object_name ) {
+   return search_object( semantic, object_name, true );
+}
+
+struct object* search_object( struct semantic* semantic,
+   const char* object_name, bool get_type ) {
    struct ns* ns = semantic->ns;
    while ( ns ) {
       // Search in the namespace.
-      struct name* name = t_extend_name( ns->body, object_name );
+      struct name* name = t_extend_name( get_type ?
+         ns->body_types : ns->body, object_name );
       if ( name->object ) {
          return name->object;
       }
@@ -599,7 +626,9 @@ struct object* s_search_object( struct semantic* semantic,
       // namespace are not searched.
       struct ns_link* link = ns->links;
       while ( link ) {
-         struct object* object = s_get_nsobject( link->ns, object_name );
+         struct object* object = get_type ?
+            s_get_nsobject( link->ns, object_name ) :
+            s_get_nstypeobject( link->ns, object_name );
          if ( object ) {
             return object;
          }
@@ -613,6 +642,31 @@ struct object* s_search_object( struct semantic* semantic,
       }
       else {
          ns = ns->parent;
+      }
+   }
+   return NULL;
+}
+
+struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {
+   return get_nsobject( ns, object_name, false );
+}
+
+struct object* s_get_nstypeobject( struct ns* ns, const char* object_name ) {
+   return get_nsobject( ns, object_name, true );
+}
+
+// Retrieves an object from a namespace.
+struct object* get_nsobject( struct ns* ns, const char* object_name,
+   bool get_type ) {
+   struct name* name = t_extend_name( get_type ? ns->body_types : ns->body,
+      object_name );
+   if ( name->object ) {
+      struct object* object = name->object;
+      while ( object->next_scope ) {
+         object = object->next_scope;
+      }
+      if ( object->depth == 0 ) {
+         return object;
       }
    }
    return NULL;
@@ -1003,21 +1057,6 @@ void add_sweep_name( struct semantic* semantic, struct scope* scope,
    object->depth = scope->depth;
    object->next_scope = name->object;
    name->object = object;
-}
-
-// Retrieves an object from a namespace.
-struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {
-   struct name* name = t_extend_name( ns->body, object_name );
-   if ( name->object ) {
-      struct object* object = name->object;
-      while ( object->next_scope ) {
-         object = object->next_scope;
-      }
-      if ( object->depth == 0 ) {
-         return object;
-      }
-   }
-   return NULL;
 }
 
 void s_diag( struct semantic* semantic, int flags, ... ) {

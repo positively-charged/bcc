@@ -320,7 +320,6 @@ struct dec {
    bool leave;
    bool read_func;
    bool msgbuild;
-   bool extended_spec;
    bool type_alias;
    bool semicolon_absent;
 };
@@ -437,6 +436,7 @@ void p_init_dec( struct dec* dec );
 void p_read_dec( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
+enum tk p_peek_2nd( struct parse* parse );
 struct token* p_peek_tk( struct parse* parse );
 struct token* p_peek_stream( struct parse* parse, bool nonwhitespace );
 const char* p_get_token_name( enum tk type );
