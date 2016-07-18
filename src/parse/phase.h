@@ -135,7 +135,7 @@ enum tk {
    TK_ASSERT,
    TK_REF,
    TK_AUTO,
-   TK_TYPEDEF,
+   TK_SYNON,
    TK_FOREACH,
    TK_PRIVATE,
    TK_MEMCPY,

@@ -74,8 +74,8 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
 void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
-static void read_typedef( struct parse* parse, struct dec* dec );
-static void finish_typedef( struct parse* parse, struct dec* dec );
+static void read_synon( struct parse* parse, struct dec* dec );
+static void finish_synon( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_var_acs( struct parse* parse, struct dec* dec );
 static void read_var_bcs( struct parse* parse, struct dec* dec );
@@ -204,7 +204,7 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_FUNCTION:
       case TK_REF:
       case TK_AUTO:
-      case TK_TYPEDEF:
+      case TK_SYNON:
       case TK_PRIVATE:
          return true;
       default:
@@ -291,8 +291,8 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       read_struct( parse, dec );
       read_term_semicolon( parse, dec );
       break;
-   case TK_TYPEDEF:
-      read_typedef( parse, dec );
+   case TK_SYNON:
+      read_synon( parse, dec );
       break;
    default:
       // At this time, visibility can be specified only for variables and
@@ -584,8 +584,8 @@ struct structure_member* create_structure_member( struct dec* dec ) {
    return member;
 }
 
-void read_typedef( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_TYPEDEF );
+void read_synon( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_SYNON );
    p_read_tk( parse );
    dec->type_alias = true;
    if ( parse->tk == TK_FUNCTION ) {
@@ -600,7 +600,7 @@ void read_typedef( struct parse* parse, struct dec* dec ) {
       while ( true ) {
          read_name( parse, dec );
          read_dim( parse, dec );
-         finish_typedef( parse, dec );
+         finish_synon( parse, dec );
          if ( parse->tk == TK_COMMA ) {
             p_read_tk( parse );
          }
@@ -613,7 +613,7 @@ void read_typedef( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
 }
 
-void finish_typedef( struct parse* parse, struct dec* dec ) {
+void finish_synon( struct parse* parse, struct dec* dec ) {
    struct type_alias* alias = mem_alloc( sizeof( *alias ) );
    t_init_object( &alias->object, NODE_TYPE_ALIAS );
    alias->object.pos = dec->name_pos;
