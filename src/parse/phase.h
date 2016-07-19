@@ -131,7 +131,6 @@ enum tk {
    // 110
    TK_RAW,
    TK_FIXED,
-   TK_CAST,
    TK_ASSERT,
    TK_REF,
    TK_AUTO,
@@ -139,8 +138,8 @@ enum tk {
    TK_FOREACH,
    TK_PRIVATE,
    TK_MEMCPY,
-   // 120
    TK_MSGBUILD,
+   // 120
    TK_IN,
    TK_NULL,
    TK_SPECIAL,
@@ -150,8 +149,8 @@ enum tk {
    TK_BANGBANG,
    TK_INCLUDE,
    TK_DEFINE,
-   // 130
    TK_LIBDEFINE,
+   // 130
    TK_PRINT,
    TK_PRINTBOLD,
    TK_WADAUTHOR,
@@ -161,8 +160,8 @@ enum tk {
    TK_ENCRYPTSTRINGS,
    TK_REGION,
    TK_ENDREGION,
-   // 140
    TK_LOG,
+   // 140
    TK_HUDMESSAGE,
    TK_HUDMESSAGEBOLD,
    TK_STRPARAM,

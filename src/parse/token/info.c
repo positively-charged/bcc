@@ -71,7 +71,6 @@ static const struct {
    { "bool", TK_BOOL },
    { "break", TK_BREAK },
    { "case", TK_CASE },
-   { "cast", TK_CAST },
    { "clientside", TK_CLIENTSIDE },
    { "const", TK_CONST },
    { "continue", TK_CONTINUE },
@@ -409,7 +408,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       // 110
       ENTRY( "raw", TKF_KEYWORD ),
       ENTRY( "fixed", TKF_KEYWORD ),
-      ENTRY( "cast", TKF_KEYWORD ),
       ENTRY( "assert", TKF_KEYWORD ),
       ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
@@ -417,8 +415,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "foreach", TKF_KEYWORD ),
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "memcpy", TKF_KEYWORD ),
-      // 120
       ENTRY( "msgbuild", TKF_KEYWORD ),
+      // 120
       ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
       ENTRY( "special", TKF_KEYWORD ),
@@ -428,8 +426,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "!!", TKF_NONE ),
       ENTRY( "include", TKF_KEYWORD ),
       ENTRY( "define", TKF_KEYWORD ),
-      // 130
       ENTRY( "libdefine", TKF_KEYWORD ),
+      // 130
       ENTRY( "print", TKF_KEYWORD ),
       ENTRY( "printbold", TKF_KEYWORD ),
       ENTRY( "wadauthor", TKF_KEYWORD ),
@@ -439,8 +437,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "encryptstrings", TKF_KEYWORD ),
       ENTRY( "region", TKF_KEYWORD ),
       ENTRY( "endregion", TKF_KEYWORD ),
-      // 140
       ENTRY( "log", TKF_KEYWORD ),
+      // 140
       ENTRY( "hudmessage", TKF_KEYWORD ),
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
       ENTRY( "strparam", TKF_KEYWORD ),
@@ -568,7 +566,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_STRCPY, "`strcpy`" },
       { TK_RAW, "`raw`" },
       { TK_FIXED, "`fixed`" },
-      { TK_CAST, "`cast`" },
       { TK_ASSERT, "`assert`" },
       { TK_REF, "`ref`" },
       { TK_AUTO, "`auto`" },
@@ -600,7 +597,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
       { TK_STRPARAM, "`strparam`" } };
-   STATIC_ASSERT( TK_TOTAL == 144 );
+   STATIC_ASSERT( TK_TOTAL == 143 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

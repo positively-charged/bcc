@@ -32,6 +32,7 @@ static void read_prefix( struct parse* parse, struct expr_reading* reading );
 static void read_unary( struct parse* parse, struct expr_reading* reading );
 static void read_inc( struct parse* parse, struct expr_reading* reading );
 static struct inc* alloc_inc( struct pos pos, bool dec );
+static bool is_cast( struct parse* parse );
 static void read_cast( struct parse* parse, struct expr_reading* reading );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_fixed_literal( struct parse* parse,
@@ -422,7 +423,13 @@ void read_prefix( struct parse* parse, struct expr_reading* reading ) {
       }
       break;
    default:
-      prefix = parse->tk;
+      if ( is_cast( parse ) ) {
+         read_cast( parse, reading );
+         return;
+      }
+      else {
+         prefix = parse->tk;
+      }
    }
    // Read prefix operation.
    switch ( prefix ) {
@@ -435,9 +442,6 @@ void read_prefix( struct parse* parse, struct expr_reading* reading ) {
    case TK_INC:
    case TK_DEC:
       read_inc( parse, reading );
-      break;
-   case TK_CAST:
-      read_cast( parse, reading );
       break;
    default:
       read_suffix( parse, reading );
@@ -490,11 +494,25 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    return inc;
 }
 
+bool is_cast( struct parse* parse ) {
+   if ( parse->tk == TK_PAREN_L ) {
+      switch ( p_peek( parse ) ) {
+      case TK_RAW:
+      case TK_INT:
+      case TK_FIXED:
+      case TK_BOOL:
+      case TK_STR:
+         return ( p_peek_2nd( parse ) != TK_PAREN_L );
+      default:
+         break;
+      }
+   }
+   return false;
+}
+
 // TODO: Read type information from dec.c.
 void read_cast( struct parse* parse, struct expr_reading* reading ) {
    struct pos pos = parse->tk_pos;
-   p_test_tk( parse, TK_CAST );
-   p_read_tk( parse );
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    int spec = SPEC_NONE;

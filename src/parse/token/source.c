@@ -144,7 +144,6 @@ static const struct keyword_entry g_keywords_bcs[] = {
    { "bool", TK_BOOL },
    { "break", TK_BREAK },
    { "case", TK_CASE },
-   { "cast", TK_CAST },
    { "clientside", TK_CLIENTSIDE },
    { "const", TK_CONST },
    { "continue", TK_CONTINUE },
