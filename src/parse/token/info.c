@@ -92,7 +92,6 @@ static const struct {
    { "goto", TK_GOTO },
    { "if", TK_IF },
    { "import", TK_IMPORT },
-   { "in", TK_IN },
    { "int", TK_INT },
    { "libdefine", TK_LIBDEFINE },
    { "lightning", TK_LIGHTNING },
@@ -417,7 +416,6 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "memcpy", TKF_KEYWORD ),
       ENTRY( "msgbuild", TKF_KEYWORD ),
       // 120
-      ENTRY( "in", TKF_KEYWORD ),
       ENTRY( "null", TKF_KEYWORD ),
       ENTRY( "special", TKF_KEYWORD ),
       ENTRY( "namespace", TKF_KEYWORD ),
@@ -427,8 +425,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "include", TKF_KEYWORD ),
       ENTRY( "define", TKF_KEYWORD ),
       ENTRY( "libdefine", TKF_KEYWORD ),
-      // 130
       ENTRY( "print", TKF_KEYWORD ),
+      // 130
       ENTRY( "printbold", TKF_KEYWORD ),
       ENTRY( "wadauthor", TKF_KEYWORD ),
       ENTRY( "nowadauthor", TKF_KEYWORD ),
@@ -438,8 +436,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "region", TKF_KEYWORD ),
       ENTRY( "endregion", TKF_KEYWORD ),
       ENTRY( "log", TKF_KEYWORD ),
-      // 140
       ENTRY( "hudmessage", TKF_KEYWORD ),
+      // 140
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
       ENTRY( "strparam", TKF_KEYWORD ),
 
@@ -574,7 +572,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_PRIVATE, "`private`" },
       { TK_MEMCPY, "`memcpy`" },
       { TK_MSGBUILD, "`msgbuild`" },
-      { TK_IN, "`in`" },
       { TK_NULL, "`null`" },
       { TK_SPECIAL, "`special`" },
       { TK_NAMESPACE, "`namespace`" },
@@ -597,7 +594,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
       { TK_STRPARAM, "`strparam`" } };
-   STATIC_ASSERT( TK_TOTAL == 143 );
+   STATIC_ASSERT( TK_TOTAL == 142 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

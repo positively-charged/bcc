@@ -82,6 +82,7 @@ static void read_var_acs( struct parse* parse, struct dec* dec );
 static void read_var_bcs( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* );
 static void read_storage( struct parse* parse, struct dec* );
+static bool is_spec( struct parse* parse );
 static void init_spec_reading( struct spec_reading* spec, int area );
 static void read_spec( struct parse* parse, struct spec_reading* spec );
 static void missing_spec( struct parse* parse, struct spec_reading* spec );
@@ -722,6 +723,23 @@ void read_storage( struct parse* parse, struct dec* dec ) {
       break;
    default:
       break;
+   }
+}
+
+bool is_spec( struct parse* parse ) {
+   switch ( parse->tk ) {
+   case TK_RAW:
+   case TK_INT:
+   case TK_FIXED:
+   case TK_BOOL:
+   case TK_STR:
+   case TK_ENUM:
+   case TK_STRUCT:
+   case TK_TYPESYN:
+   case TK_VOID:
+      return true;
+   default:
+      return false;
    }
 }
 
@@ -1769,14 +1787,21 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
       read_name( parse, &dec );
       stmt->key = stmt->value;
       stmt->value = alloc_var( &dec );
-   }
-   else if ( parse->tk == TK_SEMICOLON ) {
+      p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
-      stmt->key = stmt->value;
-      p_init_dec( &dec );
-      dec.name_offset = parse->ns->body;
-      read_foreach_var( parse, &dec );
-      stmt->value = alloc_var( &dec );
+   }
+   else {
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
+      if ( is_spec( parse ) ) {
+         stmt->key = stmt->value;
+         p_init_dec( &dec );
+         dec.name_offset = parse->ns->body;
+         read_foreach_var( parse, &dec );
+         stmt->value = alloc_var( &dec );
+         p_test_tk( parse, TK_SEMICOLON );
+         p_read_tk( parse );
+      }
    }
 }
 

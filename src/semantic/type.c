@@ -439,6 +439,7 @@ void subscript_array_type( struct type_info* type,
             &element_type->implicit_ref_part.array;
          implicit_array->ref.next = array->ref.next;
          implicit_array->ref.type = REF_ARRAY;
+         implicit_array->ref.nullable = false;
          implicit_array->dim_count = array->dim_count - 1;
          element_type->ref = &implicit_array->ref;
          element_type->implicit_ref = true;

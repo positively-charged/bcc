@@ -140,7 +140,6 @@ enum tk {
    TK_MEMCPY,
    TK_MSGBUILD,
    // 120
-   TK_IN,
    TK_NULL,
    TK_SPECIAL,
    TK_NAMESPACE,
@@ -150,8 +149,8 @@ enum tk {
    TK_INCLUDE,
    TK_DEFINE,
    TK_LIBDEFINE,
-   // 130
    TK_PRINT,
+   // 130
    TK_PRINTBOLD,
    TK_WADAUTHOR,
    TK_NOWADAUTHOR,
@@ -161,8 +160,8 @@ enum tk {
    TK_REGION,
    TK_ENDREGION,
    TK_LOG,
-   // 140
    TK_HUDMESSAGE,
+   // 140
    TK_HUDMESSAGEBOLD,
    TK_STRPARAM,
 

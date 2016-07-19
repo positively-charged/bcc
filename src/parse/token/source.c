@@ -164,7 +164,6 @@ static const struct keyword_entry g_keywords_bcs[] = {
    { "global", TK_GLOBAL },
    { "goto", TK_GOTO },
    { "if", TK_IF },
-   { "in", TK_IN },
    { "int", TK_INT },
    { "libdefine", TK_LIBDEFINE },
    { "lightning", TK_LIGHTNING },
