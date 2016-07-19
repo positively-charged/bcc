@@ -421,13 +421,12 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "namespace", TKF_KEYWORD ),
       ENTRY( "upmost", TKF_KEYWORD ),
       ENTRY( "using", TKF_KEYWORD ),
-      ENTRY( "!!", TKF_NONE ),
       ENTRY( "include", TKF_KEYWORD ),
       ENTRY( "define", TKF_KEYWORD ),
       ENTRY( "libdefine", TKF_KEYWORD ),
       ENTRY( "print", TKF_KEYWORD ),
-      // 130
       ENTRY( "printbold", TKF_KEYWORD ),
+      // 130
       ENTRY( "wadauthor", TKF_KEYWORD ),
       ENTRY( "nowadauthor", TKF_KEYWORD ),
       ENTRY( "nocompact", TKF_KEYWORD ),
@@ -437,8 +436,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "endregion", TKF_KEYWORD ),
       ENTRY( "log", TKF_KEYWORD ),
       ENTRY( "hudmessage", TKF_KEYWORD ),
-      // 140
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
+      // 140
       ENTRY( "strparam", TKF_KEYWORD ),
 
       // Invalid entry.
@@ -577,7 +576,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_NAMESPACE, "`namespace`" },
       { TK_UPMOST, "`upmost`" },
       { TK_USING, "`using`" },
-      { TK_BANGBANG, "`!!`" },
       { TK_INCLUDE, "`include`" },
       { TK_DEFINE, "`define`" },
       { TK_LIBDEFINE, "`libdefine`" },
@@ -594,7 +592,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
       { TK_STRPARAM, "`strparam`" } };
-   STATIC_ASSERT( TK_TOTAL == 142 );
+   STATIC_ASSERT( TK_TOTAL == 141 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

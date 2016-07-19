@@ -898,7 +898,7 @@ void read_suffix( struct parse* parse, struct expr_reading* reading ) {
       case TK_DEC:
          read_post_inc( parse, reading );
          break;
-      case TK_BANGBANG:
+      case TK_LOG_NOT:
          read_sure( parse, reading );
          break;
       default:
@@ -1150,13 +1150,15 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
 }
 
 void read_sure( struct parse* parse, struct expr_reading* reading ) {
-   p_test_tk( parse, TK_BANGBANG );
+   p_test_tk( parse, TK_LOG_NOT );
    struct sure* sure = mem_alloc( sizeof( *sure ) );
    sure->node.type = NODE_SURE;
    sure->pos = parse->tk_pos;
    sure->operand = reading->node;
    sure->already_safe = false;
    reading->node = &sure->node;
+   p_read_tk( parse );
+   p_test_tk( parse, TK_LOG_NOT );
    p_read_tk( parse );
 }
 

@@ -679,10 +679,6 @@ void read_token( struct parse* parse, struct token* token ) {
          tk = TK_NEQ;
          ch = read_ch( parse );
       }
-      else if ( ch == '!' ) {
-         tk = TK_BANGBANG;
-         ch = read_ch( parse );
-      }
       else {
          tk = TK_LOG_NOT;
       }
