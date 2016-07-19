@@ -182,5 +182,6 @@ int s_spec( struct semantic* semantic, int spec );
 struct object* s_get_nsobject( struct ns* ns, const char* object_name );
 struct object* s_get_nstypeobject( struct ns* ns, const char* object_name );
 bool s_func_scope_forced( struct semantic* semantic );
+bool s_is_enumerator( struct type_info* type );
 
 #endif

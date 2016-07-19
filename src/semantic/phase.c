@@ -101,7 +101,7 @@ void s_init( struct semantic* semantic, struct task* task,
 }
 
 void init_spec_map( struct semantic* semantic ) {
-   STATIC_ASSERT( SPEC_TOTAL == 10 );
+   STATIC_ASSERT( SPEC_TOTAL == 11 );
    for ( int i = 0; i < SPEC_TOTAL; i++ ) {
       semantic->spec_map[ i ] = i;
    }

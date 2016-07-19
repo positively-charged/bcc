@@ -692,6 +692,10 @@ void read_var_bcs( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_AUTO ) {
       dec->spec = SPEC_AUTO;
       p_read_tk( parse );
+      if ( parse->tk == TK_ENUM ) {
+         dec->spec = SPEC_AUTOENUM;
+         p_read_tk( parse );
+      }
       read_auto_instance_list( parse, dec );
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
@@ -1756,6 +1760,10 @@ struct var* p_read_cond_var( struct parse* parse ) {
    if ( parse->tk == TK_AUTO ) {
       dec.spec = SPEC_AUTO;
       p_read_tk( parse );
+      if ( parse->tk == TK_ENUM ) {
+         dec.spec = SPEC_AUTOENUM;
+         p_read_tk( parse );
+      }
    }
    else {
       struct spec_reading spec;
@@ -1793,7 +1801,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
    else {
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
-      if ( is_spec( parse ) ) {
+      if ( parse->tk == TK_AUTO || is_spec( parse ) ) {
          stmt->key = stmt->value;
          p_init_dec( &dec );
          dec.name_offset = parse->ns->body;
@@ -1809,6 +1817,10 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_AUTO ) {
       dec->spec = SPEC_AUTO;
       p_read_tk( parse );
+      if ( parse->tk == TK_ENUM ) {
+         dec->spec = SPEC_AUTOENUM;
+         p_read_tk( parse );
+      }
    }
    else {
       struct spec_reading spec;

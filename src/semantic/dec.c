@@ -131,8 +131,10 @@ static bool test_imported_object_initz( struct var* var );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
 static void describe_var( struct var* var );
+static bool is_auto_var( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
-static void assign_inferred_type( struct var* var, struct type_info* type );
+static void assign_inferred_type( struct semantic* semantic, struct var* var,
+   struct type_info* type );
 static void init_initz_test( struct initz_test* test,
    struct initz_test* parent, int spec, struct dim* dim,
    struct structure* structure, struct enumeration* enumeration,
@@ -490,7 +492,7 @@ bool test_typedef_dim( struct semantic* semantic, struct type_alias* alias ) {
 }
 
 void s_test_var( struct semantic* semantic, struct var* var ) {
-   if ( var->spec == SPEC_AUTO ) {
+   if ( is_auto_var( var ) ) {
       test_auto_var( semantic, var );
    }
    else {
@@ -1452,6 +1454,10 @@ void describe_var( struct var* var ) {
    }
 }
 
+bool is_auto_var( struct var* var ) {
+   return ( var->spec == SPEC_AUTO || var->spec == SPEC_AUTOENUM );
+}
+
 void test_auto_var( struct semantic* semantic, struct var* var ) {
    // Infer type from initializer.
    if ( ! var->initial ) {
@@ -1462,7 +1468,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    struct scalar_initz_test initz_test;
    init_scalar_initz_test_auto( &initz_test, var->is_constant_init );
    test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
-   assign_inferred_type( var, &initz_test.initz_type );
+   assign_inferred_type( semantic, var, &initz_test.initz_type );
    var->func_scope = s_func_scope_forced( semantic );
    var->initial_has_str = initz_test.has_str;
    // For now, keep an auto-declaration in local scope.
@@ -1476,16 +1482,24 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    describe_var( var );
 }
 
-void assign_inferred_type( struct var* var, struct type_info* type ) {
-   struct type_snapshot snapshot;
-   s_take_type_snapshot( type, &snapshot );
-   var->ref = snapshot.ref;
-   var->structure = snapshot.structure;
-   var->enumeration = snapshot.enumeration;
-   var->dim = snapshot.dim;
-   var->spec = snapshot.spec;
-   if ( var->enumeration ) {
+void assign_inferred_type( struct semantic* semantic, struct var* var,
+   struct type_info* type ) {
+   if ( var->spec == SPEC_AUTOENUM ) {
+      if ( ! s_is_enumerator( type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "auto-enum variable initialized with a non-enumerator" );
+         s_bail( semantic );
+      }
+      var->enumeration = type->enumeration;
       var->spec = SPEC_ENUM;
+   }
+   else {
+      struct type_snapshot snapshot;
+      s_take_type_snapshot( type, &snapshot );
+      var->ref = snapshot.ref;
+      var->structure = snapshot.structure;
+      var->dim = snapshot.dim;
+      var->spec = snapshot.spec;
    }
 }
 
@@ -1503,8 +1517,8 @@ void s_test_local_var( struct semantic* semantic, struct var* var ) {
 void s_test_foreach_var( struct semantic* semantic,
    struct type_info* collection_type, struct var* var ) {
    bool resolved = false;
-   if ( var->spec == SPEC_AUTO ) {
-      assign_inferred_type( var, collection_type );
+   if ( is_auto_var( var ) ) {
+      assign_inferred_type( semantic, var, collection_type );
       describe_var( var );
       resolved = true;
    }

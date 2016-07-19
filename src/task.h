@@ -145,6 +145,7 @@ enum {
    SPEC_ENUM,
    SPEC_STRUCT,
    SPEC_AUTO,
+   SPEC_AUTOENUM,
    SPEC_VOID,
    SPEC_TOTAL,
 
