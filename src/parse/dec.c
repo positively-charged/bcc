@@ -202,7 +202,7 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_FUNCTION:
       case TK_REF:
       case TK_AUTO:
-      case TK_SYNON:
+      case TK_TYPESYN:
       case TK_PRIVATE:
          return true;
       default:
@@ -246,7 +246,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    case TK_STRUCT:
       read_struct( parse, dec );
       break;
-   case TK_SYNON:
+   case TK_TYPESYN:
       read_synon( parse, dec );
       break;
    default:
@@ -572,7 +572,7 @@ struct structure_member* create_structure_member( struct dec* dec ) {
 }
 
 void read_synon( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_SYNON && ( p_peek( parse ) == TK_ID ||
+   if ( parse->tk == TK_TYPESYN && ( p_peek( parse ) == TK_ID ||
       p_peek( parse ) == TK_UPMOST ) ) {
       read_var( parse, dec );
    }
@@ -582,7 +582,7 @@ void read_synon( struct parse* parse, struct dec* dec ) {
 }
 
 void read_synon_def( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_SYNON );
+   p_test_tk( parse, TK_TYPESYN );
    p_read_tk( parse );
    dec->type_alias = true;
    if ( parse->tk == TK_FUNCTION ) {
@@ -780,7 +780,7 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
          break;
       case TK_ENUM:
       case TK_STRUCT:
-      case TK_SYNON:
+      case TK_TYPESYN:
          if ( parse->tk == TK_ENUM ) {
             spec->type = SPEC_NAME + SPEC_ENUM;
          }
