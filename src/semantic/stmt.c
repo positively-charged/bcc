@@ -101,9 +101,6 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
 void test_block_item( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
-   case NODE_CONSTANT:
-      s_test_constant( semantic, ( struct constant* ) node );
-      break;
    case NODE_ENUMERATION:
       s_test_enumeration( semantic,
          ( struct enumeration* ) node );

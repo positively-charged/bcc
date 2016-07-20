@@ -63,7 +63,6 @@ static void read_enum_body( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration );
 static void read_enumerator( struct parse* parse,
    struct enumeration* enumeration );
-static void read_manifest_constant( struct parse* parse, struct dec* dec );
 static void read_struct( struct parse* parse, struct dec* dec );
 static bool is_struct_def( struct parse* parse );
 static void read_struct_def( struct parse* parse, struct dec* dec );
@@ -272,30 +271,13 @@ void read_enum( struct parse* parse, struct dec* dec ) {
       read_var( parse, dec );
    }
    else {
-      if ( is_enum_def( parse ) ) {
-         read_enum_def( parse, dec );
-         if ( parse->tk == TK_SEMICOLON ) {
-            p_read_tk( parse );
-         }
-         else {
-            dec->semicolon_absent = true;
-            read_after_spec( parse, dec );
-         }
+      read_enum_def( parse, dec );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
       }
       else {
-         p_test_tk( parse, TK_ENUM );
-         p_read_tk( parse );
-         if ( parse->tk == TK_ID ) {
-            read_manifest_constant( parse, dec );
-         }
-         else {
-            p_unexpect_diag( parse );
-            p_unexpect_item( parse, NULL, TK_BRACE_L );
-            p_unexpect_item( parse, NULL, TK_COLON );
-            p_unexpect_name( parse, NULL, "enumeration name" );
-            p_unexpect_last_name( parse, NULL, "name of constant" );
-            p_bail( parse );
-         }
+         dec->semicolon_absent = true;
+         read_after_spec( parse, dec );
       }
    }
 }
@@ -422,30 +404,6 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
       p_unexpect_item( parse, NULL, TK_COMMA );
       p_unexpect_last( parse, NULL, TK_BRACE_R );
       p_bail( parse );
-   }
-}
-
-void read_manifest_constant( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_ID );
-   struct constant* constant = t_alloc_constant();
-   constant->object.pos = parse->tk_pos;
-   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
-   p_read_tk( parse );
-   p_test_tk( parse, TK_ASSIGN );
-   p_read_tk( parse );
-   struct expr_reading value;
-   p_init_expr_reading( &value, true, false, false, true );
-   p_read_expr( parse, &value );
-   constant->value_node = value.output_node;
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
-   if ( dec->vars ) {
-      list_append( dec->vars, constant );
-   }
-   else {
-      p_add_unresolved( parse, &constant->object );
-      list_append( &parse->ns->objects, constant );
-      list_append( &parse->lib->objects, constant );
    }
 }
 

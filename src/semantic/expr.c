@@ -156,8 +156,8 @@ static void select_object( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct object* object );
 static void select_constant( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct constant* constant );
-static void select_enumerator( struct expr_test* test, struct result* result,
-   struct enumerator* enumerator );
+static void select_enumerator( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct enumerator* enumerator );
 static void select_var( struct semantic* semantic, struct result* result,
    struct var* var );
 static void select_param( struct semantic* semantic, struct result* result,
@@ -2054,7 +2054,7 @@ void select_object( struct semantic* semantic, struct expr_test* test,
          ( struct constant* ) object );
       break;
    case NODE_ENUMERATOR:
-      select_enumerator( test, result,
+      select_enumerator( semantic, test, result,
          ( struct enumerator* ) object );
       break;
    case NODE_VAR:
@@ -2099,10 +2099,10 @@ void select_constant( struct semantic* semantic, struct expr_test* test,
    test->has_str = constant->value_node->has_str;
 }
 
-void select_enumerator( struct expr_test* test, struct result* result,
-   struct enumerator* enumerator ) {
+void select_enumerator( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct enumerator* enumerator ) {
    result->enumeration = enumerator->enumeration;
-   result->spec = SPEC_ENUM;
+   result->spec = s_spec( semantic, enumerator->enumeration->base_type );
    result->value = enumerator->value;
    result->folded = true;
    result->complete = true;

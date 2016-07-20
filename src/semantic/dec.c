@@ -217,12 +217,6 @@ static void test_script_number( struct semantic* semantic, struct script* script
 static void test_script_body( struct semantic* semantic, struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
-   // Test name. Only applies in a local scope.
-   if ( semantic->in_localscope ) {
-      if ( constant->name->object != &constant->object ) {
-         s_bind_name( semantic, constant->name, &constant->object );
-      }
-   }
    // Test expression.
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
