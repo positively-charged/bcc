@@ -105,7 +105,6 @@ static void read_func_qual( struct parse* parse, struct dec* dec );
 static void read_func_spec( struct parse* parse, struct dec* dec );
 static void read_func_ref( struct parse* parse, struct dec* dec );
 static void read_func_param_list( struct parse* parse, struct func* func );
-static void read_bfunc( struct parse* parse, struct func* );
 static struct func_aspec* alloc_aspec_impl( void );
 static void init_params( struct params* );
 static void read_param_list( struct parse* parse, struct params* );
@@ -1372,6 +1371,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    read_name( parse, dec );
    struct func* func = t_alloc_func();
    func->object.pos = dec->name_pos;
+   func->type = FUNC_USER;
    func->ref = dec->ref;
    func->structure = dec->structure;
    func->enumeration = dec->enumeration;
@@ -1597,24 +1597,15 @@ void append_param( struct params* params, struct param* param ) {
 
 void read_func_body( struct parse* parse, struct dec* dec,
    struct func* func ) {
-   if ( parse->lang == LANG_ACS ||
-      ( parse->lang == LANG_BCS && parse->tk == TK_BRACE_L ) ) {
-      func->type = FUNC_USER;
-      struct func_user* impl = t_alloc_func_user();
-      impl->nested = ( dec->area == DEC_LOCAL );
-      func->impl = impl;
-      // Only read the function body when it is needed.
-      if ( ! parse->lib->imported ) {
-         p_read_func_body( parse, func );
-      }
-      else {
-         p_skip_block( parse );
-      }
+   struct func_user* impl = t_alloc_func_user();
+   impl->nested = ( dec->area == DEC_LOCAL );
+   func->impl = impl;
+   // Only read the function body when it is needed.
+   if ( ! parse->lib->imported ) {
+      p_read_func_body( parse, func );
    }
    else {
-      read_bfunc( parse, func );
-      p_test_tk( parse, TK_SEMICOLON );
-      p_read_tk( parse );
+      p_skip_block( parse );
    }
 }
 
@@ -1630,85 +1621,12 @@ void p_read_func_body( struct parse* parse, struct func* func ) {
    parse->local_vars = prev_local_vars;
 }
 
-void read_bfunc( struct parse* parse, struct func* func ) {
-   // Action special.
-   if ( parse->tk == TK_ASSIGN ) {
-      p_read_tk( parse );
-      struct func_aspec* impl = alloc_aspec_impl();
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->id = p_extract_literal_value( parse );
-      p_read_tk( parse );
-      p_test_tk( parse, TK_COMMA );
-      p_read_tk( parse );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->script_callable = ( p_extract_literal_value( parse ) != 0 );
-      func->impl = impl;
-      p_read_tk( parse );
-   }
-   // Extension function.
-   else if ( parse->tk == TK_ASSIGN_SUB ) {
-      p_read_tk( parse );
-      func->type = FUNC_EXT;
-      struct func_ext* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->id = p_extract_literal_value( parse );
-      func->impl = impl;
-      p_read_tk( parse );
-   }
-   // Dedicated function.
-   else if ( parse->tk == TK_ASSIGN_ADD ) {
-      p_read_tk( parse );
-      func->type = FUNC_DED;
-      struct func_ded* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->opcode = p_extract_literal_value( parse );
-      p_read_tk( parse );
-      p_test_tk( parse, TK_COMMA );
-      p_read_tk( parse );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->latent = false;
-      if ( parse->tk_text[ 0 ] != '0' ) {
-         impl->latent = true;
-      }
-      p_read_tk( parse );
-      func->impl = impl;
-   }
-   // Format function.
-   else if ( parse->tk == TK_ASSIGN_MUL ) {
-      p_read_tk( parse );
-      func->type = FUNC_FORMAT;
-      struct func_format* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      impl->opcode = p_extract_literal_value( parse );
-      func->impl = impl;
-      p_read_tk( parse );
-   }
-   // Internal function.
-   else {
-      p_test_tk( parse, TK_ASSIGN_DIV );
-      p_read_tk( parse );
-      func->type = FUNC_INTERNAL;
-      struct func_intern* impl = mem_alloc( sizeof( *impl ) );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      struct pos pos = parse->tk_pos;
-      impl->id = p_extract_literal_value( parse );
-      p_read_tk( parse );
-      if ( impl->id >= INTERN_FUNC_STANDALONE_TOTAL ) {
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "no internal function with ID of %d", impl->id );
-         p_bail( parse );
-      }
-      func->impl = impl;
-   }
-}
-
 struct func_aspec* alloc_aspec_impl( void ) {
    struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
    impl->id = 0;
    impl->script_callable = false;
    return impl;
 }
-
 
 struct var* p_read_cond_var( struct parse* parse ) {
    struct dec dec;
