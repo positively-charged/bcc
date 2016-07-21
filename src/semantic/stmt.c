@@ -132,6 +132,10 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
       s_perform_using( semantic,
          ( struct using_dirc* ) node );
       break;
+   case NODE_TYPE_ALIAS:
+      s_test_type_alias( semantic,
+         ( struct type_alias* ) node );
+      break;
    default:
       test_stmt( semantic, test, node );
    }
