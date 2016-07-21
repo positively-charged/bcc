@@ -661,6 +661,7 @@ struct var {
    bool in_shared_array;
    bool func_scope;
    bool constant;
+   bool external;
 };
 
 struct param {
@@ -704,6 +705,7 @@ struct func {
    bool hidden;
    bool msgbuild;
    bool imported;
+   bool prototype;
 };
 
 struct func_aspec {
@@ -1025,7 +1027,10 @@ struct library {
    // #included/#imported libraries.
    struct list import_dircs;
    struct list dynamic;
+   struct list dynamic_links;
    struct list files;
+   struct list incomplete_vars;
+   struct list incomplete_funcs;
    struct ns* upmost_ns;
    struct file_entry* file;
    struct pos file_pos;
@@ -1050,6 +1055,10 @@ struct library {
    bool compiletime;
    bool header;
    bool wadauthor;
+};
+
+struct library_link {
+   const char* name;
 };
 
 struct lang_limits {

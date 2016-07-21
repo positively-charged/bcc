@@ -188,6 +188,16 @@ void clarify_vars( struct codegen* codegen ) {
       }
       list_next( &i );
    }
+   // Imported variables (marked `extern`).
+   list_iter_init( &i, &codegen->task->library_main->incomplete_vars );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( var->imported && var->used ) {
+         list_append( &codegen->imported_vars, var );
+         ++count;
+      }
+      list_next( &i );
+   }
    // Take shared array into account.
    ++count;
    // Store in the shared array those private arrays and private
@@ -277,6 +287,16 @@ void clarify_funcs( struct codegen* codegen ) {
             list_append( &codegen->funcs, func );
          }
          list_next( &k );
+      }
+      list_next( &i );
+   }
+   // Incomplete functions.
+   list_iter_init( &i, &codegen->task->library_main->incomplete_funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      if ( func->imported && impl->usage ) {
+         list_append( &codegen->funcs, list_data( &i ) );
       }
       list_next( &i );
    }

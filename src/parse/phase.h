@@ -163,6 +163,7 @@ enum tk {
    TK_HUDMESSAGEBOLD,
    // 140
    TK_STRPARAM,
+   TK_EXTERN,
 
    TK_TOTAL,
 
@@ -172,6 +173,7 @@ enum tk {
    TK_PLACEMARKER,
    TK_PROCESSEDHASH,
    TK_MNEMONIC,
+   TK_LINKLIBRARY,
 };
 
 struct token {
@@ -319,6 +321,7 @@ struct dec {
    bool msgbuild;
    bool type_alias;
    bool semicolon_absent;
+   bool external;
 };
 
 struct stmt_reading {

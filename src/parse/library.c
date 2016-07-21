@@ -39,6 +39,7 @@ static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* pos,
    bool first_object );
 static void read_library_name( struct parse* parse, struct pos* pos );
+static void read_linklibrary( struct parse* parse, struct pos* pos );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
@@ -392,6 +393,9 @@ void read_pseudo_dirc( struct parse* parse, bool first_object ) {
    case TK_LIBRARY:
       read_library( parse, &pos, first_object );
       break;
+   case TK_LINKLIBRARY:
+      read_linklibrary( parse, &pos );
+      break;
    case TK_ENCRYPTSTRINGS:
       parse->lib->encrypt_str = true;
       p_read_tk( parse );
@@ -434,6 +438,7 @@ enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
       { "libdefine", TK_LIBDEFINE },
       { "import", TK_IMPORT },
       { "library", TK_LIBRARY },
+      { "linklibrary", TK_LINKLIBRARY },
       { "encryptstrings", TK_ENCRYPTSTRINGS },
       { "nocompact", TK_NOCOMPACT },
       { "wadauthor", TK_WADAUTHOR },
@@ -557,6 +562,16 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
    str_copy( &parse->lib->name, name, length );
    parse->lib->importable = true;
    parse->lib->name_pos = *pos;
+}
+
+void read_linklibrary( struct parse* parse, struct pos* pos ) {
+   p_test_tk( parse, TK_ID );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_LIT_STRING );
+   struct library_link* link = mem_alloc( sizeof( *link ) );
+   link->name = parse->tk_text;
+   list_append( &parse->lib->dynamic_links, link );
+   p_read_tk( parse );
 }
 
 void p_add_unresolved( struct parse* parse, struct object* object ) {

@@ -566,6 +566,9 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->files );
    list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
+   list_init( &lib->dynamic_links );
+   list_init( &lib->incomplete_vars );
+   list_init( &lib->incomplete_funcs );
    lib->upmost_ns = t_alloc_ns( task, task->root_name );
    // root_name->object = &lib->upmost_ns->object;
    list_append( &lib->namespaces, lib->upmost_ns );
@@ -794,7 +797,10 @@ struct var* t_alloc_var( void ) {
    var->imported = false;
    var->is_constant_init = false;
    var->addr_taken = false;
+   var->in_shared_array = false;
+   var->func_scope = false;
    var->constant = false;
+   var->external = false;
    return var;
 }
 
@@ -815,6 +821,7 @@ struct func* t_alloc_func( void ) {
    func->hidden = false;
    func->msgbuild = false;
    func->imported = false;
+   func->prototype = false;
    return func;
 }
 

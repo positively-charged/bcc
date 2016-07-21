@@ -33,6 +33,8 @@ static void bind_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
 static void bind_structure( struct semantic* semantic,
    struct structure* structure );
+static void bind_var( struct semantic* semantic, struct var* var );
+static void bind_func( struct semantic* semantic, struct func* func );
 static void show_private_objects( struct semantic* semantic );
 static void hide_private_objects( struct semantic* semantic );
 static void perform_usings( struct semantic* semantic );
@@ -306,8 +308,6 @@ void bind_namespace_object( struct semantic* semantic,
    switch ( object->node.type ) {
       struct constant* constant;
       struct type_alias* type_alias;
-      struct var* var;
-      struct func* func;
    case NODE_CONSTANT:
       constant = ( struct constant* ) object;
       s_bind_name( semantic, constant->name, &constant->object );
@@ -325,12 +325,12 @@ void bind_namespace_object( struct semantic* semantic,
       s_bind_name( semantic, type_alias->name, &type_alias->object );
       break;
    case NODE_VAR:
-      var = ( struct var* ) object;
-      s_bind_name( semantic, var->name, &var->object );
+      bind_var( semantic,
+         ( struct var* ) object );
       break;
    case NODE_FUNC:
-      func = ( struct func* ) object;
-      s_bind_name( semantic, func->name, &func->object );
+      bind_func( semantic,
+         ( struct func* ) object );
       break;
    case NODE_NAMESPACE:
       bind_namespace( semantic,
@@ -360,6 +360,50 @@ void bind_structure( struct semantic* semantic, struct structure* structure ) {
       s_bind_name( semantic, member->name, &member->object );
       member = member->next;
    }
+}
+
+void bind_var( struct semantic* semantic, struct var* var ) {
+   if ( var->name->object && var->name->object->node.type == NODE_VAR ) {
+      struct var* binded_var = ( struct var* ) var->name->object;
+      if ( binded_var->external ) {
+         if ( var->external ) {
+            return;
+         }
+         else {
+            binded_var->name->object = NULL;
+         }
+      }
+      else {
+         if ( var->external ) {
+            return;
+         }
+      }
+   }
+   s_bind_name( semantic, var->name, &var->object );
+}
+
+void bind_func( struct semantic* semantic, struct func* func ) {
+   // Prefer to bind function definitions over declarations. If no definition
+   // is found, bind the initial declaration.
+   if ( func->name->object && func->name->object->node.type == NODE_FUNC ) {
+      struct func* binded_func = ( struct func* ) func->name->object;
+      if ( binded_func->prototype ) {
+         // Keep initial declaration.
+         if ( func->prototype ) {
+            return;
+         }
+         // Replace declaration with definition.
+         else {
+            binded_func->name->object = NULL;
+         }
+      }
+      else {
+         if ( func->prototype ) {
+            return;
+         }
+      }
+   }
+   s_bind_name( semantic, func->name, &func->object );
 }
 
 void show_private_objects( struct semantic* semantic ) {
@@ -863,6 +907,7 @@ void assign_script_numbers( struct semantic* semantic ) {
 }
 
 void calc_map_var_size( struct semantic* semantic ) {
+   // Imported variables.
    list_iter_t i;
    list_iter_init( &i, &semantic->lib->dynamic );
    while ( ! list_end( &i ) ) {
@@ -875,6 +920,13 @@ void calc_map_var_size( struct semantic* semantic ) {
       }
       list_next( &i );
    }
+   // Imported variables. (External)
+   list_iter_init( &i, &semantic->lib->incomplete_vars );
+   while ( ! list_end( &i ) ) {
+      s_calc_var_size( list_data( &i ) );
+      list_next( &i );
+   }
+   // Variables.
    list_iter_init( &i, &semantic->lib->vars );
    while ( ! list_end( &i ) ) {
       s_calc_var_size( list_data( &i ) );

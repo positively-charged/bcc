@@ -203,6 +203,7 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_AUTO:
       case TK_TYPESYN:
       case TK_PRIVATE:
+      case TK_EXTERN:
          return true;
       default:
          return false;
@@ -234,6 +235,7 @@ void p_init_dec( struct dec* dec ) {
    dec->msgbuild = false;
    dec->type_alias = false;
    dec->semicolon_absent = false;
+   dec->external = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -253,6 +255,10 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       // functions.
       if ( parse->tk == TK_PRIVATE ) {
          dec->private_visibility = true;
+         p_read_tk( parse );
+      }
+      else if ( parse->tk == TK_EXTERN ) {
+         dec->external = true;
          p_read_tk( parse );
       }
       if ( parse->tk == TK_FUNCTION ) {
@@ -1262,11 +1268,16 @@ void add_var( struct parse* parse, struct dec* dec ) {
    if ( dec->area == DEC_TOP ) {
       var->hidden = dec->private_visibility;
       p_add_unresolved( parse, &var->object );
-      list_append( &parse->lib->vars, var );
       list_append( &parse->lib->objects, var );
       list_append( &parse->ns->objects, var );
-      if ( var->hidden ) {
-         list_append( &parse->ns->private_objects, var );
+      if ( dec->external ) {
+         list_append( &parse->lib->incomplete_vars, var );
+      }
+      else {
+         list_append( &parse->lib->vars, var );
+         if ( var->hidden ) {
+            list_append( &parse->ns->private_objects, var );
+         }
       }
    }
    else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
@@ -1285,8 +1296,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
 }
 
 struct var* alloc_var( struct dec* dec ) {
-   struct var* var = mem_alloc( sizeof( *var ) );
-   t_init_object( &var->object, NODE_VAR );
+   struct var* var = t_alloc_var();
    var->object.pos = dec->name_pos;
    var->name = dec->name;
    var->ref = dec->ref;
@@ -1295,25 +1305,12 @@ struct var* alloc_var( struct dec* dec ) {
    var->type_path = dec->path;
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
-   var->value = NULL;
-   var->next = NULL;
    var->spec = dec->spec;
    var->storage = dec->storage.type;
    var->index = dec->storage_index.value;
-   var->size = 0;
-   var->diminfo_start = 0;
-   var->desc = DESC_NONE;
-   var->initz_zero = false;
-   var->hidden = false;
-   var->used = false;
-   var->initial_has_str = false;
-   var->imported = false;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
-   var->addr_taken = false;
-   var->in_shared_array = false;
-   var->func_scope = false;
-   var->constant = false;
+   var->external = dec->external;
    return var;
 }
 
@@ -1389,6 +1386,11 @@ void read_func( struct parse* parse, struct dec* dec ) {
    if ( dec->type_alias ) {
       func->type = FUNC_ALIAS;
    }
+   else if ( parse->tk == TK_SEMICOLON ) {
+      func->impl = t_alloc_func_user();
+      func->prototype = true;
+      p_read_tk( parse );
+   }
    else {
       read_func_body( parse, dec, func );
    }
@@ -1397,8 +1399,13 @@ void read_func( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns->objects, func );
       list_append( &parse->lib->objects, func );
       if ( func->type == FUNC_USER ) {
-         list_append( &parse->lib->funcs, func );
-         list_append( &parse->ns->funcs, func );
+         if ( func->prototype ) {
+            list_append( &parse->lib->incomplete_funcs, func );
+         }
+         else {
+            list_append( &parse->lib->funcs, func );
+            list_append( &parse->ns->funcs, func );
+         }
       }
    }
    else {

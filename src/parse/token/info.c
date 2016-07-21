@@ -83,6 +83,7 @@ static const struct {
    { "enter", TK_ENTER },
    { "enum", TK_ENUM },
    { "event", TK_EVENT },
+   { "extern", TK_EXTERN },
    { "false", TK_FALSE },
    { "fixed", TK_FIXED },
    { "for", TK_FOR },
@@ -439,6 +440,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
       // 140
       ENTRY( "strparam", TKF_KEYWORD ),
+      ENTRY( "extern", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -591,8 +593,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_LOG, "`log`" },
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
-      { TK_STRPARAM, "`strparam`" } };
-   STATIC_ASSERT( TK_TOTAL == 141 );
+      { TK_STRPARAM, "`strparam`" },
+      { TK_EXTERN, "`extern`" } };
+   STATIC_ASSERT( TK_TOTAL == 142 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

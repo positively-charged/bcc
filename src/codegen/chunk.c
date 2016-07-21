@@ -712,6 +712,15 @@ void do_load( struct codegen* codegen ) {
       }
       list_next( &i );
    }
+   list_iter_init( &i, &codegen->task->library_main->dynamic_links );
+   while ( ! list_end( &i ) ) {
+      struct library_link* link = list_data( &i );
+      if ( strcmp( link->name,
+         codegen->task->library_main->name.value ) != 0 ) {
+         size += strlen( link->name ) + 1;
+      }
+      list_next( &i );
+   }
    if ( size ) {
       int padding = alignpad( size, 4 );
       c_add_str( codegen, "LOAD" );
@@ -721,6 +730,15 @@ void do_load( struct codegen* codegen ) {
          struct library* lib = list_data( &i );
          if ( ! lib->compiletime ) {
             c_add_sized( codegen, lib->name.value, lib->name.length + 1 );
+         }
+         list_next( &i );
+      }
+      list_iter_init( &i, &codegen->task->library_main->dynamic_links );
+      while ( ! list_end( &i ) ) {
+         struct library_link* link = list_data( &i );
+         if ( strcmp( link->name,
+            codegen->task->library_main->name.value ) != 0 ) {
+            c_add_sized( codegen, link->name, strlen( link->name ) + 1 );
          }
          list_next( &i );
       }
@@ -735,17 +753,11 @@ void do_load( struct codegen* codegen ) {
 void do_mimp( struct codegen* codegen ) {
    int size = 0;
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
+   list_iter_init( &i, &codegen->imported_vars );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( mimp_var( var ) ) {
-            size += sizeof( int ) + t_full_name_length( var->name ) + 1;
-         }
-         list_next( &k );
+      struct var* var = list_data( &i );
+      if ( mimp_var( var ) ) {
+         size += sizeof( int ) + t_full_name_length( var->name ) + 1;
       }
       list_next( &i );
    }
@@ -756,19 +768,13 @@ void do_mimp( struct codegen* codegen ) {
    c_add_int( codegen, size );
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
+   list_iter_init( &i, &codegen->imported_vars );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( mimp_var( var ) ) {
-            c_add_int( codegen, var->index );
-            t_copy_name( var->name, true, &str );
-            c_add_sized( codegen, str.value, str.length + 1 );
-         }
-         list_next( &k );
+      struct var* var = list_data( &i );
+      if ( mimp_var( var ) ) {
+         c_add_int( codegen, var->index );
+         t_copy_name( var->name, true, &str );
+         c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );
    }
@@ -776,8 +782,8 @@ void do_mimp( struct codegen* codegen ) {
 }
 
 inline bool mimp_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && var->used && ! var->dim &&
-      ! var->structure );
+   return ( var->storage == STORAGE_MAP && ( var->desc == DESC_PRIMITIVEVAR ||
+      var->desc == DESC_REFVAR ) );
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
@@ -785,25 +791,18 @@ void do_aimp( struct codegen* codegen ) {
    int count = 0;
    int size = sizeof( int );
    list_iter_t i;
-   list_iter_init( &i, &codegen->task->libraries );
-   list_next( &i );
+   list_iter_init( &i, &codegen->imported_vars );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( aimp_array( var ) ) {
-            size +=
-               // Array index.
-               sizeof( int ) +
-               // Array size.
-               sizeof( int ) +
-               // Name of array.
-               t_full_name_length( var->name ) + 1;
-            ++count;
-         }
-         list_next( &k );
+      struct var* var = list_data( &i );
+      if ( aimp_array( var ) ) {
+         size +=
+            // Array index.
+            sizeof( int ) +
+            // Array size.
+            sizeof( int ) +
+            // Name of array.
+            t_full_name_length( var->name ) + 1;
+         ++count;
       }
       list_next( &i );
    }
@@ -815,21 +814,14 @@ void do_aimp( struct codegen* codegen ) {
    c_add_int( codegen, count );
    struct str str;
    str_init( &str );
-   list_iter_init( &i, &codegen->task->libraries );
-   list_next( &i );
+   list_iter_init( &i, &codegen->imported_vars );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
-      while ( ! list_end( &k ) ) {
-         struct var* var = list_data( &k );
-         if ( aimp_array( var ) ) {
-            c_add_int( codegen, var->index );
-            c_add_int( codegen, var->size );
-            t_copy_name( var->name, true, &str );
-            c_add_sized( codegen, str.value, str.length + 1 );
-         }
-         list_next( &k );
+      struct var* var = list_data( &i );
+      if ( aimp_array( var ) ) {
+         c_add_int( codegen, var->index );
+         c_add_int( codegen, var->size );
+         t_copy_name( var->name, true, &str );
+         c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );
    }
@@ -837,8 +829,8 @@ void do_aimp( struct codegen* codegen ) {
 }
 
 inline bool aimp_array( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && var->used &&
-      ( var->structure || var->dim ) );
+   return ( var->storage == STORAGE_MAP && ( var->desc == DESC_ARRAY ||
+      var->desc == DESC_STRUCTVAR ) );
 }
 
 void do_mexp( struct codegen* codegen ) {

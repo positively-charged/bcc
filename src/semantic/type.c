@@ -265,7 +265,7 @@ void present_extended_spec( struct structure* structure,
       else {
          struct str name;
          str_init( &name );
-         t_copy_name( structure->name, true, &name );
+         t_copy_name( structure->name, false, &name );
          str_append( string, name.value );
          str_deinit( &name );
       }

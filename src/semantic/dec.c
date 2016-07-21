@@ -196,6 +196,8 @@ static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct type_info* param_type,
    struct type_info* type, struct pos* pos );
 static int get_param_number( struct func* func, struct param* target );
+static bool test_func_prototype( struct semantic* semantic,
+   struct func* func );
 static void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases );
 static void bind_builtin_aliases( struct semantic* semantic,
@@ -970,6 +972,11 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    var->initial_has_str = test.has_str;
+   if ( var->external ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "external variable initialized" );
+      s_bail( semantic );
+   }
    return true;
 }
 
@@ -1426,6 +1433,32 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
    default:
       break;
    }
+   if ( var->external ) {
+      struct var* other_var = ( struct var* ) var->name->object;
+      if ( ! other_var->external && ! other_var->object.resolved ) {
+         return false;
+      }
+      var->imported = ( other_var->external == true );
+      struct var* var_def = ( struct var* ) var->name->object;
+      struct type_info type;
+      struct type_info other_type;
+      s_init_type_info( &type, var->ref, var->structure, var->enumeration,
+         var->dim, var->spec );
+      s_init_type_info( &other_type, var_def->ref,
+         var_def->structure,
+         var_def->enumeration,
+         var_def->dim,
+         var_def->spec );
+      if ( ! s_same_type( &type, &other_type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "variable declaration different from %s", var_def->external ?
+            "previous declaration" : "variable definition" );
+         s_diag( semantic, DIAG_POS, &var_def->object.pos,
+            "%s is here", var_def->external ? "previous declaration" :
+            "variable definition" );
+         s_bail( semantic );
+      }
+   }
    return true;
 }
 
@@ -1588,6 +1621,9 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
 bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    s_add_scope( semantic, true );
    bool resolved = test_param_list( semantic, func );
+   if ( resolved && func->prototype ) {
+      resolved = test_func_prototype( semantic, func );
+   }
    s_pop_scope( semantic );
    return resolved;
 }
@@ -1757,6 +1793,41 @@ int get_param_number( struct func* func, struct param* target ) {
       ++number;
    }
    return number;
+}
+
+bool test_func_prototype( struct semantic* semantic, struct func* func ) {
+   bool resolved = false;
+   struct func* other_func = ( struct func* ) func->name->object;
+   if ( func == other_func ) {
+      resolved = true;
+   }
+   else {
+      if ( other_func->object.resolved ) {
+         struct type_info type;
+         s_init_type_info_func( &type, func->ref, func->structure,
+            func->enumeration, func->params,
+            s_spec( semantic, func->return_spec ), func->min_param,
+            func->max_param, func->msgbuild );
+         struct type_info other_type;
+         s_init_type_info_func( &other_type, other_func->ref,
+            other_func->structure, other_func->enumeration, other_func->params,
+            s_spec( semantic, other_func->return_spec ), other_func->min_param,
+            other_func->max_param, other_func->msgbuild );
+         if ( ! s_same_type( &type, &other_type ) ) {
+            s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+               "function declaration different from %s",
+               other_func->prototype ? "previous declaration" :
+               "function definition" );
+            s_diag( semantic, DIAG_POS, &other_func->object.pos,
+               "%s found here", other_func->prototype ?
+               "previous declaration" : "function definition" );
+            s_bail( semantic );
+         }
+         resolved = true;
+      }
+   }
+   func->imported = other_func->prototype;
+   return resolved;
 }
 
 void s_test_func_body( struct semantic* semantic, struct func* func ) {
