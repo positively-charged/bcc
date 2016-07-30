@@ -5,7 +5,7 @@
 #include "phase.h"
 #include "pcode.h"
 
-static void add_buffer( struct codegen* codegen );
+static void next_buffer( struct codegen* codegen );
 static struct buffer* alloc_buffer( void );
 static void write_opc( struct codegen* codegen, int );
 static void write_arg( struct codegen* codegen, int );
@@ -16,9 +16,8 @@ static void push_immediate( struct codegen* codegen, int );
 static bool is_byte_value( int );
 
 void c_init_obj( struct codegen* codegen ) {
-   codegen->buffer_head = NULL;
-   codegen->buffer = NULL;
-   add_buffer( codegen );
+   codegen->buffer_head = alloc_buffer();
+   codegen->buffer = codegen->buffer_head;
    codegen->opc = PCD_NONE;
    codegen->opc_args = 0;
    codegen->immediate = NULL;
@@ -26,23 +25,6 @@ void c_init_obj( struct codegen* codegen ) {
    codegen->free_immediate = NULL;
    codegen->immediate_count = 0;
    codegen->push_immediate = false;
-}
-
-void add_buffer( struct codegen* codegen ) {
-   if ( ! codegen->buffer || ! codegen->buffer->next ) {
-      struct buffer* buffer = alloc_buffer();
-      if ( codegen->buffer ) {
-         codegen->buffer->next = buffer;
-         codegen->buffer = buffer;
-      }
-      else {
-         codegen->buffer_head = buffer;
-         codegen->buffer = buffer;
-      }
-   }
-   else {
-      codegen->buffer = codegen->buffer->next;
-   }
 }
 
 struct buffer* alloc_buffer( void ) {
@@ -53,14 +35,33 @@ struct buffer* alloc_buffer( void ) {
    return buffer;
 }
 
-void c_add_sized( struct codegen* codegen, const void* data, int length ) {
-   if ( BUFFER_SIZE - codegen->buffer->pos < length ) {
-      add_buffer( codegen );
+void c_add_sized( struct codegen* codegen, const void* data, int size ) {
+   int copied = 0;
+   while ( copied < size ) {
+      int left = sizeof( codegen->buffer->data ) - codegen->buffer->pos;
+      int segment_size = ( left <= size - copied ) ? left : size - copied;
+      memcpy( codegen->buffer->data + codegen->buffer->pos,
+         ( const char* ) data + copied, segment_size );
+      codegen->buffer->pos += segment_size;
+      if ( codegen->buffer->pos > codegen->buffer->used ) { 
+         codegen->buffer->used = codegen->buffer->pos;
+      }
+      copied += segment_size;
+      if ( copied < size ) {
+         next_buffer( codegen );
+      }
    }
-   memcpy( codegen->buffer->data + codegen->buffer->pos, data, length );
-   codegen->buffer->pos += length;
-   if ( codegen->buffer->pos > codegen->buffer->used ) {
-      codegen->buffer->used = codegen->buffer->pos;
+}
+
+void next_buffer( struct codegen* codegen ) {
+   if ( codegen->buffer->next ) {
+      codegen->buffer = codegen->buffer->next;
+      codegen->buffer->pos = 0;
+   }
+   else {
+      struct buffer* buffer = alloc_buffer();
+      codegen->buffer->next = buffer;
+      codegen->buffer = buffer;
    }
 }
 
@@ -645,32 +646,24 @@ int c_tell( struct codegen* codegen ) {
    }
    int pos = 0;
    struct buffer* buffer = codegen->buffer_head;
-   while ( true ) {
-      if ( buffer == codegen->buffer ) {
-         pos += buffer->pos;
-         break;
-      }
-      else if ( buffer->next ) {
-         pos += BUFFER_SIZE;
-         buffer = buffer->next;
-      }
-      else {
-         pos += buffer->pos;
-         break;
-      }
+   while ( buffer != codegen->buffer ) {
+      pos += buffer->used;
+      buffer = buffer->next;
    }
+   pos += buffer->pos;
    return pos;
 }
 
 void c_seek( struct codegen* codegen, int pos ) {
    struct buffer* buffer = codegen->buffer_head;
+   int absolute_pos = 0;
    while ( buffer ) {
-      if ( pos < BUFFER_SIZE ) {
+      if ( pos < absolute_pos + buffer->used ) {
          codegen->buffer = buffer;
-         codegen->buffer->pos = pos;
-         break;
+         codegen->buffer->pos = pos - absolute_pos;
+         return;
       }
-      pos -= BUFFER_SIZE;
+      absolute_pos += buffer->used;
       buffer = buffer->next;
    }
 }
