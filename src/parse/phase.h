@@ -164,6 +164,8 @@ enum tk {
    // 140
    TK_STRPARAM,
    TK_EXTERN,
+   TK_ACSEXECUTEWAIT,
+   TK_ACSNAMEDEXECUTEWAIT,
 
    TK_TOTAL,
 
@@ -361,7 +363,6 @@ struct parse {
    struct source* free_source;
    int last_id;
    struct str temp_text;
-   struct list text_buffers;
    enum {
       READF_NONE = 0x0,
       READF_CONCATSTRINGS = 0x1,
@@ -405,6 +406,8 @@ struct parse {
    int included_lines;
    int lang;
    const struct lang_limits* lang_limits;
+   struct text_buffer* text_buffer;
+   bool main_source_deinited;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );

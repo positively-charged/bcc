@@ -565,6 +565,8 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       case TK_HUDMESSAGE:
       case TK_HUDMESSAGEBOLD:
       case TK_STRPARAM:
+      case TK_ACSEXECUTEWAIT:
+      case TK_ACSNAMEDEXECUTEWAIT:
          primary = TK_ID;
          break;
       case TK_LIT_DECIMAL:

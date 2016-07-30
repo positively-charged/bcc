@@ -11,7 +11,6 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->free_source = NULL;
    parse->last_id = 0;
    str_init( &parse->temp_text );
-   list_init( &parse->text_buffers );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
    parse->line_beginning = true;
    parse->concat_strings = false;
@@ -35,6 +34,8 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->main_lib_lines = 0;
    parse->included_lines = 0;
    parse->lang = LANG_BCS;
+   parse->text_buffer = NULL;
+   parse->main_source_deinited = false;
 }
 
 void p_run( struct parse* parse ) {
@@ -56,6 +57,10 @@ void p_run( struct parse* parse ) {
    else {
       p_read_tk( parse );
       p_read_target_lib( parse );
+      p_read_tk( parse );
+      p_read_tk( parse );
+      p_read_tk( parse );
+      p_read_tk( parse );
    }
 
 /*

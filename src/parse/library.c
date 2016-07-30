@@ -55,7 +55,7 @@ void p_read_target_lib( struct parse* parse ) {
 
 void read_module( struct parse* parse ) {
    if ( parse->tk == TK_HASH ) {
-      read_pseudo_dirc( parse, true ); 
+      read_pseudo_dirc( parse, true );
    }
    while ( parse->tk != TK_END ) {
       read_module_item( parse );

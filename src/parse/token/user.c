@@ -30,36 +30,38 @@ void read_peeked_token( struct parse* parse ) {
 }
 
 void read_token( struct parse* parse ) {
-   top:
-   p_read_stream( parse );
-   if ( parse->token->is_id ) {
-      if ( parse->lang == LANG_BCS ) {
+   if ( parse->lang == LANG_BCS ) {
+      top:
+      p_read_stream( parse );
+      if ( parse->token->is_id ) {
          if ( p_expand_macro( parse ) ) {
             goto top;
          }
       }
-   }
-   else {
-      switch ( parse->token->type ) {
-      case TK_HASH:
-         if ( parse->line_beginning ) {
-            if ( parse->lang == LANG_BCS ) {
+      else {
+         switch ( parse->token->type ) {
+         case TK_HASH:
+            if ( parse->line_beginning ) {
                if ( p_read_dirc( parse ) ) {
                   goto top;
                }
             }
-         }
-         break;
-      case TK_NL:
-         if ( ! parse->create_nltk ) {
+            break;
+         case TK_NL:
+            if ( ! parse->create_nltk ) {
+               goto top;
+            }
+            break;
+         case TK_HORZSPACE:
             goto top;
+         default:
+            break;
          }
-         break;
-      case TK_HORZSPACE:
-         goto top;
-      default:
-         break;
       }
+   }
+   else {
+      p_read_source( parse, parse->source_token );
+      parse->token = parse->source_token;
    }
 }
 

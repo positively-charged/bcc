@@ -441,6 +441,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       // 140
       ENTRY( "strparam", TKF_KEYWORD ),
       ENTRY( "extern", TKF_KEYWORD ),
+      ENTRY( "acs_executewait", TKF_KEYWORD ),
+      ENTRY( "acs_namedexecutewait", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -594,8 +596,10 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_HUDMESSAGE, "`hudmessage`" },
       { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
       { TK_STRPARAM, "`strparam`" },
-      { TK_EXTERN, "`extern`" } };
-   STATIC_ASSERT( TK_TOTAL == 142 );
+      { TK_EXTERN, "`extern`" },
+      { TK_ACSEXECUTEWAIT, "`acs_executewait`" },
+      { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" } };
+   STATIC_ASSERT( TK_TOTAL == 144 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

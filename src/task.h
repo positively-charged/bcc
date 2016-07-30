@@ -1159,6 +1159,7 @@ struct literal* t_alloc_literal( void );
 struct expr* t_alloc_expr( void );
 void t_create_builtins( struct task* task );
 struct indexed_string_usage* t_alloc_indexed_string_usage( void );
+void t_init_pos( struct pos* pos, int id, int line, int column );
 void t_init_pos_id( struct pos* pos, int id );
 struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length );

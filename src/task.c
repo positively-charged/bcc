@@ -890,9 +890,20 @@ int t_dim_size( struct dim* dim ) {
 }
 
 const struct lang_limits* t_get_lang_limits( int lang ) {
-   static const struct lang_limits acs = { 64, 0, 64, 3, 128, 256, 32 };
-   static const struct lang_limits bcs = { 256, 64, 1000, 4, 32768, 32768, 0 };
-   return ( lang == LANG_ACS95 ) ? &acs : &bcs;
+   static const struct lang_limits acs =
+      { 256, 64, 1000, 4, 32768, 32768, 32 };
+   static const struct lang_limits acs95 =
+      { 64, 0, 64, 3, 128, 256, 32 };
+   static const struct lang_limits bcs =
+      { 256, 64, 1000, 4, 32768, 32768, 32768 };
+   switch ( lang ) {
+   case LANG_ACS:
+      return &acs;
+   case LANG_ACS95:
+      return &acs95;
+   default:
+      return &bcs;
+   }
 }
 
 const char* t_get_storage_name( int storage ) {
@@ -929,10 +940,14 @@ struct indexed_string_usage* t_alloc_indexed_string_usage( void ) {
    return usage;
 }
 
-void t_init_pos_id( struct pos* pos, int id ) {
+void t_init_pos( struct pos* pos, int id, int line, int column ) {
    pos->id = id;
-   pos->line = 0;
-   pos->column = 0;
+   pos->line = line;
+   pos->column = column;
+}
+
+void t_init_pos_id( struct pos* pos, int id ) {
+   t_init_pos( pos, id, 0, 0 );
 }
 
 void init_ref( struct ref* ref, int type ) {
