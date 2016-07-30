@@ -110,8 +110,8 @@ void t_append_unresolved_namespace_object( struct ns* ns,
 
 void init_str_table( struct str_table* table ) {
    table->head = NULL;
-   table->head_sorted = NULL;
    table->tail = NULL;
+   table->root = NULL;
    table->size = 0;
 }
 
@@ -597,48 +597,53 @@ struct indexed_string* t_intern_string( struct task* task,
 
 struct indexed_string* intern_string( struct str_table* table,
    const char* value, int length ) {
-   struct indexed_string* prev_string = NULL;
-   struct indexed_string* string = table->head_sorted;
+   // Indexed strings are stored in a binary search tree.
+   struct indexed_string* parent_lchild = NULL;
+   struct indexed_string* parent_rchild = NULL;
+   struct indexed_string* string = table->root;
    while ( string ) {
-      int result = strcmp( string->value, value );
-      if ( result == 0 ) {
-         break;
+      int result = strcmp( value, string->value );
+      if ( result < 0 ) {
+         parent_lchild = string;
+         parent_rchild = NULL;
+         string = string->left;
       }
       else if ( result > 0 ) {
-         string = NULL;
-         break;
+         parent_lchild = NULL;
+         parent_rchild = string;
+         string = string->right;
       }
-      prev_string = string;
-      string = string->next_sorted;
+      else {
+         return string;
+      }
    }
    // Allocate a new indexed-string when one isn't interned.
-   if ( ! string ) {
-      string = mem_alloc( sizeof( *string ) );
-      string->value = value;
-      string->length = length;
-      string->index = table->size;
-      string->index_runtime = -1;
-      string->next = NULL;
-      string->next_sorted = NULL;
-      string->used = false;
-      if ( table->head ) {
-         table->tail->next = string;
-      }
-      else {
-         table->head = string;
-      }
-      table->tail = string;
-      // List sorted alphabetically.
-      if ( prev_string ) {
-         string->next_sorted = prev_string->next_sorted;
-         prev_string->next_sorted = string;
-      }
-      else {
-         string->next_sorted = table->head_sorted;
-         table->head_sorted = string;
-      }
-      ++table->size;
+   string = mem_alloc( sizeof( *string ) );
+   string->value = value;
+   string->length = length;
+   string->index = table->size;
+   string->index_runtime = -1;
+   string->next = NULL;
+   string->left = NULL;
+   string->right = NULL;
+   string->used = false;
+   if ( table->head ) {
+      table->tail->next = string;
    }
+   else {
+      table->head = string;
+   }
+   table->tail = string;
+   if ( parent_lchild ) {
+      parent_lchild->left = string;
+   }
+   else if ( parent_rchild ) {
+      parent_rchild->right = string;
+   }
+   else {
+      table->root = string;
+   }
+   ++table->size;
    return string;
 }
 
@@ -656,11 +661,19 @@ struct indexed_string* t_intern_script_name( struct task* task,
 struct indexed_string* t_lookup_string( struct task* task, int index ) {
    struct str_table* table = index / STRTABLE_MAXSIZE ==
       STRTABLE_SCRIPTNAME ? &task->script_name_table : &task->str_table;
-   struct indexed_string* string = table->head;
-   while ( string && string->index != index ) {
-      string = string->next;
+   struct indexed_string* string = table->root;
+   while ( string ) {
+      if ( index < string->index ) {
+         string = string->left;
+      }
+      else if ( index > string->index ) {
+         string = string->right;
+      }
+      else {
+         return string;
+      }
    }
-   return string;
+   return NULL;
 }
 
 int t_add_altern_filename( struct task* task, const char* filename ) {
