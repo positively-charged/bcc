@@ -156,7 +156,6 @@ void publish( struct codegen* codegen ) {
       break;
    }
    c_write_chunk_obj( codegen );
-   c_flush( codegen );
 }
 
 void clarify_vars( struct codegen* codegen ) {
