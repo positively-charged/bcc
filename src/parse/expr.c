@@ -63,6 +63,7 @@ static void read_boolean( struct parse* parse, struct expr_reading* reading );
 static void read_null( struct parse* parse, struct expr_reading* reading );
 static void read_upmost( struct parse* parse, struct expr_reading* reading );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
+static int extract_radix_literal( struct parse* parse );
 static void read_sure( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy_call( struct parse* parse,
@@ -575,6 +576,7 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       case TK_LIT_CHAR:
       case TK_LIT_FIXED:
       case TK_LIT_STRING:
+      case TK_LIT_RADIX:
       case TK_STRCPY:
       case TK_PAREN_L:
          primary = parse->tk;
@@ -595,6 +597,7 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_LIT_OCTAL:
    case TK_LIT_HEX:
    case TK_LIT_BINARY:
+   case TK_LIT_RADIX:
    case TK_LIT_CHAR:
       read_literal( parse, reading );
       break;
@@ -753,6 +756,9 @@ int p_extract_literal_value( struct parse* parse ) {
       memcpy( &value, &temp, sizeof( value ) );
       return value;
    }
+   else if ( parse->tk == TK_LIT_RADIX ) {
+      return extract_radix_literal( parse );
+   }
    else if ( parse->tk == TK_LIT_CHAR ) {
       return parse->tk_text[ 0 ];
    }
@@ -789,6 +795,48 @@ int convert_numerictoken_to_int( struct parse* parse, int base ) {
       p_bail( parse );
    }
    return ( int ) value;
+}
+
+int extract_radix_literal( struct parse* parse ) {
+   static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+   enum { LOWER_LIMIT = 2 };
+   enum { UPPER_LIMIT = ARRAY_SIZE( digits ) - 1 };
+   int i = 0;
+   int base = 0;
+   while ( parse->tk_text[ i ] != '_' ) {
+      base = base * 10 + parse->tk_text[ i ] - '0';
+      if ( base > UPPER_LIMIT ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "radix too large (maximum radix: %d)", UPPER_LIMIT );
+         p_bail( parse );
+      }
+      ++i;
+   }
+   if ( base < LOWER_LIMIT ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+         "radix too small (minimum radix: %d)", LOWER_LIMIT );
+      p_bail( parse );
+   }
+   ++i;
+   int value = 0;
+   int first_digit_pos = i;
+   while ( parse->tk_text[ i ] ) {
+      int digit_value = 0;
+      while ( parse->tk_text[ i ] != digits[ digit_value ] &&
+         digit_value < base ) {
+         ++digit_value;
+      }
+      if ( digit_value == base ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "invalid digit in position %d of radix-%d literal",
+            i - first_digit_pos + 1, base );
+         p_bail( parse );
+      }
+      // TODO: Check for overflow.
+      value = base * value + digit_value;
+      ++i;
+   }
+   return value;
 }
 
 void read_fixed_literal( struct parse* parse, struct expr_reading* reading ) {

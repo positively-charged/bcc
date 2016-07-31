@@ -870,6 +870,13 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       ch = read_ch( parse );
       goto fixedpoint;
    }
+   else if ( ch == '_' ) {
+      str_clear( &parse->temp_text );
+      append_ch( &parse->temp_text, '0' );
+      append_ch( &parse->temp_text, ch );
+      ch = read_ch( parse );
+      goto radix;
+   }
    else {
       text = "0";
       length = 1;
@@ -889,6 +896,11 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          append_ch( &parse->temp_text, ch );
          ch = read_ch( parse );
          goto fixedpoint;
+      }
+      else if ( ch == '_' ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+         goto radix;
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
@@ -925,6 +937,21 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          tk = TK_LIT_FIXED;
          text = parse->temp_text.value;
          length = parse->temp_text.length;
+         goto finish;
+      }
+   }
+
+   radix:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isdigit( ch ) || isalpha( ch ) ) {
+         append_ch( &parse->temp_text, tolower( ch ) );
+         ch = read_ch( parse );
+      }
+      else {
+         text = parse->temp_text.value;
+         length = parse->temp_text.length;
+         tk = TK_LIT_RADIX;
          goto finish;
       }
    }

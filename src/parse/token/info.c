@@ -443,6 +443,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "extern", TKF_KEYWORD ),
       ENTRY( "acs_executewait", TKF_KEYWORD ),
       ENTRY( "acs_namedexecutewait", TKF_KEYWORD ),
+      ENTRY( BLANK, TKF_NONE ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -598,8 +599,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_STRPARAM, "`strparam`" },
       { TK_EXTERN, "`extern`" },
       { TK_ACSEXECUTEWAIT, "`acs_executewait`" },
-      { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" } };
-   STATIC_ASSERT( TK_TOTAL == 144 );
+      { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
+      { TK_LIT_RADIX, "radix number" } };
+   STATIC_ASSERT( TK_TOTAL == 145 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
