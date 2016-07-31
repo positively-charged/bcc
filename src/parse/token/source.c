@@ -863,6 +863,13 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    if ( isdigit( ch ) ) {
       goto decimal;
    }
+   else if ( ch == '.' ) {
+      str_clear( &parse->temp_text );
+      append_ch( &parse->temp_text, '0' );
+      append_ch( &parse->temp_text, '.' );
+      ch = read_ch( parse );
+      goto fixedpoint;
+   }
    else {
       text = "0";
       length = 1;
@@ -1167,35 +1174,33 @@ void read_token( struct parse* parse, struct token* token ) {
    if ( isalpha( ch ) || ch == '_' ) {
       goto id;
    }
-   else if ( ch == '0' ) {
-      ch = read_ch( parse );
-      // Binary.
-      if ( ch == 'b' || ch == 'B' ) {
-         goto binary_literal;
-      }
-      // Hexadecimal.
-      else if ( ch == 'x' || ch == 'X' ) {
-         goto hex_literal;
-      }
-      else if ( ch == 'o' || ch == 'O' ) {
-         ch = read_ch( parse );
-         goto octal_literal;
-      }
-      // Fixed-point number.
-      else if ( ch == '.' ) {
-         text = temp_text( parse );
-         append_ch( text, '0' );
-         append_ch( text, '.' );
-         ch = read_ch( parse );
-         goto fraction;
-      }
-      // Octal.
-      else {
-         goto octal_literal;
-      }
-   }
    else if ( isdigit( ch ) ) {
-      goto decimal_literal;
+      if ( ch == '0' ) {
+         ch = read_ch( parse );
+         switch ( ch ) {
+         case 'b':
+         case 'B':
+            goto binary_literal;
+         case 'x':
+         case 'X':
+            goto hex_literal;
+         case 'o':
+         case 'O':
+            ch = read_ch( parse );
+            goto octal_literal;
+         case '.':
+            text = temp_text( parse );
+            append_ch( text, '0' );
+            append_ch( text, '.' );
+            ch = read_ch( parse );
+            goto fraction;
+         default:
+            goto zero;
+         }
+      }
+      else {
+         goto decimal_literal;
+      }
    }
    else if ( ch == '"' ) {
       ch = read_ch( parse );
@@ -1643,6 +1648,28 @@ void read_token( struct parse* parse, struct token* token ) {
          }
          goto state_finish;
       }
+   }
+
+   zero:
+   // -----------------------------------------------------------------------
+   while ( ch == '0' ) {
+      ch = read_ch( parse );
+   }
+   if ( isdigit( ch ) ) {
+      goto decimal_literal;
+   }
+   else if ( ch == '.' ) {
+      text = temp_text( parse );
+      append_ch( text, '0' );
+      append_ch( text, '.' );
+      ch = read_ch( parse );
+      goto fraction;
+   }
+   else {
+      text = temp_text( parse );
+      str_append( text, "0" );
+      tk = TK_LIT_DECIMAL;
+      goto state_finish;
    }
 
    decimal_literal:
