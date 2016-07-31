@@ -1566,6 +1566,14 @@ void read_token( struct parse* parse, struct token* token ) {
       // by grouping digits, and are ignored.
       else if ( ch == '_' ) {
          ch = read_ch( parse );
+         if ( ! ( ch == '0' || ch == '1' ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing binary digit after digit separator" );
+            p_bail( parse );
+         }
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
@@ -1598,6 +1606,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '_' ) {
          ch = read_ch( parse );
+         if ( ! isxdigit( ch ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing hexadecimal digit after digit separator" );
+            p_bail( parse );
+         }
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
@@ -1629,6 +1645,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '_' ) {
          ch = read_ch( parse );
+         if ( ! ( ch >= '0' && ch <= '7' ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing octal digit after digit separator" );
+            p_bail( parse );
+         }
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
@@ -1652,10 +1676,10 @@ void read_token( struct parse* parse, struct token* token ) {
 
    zero:
    // -----------------------------------------------------------------------
-   while ( ch == '0' ) {
+   while ( ch == '0' || ( ch == '_' && peek_ch( parse ) == '0' ) ) {
       ch = read_ch( parse );
    }
-   if ( isdigit( ch ) ) {
+   if ( isdigit( ch ) || ch == '_' ) {
       goto decimal_literal;
    }
    else if ( ch == '.' ) {
@@ -1682,6 +1706,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '_' ) {
          ch = read_ch( parse );
+         if ( ! isdigit( ch ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing decimal digit after digit separator" );
+            p_bail( parse );
+         }
       }
       // Fixed-point number.
       else if ( ch == '.' ) {
