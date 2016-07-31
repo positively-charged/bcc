@@ -986,7 +986,6 @@ struct ns {
    struct list scripts;
    struct list usings;
    bool defined;
-   bool explicit_imports;
 };
 
 struct ns_link {

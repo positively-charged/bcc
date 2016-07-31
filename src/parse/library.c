@@ -22,8 +22,7 @@ enum pseudo_dirc {
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
-static bool peek_header_namespace( struct parse* parse );
-static void read_namespace( struct parse* parse, bool read_header_ns );
+static void read_namespace( struct parse* parse );
 static void read_namespace_name( struct parse* parse, struct ns* parent_ns );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
@@ -83,7 +82,7 @@ void read_module_item( struct parse* parse ) {
          read_pseudo_dirc( parse, false );
          break;
       case TK_NAMESPACE:
-         read_namespace( parse, peek_header_namespace( parse ) );
+         read_namespace( parse );
          break;
       default:
          read_namespace_member( parse );
@@ -124,28 +123,12 @@ void read_module_item_acs( struct parse* parse ) {
    }
 }
 
-bool peek_header_namespace( struct parse* parse ) {
-   struct parsertk_iter iter;
-   p_init_parsertk_iter( parse, &iter );
-   p_next_tk( parse, &iter );
-   bool match = ( iter.token->type == TK_ID );
-   p_next_tk( parse, &iter );
-   while ( match && iter.token->type == TK_DOT ) {
-      p_next_tk( parse, &iter );
-      match = ( iter.token->type == TK_ID );
-      p_next_tk( parse, &iter );
-   }
-   match = ( match && iter.token->type == TK_SEMICOLON );
-   return match;
-}
-
-void read_namespace( struct parse* parse, bool read_header_ns ) {
+void read_namespace( struct parse* parse ) {
    struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_NAMESPACE );
    p_read_tk( parse );
    struct ns* parent = parse->ns;
-   read_namespace_name( parse, ( read_header_ns ) ? parse->lib->upmost_ns :
-      parse->ns );
+   read_namespace_name( parse, parent );
    // A namespace can be opened only once. This behaves like modules in other
    // languages.
    if ( parse->ns->defined ) {
@@ -157,19 +140,12 @@ void read_namespace( struct parse* parse, bool read_header_ns ) {
    }
    parse->ns->object.pos = pos;
    parse->ns->defined = true;
-   if ( read_header_ns ) {
-      p_test_tk( parse, TK_SEMICOLON );
-      p_read_tk( parse );
-      parse->ns->explicit_imports = true;
-   }
-   else {
-      p_test_tk( parse, TK_BRACE_L );
-      p_read_tk( parse );
-      read_namespace_member_list( parse );
-      p_test_tk( parse, TK_BRACE_R );
-      p_read_tk( parse );
-      parse->ns = parent;
-   }
+   p_test_tk( parse, TK_BRACE_L );
+   p_read_tk( parse );
+   read_namespace_member_list( parse );
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
+   parse->ns = parent;
 }
 
 void read_namespace_name( struct parse* parse, struct ns* parent_ns ) {
@@ -218,7 +194,7 @@ void read_namespace_member( struct parse* parse ) {
       }
    }
    else if ( parse->tk == TK_NAMESPACE ) {
-      read_namespace( parse, false );
+      read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
       p_read_using( parse, &parse->ns->usings );
