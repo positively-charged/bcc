@@ -799,6 +799,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       // after the identifier, since we assume it is now read.
       parse->source->buffer_pos = source_text - parse->source->buffer + 1;
       parse->source->ch = *source_text;
+      parse->source->column += length;
       // Update text buffer.
       text_buffer->left = copied_text + 1;
       // Reserved identifier. Uses binary search.
