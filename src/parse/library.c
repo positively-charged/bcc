@@ -23,7 +23,7 @@ static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
 static void read_namespace( struct parse* parse );
-static void read_namespace_name( struct parse* parse, struct ns* parent_ns );
+static void read_namespace_name( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
 static struct using_dirc* alloc_using( struct pos* pos );
@@ -124,31 +124,25 @@ void read_module_item_acs( struct parse* parse ) {
 }
 
 void read_namespace( struct parse* parse ) {
+   struct ns* prev_ns = parse->ns;
    struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_NAMESPACE );
    p_read_tk( parse );
-   struct ns* parent = parse->ns;
-   read_namespace_name( parse, parent );
-   // A namespace can be opened only once. This behaves like modules in other
-   // languages.
-   if ( parse->ns->defined ) {
-      p_diag( parse, DIAG_POS_ERR, &pos,
-         "duplicate namespace" );
-      p_diag( parse, DIAG_POS, &parse->ns->object.pos,
-         "namespace already defined here" );
-      p_bail( parse );
+   read_namespace_name( parse );
+   if ( ! parse->ns->defined ) {
+      parse->ns->object.pos = pos;
+      parse->ns->defined = true;
    }
-   parse->ns->object.pos = pos;
-   parse->ns->defined = true;
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    read_namespace_member_list( parse );
    p_test_tk( parse, TK_BRACE_R );
    p_read_tk( parse );
-   parse->ns = parent;
+   parse->ns = prev_ns;
 }
 
-void read_namespace_name( struct parse* parse, struct ns* parent_ns ) {
+void read_namespace_name( struct parse* parse ) {
+   struct ns* parent_ns = parse->ns;
    while ( true ) {
       p_test_tk( parse, TK_ID );
       struct name* name = t_extend_name( parent_ns->body, parse->tk_text );
