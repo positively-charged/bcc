@@ -1177,6 +1177,10 @@ void read_token( struct parse* parse, struct token* token ) {
       else if ( ch == 'x' || ch == 'X' ) {
          goto hex_literal;
       }
+      else if ( ch == 'o' || ch == 'O' ) {
+         ch = read_ch( parse );
+         goto octal_literal;
+      }
       // Fixed-point number.
       else if ( ch == '.' ) {
          text = temp_text( parse );
