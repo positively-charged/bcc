@@ -277,6 +277,7 @@ struct request {
    bool err_open;
    bool err_loading;
    bool err_loaded_before;
+   bool bcs_ext;
 };
 
 struct dec {
@@ -460,7 +461,7 @@ void p_unexpect_last_name( struct parse* parse, struct pos* pos,
 void p_load_library( struct parse* parent );
 void p_deinit_tk( struct parse* parse );
 void p_init_request( struct request* request, struct file_entry* offset_file,
-   const char* path );
+   const char* path, bool bcs_ext );
 void p_load_source( struct parse* parse, struct request* request );
 void p_read_source( struct parse* parse, struct token* token );
 bool p_read_dirc( struct parse* parse );
