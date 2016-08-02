@@ -18,7 +18,6 @@ struct scope {
    bool func_scope;
 };
 
-static void init_spec_map( struct semantic* semantic );
 static void test_acs( struct semantic* semantic );
 static void test_module_acs( struct semantic* semantic, struct library* lib );
 static void test_module_item_acs( struct semantic* semantic,
@@ -93,30 +92,25 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->resolved_objects = false;
    semantic->trigger_err = false;
    semantic->in_localscope = false;
-   init_spec_map( semantic );
-   semantic->spec_raw = SPEC_RAW;
-   semantic->spec_int = s_spec( semantic, SPEC_INT );
-   semantic->spec_fixed = s_spec( semantic, SPEC_FIXED );
-   semantic->spec_bool = s_spec( semantic, SPEC_BOOL );
-   semantic->spec_str = s_spec( semantic, SPEC_STR );
+   semantic->strong_type = false;
    semantic->lang = lib->lang;
 }
 
-void init_spec_map( struct semantic* semantic ) {
-   STATIC_ASSERT( SPEC_TOTAL == 11 );
-   for ( int i = 0; i < SPEC_TOTAL; i++ ) {
-      semantic->spec_map[ i ] = i;
-   }
-   if ( semantic->lib->type_mode == TYPEMODE_WEAK ) {
-      semantic->spec_map[ SPEC_INT ] = SPEC_RAW;
-      semantic->spec_map[ SPEC_FIXED ] = SPEC_RAW;
-      semantic->spec_map[ SPEC_BOOL ] = SPEC_RAW;
-      semantic->spec_map[ SPEC_STR ] = SPEC_RAW;
-   }
-}
-
 int s_spec( struct semantic* semantic, int spec ) {
-   return semantic->spec_map[ spec ];
+   if ( semantic->strong_type ) {
+      return spec;
+   }
+   else {
+      switch ( spec ) {
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         return SPEC_RAW;
+      default:
+         return spec;
+      }
+   }
 }
 
 void s_test( struct semantic* semantic ) {
@@ -743,6 +737,7 @@ void test_all( struct semantic* semantic ) {
 
 void test_namespace( struct semantic* semantic, struct ns* ns ) {
    semantic->ns = ns;
+   semantic->strong_type = ( ns->parent != NULL );
    show_private_objects( semantic );
    struct object* object = ns->unresolved;
    ns->unresolved = NULL;
@@ -772,6 +767,7 @@ void test_nested_namespace( struct semantic* semantic, struct ns* ns ) {
    struct ns* parent_ns = semantic->ns;
    test_namespace( semantic, ns );
    semantic->ns = parent_ns;
+   semantic->strong_type = ( parent_ns->parent != NULL );
 }
 
 void test_namespace_object( struct semantic* semantic,
@@ -819,6 +815,7 @@ void test_objects_bodies( struct semantic* semantic ) {
    list_iter_init( &i, &semantic->task->library_main->namespaces );
    while ( ! list_end( &i ) ) {
       semantic->ns = list_data( &i );
+      semantic->strong_type = ( semantic->ns->parent != NULL );
       show_private_objects( semantic );
       list_iter_t k;
       list_iter_init( &k, &semantic->ns->scripts );
@@ -1009,7 +1006,7 @@ void s_bind_name( struct semantic* semantic, struct name* name,
 }
 
 bool s_func_scope_forced( struct semantic* semantic ) {
-   return ( semantic->lib->type_mode == TYPEMODE_WEAK );
+   return ( ! semantic->strong_type );
 }
 
 void bind_func_name( struct semantic* semantic, struct name* name,

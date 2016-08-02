@@ -393,7 +393,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
          case SPEC_FIXED:
          case SPEC_BOOL:
          case SPEC_STR:
-            spec = semantic->spec_bool;
+            spec = s_spec( semantic, SPEC_BOOL );
             break;
          default:
             break;
@@ -423,7 +423,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
          case SPEC_INT:
          case SPEC_FIXED:
          case SPEC_STR:
-            spec = semantic->spec_bool;
+            spec = s_spec( semantic, SPEC_BOOL );
             break;
          default:
             break;
@@ -478,7 +478,7 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
          binary->operand_type = ( lside->ref->type == REF_FUNCTION ||
             rside->ref->type == REF_FUNCTION ) ? BINARYOPERAND_REFFUNC :
             BINARYOPERAND_REF;
-         result->spec = semantic->spec_bool;
+         result->spec = s_spec( semantic, SPEC_BOOL );
          result->complete = true;
          result->usable = true;
          return true;
@@ -556,7 +556,7 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
 bool perform_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
    if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
-      result->spec = semantic->spec_bool;
+      result->spec = s_spec( semantic, SPEC_BOOL );
       result->complete = true;
       result->usable = true;
       logical->lside_spec = lside->spec;
@@ -929,7 +929,7 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
          }
          break;
       case UOP_LOG_NOT:
-         spec = semantic->spec_bool;
+         spec = s_spec( semantic, SPEC_BOOL );
          break;
       default:
          UNREACHABLE()
@@ -949,7 +949,7 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    else {
       // Only logical-not can be performed on a reference type.
       if ( unary->op == UOP_LOG_NOT ) {
-         result->spec = semantic->spec_bool;
+         result->spec = s_spec( semantic, SPEC_BOOL );
          result->complete = true;
          result->usable = true;
          return true;
@@ -1295,7 +1295,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
       warn_bounds_violation( semantic, subscript, "string-length",
          string->length );
    }
-   result->spec = semantic->spec_int;
+   result->spec = s_spec( semantic, SPEC_INT );
    result->complete = true;
    result->usable = true;
    subscript->string = true;
@@ -1540,7 +1540,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct expr_test nested_test;
    s_init_expr_test( &nested_test, true, false );
    test_nested_root( semantic, test, &nested_test, &result, item->value );
-   int spec = semantic->spec_int;
+   int spec = s_spec( semantic, SPEC_INT );
    switch ( item->cast ) {
    case FCAST_BINARY:
    case FCAST_CHAR:
@@ -1549,15 +1549,15 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    case FCAST_HEX:
       break;
    case FCAST_FIXED:
-      spec = semantic->spec_fixed;
+      spec = s_spec( semantic, SPEC_FIXED );
       break;
    case FCAST_RAW:
-      spec = semantic->spec_raw;
+      spec = SPEC_RAW;
       break;
    case FCAST_KEY:
    case FCAST_LOCAL_STRING:
    case FCAST_STRING:
-      spec = semantic->spec_str;
+      spec = s_spec( semantic, SPEC_STR );
       break;
    default:
       UNREACHABLE();
@@ -1588,7 +1588,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
       { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, 0, 0 };
    struct type_info required_type;
    s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
-      semantic->spec_int );
+      s_spec( semantic, SPEC_INT ) );
    if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &item->value->pos );
@@ -1614,7 +1614,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    init_type_info( semantic, &type, &root );
    s_decay( &type );
    struct type_info required_type;
-   s_init_type_info_scalar( &required_type, semantic->spec_int );
+   s_init_type_info_scalar( &required_type, s_spec( semantic, SPEC_INT ) );
    if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &arg->pos );
@@ -1976,7 +1976,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
 
 void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal ) {
-   result->spec = semantic->spec_int;
+   result->spec = s_spec( semantic, SPEC_INT );
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
@@ -1985,7 +1985,7 @@ void test_literal( struct semantic* semantic, struct result* result,
 
 void test_fixed_literal( struct semantic* semantic, struct result* result,
    struct fixed_literal* literal ) {
-   result->spec = semantic->spec_fixed;
+   result->spec = s_spec( semantic, SPEC_FIXED );
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
@@ -1994,7 +1994,7 @@ void test_fixed_literal( struct semantic* semantic, struct result* result,
 
 void test_string_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct indexed_string_usage* usage ) {
-   result->spec = semantic->spec_str;
+   result->spec = s_spec( semantic, SPEC_STR );
    result->value = usage->string->index;
    result->folded = true;
    result->complete = true;
@@ -2004,7 +2004,7 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
 
 void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean ) {
-   result->spec = semantic->spec_bool;
+   result->spec = s_spec( semantic, SPEC_BOOL );
    result->value = boolean->value;
    result->folded = true;
    result->complete = true;
@@ -2210,7 +2210,7 @@ void select_func( struct semantic* semantic, struct result* result,
    // When an action-special is not called, it decays into an integer value.
    // The value is the ID of the action-special.
    else if ( func->type == FUNC_ASPEC ) {
-      result->spec = semantic->spec_int;
+      result->spec = s_spec( semantic, SPEC_INT );
       struct func_aspec* impl = func->impl;
       result->value = impl->id;
       result->usable = true;
@@ -2218,7 +2218,7 @@ void select_func( struct semantic* semantic, struct result* result,
    }
    // An extension function can also decay into an integer.
    else if ( func->type == FUNC_EXT ) {
-      result->spec = semantic->spec_int;
+      result->spec = s_spec( semantic, SPEC_INT );
       struct func_ext* impl = func->impl;
       result->value = -impl->id;
       result->usable = true;
@@ -2283,7 +2283,7 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   result->spec = semantic->spec_bool;
+   result->spec = s_spec( semantic, SPEC_BOOL );
    result->complete = true;
    result->usable = true;
 }
@@ -2358,7 +2358,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   result->spec = semantic->spec_bool;
+   result->spec = s_spec( semantic, SPEC_BOOL );
    result->complete = true;
    result->usable = true;
    if ( is_struct( &dst ) ) {
@@ -2370,18 +2370,18 @@ bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result ) {
    bool onedim_array = ( result->dim && ! result->dim->next ) ||
       ( result->ref_dim == 1 );
-   bool int_elem = ( result->spec == semantic->spec_int );
+   bool int_elem = ( result->spec == s_spec( semantic, SPEC_INT ) );
    return ( onedim_array && int_elem );
 }
 
 bool is_int_value( struct semantic* semantic, struct result* result ) {
    return ( is_value_type( semantic, result ) &&
-      result->spec == semantic->spec_int );
+      result->spec == s_spec( semantic, SPEC_INT ) );
 }
 
 bool is_str_value( struct semantic* semantic, struct result* result ) {
    return ( is_value_type( semantic, result ) &&
-      result->spec == semantic->spec_str );
+      result->spec == s_spec( semantic, SPEC_STR ) );
 }
 
 void test_conversion( struct semantic* semantic, struct expr_test* test,
@@ -2467,7 +2467,7 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
          break;
       case FUNC_ASPEC:
       case FUNC_EXT:
-         s_init_type_info_scalar( type, semantic->spec_int );
+         s_init_type_info_scalar( type, s_spec( semantic, SPEC_INT ) );
          break;
       default:
          s_init_type_info_builtin_func( type );

@@ -576,7 +576,6 @@ struct library* t_add_library( struct task* task ) {
    lib->file_pos.id = 0;
    lib->id = list_size( &task->libraries );
    lib->format = FORMAT_LITTLE_E;
-   lib->type_mode = TYPEMODE_WEAK;
    lib->lang = LANG_BCS;
    lib->importable = false;
    lib->imported = false;

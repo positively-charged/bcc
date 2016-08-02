@@ -401,12 +401,12 @@ bool s_is_primitive_type( struct type_info* type ) {
 void s_iterate_type( struct semantic* semantic, struct type_info* type,
    struct type_iter* iter ) {
    if ( s_is_str_value_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, semantic->spec_int );
-      s_init_type_info_scalar( &iter->value, semantic->spec_int );
+      s_init_type_info_scalar( &iter->key, s_spec( semantic, SPEC_INT ) );
+      s_init_type_info_scalar( &iter->value, s_spec( semantic, SPEC_INT ) );
       iter->available = true;
    }
    else if ( is_array_ref_type( type ) ) {
-      s_init_type_info_scalar( &iter->key, semantic->spec_int );
+      s_init_type_info_scalar( &iter->key, s_spec( semantic, SPEC_INT ) );
       subscript_array_type( type, &iter->value );
       iter->available = true;
    }

@@ -1946,9 +1946,9 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
    switch ( semantic->lang ) {
    case LANG_ACS:
    case LANG_BCS:
-      script->named_script = ( semantic->lib->type_mode == TYPEMODE_STRONG ) ?
-         ( script->number->spec == SPEC_STR ) :
-         ( script->number->root->type == NODE_INDEXED_STRING_USAGE );
+      script->named_script = ( semantic->strong_type ?
+         script->number->spec == SPEC_STR :
+         script->number->root->type == NODE_INDEXED_STRING_USAGE );
       break;
    default:
       break;

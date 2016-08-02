@@ -59,12 +59,6 @@ void read_module( struct parse* parse ) {
    while ( parse->tk != TK_END ) {
       read_module_item( parse );
    }
-   if ( parse->lang == LANG_BCS ) {
-      // Enable strong mode.
-      if ( p_find_macro( parse, "__strongmode" ) ) {
-         parse->lib->type_mode = TYPEMODE_STRONG;
-      }
-   }
 }
 
 void read_module_item( struct parse* parse ) {

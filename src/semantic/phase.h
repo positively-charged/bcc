@@ -82,18 +82,13 @@ struct semantic {
    struct func_test* func_test;
    const struct lang_limits* lang_limits;
    struct type_info type_int;
-   int spec_map[ SPEC_TOTAL ];
-   int spec_raw;
-   int spec_int;
-   int spec_fixed;
-   int spec_bool;
-   int spec_str;
    int depth;
    int lang;
    bool retest_nss;
    bool resolved_objects;
    bool trigger_err;
    bool in_localscope;
+   bool strong_type;
 };
 
 void s_init( struct semantic* semantic, struct task* task,

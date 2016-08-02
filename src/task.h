@@ -1041,10 +1041,6 @@ struct library {
       FORMAT_LITTLE_E
    } format;
    enum {
-      TYPEMODE_WEAK,
-      TYPEMODE_STRONG
-   } type_mode;
-   enum {
       LANG_ACS,
       LANG_ACS95,
       LANG_BCS
