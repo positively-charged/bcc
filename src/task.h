@@ -985,6 +985,7 @@ struct ns {
    struct list funcs;
    struct list scripts;
    struct list usings;
+   struct list nss;
    bool defined;
 };
 
@@ -1007,7 +1008,7 @@ struct using_dirc {
 
 struct using_item {
    const char* name;
-   struct object* imported_object;
+   struct alias* alias;
    struct pos pos;
 };
 

@@ -92,6 +92,7 @@ struct ns* t_alloc_ns( struct task* task, struct name* name ) {
    list_init( &ns->funcs );
    list_init( &ns->scripts );
    list_init( &ns->usings );
+   list_init( &ns->nss );
    ns->defined = false;
    return ns;
 }

@@ -57,6 +57,7 @@ static void test_namespace( struct semantic* semantic, struct ns* ns );
 static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
+static void test_objects_bodies_ns( struct semantic* semantic, struct ns* ns );
 static void check_dup_scripts( struct semantic* semantic );
 static void match_dup_script( struct semantic* semantic, struct script* script,
    struct script* prev_script );
@@ -433,7 +434,7 @@ void show_private_objects( struct semantic* semantic ) {
             struct using_item* item = list_data( &k );
             struct name* name = t_extend_name( semantic->ns->body,
                item->name );
-            name->object = item->imported_object;
+            name->object = &item->alias->object;
             list_next( &k );
          }
       }
@@ -574,17 +575,25 @@ void import_item( struct semantic* semantic, struct ns* ns,
    }
    // Bind object to name in current namespace.
    struct name* name = t_extend_name( semantic->ns->body, item->name );
-   // Duplicate imports are allowed as long as both names refer to the
-   // same object.
-   if ( name->object == object ) {
-      s_diag( semantic, DIAG_WARN | DIAG_POS, &item->pos,
-         "duplicate import-name `%s`", item->name );
-      //s_diag( semantic, DIAG_DIAG_POS, &alias->object.pos,
-      //   "import-name already used here" );
-      return;
+   // Duplicate imports are allowed as long as both names refer to the same
+   // object.
+   if ( name->object && name->object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) name->object;
+      if ( alias->target == object ) {
+         s_diag( semantic, DIAG_POS | DIAG_WARN, &item->pos,
+            "duplicate import of `%s`", item->name );
+         s_diag( semantic, DIAG_POS, &alias->object.pos,
+            "import already made here" );
+         item->alias = alias;
+         return;
+      }
    }
-   s_bind_name( semantic, name, object );
-   item->imported_object = object;
+   struct alias* alias = s_alloc_alias();
+   alias->object.pos = item->pos;
+   alias->object.resolved = true;
+   alias->target = object;
+   s_bind_name( semantic, name, &alias->object );
+   item->alias = alias;
 }
 
 struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
@@ -651,31 +660,37 @@ struct object* s_search_type_object( struct semantic* semantic,
 
 struct object* search_object( struct semantic* semantic,
    const char* object_name, bool get_type ) {
+   struct object* object = NULL;
    struct ns* ns = semantic->ns;
    while ( ns ) {
       // Search in the namespace.
       struct name* name = t_extend_name( get_type ?
          ns->body_types : ns->body, object_name );
       if ( name->object ) {
-         return name->object;
+         object = name->object;
+         break;
       }
       // Search in any of the linked namespaces.
       // NOTE: The linked namespaces and the parent namespaces of each linked
       // namespace are not searched.
       struct ns_link* link = ns->links;
       while ( link ) {
-         struct object* object = get_type ?
+         object = get_type ?
             s_get_nstypeobject( link->ns, object_name ) :
             s_get_nsobject( link->ns, object_name );
          if ( object ) {
-            return object;
+            break;
          }
          link = link->next;
       }
       // Search in the parent namespace.
       ns = ns->parent;
    }
-   return NULL;
+   if ( object && object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) object;
+      return alias->target;
+   }
+   return object;
 }
 
 struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {
@@ -811,29 +826,35 @@ void test_namespace_object( struct semantic* semantic,
 
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
+   test_objects_bodies_ns( semantic, semantic->task->library_main->upmost_ns );
+}
+
+void test_objects_bodies_ns( struct semantic* semantic, struct ns* ns ) {
+   struct ns* parent_ns = semantic->ns;
+   semantic->ns = ns;
+   semantic->strong_type = ( ns->parent != NULL );
+   show_private_objects( semantic );
    list_iter_t i;
-   list_iter_init( &i, &semantic->task->library_main->namespaces );
+   list_iter_init( &i, &ns->scripts );
    while ( ! list_end( &i ) ) {
-      semantic->ns = list_data( &i );
-      semantic->strong_type = ( semantic->ns->parent != NULL );
-      show_private_objects( semantic );
-      list_iter_t k;
-      list_iter_init( &k, &semantic->ns->scripts );
-      while ( ! list_end( &k ) ) {
-         s_test_script( semantic, list_data( &k ) );
-         list_next( &k );
-      }
-      list_iter_init( &k, &semantic->ns->funcs );
-      while ( ! list_end( &k ) ) {
-         struct func* func = list_data( &k );
-         if ( func->type == FUNC_USER ) {
-            s_test_func_body( semantic, func );
-         }
-         list_next( &k );
-      }
-      hide_private_objects( semantic );
+      s_test_script( semantic, list_data( &i ) );
       list_next( &i );
    }
+   list_iter_init( &i, &ns->funcs );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      if ( func->type == FUNC_USER ) {
+         s_test_func_body( semantic, func );
+      }
+      list_next( &i );
+   }
+   list_iter_init( &i, &ns->nss );
+   while ( ! list_end( &i ) ) {
+      test_objects_bodies_ns( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   hide_private_objects( semantic );
+   semantic->ns = parent_ns;
 }
 
 void check_dup_scripts( struct semantic* semantic ) {

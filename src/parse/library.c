@@ -145,6 +145,7 @@ void read_namespace_name( struct parse* parse ) {
          list_append( &parse->lib->namespaces, ns );
          t_append_unresolved_namespace_object( parent_ns, &ns->object );
          list_append( &parent_ns->objects, ns );
+         list_append( &parent_ns->nss, ns );
          ns->parent = parent_ns;
          name->object = &ns->object;
       }
@@ -236,7 +237,7 @@ void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
    }
    struct using_item* item = alloc_using_item();
    item->name = parse->tk_text;
-   item->imported_object = NULL;
+   item->alias = NULL;
    item->pos = parse->tk_pos;
    list_append( &dirc->items, item );
    p_read_tk( parse );
