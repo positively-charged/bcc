@@ -423,23 +423,6 @@ void show_private_objects( struct semantic* semantic ) {
       }
       list_next( &i );
    }
-   // Imports.
-   list_iter_init( &i, &semantic->ns->usings );
-   while ( ! list_end( &i ) ) {
-      struct using_dirc* dirc = list_data( &i );
-      if ( dirc->type == USING_SELECTION ) {
-         list_iter_t k;
-         list_iter_init( &k, &dirc->items );
-         while ( ! list_end( &k ) ) {
-            struct using_item* item = list_data( &k );
-            struct name* name = t_extend_name( semantic->ns->body,
-               item->name );
-            name->object = &item->alias->object;
-            list_next( &k );
-         }
-      }
-      list_next( &i );
-   }
 }
 
 void hide_private_objects( struct semantic* semantic ) {
@@ -461,23 +444,6 @@ void hide_private_objects( struct semantic* semantic ) {
          break;
       default:
          UNREACHABLE();
-      }
-      list_next( &i );
-   }
-   // Imported objects.
-   list_iter_init( &i, &semantic->ns->usings );
-   while ( ! list_end( &i ) ) {
-      struct using_dirc* dirc = list_data( &i );
-      if ( dirc->type == USING_SELECTION ) {
-         list_iter_t k;
-         list_iter_init( &k, &dirc->items );
-         while ( ! list_end( &k ) ) {
-            struct using_item* item = list_data( &k );
-            struct name* name = t_extend_name( semantic->ns->body,
-               item->name );
-            name->object = NULL;
-            list_next( &k );
-         }
       }
       list_next( &i );
    }
