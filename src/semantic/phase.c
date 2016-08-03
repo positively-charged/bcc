@@ -665,8 +665,8 @@ struct object* search_object( struct semantic* semantic,
       struct ns_link* link = ns->links;
       while ( link ) {
          struct object* object = get_type ?
-            s_get_nsobject( link->ns, object_name ) :
-            s_get_nstypeobject( link->ns, object_name );
+            s_get_nstypeobject( link->ns, object_name ) :
+            s_get_nsobject( link->ns, object_name );
          if ( object ) {
             return object;
          }
