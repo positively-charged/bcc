@@ -231,7 +231,9 @@ struct using_dirc* alloc_using( struct pos* pos ) {
 }
 
 void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
-   p_test_tk( parse, TK_ID );
+   if ( parse->tk != TK_TYPENAME ) {
+      p_test_tk( parse, TK_ID );
+   }
    struct using_item* item = alloc_using_item();
    item->name = parse->tk_text;
    item->imported_object = NULL;
@@ -282,25 +284,76 @@ struct path* alloc_path( struct pos pos ) {
    return path;
 }
 
-bool p_peek_path( struct parse* parse, struct parsertk_iter* iter ) {
-/*
-   switch ( iter->token->type ) {
-   case TK_UPMOST:
-   case TK_ID:
-      p_next_tk( parse, iter );
-      break;
-   default:
+bool p_peek_type_path( struct parse* parse ) {
+   if ( parse->tk == TK_TYPENAME ) {
+      return true;
+   }
+   else if (
+      parse->tk == TK_ID ||
+      parse->tk == TK_UPMOST ) {
+      struct parsertk_iter iter;
+      p_init_parsertk_iter( parse, &iter );
+      p_next_tk( parse, &iter );
+      while ( iter.token->type == TK_DOT ) {
+         p_next_tk( parse, &iter );
+         if ( iter.token->type == TK_TYPENAME ) {
+            return true;
+         }
+         else if ( iter.token->type == TK_ID ) {
+            p_next_tk( parse, &iter );
+         }
+         else {
+            break;
+         }
+      }
       return false;
    }
-*/
-   while ( iter->token->type == TK_DOT ) {
-      p_next_tk( parse, iter );
-      if ( iter->token->type != TK_ID ) {
-         return false;
-      }
-      p_next_tk( parse, iter );
+   else {
+      return false;
    }
-   return true;
+}
+
+struct path* p_read_type_path( struct parse* parse ) {
+   if ( parse->tk == TK_TYPENAME ) {
+      struct path* path = alloc_path( parse->tk_pos );
+      path->text = parse->tk_text;
+      p_read_tk( parse );
+      return path;
+   }
+   else {
+      // Head.
+      struct path* path = alloc_path( parse->tk_pos );
+      if ( parse->tk == TK_UPMOST ) {
+         path->upmost = true;
+         p_read_tk( parse );
+      }
+      else {
+         p_test_tk( parse, TK_ID );
+         path->text = parse->tk_text;
+         p_read_tk( parse );
+      }
+      // Middle.
+      struct path* head = path;
+      struct path* tail = head;
+      while ( parse->tk == TK_DOT && p_peek( parse ) == TK_ID ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_ID );
+         path = alloc_path( parse->tk_pos );
+         path->text = parse->tk_text;
+         tail->next = path;
+         tail = path;
+         p_read_tk( parse );
+      }
+      // Tail.
+      p_test_tk( parse, TK_DOT );
+      p_read_tk( parse );
+      p_test_tk( parse, TK_TYPENAME );
+      path = alloc_path( parse->tk_pos );
+      path->text = parse->tk_text;
+      tail->next = path;
+      p_read_tk( parse );
+      return head;
+   }
 }
 
 void read_pseudo_dirc( struct parse* parse, bool first_object ) {

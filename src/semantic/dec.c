@@ -548,9 +548,8 @@ void init_name_spec_test( struct name_spec_test* test, struct path* path,
 }
 
 void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
-   struct object* object = s_follow_type_path( semantic, test->path );
-   switch ( test->spec ) {
-   case SPEC_ENUM:
+   if ( test->spec == SPEC_ENUM ) {
+      struct object* object = s_follow_type_path( semantic, test->path );
       if ( ! object ) {
          struct path* path = s_last_path_part( test->path );
          s_diag( semantic, DIAG_POS_ERR, &path->pos,
@@ -565,8 +564,9 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
       }
       test->enumeration = ( struct enumeration* ) object;
       test->spec = SPEC_ENUM;
-      break;
-   case SPEC_STRUCT:
+   }
+   else if ( test->spec == SPEC_STRUCT ) {
+      struct object* object = s_follow_type_path( semantic, test->path );
       if ( ! object ) {
          struct path* path = s_last_path_part( test->path );
          s_diag( semantic, DIAG_POS_ERR, &path->pos,
@@ -581,12 +581,13 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
       }
       test->structure = ( struct structure* ) object;
       test->spec = SPEC_STRUCT;
-      break;
-   default:
+   }
+   else {
+      struct object* object = s_follow_path( semantic, test->path );
       if ( ! object ) {
          struct path* path = s_last_path_part( test->path );
          s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "synon `%s` not found", path->text );
+            "`%s` not found", path->text );
          s_bail( semantic );
       }
       if ( object->node.type == NODE_TYPE_ALIAS ) {
@@ -602,7 +603,6 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
             "`%s` not a type synonym", path->text );
          s_bail( semantic );
       }
-      break;
    }
 }
 

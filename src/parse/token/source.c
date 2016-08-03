@@ -132,7 +132,7 @@ static const struct keyword_entry g_keywords_bcs[] = {
    { "switch", TK_SWITCH },
    { "terminate", TK_TERMINATE },
    { "true", TK_TRUE },
-   { "typesyn", TK_TYPESYN },
+   { "typedef", TK_TYPEDEF },
    { "unloading", TK_UNLOADING },
    { "until", TK_UNTIL },
    { "upmost", TK_UPMOST },
@@ -1535,9 +1535,11 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    {
       int length = 0;
+      char last_ch = 0;
       text = temp_text( parse );
       while ( isalnum( ch ) || ch == '_' ) {
          append_ch( text, tolower( ch ) );
+         last_ch = ch;
          ch = read_ch( parse );
          ++length;
       }
@@ -1547,6 +1549,13 @@ void read_token( struct parse* parse, struct token* token ) {
             "identifier too long (its length is %d, but maximum length is %d)",
             length, parse->lang_limits->max_id_length );
          p_bail( parse );
+      }
+      is_id = true;
+      // Type name.
+      if ( length >= 2 && text->value[ length - 2 ] == '_' &&
+         last_ch == 'T' ) {
+         tk = TK_TYPENAME;
+         goto state_finish;
       }
       const struct keyword_table* table = &g_keyword_tables.bcs;
       switch ( parse->lang ) {
@@ -1577,7 +1586,6 @@ void read_token( struct parse* parse, struct token* token ) {
             ++i;
          }
       }
-      is_id = true;
       goto state_finish;
    }
 

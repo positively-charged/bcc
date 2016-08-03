@@ -134,7 +134,7 @@ enum tk {
    TK_ASSERT,
    TK_REF,
    TK_AUTO,
-   TK_TYPESYN,
+   TK_TYPEDEF,
    TK_FOREACH,
    TK_PRIVATE,
    TK_MEMCPY,
@@ -167,6 +167,7 @@ enum tk {
    TK_ACSEXECUTEWAIT,
    TK_ACSNAMEDEXECUTEWAIT,
    TK_LIT_RADIX,
+   TK_TYPENAME,
 
    TK_TOTAL,
 
@@ -451,6 +452,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
 void p_read_script( struct parse* parse );
 void p_add_unresolved( struct parse* parse, struct object* object );
 struct path* p_read_path( struct parse* parse );
+struct path* p_read_type_path( struct parse* parse );
 void p_increment_pos( struct pos* pos, enum tk tk );
 void p_unexpect_diag( struct parse* parse );
 void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk );
@@ -494,7 +496,7 @@ struct var* p_read_cond_var( struct parse* parse );
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
 void p_read_special_list( struct parse* parse );
 void p_skip_semicolon( struct parse* parse );
-bool p_peek_path( struct parse* parse, struct parsertk_iter* iter );
+bool p_peek_type_path( struct parse* parse );
 void p_read_using( struct parse* parse, struct list* output );
 void p_read_target_lib( struct parse* parse );
 void p_clear_macros( struct parse* parse );

@@ -74,7 +74,6 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
 static void read_synon( struct parse* parse, struct dec* dec );
-static void read_synon_def( struct parse* parse, struct dec* dec );
 static void finish_synon( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_var_acs( struct parse* parse, struct dec* dec );
@@ -201,10 +200,14 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_FUNCTION:
       case TK_REF:
       case TK_AUTO:
-      case TK_TYPESYN:
+      case TK_TYPEDEF:
       case TK_PRIVATE:
       case TK_EXTERN:
+      case TK_TYPENAME:
          return true;
+      case TK_ID:
+      case TK_UPMOST:
+         return p_peek_type_path( parse );
       default:
          return false;
       }
@@ -247,7 +250,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    case TK_STRUCT:
       read_struct( parse, dec );
       break;
-   case TK_TYPESYN:
+   case TK_TYPEDEF:
       read_synon( parse, dec );
       break;
    default:
@@ -536,17 +539,7 @@ struct structure_member* create_structure_member( struct dec* dec ) {
 }
 
 void read_synon( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_TYPESYN && ( p_peek( parse ) == TK_ID ||
-      p_peek( parse ) == TK_UPMOST ) ) {
-      read_var( parse, dec );
-   }
-   else {
-      read_synon_def( parse, dec );
-   }
-}
-
-void read_synon_def( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_TYPESYN );
+   p_test_tk( parse, TK_TYPEDEF );
    p_read_tk( parse );
    dec->type_alias = true;
    if ( parse->tk == TK_FUNCTION ) {
@@ -559,8 +552,8 @@ void read_synon_def( struct parse* parse, struct dec* dec ) {
       read_ref( parse, &ref );
       dec->ref = ref.head;
       while ( true ) {
-         p_test_tk( parse, TK_ID );
-         dec->name = t_extend_name( parse->ns->body_types, parse->tk_text );
+         p_test_tk( parse, TK_TYPENAME );
+         dec->name = t_extend_name( parse->ns->body, parse->tk_text );
          dec->name_pos = parse->tk_pos;
          p_read_tk( parse );
          read_dim( parse, dec );
@@ -702,7 +695,7 @@ bool is_spec( struct parse* parse ) {
    case TK_STR:
    case TK_ENUM:
    case TK_STRUCT:
-   case TK_TYPESYN:
+   case TK_TYPENAME:
    case TK_VOID:
       return true;
    default:
@@ -764,19 +757,20 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
          p_read_tk( parse );
          break;
       case TK_ENUM:
-      case TK_STRUCT:
-      case TK_TYPESYN:
-         if ( parse->tk == TK_ENUM ) {
-            spec->type = SPEC_NAME + SPEC_ENUM;
-         }
-         else if ( parse->tk == TK_STRUCT ) {
-            spec->type = SPEC_NAME + SPEC_STRUCT;
-         }
-         else {
-            spec->type = SPEC_NAME;
-         }
          p_read_tk( parse );
+         spec->type = SPEC_NAME + SPEC_ENUM;
          spec->path = p_read_path( parse );
+         break;
+      case TK_STRUCT:
+         p_read_tk( parse );
+         spec->type = SPEC_NAME + SPEC_STRUCT;
+         spec->path = p_read_path( parse );
+         break;
+      case TK_ID:
+      case TK_UPMOST:
+      case TK_TYPENAME:
+         spec->type = SPEC_NAME;
+         spec->path = p_read_type_path( parse );
          break;
       default:
          missing_spec( parse, spec );
@@ -1029,7 +1023,8 @@ void read_storage_index( struct parse* parse, struct dec* dec ) {
 }
 
 void read_name( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_ID ) {
+   if ( ( dec->type_alias && parse->tk == TK_TYPENAME ) ||
+      ( ! dec->type_alias && parse->tk == TK_ID ) ) {
       dec->name = t_extend_name( dec->name_offset, parse->tk_text );
       dec->name_pos = parse->tk_pos;
       p_read_tk( parse );
@@ -1040,19 +1035,26 @@ void read_name( struct parse* parse, struct dec* dec ) {
 }
 
 void missing_name( struct parse* parse, struct dec* dec ) {
-   const char* subject;
-   if ( dec->read_func ) {
-      subject = "function name";
-   }
-   else if ( dec->area == DEC_MEMBER ) {
-      subject = "struct-member name";
+   if ( dec->type_alias ) {
+      p_unexpect_diag( parse );
+      p_unexpect_last( parse, NULL, TK_TYPENAME );
+      p_bail( parse );
    }
    else {
-      subject = "variable name";
+      const char* subject;
+      if ( dec->read_func ) {
+         subject = "function name";
+      }
+      else if ( dec->area == DEC_MEMBER ) {
+         subject = "struct-member name";
+      }
+      else {
+         subject = "variable name";
+      }
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, subject );
+      p_bail( parse );
    }
-   p_unexpect_diag( parse );
-   p_unexpect_last_name( parse, NULL, subject );
-   p_bail( parse );
 }
 
 void read_dim( struct parse* parse, struct dec* dec ) {

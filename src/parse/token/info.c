@@ -120,7 +120,7 @@ static const struct {
    { "switch", TK_SWITCH },
    { "terminate", TK_TERMINATE },
    { "true", TK_TRUE },
-   { "typesyn", TK_TYPESYN },
+   { "typedef", TK_TYPEDEF },
    { "unloading", TK_UNLOADING },
    { "until", TK_UNTIL },
    { "upmost", TK_UPMOST },
@@ -411,7 +411,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "assert", TKF_KEYWORD ),
       ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
-      ENTRY( "typesyn", TKF_KEYWORD ),
+      ENTRY( "typedef", TKF_KEYWORD ),
       ENTRY( "foreach", TKF_KEYWORD ),
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "memcpy", TKF_KEYWORD ),
@@ -443,6 +443,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "extern", TKF_KEYWORD ),
       ENTRY( "acs_executewait", TKF_KEYWORD ),
       ENTRY( "acs_namedexecutewait", TKF_KEYWORD ),
+      ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
 
       // Invalid entry.
@@ -571,7 +572,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ASSERT, "`assert`" },
       { TK_REF, "`ref`" },
       { TK_AUTO, "`auto`" },
-      { TK_TYPESYN, "`typesyn`" },
+      { TK_TYPEDEF, "`typedef`" },
       { TK_FOREACH, "`foreach`" },
       { TK_PRIVATE, "`private`" },
       { TK_MEMCPY, "`memcpy`" },
@@ -601,7 +602,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ACSEXECUTEWAIT, "`acs_executewait`" },
       { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
       { TK_LIT_RADIX, "radix number" } };
-   STATIC_ASSERT( TK_TOTAL == 145 );
+   STATIC_ASSERT( TK_TOTAL == 146 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
@@ -609,6 +610,8 @@ const char* p_get_token_name( enum tk tk ) {
       return "character literal";
    case TK_ID:
       return "identifier";
+   case TK_TYPENAME:
+      return "type name (identifier that ends with \"_T\")";
    default:
       for ( size_t i = 0; i < ARRAY_SIZE( names ); ++i ) {
          if ( names[ i ].tk == tk ) {
