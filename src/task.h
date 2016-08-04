@@ -1010,6 +1010,11 @@ struct using_item {
    const char* name;
    struct alias* alias;
    struct pos pos;
+   enum {
+      USINGITEM_OBJECT,
+      USINGITEM_STRUCT,
+      USINGITEM_ENUM,
+   } type;
 };
 
 struct import_dirc {

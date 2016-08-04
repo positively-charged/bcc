@@ -534,20 +534,60 @@ void import_selection( struct semantic* semantic, struct ns* ns,
 void import_item( struct semantic* semantic, struct ns* ns,
    struct using_item* item ) {
    // Locate object.
-   struct object* object = s_get_nsobject( ns, item->name );
-   if ( ! object ) {
-      s_unknown_ns_object( semantic, ns, item->name, &item->pos );
-      s_bail( semantic );
+   struct object* object;
+   switch ( item->type ) {
+   case USINGITEM_STRUCT:
+      object = s_get_nstypeobject( ns, item->name );
+      if ( ! object ) {
+         s_diag( semantic, DIAG_POS_ERR, &item->pos,
+            "struct `%s` not found", item->name );
+         s_bail( semantic );
+      }
+      if ( object->node.type != NODE_STRUCTURE ) {
+         s_diag( semantic, DIAG_POS_ERR, &item->pos,
+            "`%s` not a struct", item->name );
+         s_bail( semantic );
+      }
+      break;
+   case USINGITEM_ENUM:
+      object = s_get_nstypeobject( ns, item->name );
+      if ( ! object ) {
+         s_diag( semantic, DIAG_POS_ERR, &item->pos,
+            "enum `%s` not found", item->name );
+         s_bail( semantic );
+      }
+      if ( object->node.type != NODE_ENUMERATION ) {
+         s_diag( semantic, DIAG_POS_ERR, &item->pos,
+            "`%s` not an enum", item->name );
+         s_bail( semantic );
+      }
+      break;
+   default:
+      object = s_get_nsobject( ns, item->name );
+      if ( ! object ) {
+         s_unknown_ns_object( semantic, ns, item->name, &item->pos );
+         s_bail( semantic );
+      }
    }
    // Bind object to name in current namespace.
-   struct name* name = t_extend_name( semantic->ns->body, item->name );
+   struct name* name;
+   switch ( item->type ) {
+   case USINGITEM_STRUCT:
+   case USINGITEM_ENUM:
+      name = t_extend_name( semantic->ns->body_types, item->name );
+      break;
+   default:
+      name = t_extend_name( semantic->ns->body, item->name );
+   }
    // Duplicate imports are allowed as long as both names refer to the same
    // object.
    if ( name->object && name->object->node.type == NODE_ALIAS ) {
       struct alias* alias = ( struct alias* ) name->object;
       if ( alias->target == object ) {
          s_diag( semantic, DIAG_POS | DIAG_WARN, &item->pos,
-            "duplicate import of `%s`", item->name );
+            "duplicate import of %s`%s`",
+            item->type == USINGITEM_STRUCT ? "struct " :
+            item->type == USINGITEM_ENUM ? "enum " : "", item->name );
          s_diag( semantic, DIAG_POS, &alias->object.pos,
             "import already made here" );
          item->alias = alias;

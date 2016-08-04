@@ -208,6 +208,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
       p_visit_inline_asm( codegen,
          ( struct inline_asm* ) node );
       break;
+   case NODE_STRUCTURE:
    case NODE_USING:
       break;
    default:
