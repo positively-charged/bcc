@@ -160,6 +160,7 @@ struct enumeration {
    struct name* name;
    struct name* body;
    int base_type;
+   bool hidden;
 };
 
 struct enumerator {

@@ -36,7 +36,11 @@ static void bind_structure( struct semantic* semantic,
 static void bind_var( struct semantic* semantic, struct var* var );
 static void bind_func( struct semantic* semantic, struct func* func );
 static void show_private_objects( struct semantic* semantic );
+static void show_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration );
 static void hide_private_objects( struct semantic* semantic );
+static void hide_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration );
 static void perform_usings( struct semantic* semantic );
 static void perform_namespace_usings( struct semantic* semantic,
    struct ns_fragment* fragment );
@@ -428,10 +432,24 @@ void show_private_objects( struct semantic* semantic ) {
          func->object.next_scope = func->name->object;
          func->name->object = &func->object;
          break;
+      case NODE_ENUMERATION:
+         show_enumeration( semantic,
+            ( struct enumeration* ) object );
+         break;
       default:
          UNREACHABLE();
       }
       list_next( &i );
+   }
+}
+
+void show_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration ) {
+   struct enumerator* enumerator = enumeration->head;
+   while ( enumerator ) {
+      enumerator->object.next_scope = enumerator->name->object;
+      enumerator->name->object = &enumerator->object;
+      enumerator = enumerator->next;
    }
 }
 
@@ -451,10 +469,23 @@ void hide_private_objects( struct semantic* semantic ) {
          func = ( struct func* ) object;
          func->name->object = func->object.next_scope;
          break;
+      case NODE_ENUMERATION:
+         hide_enumeration( semantic,
+            ( struct enumeration* ) object );
+         break;
       default:
          UNREACHABLE();
       }
       list_next( &i );
+   }
+}
+
+void hide_enumeration( struct semantic* semantic,
+   struct enumeration* enumeration ) {
+   struct enumerator* enumerator = enumeration->head;
+   while ( enumerator ) {
+      enumerator->name->object = enumerator->object.next_scope;
+      enumerator = enumerator->next;
    }
 }
 

@@ -259,6 +259,10 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
       if ( parse->tk == TK_PRIVATE ) {
          dec->private_visibility = true;
          p_read_tk( parse );
+         if ( parse->tk == TK_ENUM ) {
+            read_enum( parse, dec );
+            return;
+         }
       }
       else if ( parse->tk == TK_EXTERN ) {
          dec->external = true;
@@ -305,6 +309,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
    struct enumeration* enumeration = t_alloc_enumeration();
    enumeration->object.pos = dec->type_pos;
+   enumeration->hidden = dec->private_visibility;
    read_enum_name( parse, enumeration );
    read_enum_base_type( parse, enumeration );
    read_enum_body( parse, dec, enumeration );
@@ -317,6 +322,9 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &enumeration->object );
       list_append( &parse->ns_fragment->objects, enumeration );
       list_append( &parse->lib->objects, enumeration );
+      if ( dec->private_visibility ) {
+         list_append( &parse->lib->private_objects, enumeration );
+      }
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {

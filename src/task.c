@@ -720,6 +720,7 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->name = NULL;
    enumeration->body = NULL;
    enumeration->base_type = SPEC_INT;
+   enumeration->hidden = false;
    return enumeration;
 }
 

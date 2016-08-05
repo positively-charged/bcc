@@ -259,6 +259,11 @@ void s_test_enumeration( struct semantic* semantic,
       }
       enumerator = enumerator->next;
    }
+   if ( enumeration->hidden && enumeration->name ) {
+      s_diag( semantic, DIAG_POS_ERR, &enumeration->object.pos,
+         "named enumeration declared private" );
+      s_bail( semantic );
+   }
    enumeration->object.resolved = true;
 }
 
