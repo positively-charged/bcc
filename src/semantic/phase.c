@@ -420,8 +420,18 @@ void show_private_objects( struct semantic* semantic ) {
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
+         struct constant* constant;
          struct var* var;
          struct func* func;
+      case NODE_CONSTANT:
+         constant = ( struct constant* ) object;
+         constant->object.next_scope = constant->name->object;
+         constant->name->object = &constant->object;
+         break;
+      case NODE_ENUMERATION:
+         show_enumeration( semantic,
+            ( struct enumeration* ) object );
+         break;
       case NODE_VAR:
          var = ( struct var* ) object;
          var->object.next_scope = var->name->object;
@@ -431,10 +441,6 @@ void show_private_objects( struct semantic* semantic ) {
          func = ( struct func* ) object;
          func->object.next_scope = func->name->object;
          func->name->object = &func->object;
-         break;
-      case NODE_ENUMERATION:
-         show_enumeration( semantic,
-            ( struct enumeration* ) object );
          break;
       default:
          UNREACHABLE();
@@ -459,8 +465,17 @@ void hide_private_objects( struct semantic* semantic ) {
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
+         struct constant* constant;
          struct var* var;
          struct func* func;
+      case NODE_CONSTANT:
+         constant = ( struct constant* ) object;
+         constant->name->object = constant->object.next_scope;
+         break;
+      case NODE_ENUMERATION:
+         hide_enumeration( semantic,
+            ( struct enumeration* ) object );
+         break;
       case NODE_VAR:
          var = ( struct var* ) object;
          var->name->object = var->object.next_scope;
@@ -468,10 +483,6 @@ void hide_private_objects( struct semantic* semantic ) {
       case NODE_FUNC:
          func = ( struct func* ) object;
          func->name->object = func->object.next_scope;
-         break;
-      case NODE_ENUMERATION:
-         hide_enumeration( semantic,
-            ( struct enumeration* ) object );
          break;
       default:
          UNREACHABLE();

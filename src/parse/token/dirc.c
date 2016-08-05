@@ -114,6 +114,18 @@ enum dirc identify_dirc( struct parse* parse ) {
    enum dirc dirc = DIRC_NONE;
    if ( iter.token->is_id ) {
       dirc = identify_named_dirc( iter.token->text );
+      // To stay compatible with ACS, only execute the following directives
+      // when inside the #if family of directives.
+      switch ( dirc ) {
+      case DIRC_DEFINE:
+      case DIRC_INCLUDE:
+         if ( ! parse->ifdirc_top ) {
+            dirc = DIRC_NONE;
+         }
+         break;
+      default:
+         break;
+      }
    }
    else if ( iter.token->type == TK_NL ) {
       dirc = DIRC_NULL;

@@ -486,7 +486,9 @@ void read_pseudo_dirc( struct parse* parse, bool first_object ) {
 
 enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
    static const struct { const char* text; enum tk tk; } table[] = {
+      { "define", TK_DEFINE },
       { "libdefine", TK_LIBDEFINE },
+      { "include", TK_INCLUDE },
       { "import", TK_IMPORT },
       { "library", TK_LIBRARY },
       { "linklibrary", TK_LINKLIBRARY },
@@ -505,7 +507,7 @@ enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
 }
 
 void read_include( struct parse* parse ) {
-   p_test_tk( parse, TK_INCLUDE );
+   p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_INCLUDE );
    p_read_tk( parse );
    if ( parse->lib->imported ) {
       p_test_tk( parse, TK_LIT_STRING );
@@ -519,8 +521,7 @@ void read_include( struct parse* parse ) {
 }
 
 void read_define( struct parse* parse ) {
-   bool define = ( parse->tk == TK_DEFINE );
-   p_test_tk( parse, define ? TK_DEFINE : TK_LIBDEFINE );
+   bool hidden = ( parse->tk_text[ 0 ] == 'd' );
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
    struct constant* constant = t_alloc_constant();
@@ -531,10 +532,13 @@ void read_define( struct parse* parse ) {
    p_init_expr_reading( &value, true, false, false, true );
    p_read_expr( parse, &value );
    constant->value_node = value.output_node;
-   constant->hidden = define;
+   constant->hidden = hidden;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->lib->objects, constant );
    list_append( &parse->ns_fragment->objects, constant );
+   if ( hidden ) {
+      list_append( &parse->lib->private_objects, constant );
+   }
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
