@@ -60,6 +60,8 @@ static void test_objects( struct semantic* semantic );
 static void test_all( struct semantic* semantic );
 static void test_namespace( struct semantic* semantic,
    struct ns_fragment* fragment );
+static bool explicit_ns_fragment( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
@@ -814,7 +816,7 @@ void test_namespace( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    semantic->ns = fragment->ns;
    semantic->ns_fragment = fragment;
-   semantic->strong_type = ( fragment->ns->parent != NULL );
+   semantic->strong_type = explicit_ns_fragment( semantic, fragment );
    struct object* object = fragment->unresolved;
    fragment->unresolved = NULL;
    fragment->unresolved_tail = NULL;
@@ -838,13 +840,19 @@ void test_namespace( struct semantic* semantic,
    }
 }
 
+// States whether the namespace fragment is explicitly created by the user.
+bool explicit_ns_fragment( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   return ( fragment != semantic->lib->upmost_ns_fragment );
+}
+
 void test_nested_namespace( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
    test_namespace( semantic, fragment );
    semantic->ns_fragment = parent_fragment;
    semantic->ns = parent_fragment->ns;
-   semantic->strong_type = ( parent_fragment->ns->parent != NULL );
+   semantic->strong_type = explicit_ns_fragment( semantic, parent_fragment );
 }
 
 void test_namespace_object( struct semantic* semantic,
@@ -888,6 +896,7 @@ void test_namespace_object( struct semantic* semantic,
 
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
+   semantic->lib = semantic->main_lib;
    test_objects_bodies_ns( semantic,
       semantic->task->library_main->upmost_ns_fragment );
 }
@@ -897,7 +906,7 @@ void test_objects_bodies_ns( struct semantic* semantic,
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
    semantic->ns = fragment->ns;
    semantic->ns_fragment = fragment;
-   semantic->strong_type = ( fragment->ns->parent != NULL );
+   semantic->strong_type = explicit_ns_fragment( semantic, fragment );
    list_iter_t i;
    list_iter_init( &i, &fragment->scripts );
    while ( ! list_end( &i ) ) {

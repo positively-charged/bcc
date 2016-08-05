@@ -154,23 +154,29 @@ void read_namespace( struct parse* parse ) {
 }
 
 void read_namespace_name( struct parse* parse ) {
-   while ( true ) {
-      p_test_tk( parse, TK_ID );
-      struct name* name = t_extend_name( parse->ns->body, parse->tk_text );
-      if ( ! name->object ) {
-         struct ns* ns = t_alloc_ns( name );
-         ns->object.pos = parse->tk_pos;
-         ns->parent = parse->ns;
-         list_append( &parse->lib->namespaces, ns );
-         name->object = &ns->object;
-      }
-      parse->ns = ( struct ns* ) name->object;
+   if ( parse->tk == TK_UPMOST ) {
+      parse->ns = parse->task->upmost_ns;
       p_read_tk( parse );
-      if ( parse->tk == TK_DOT ) {
+   }
+   else {
+      while ( true ) {
+         p_test_tk( parse, TK_ID );
+         struct name* name = t_extend_name( parse->ns->body, parse->tk_text );
+         if ( ! name->object ) {
+            struct ns* ns = t_alloc_ns( name );
+            ns->object.pos = parse->tk_pos;
+            ns->parent = parse->ns;
+            list_append( &parse->lib->namespaces, ns );
+            name->object = &ns->object;
+         }
+         parse->ns = ( struct ns* ) name->object;
          p_read_tk( parse );
-      }
-      else {
-         break;
+         if ( parse->tk == TK_DOT ) {
+            p_read_tk( parse );
+         }
+         else {
+            break;
+         }
       }
    }
 }
