@@ -305,6 +305,7 @@ void bind_namespace( struct semantic* semantic,
       s_bind_name( semantic, fragment->ns->name, &fragment->ns->object );
    }
    semantic->ns_fragment = fragment;
+   semantic->ns = fragment->ns;
    list_iter_t i;
    list_iter_init( &i, &fragment->objects );
    while ( ! list_end( &i ) ) {
@@ -521,6 +522,7 @@ void perform_namespace_usings( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
    semantic->ns_fragment = fragment;
+   semantic->ns = fragment->ns;
    list_iter_t i;
    list_iter_init( &i, &fragment->usings );
    while ( ! list_end( &i ) ) {
@@ -533,6 +535,7 @@ void perform_namespace_usings( struct semantic* semantic,
       list_next( &i );
    }
    semantic->ns_fragment = parent_fragment;
+   semantic->ns = parent_fragment->ns;
 }
 
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
