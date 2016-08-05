@@ -1396,7 +1396,7 @@ void unknown_member( struct semantic* semantic, struct access* access,
 
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
    const char* object_name, struct pos* pos ) {
-   if ( ns == semantic->lib->upmost_ns ) {
+   if ( ns == semantic->task->upmost_ns ) {
       s_diag( semantic, DIAG_POS_ERR, pos,
          "`%s` not found in upmost namespace", object_name );
    }
@@ -2451,7 +2451,7 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
 }
 
 void test_upmost( struct semantic* semantic, struct result* result ) {
-   result->object = &semantic->lib->upmost_ns->object;
+   result->object = &semantic->task->upmost_ns->object;
 }
 
 void init_type_info( struct semantic* semantic, struct type_info* type,

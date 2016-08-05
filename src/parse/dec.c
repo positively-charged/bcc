@@ -315,7 +315,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
    else {
       p_add_unresolved( parse, &enumeration->object );
-      list_append( &parse->ns->objects, enumeration );
+      list_append( &parse->ns_fragment->objects, enumeration );
       list_append( &parse->lib->objects, enumeration );
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
@@ -459,7 +459,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    }
    else {
       p_add_unresolved( parse, &structure->object );
-      list_append( &parse->ns->objects, structure );
+      list_append( &parse->ns_fragment->objects, structure );
       list_append( &parse->lib->objects, structure );
    }
 }
@@ -583,7 +583,7 @@ void finish_synon( struct parse* parse, struct dec* dec ) {
    alias->spec = dec->spec;
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &alias->object );
-      list_append( &parse->ns->objects, alias );
+      list_append( &parse->ns_fragment->objects, alias );
    }
    else {
       list_append( dec->vars, alias );
@@ -1271,14 +1271,14 @@ void add_var( struct parse* parse, struct dec* dec ) {
       var->hidden = dec->private_visibility;
       p_add_unresolved( parse, &var->object );
       list_append( &parse->lib->objects, var );
-      list_append( &parse->ns->objects, var );
+      list_append( &parse->ns_fragment->objects, var );
       if ( dec->external ) {
          list_append( &parse->lib->incomplete_vars, var );
       }
       else {
          list_append( &parse->lib->vars, var );
          if ( var->hidden ) {
-            list_append( &parse->ns->private_objects, var );
+            list_append( &parse->lib->private_objects, var );
          }
       }
    }
@@ -1398,15 +1398,18 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &func->object );
-      list_append( &parse->ns->objects, func );
+      list_append( &parse->ns_fragment->objects, func );
       list_append( &parse->lib->objects, func );
+      if ( func->hidden ) {
+         list_append( &parse->lib->private_objects, func );
+      }
       if ( func->type == FUNC_USER ) {
          if ( func->prototype ) {
             list_append( &parse->lib->incomplete_funcs, func );
          }
          else {
             list_append( &parse->lib->funcs, func );
-            list_append( &parse->ns->funcs, func );
+            list_append( &parse->ns_fragment->funcs, func );
          }
       }
    }
@@ -1759,7 +1762,7 @@ void p_read_script( struct parse* parse ) {
    read_script_body( parse, script );
    list_append( &parse->lib->scripts, script );
    list_append( &parse->lib->objects, script );
-   list_append( &parse->ns->scripts, script );
+   list_append( &parse->ns_fragment->scripts, script );
 }
 
 void read_script_number( struct parse* parse, struct script* script ) {
@@ -2135,7 +2138,7 @@ void read_special( struct parse* parse ) {
       }
    }
    p_add_unresolved( parse, &func->object );
-   list_append( &parse->ns->objects, func );
+   list_append( &parse->ns_fragment->objects, func );
    list_append( &parse->lib->objects, func );
 }
 

@@ -29,6 +29,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->create_nltk = false;
    p_init_stream( parse );
    parse->ns = NULL;
+   parse->ns_fragment = NULL;
    parse->local_vars = NULL;
    parse->lib = NULL;
    parse->main_lib_lines = 0;
@@ -48,7 +49,8 @@ void p_run( struct parse* parse ) {
    lib->wadauthor = ( lib->lang == LANG_ACS );
    parse->task->library_main = lib;
    parse->lib = lib;
-   parse->ns = lib->upmost_ns;
+   parse->ns_fragment = lib->upmost_ns_fragment;
+   parse->ns = parse->ns_fragment->ns;
    p_define_cmdline_macros( parse );
    p_load_main_source( parse );
    if ( parse->task->options->preprocess ) {
@@ -57,10 +59,6 @@ void p_run( struct parse* parse ) {
    else {
       p_read_tk( parse );
       p_read_target_lib( parse );
-      p_read_tk( parse );
-      p_read_tk( parse );
-      p_read_tk( parse );
-      p_read_tk( parse );
    }
 
 /*

@@ -139,13 +139,19 @@ void save_file_map( struct saver* saver ) {
 
 void save_namespace( struct saver* saver, struct ns* ns ) {
    WF( saver, F_NAMESPACE );
-   if ( ns != saver->lib->upmost_ns ) {
+   if ( ns != saver->task->upmost_ns ) {
       WFN( saver, F_NAME, ns->name );
    }
    list_iter_t i;
-   list_iter_init( &i, &ns->objects );
+   list_iter_init( &i, &ns->fragments );
    while ( ! list_end( &i ) ) {
-      save_namespace_member( saver, list_data( &i ) );
+      struct ns_fragment* fragment = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &fragment->objects );
+      while ( ! list_end( &k ) ) {
+         save_namespace_member( saver, list_data( &k ) );
+         list_next( &k );
+      }
       list_next( &i );
    }
    WF( saver, F_END );
@@ -459,7 +465,7 @@ struct library* cache_restore_lib( struct cache* cache,
 void restore_lib( struct restorer* restorer ) {
    RF( restorer, F_LIB );
    restorer->lib = t_add_library( restorer->task );
-   restorer->ns = restorer->lib->upmost_ns;
+   restorer->ns = restorer->task->upmost_ns;
    restore_file_map( restorer );
    if ( f_peek( restorer->r ) == F_NAME ) {
       str_append( &restorer->lib->name, RS( restorer, F_NAME ) );
@@ -490,9 +496,9 @@ void restore_file_map( struct restorer* restorer ) {
 void restore_namespace( struct restorer* restorer ) {
    RF( restorer, F_NAMESPACE );
    if ( f_peek( restorer->r ) == F_NAME ) {
-      struct name* name = t_extend_name( restorer->lib->upmost_ns->body,
+      struct name* name = t_extend_name( restorer->task->upmost_ns->body,
          RS( restorer, F_NAME ) );
-      struct ns* ns = t_alloc_ns( restorer->task, name );
+      struct ns* ns = t_alloc_ns( name );
       list_append( &restorer->ns->objects, ns );
       restorer->ns = ns;
       ns->name->object = &ns->object;

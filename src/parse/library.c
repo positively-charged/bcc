@@ -50,6 +50,21 @@ static void append_imported_lib( struct parse* parse, struct library* lib );
 void p_read_target_lib( struct parse* parse ) {
    read_module( parse );
    read_imported_libs( parse );
+   list_append( &parse->task->libraries, parse->task->library_main );
+   // Unbind namespaces. They will be rebinded in the semantic phase.
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->libraries );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &lib->namespaces );
+      while ( ! list_end( &k ) ) {
+         struct ns* ns = list_data( &k );
+         ns->name->object = NULL;
+         list_next( &k );
+      }
+      list_next( &i );
+   }
 }
 
 void read_module( struct parse* parse ) {
@@ -118,35 +133,35 @@ void read_module_item_acs( struct parse* parse ) {
 }
 
 void read_namespace( struct parse* parse ) {
-   struct ns* prev_ns = parse->ns;
-   struct pos pos = parse->tk_pos;
+   struct ns_fragment* parent_fragment = parse->ns_fragment;
    p_test_tk( parse, TK_NAMESPACE );
+   struct ns_fragment* fragment = t_alloc_ns_fragment();
+   fragment->object.pos = parse->tk_pos;
+   t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
+   list_append( &parent_fragment->objects, fragment );
+   list_append( &parent_fragment->fragments, fragment );
    p_read_tk( parse );
    read_namespace_name( parse );
-   if ( ! parse->ns->defined ) {
-      parse->ns->object.pos = pos;
-      parse->ns->defined = true;
-   }
+   fragment->ns = parse->ns;
+   parse->ns_fragment = fragment;
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    read_namespace_member_list( parse );
    p_test_tk( parse, TK_BRACE_R );
    p_read_tk( parse );
-   parse->ns = prev_ns;
+   parse->ns_fragment = parent_fragment;
+   parse->ns = parent_fragment->ns;
 }
 
 void read_namespace_name( struct parse* parse ) {
-   struct ns* parent_ns = parse->ns;
    while ( true ) {
       p_test_tk( parse, TK_ID );
-      struct name* name = t_extend_name( parent_ns->body, parse->tk_text );
+      struct name* name = t_extend_name( parse->ns->body, parse->tk_text );
       if ( ! name->object ) {
-         struct ns* ns = t_alloc_ns( parse->task, name );
+         struct ns* ns = t_alloc_ns( name );
+         ns->object.pos = parse->tk_pos;
+         ns->parent = parse->ns;
          list_append( &parse->lib->namespaces, ns );
-         t_append_unresolved_namespace_object( parent_ns, &ns->object );
-         list_append( &parent_ns->objects, ns );
-         list_append( &parent_ns->nss, ns );
-         ns->parent = parent_ns;
          name->object = &ns->object;
       }
       parse->ns = ( struct ns* ) name->object;
@@ -157,7 +172,6 @@ void read_namespace_name( struct parse* parse ) {
       else {
          break;
       }
-      parent_ns = parse->ns;
    }
 }
 
@@ -186,7 +200,7 @@ void read_namespace_member( struct parse* parse ) {
       read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
-      p_read_using( parse, &parse->ns->usings );
+      p_read_using( parse, &parse->ns_fragment->usings );
    }
    else if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
@@ -520,7 +534,7 @@ void read_define( struct parse* parse ) {
    constant->hidden = define;
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->lib->objects, constant );
-   list_append( &parse->ns->objects, constant );
+   list_append( &parse->ns_fragment->objects, constant );
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
@@ -612,7 +626,7 @@ void read_linklibrary( struct parse* parse, struct pos* pos ) {
 }
 
 void p_add_unresolved( struct parse* parse, struct object* object ) {
-   t_append_unresolved_namespace_object( parse->ns, object );
+   t_append_unresolved_namespace_object( parse->ns_fragment, object );
 }
 
 void read_imported_libs( struct parse* parse ) {
@@ -655,6 +669,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    // Read library from source file.
    lib = t_add_library( parse->task );
    lib->lang = p_determine_lang_from_file_path( query.file->full_path.value );
+   list_append( &parse->task->libraries, lib );
    if ( lib->lang == LANG_BCS && parse->lib->lang == LANG_ACS ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
          "importing BCS library into ACS library" );
@@ -665,7 +680,8 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    parse->lib = lib;
    p_load_imported_lib_source( parse, dirc, query.file );
    lib->imported = true;
-   parse->ns = lib->upmost_ns;
+   parse->ns_fragment = lib->upmost_ns_fragment;
+   parse->ns = parse->ns_fragment->ns;
    p_clear_macros( parse );
    p_define_imported_macro( parse );
    p_define_cmdline_macros( parse );

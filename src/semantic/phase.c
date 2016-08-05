@@ -25,7 +25,8 @@ static void test_module_item_acs( struct semantic* semantic,
 static void test_bcs( struct semantic* semantic );
 static void test_imported_acs_libs( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
-static void bind_namespace( struct semantic* semantic, struct ns* ns );
+static void bind_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void bind_namespace_object( struct semantic* semantic,
    struct object* object );
 static void bind_enumeration( struct semantic* semantic,
@@ -37,8 +38,8 @@ static void bind_func( struct semantic* semantic, struct func* func );
 static void show_private_objects( struct semantic* semantic );
 static void hide_private_objects( struct semantic* semantic );
 static void perform_usings( struct semantic* semantic );
-static void perform_lib_usings( struct semantic* semantic,
-   struct library* lib );
+static void perform_namespace_usings( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void import_all( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc );
 static void import_selection( struct semantic* semantic, struct ns* ns,
@@ -53,11 +54,13 @@ static struct object* get_nsobject( struct ns* ns, const char* object_name,
    bool get_type );
 static void test_objects( struct semantic* semantic );
 static void test_all( struct semantic* semantic );
-static void test_namespace( struct semantic* semantic, struct ns* ns );
+static void test_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
-static void test_objects_bodies_ns( struct semantic* semantic, struct ns* ns );
+static void test_objects_bodies_ns( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void check_dup_scripts( struct semantic* semantic );
 static void match_dup_script( struct semantic* semantic, struct script* script,
    struct script* prev_script );
@@ -76,17 +79,18 @@ static void add_sweep_name( struct semantic* semantic, struct scope* scope,
 static void confirm_compiletime_content( struct semantic* semantic );
 static bool is_compiletime_object( struct object* object );
 
-void s_init( struct semantic* semantic, struct task* task,
-   struct library* lib ) {
+void s_init( struct semantic* semantic, struct task* task ) {
    semantic->task = task;
-   semantic->lib = lib;
+   semantic->main_lib = task->library_main;
+   semantic->lib = semantic->main_lib;
    semantic->ns = NULL;
+   semantic->ns_fragment = NULL;
    semantic->scope = NULL;
    semantic->free_scope = NULL;
    semantic->free_sweep = NULL;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
-   semantic->lang_limits = t_get_lang_limits( lib->lang );
+   semantic->lang_limits = t_get_lang_limits( semantic->lib->lang );
    s_init_type_info_scalar( &semantic->type_int, SPEC_INT );
    semantic->depth = 0;
    semantic->retest_nss = false;
@@ -94,7 +98,7 @@ void s_init( struct semantic* semantic, struct task* task,
    semantic->trigger_err = false;
    semantic->in_localscope = false;
    semantic->strong_type = false;
-   semantic->lang = lib->lang;
+   semantic->lang = semantic->lib->lang;
 }
 
 int s_spec( struct semantic* semantic, int spec ) {
@@ -124,18 +128,18 @@ void s_test( struct semantic* semantic ) {
       test_bcs( semantic );
       break;
    }
-   if ( list_size( &semantic->lib->scripts ) >
+   if ( list_size( &semantic->main_lib->scripts ) >
       semantic->lang_limits->max_scripts ) {
-      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->main_lib->file_pos,
          "too many scripts (have %d, but maximum is %d)",
-         list_size( &semantic->lib->scripts ),
+         list_size( &semantic->main_lib->scripts ),
          semantic->lang_limits->max_scripts );
       s_bail( semantic );
    }
    // NOTE: Some strings are generated in the codegen phase, so the check
    // should be performed there.
    if ( semantic->task->str_table.size > semantic->lang_limits->max_strings ) {
-      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+      s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->main_lib->file_pos,
          "too many strings (have %d, but maximum is %d)",
          semantic->task->str_table.size,
          semantic->lang_limits->max_strings );
@@ -147,13 +151,13 @@ void test_acs( struct semantic* semantic ) {
    semantic->trigger_err = true;
    // Test imported modules.
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
       test_module_acs( semantic, list_data( &i ) );
       list_next( &i );
    }
    // Test module.
-   test_module_acs( semantic, semantic->lib );
+   test_module_acs( semantic, semantic->main_lib );
    check_dup_scripts( semantic );
    assign_script_numbers( semantic );
    calc_map_var_size( semantic );
@@ -161,7 +165,8 @@ void test_acs( struct semantic* semantic ) {
 }
 
 void test_module_acs( struct semantic* semantic, struct library* lib ) {
-   semantic->ns = lib->upmost_ns;
+   semantic->ns_fragment = lib->upmost_ns_fragment;
+   semantic->ns = lib->upmost_ns_fragment->ns;
    // In ACS, one can use functions before they are declared.
    list_iter_t i;
    list_iter_init( &i, &lib->objects );
@@ -238,20 +243,20 @@ void test_bcs( struct semantic* semantic ) {
    assign_script_numbers( semantic );
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
-   if ( semantic->lib->compiletime ) {
+   if ( semantic->main_lib->compiletime ) {
       confirm_compiletime_content( semantic );
-      if ( ! semantic->lib->imported ) {
-         s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->lib->file_pos,
+      if ( ! semantic->main_lib->imported ) {
+         s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->main_lib->file_pos,
             "compiling a compile-time only library" );
-         s_diag( semantic, DIAG_FILE, &semantic->lib->file_pos,
+         s_diag( semantic, DIAG_FILE, &semantic->main_lib->file_pos,
             "a compile-time library can only be #imported" );
          s_bail( semantic );
       }
    }
    // TODO: Refactor this.
-   if ( ! semantic->lib->importable ) {
+   if ( ! semantic->main_lib->importable ) {
       list_iter_t i;
-      list_iter_init( &i, &semantic->lib->vars );
+      list_iter_init( &i, &semantic->main_lib->vars );
       while ( ! list_end( &i ) ) {
          struct var* var = list_data( &i );
          var->hidden = true;
@@ -263,7 +268,7 @@ void test_bcs( struct semantic* semantic ) {
 void test_imported_acs_libs( struct semantic* semantic ) {
    semantic->trigger_err = true;
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       if ( lib->lang == LANG_ACS ) {
@@ -276,26 +281,30 @@ void test_imported_acs_libs( struct semantic* semantic ) {
 
 void bind_names( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      if ( lib->lang == LANG_BCS ) {
-         bind_namespace( semantic, lib->upmost_ns );
-      }
+      semantic->lib = list_data( &i );
+      bind_namespace( semantic, semantic->lib->upmost_ns_fragment );
+      hide_private_objects( semantic );
       list_next( &i );
    }
-   bind_namespace( semantic, semantic->lib->upmost_ns );
+   semantic->lib = semantic->main_lib;
+   bind_namespace( semantic, semantic->lib->upmost_ns_fragment );
 }
 
-void bind_namespace( struct semantic* semantic, struct ns* ns ) {
-   semantic->ns = ns;
+void bind_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   if ( ! ( fragment->ns->name->object &&
+      fragment->ns->name->object->node.type == NODE_NAMESPACE ) ) {
+      s_bind_name( semantic, fragment->ns->name, &fragment->ns->object );
+   }
+   semantic->ns_fragment = fragment;
    list_iter_t i;
-   list_iter_init( &i, &ns->objects );
+   list_iter_init( &i, &fragment->objects );
    while ( ! list_end( &i ) ) {
       bind_namespace_object( semantic, list_data( &i ) );
       list_next( &i );
    }
-   hide_private_objects( semantic );
 }
 
 void bind_namespace_object( struct semantic* semantic,
@@ -327,9 +336,9 @@ void bind_namespace_object( struct semantic* semantic,
       bind_func( semantic,
          ( struct func* ) object );
       break;
-   case NODE_NAMESPACE:
+   case NODE_NAMESPACEFRAGMENT:
       bind_namespace( semantic,
-         ( struct ns* ) object );
+         ( struct ns_fragment* ) object );
       break;
    default:
       UNREACHABLE();
@@ -402,9 +411,8 @@ void bind_func( struct semantic* semantic, struct func* func ) {
 }
 
 void show_private_objects( struct semantic* semantic ) {
-   // Local objects.
    list_iter_t i;
-   list_iter_init( &i, &semantic->ns->private_objects );
+   list_iter_init( &i, &semantic->lib->private_objects );
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
@@ -412,10 +420,12 @@ void show_private_objects( struct semantic* semantic ) {
          struct func* func;
       case NODE_VAR:
          var = ( struct var* ) object;
+         var->object.next_scope = var->name->object;
          var->name->object = &var->object;
          break;
       case NODE_FUNC:
          func = ( struct func* ) object;
+         func->object.next_scope = func->name->object;
          func->name->object = &func->object;
          break;
       default:
@@ -426,9 +436,8 @@ void show_private_objects( struct semantic* semantic ) {
 }
 
 void hide_private_objects( struct semantic* semantic ) {
-   // Local objects.
    list_iter_t i;
-   list_iter_init( &i, &semantic->ns->private_objects );
+   list_iter_init( &i, &semantic->lib->private_objects );
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
@@ -436,11 +445,11 @@ void hide_private_objects( struct semantic* semantic ) {
          struct func* func;
       case NODE_VAR:
          var = ( struct var* ) object;
-         var->name->object = NULL;
+         var->name->object = var->object.next_scope;
          break;
       case NODE_FUNC:
          func = ( struct func* ) object;
-         func->name->object = NULL;
+         func->name->object = func->object.next_scope;
          break;
       default:
          UNREACHABLE();
@@ -450,33 +459,36 @@ void hide_private_objects( struct semantic* semantic ) {
 }
 
 void perform_usings( struct semantic* semantic ) {
+   // Execute using directives in imported libraries.
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      if ( lib->lang == LANG_BCS ) {
-         perform_lib_usings( semantic, lib );
-      }
+      semantic->lib = list_data( &i );
+      perform_namespace_usings( semantic, semantic->lib->upmost_ns_fragment );
       list_next( &i );
    }
-   perform_lib_usings( semantic, semantic->lib );
+   // Execute using directives in main library.
+   semantic->lib = semantic->main_lib;
+   perform_namespace_usings( semantic,
+      semantic->main_lib->upmost_ns_fragment );
 }
 
-void perform_lib_usings( struct semantic* semantic, struct library* lib ) {
+void perform_namespace_usings( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   struct ns_fragment* parent_fragment = semantic->ns_fragment;
+   semantic->ns_fragment = fragment;
    list_iter_t i;
-   list_iter_init( &i, &lib->namespaces );
+   list_iter_init( &i, &fragment->usings );
    while ( ! list_end( &i ) ) {
-      semantic->ns = list_data( &i );
-      show_private_objects( semantic );
-      list_iter_t k;
-      list_iter_init( &k, &semantic->ns->usings );
-      while ( ! list_end( &k ) ) {
-         s_perform_using( semantic, list_data( &k ) );
-         list_next( &k );
-      }
-      hide_private_objects( semantic );
+      s_perform_using( semantic, list_data( &i ) );
       list_next( &i );
    }
+   list_iter_init( &i, &fragment->fragments );
+   while ( ! list_end( &i ) ) {
+      perform_namespace_usings( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   semantic->ns_fragment = parent_fragment;
 }
 
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
@@ -616,7 +628,7 @@ struct object* follow_path( struct semantic* semantic, struct path* path,
    struct ns* ns = NULL;
    struct object* object = NULL;
    if ( path->upmost ) {
-      ns = semantic->lib->upmost_ns;
+      ns = semantic->task->upmost_ns;
       object = &ns->object;
       path = path->next;
    }
@@ -745,24 +757,25 @@ void test_objects( struct semantic* semantic ) {
 
 void test_all( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      if ( lib->lang == LANG_BCS ) {
-         test_namespace( semantic, lib->upmost_ns );
-      }
+      semantic->lib = list_data( &i );
+      show_private_objects( semantic );
+      test_namespace( semantic, semantic->lib->upmost_ns_fragment );
+      hide_private_objects( semantic );
       list_next( &i );
    }
-   test_namespace( semantic, semantic->lib->upmost_ns );
+   test_namespace( semantic, semantic->main_lib->upmost_ns_fragment );
 }
 
-void test_namespace( struct semantic* semantic, struct ns* ns ) {
-   semantic->ns = ns;
-   semantic->strong_type = ( ns->parent != NULL );
-   show_private_objects( semantic );
-   struct object* object = ns->unresolved;
-   ns->unresolved = NULL;
-   ns->unresolved_tail = NULL;
+void test_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   semantic->ns = fragment->ns;
+   semantic->ns_fragment = fragment;
+   semantic->strong_type = ( fragment->ns->parent != NULL );
+   struct object* object = fragment->unresolved;
+   fragment->unresolved = NULL;
+   fragment->unresolved_tail = NULL;
    while ( object ) {
       struct object* next_object = object->next;
       object->next = NULL;
@@ -771,24 +784,25 @@ void test_namespace( struct semantic* semantic, struct ns* ns ) {
          semantic->resolved_objects = true;
       }
       else {
-         t_append_unresolved_namespace_object( ns, object );
+         t_append_unresolved_namespace_object( fragment, object );
       }
       object = next_object;
    }
-   if ( ! ns->unresolved ) {
-      ns->object.resolved = true;
+   if ( ! fragment->unresolved ) {
+      fragment->object.resolved = true;
    }
    else {
       semantic->retest_nss = true;
    }
-   hide_private_objects( semantic );
 }
 
-void test_nested_namespace( struct semantic* semantic, struct ns* ns ) {
-   struct ns* parent_ns = semantic->ns;
-   test_namespace( semantic, ns );
-   semantic->ns = parent_ns;
-   semantic->strong_type = ( parent_ns->parent != NULL );
+void test_nested_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   struct ns_fragment* parent_fragment = semantic->ns_fragment;
+   test_namespace( semantic, fragment );
+   semantic->ns_fragment = parent_fragment;
+   semantic->ns = parent_fragment->ns;
+   semantic->strong_type = ( parent_fragment->ns->parent != NULL );
 }
 
 void test_namespace_object( struct semantic* semantic,
@@ -818,9 +832,9 @@ void test_namespace_object( struct semantic* semantic,
       s_test_func( semantic,
          ( struct func* ) object );
       break;
-   case NODE_NAMESPACE:
+   case NODE_NAMESPACEFRAGMENT:
       test_nested_namespace( semantic,
-         ( struct ns* ) object );
+         ( struct ns_fragment* ) object );
       break;
    default:
       UNREACHABLE();
@@ -832,21 +846,22 @@ void test_namespace_object( struct semantic* semantic,
 
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
-   test_objects_bodies_ns( semantic, semantic->task->library_main->upmost_ns );
+   test_objects_bodies_ns( semantic,
+      semantic->task->library_main->upmost_ns_fragment );
 }
 
-void test_objects_bodies_ns( struct semantic* semantic, struct ns* ns ) {
-   struct ns* parent_ns = semantic->ns;
-   semantic->ns = ns;
-   semantic->strong_type = ( ns->parent != NULL );
-   show_private_objects( semantic );
+void test_objects_bodies_ns( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   struct ns_fragment* parent_fragment = semantic->ns_fragment;
+   semantic->ns_fragment = fragment;
+   semantic->strong_type = ( fragment->ns->parent != NULL );
    list_iter_t i;
-   list_iter_init( &i, &ns->scripts );
+   list_iter_init( &i, &fragment->scripts );
    while ( ! list_end( &i ) ) {
       s_test_script( semantic, list_data( &i ) );
       list_next( &i );
    }
-   list_iter_init( &i, &ns->funcs );
+   list_iter_init( &i, &fragment->funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( func->type == FUNC_USER ) {
@@ -854,18 +869,17 @@ void test_objects_bodies_ns( struct semantic* semantic, struct ns* ns ) {
       }
       list_next( &i );
    }
-   list_iter_init( &i, &ns->nss );
+   list_iter_init( &i, &fragment->fragments );
    while ( ! list_end( &i ) ) {
       test_objects_bodies_ns( semantic, list_data( &i ) );
       list_next( &i );
    }
-   hide_private_objects( semantic );
-   semantic->ns = parent_ns;
+   semantic->ns_fragment = parent_fragment;
 }
 
 void check_dup_scripts( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->scripts );
+   list_iter_init( &i, &semantic->main_lib->scripts );
    while ( ! list_end( &i ) ) {
       list_iter_t k = i;
       list_next( &k );
@@ -909,7 +923,7 @@ void match_dup_script( struct semantic* semantic, struct script* script,
 void assign_script_numbers( struct semantic* semantic ) {
    int named_script_number = -1;
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->scripts );
+   list_iter_init( &i, &semantic->main_lib->scripts );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       if ( script->named_script ) {
@@ -926,7 +940,7 @@ void assign_script_numbers( struct semantic* semantic ) {
 void calc_map_var_size( struct semantic* semantic ) {
    // Imported variables.
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       list_iter_t k;
@@ -938,13 +952,13 @@ void calc_map_var_size( struct semantic* semantic ) {
       list_next( &i );
    }
    // Imported variables. (External)
-   list_iter_init( &i, &semantic->lib->incomplete_vars );
+   list_iter_init( &i, &semantic->main_lib->incomplete_vars );
    while ( ! list_end( &i ) ) {
       s_calc_var_size( list_data( &i ) );
       list_next( &i );
    }
    // Variables.
-   list_iter_init( &i, &semantic->lib->vars );
+   list_iter_init( &i, &semantic->main_lib->vars );
    while ( ! list_end( &i ) ) {
       s_calc_var_size( list_data( &i ) );
       list_next( &i );
@@ -953,7 +967,7 @@ void calc_map_var_size( struct semantic* semantic ) {
 
 void calc_map_value_index( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->lib->vars );
+   list_iter_init( &i, &semantic->main_lib->vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->initial ) {

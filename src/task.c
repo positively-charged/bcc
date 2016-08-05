@@ -42,6 +42,8 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->mnemonics = NULL;
    list_init( &task->runtime_asserts );
    task->root_name = t_create_name();
+   task->upmost_ns = t_alloc_ns( task->root_name );
+
    task->array_name = t_create_name();
    struct func_intern* impl = mem_alloc( sizeof( *impl ) );
    impl->id = INTERN_FUNC_ARRAY_LENGTH;
@@ -77,35 +79,42 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    t_create_builtins( task );
 }
 
-struct ns* t_alloc_ns( struct task* task, struct name* name ) {
+struct ns* t_alloc_ns( struct name* name ) {
    struct ns* ns = mem_alloc( sizeof( *ns ) );
    t_init_object( &ns->object, NODE_NAMESPACE );
    ns->parent = NULL;
    ns->name = name;
    ns->body = t_extend_name( name, "." );
    ns->body_types = t_extend_name( name, ".!t." );
-   ns->unresolved = NULL;
-   ns->unresolved_tail = NULL;
    ns->links = NULL;
-   list_init( &ns->objects );
-   list_init( &ns->private_objects );
-   list_init( &ns->funcs );
-   list_init( &ns->scripts );
-   list_init( &ns->usings );
-   list_init( &ns->nss );
+   list_init( &ns->fragments );
    ns->defined = false;
    return ns;
 }
 
-void t_append_unresolved_namespace_object( struct ns* ns,
+struct ns_fragment* t_alloc_ns_fragment( void ) {
+   struct ns_fragment* fragment = mem_alloc( sizeof( *fragment ) );
+   t_init_object( &fragment->object, NODE_NAMESPACEFRAGMENT );
+   fragment->ns = NULL;
+   fragment->unresolved = NULL;
+   fragment->unresolved_tail = NULL;
+   list_init( &fragment->objects );
+   list_init( &fragment->funcs );
+   list_init( &fragment->scripts );
+   list_init( &fragment->fragments );
+   list_init( &fragment->usings );
+   return fragment;
+}
+
+void t_append_unresolved_namespace_object( struct ns_fragment* fragment,
    struct object* object ) {
-   if ( ns->unresolved ) {
-      ns->unresolved_tail->next = object;
+   if ( fragment->unresolved ) {
+      fragment->unresolved_tail->next = object;
    }
    else {
-      ns->unresolved = object;
+      fragment->unresolved = object;
    }
-   ns->unresolved_tail = object;
+   fragment->unresolved_tail = object;
 }
 
 void init_str_table( struct str_table* table ) {
@@ -562,6 +571,7 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->funcs );
    list_init( &lib->scripts );
    list_init( &lib->objects );
+   list_init( &lib->private_objects );
    list_init( &lib->namespaces );
    list_init( &lib->files );
    list_init( &lib->import_dircs );
@@ -569,9 +579,10 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->dynamic_links );
    list_init( &lib->incomplete_vars );
    list_init( &lib->incomplete_funcs );
-   lib->upmost_ns = t_alloc_ns( task, task->root_name );
+   lib->upmost_ns_fragment = t_alloc_ns_fragment();
+   lib->upmost_ns_fragment->ns = task->upmost_ns;
    // root_name->object = &lib->upmost_ns->object;
-   list_append( &lib->namespaces, lib->upmost_ns );
+   list_append( &lib->namespaces, task->upmost_ns );
    lib->file_pos.line = 0;
    lib->file_pos.column = 0;
    lib->file_pos.id = 0;
@@ -581,7 +592,6 @@ struct library* t_add_library( struct task* task ) {
    lib->importable = false;
    lib->imported = false;
    lib->encrypt_str = false;
-   list_append( &task->libraries, lib );
    lib->file = NULL;
    lib->header = false;
    lib->compiletime = false;

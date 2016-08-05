@@ -95,8 +95,9 @@ struct node {
       NODE_FOREACH,
       NODE_NULL,
       NODE_NAMESPACE,
-      NODE_UPMOST,
+      NODE_NAMESPACEFRAGMENT,
       // 50
+      NODE_UPMOST,
       NODE_USING,
       NODE_MEMCPY,
       NODE_CONVERSION,
@@ -977,15 +978,9 @@ struct ns {
    struct name* name;
    struct name* body;
    struct name* body_types;
-   struct object* unresolved;
-   struct object* unresolved_tail;
    struct ns_link* links;
    struct list objects;
-   struct list private_objects;
-   struct list funcs;
-   struct list scripts;
-   struct list usings;
-   struct list nss;
+   struct list fragments;
    bool defined;
 };
 
@@ -993,6 +988,18 @@ struct ns_link {
    struct ns_link* next;
    struct ns* ns;
    struct pos pos;
+};
+
+struct ns_fragment {
+   struct object object;
+   struct ns* ns;
+   struct object* unresolved;
+   struct object* unresolved_tail;
+   struct list objects;
+   struct list funcs;
+   struct list scripts;
+   struct list fragments;
+   struct list usings;
 };
 
 struct using_dirc {
@@ -1029,6 +1036,7 @@ struct library {
    struct list funcs;
    struct list scripts;
    struct list objects;
+   struct list private_objects;
    struct list namespaces;
    // #included/#imported libraries.
    struct list import_dircs;
@@ -1037,7 +1045,7 @@ struct library {
    struct list files;
    struct list incomplete_vars;
    struct list incomplete_funcs;
-   struct ns* upmost_ns;
+   struct ns_fragment* upmost_ns_fragment;
    struct file_entry* file;
    struct pos file_pos;
    int id;
@@ -1081,6 +1089,7 @@ struct task {
    struct str_table str_table;
    struct str_table script_name_table;
    struct library* library_main;
+   // Imported libraries come first, followed by the main library.
    struct list libraries;
    // List of alternative filenames. Each entry is a string.
    struct list altern_filenames;
@@ -1093,6 +1102,7 @@ struct task {
    struct name* array_name;
    struct func* append_func;
    struct expr* dummy_expr;
+   struct ns* upmost_ns;
 };
 
 #define DIAG_NONE 0
@@ -1135,8 +1145,8 @@ struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );
-struct ns* t_alloc_ns( struct task* task, struct name* name );
-void t_append_unresolved_namespace_object( struct ns* ns,
+struct ns* t_alloc_ns( struct name* name );
+void t_append_unresolved_namespace_object( struct ns_fragment* fragment,
    struct object* object );
 struct constant* t_alloc_constant( void );
 struct enumeration* t_alloc_enumeration( void );
@@ -1166,5 +1176,6 @@ void t_init_pos_id( struct pos* pos, int id );
 struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length );
 struct ref_func* t_alloc_ref_func( void );
+struct ns_fragment* t_alloc_ns_fragment( void );
 
 #endif

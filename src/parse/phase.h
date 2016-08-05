@@ -403,6 +403,7 @@ struct parse {
    struct token_queue parser_tkque;
    bool create_nltk;
    struct ns* ns;
+   struct ns_fragment* ns_fragment;
    struct list* local_vars;
    struct library* lib;
    int main_lib_lines;

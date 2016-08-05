@@ -73,8 +73,10 @@ struct type_iter {
 
 struct semantic {
    struct task* task;
+   struct library* main_lib;
    struct library* lib;
    struct ns* ns;
+   struct ns_fragment* ns_fragment;
    struct scope* scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
@@ -91,8 +93,7 @@ struct semantic {
    bool strong_type;
 };
 
-void s_init( struct semantic* semantic, struct task* task,
-   struct library* lib );
+void s_init( struct semantic* semantic, struct task* task );
 void s_test( struct semantic* semantic );
 void s_test_constant( struct semantic* semantic, struct constant* );
 void s_test_enumeration( struct semantic* semantic, struct enumeration* );
