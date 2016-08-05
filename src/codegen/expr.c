@@ -1360,6 +1360,10 @@ void visit_access( struct codegen* codegen, struct result* result,
          visit_constant( codegen, result,
             ( struct constant* ) access->rside );
          break;
+      case NODE_ENUMERATOR:
+         visit_enumerator( codegen, result,
+            ( struct enumerator* ) access->rside );
+         break;
       case NODE_VAR:
          visit_var( codegen, result,
             ( struct var* ) access->rside );
