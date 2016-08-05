@@ -18,70 +18,21 @@ solution 'bcc'
    flags {
       'Symbols',
    }
-   includedirs {
-      'src/',
-   }
 
    project 'bcc'
       location 'build'
       kind 'ConsoleApp'
       targetname 'bcc'
-      links {
-         'src',
-         'src_parse',
-         'src_token',
-         'src_semantic',
-         'src_codegen',
-         'src_cache',
-      }
-
-   project 'src'
-      location 'build/src'
-      targetdir 'build/src'
-      kind 'StaticLib'
+      targetdir '.'
       files {
          'src/*.c',
-      }
-
-   project 'src_parse'
-      location 'build/src_parse'
-      targetdir 'build/src_parse'
-      kind 'StaticLib'
-      files {
-         'src/parse/*.c'
-      }
-
-   project 'src_token'
-      location 'build/src_token'
-      targetdir 'build/src_token'
-      kind 'StaticLib'
-      files {
-         'src/parse/token/*.c'
+         'src/parse/*.c',
+         'src/parse/token/*.c',
+         'src/semantic/*.c',
+         'src/codegen/*.c',
+         'src/cache/*.c'
       }
       includedirs {
+         'src',
          'src/parse',
-      }
-
-   project 'src_semantic'
-      location 'build/src_semantic'
-      targetdir 'build/src_semantic'
-      kind 'StaticLib'
-      files {
-         'src/semantic/*.c'
-      }
-
-   project 'src_codegen'
-      location 'build/src_codegen'
-      targetdir 'build/src_codegen'
-      kind 'StaticLib'
-      files {
-         'src/codegen/*.c'
-      }
-
-   project 'src_cache'
-      location 'build/src_cache'
-      targetdir 'build/src_cache'
-      kind 'StaticLib'
-      files {
-         'src/cache/*.c'
       }
