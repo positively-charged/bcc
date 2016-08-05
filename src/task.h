@@ -1170,7 +1170,7 @@ const struct lang_limits* t_get_lang_limits( int lang );
 const char* t_get_storage_name( int storage );
 struct literal* t_alloc_literal( void );
 struct expr* t_alloc_expr( void );
-void t_create_builtins( struct task* task );
+void t_create_builtins( struct task* task, int lang );
 struct indexed_string_usage* t_alloc_indexed_string_usage( void );
 void t_init_pos( struct pos* pos, int id, int line, int column );
 void t_init_pos_id( struct pos* pos, int id );

@@ -15,9 +15,10 @@ struct setup {
    struct param* param_tail;
    struct expr* empty_string_expr;
    const char* format;
+   int lang;
 };
 
-static void init_setup( struct setup* setup, struct task* task );
+static void init_setup( struct setup* setup, struct task* task, int lang );
 static void setup_func( struct setup* setup, int entry );
 static void setup_return_type( struct setup* setup );
 static void setup_param_list( struct setup* setup );
@@ -340,9 +341,9 @@ enum {
    BOUND_FORMAT = BOUND_DED + ARRAY_SIZE( g_formats )
 };
 
-void t_create_builtins( struct task* task ) {
+void t_create_builtins( struct task* task, int lang ) {
    struct setup setup;
-   init_setup( &setup, task );
+   init_setup( &setup, task, lang );
    enum { TOTAL_IMPLS =
       ARRAY_SIZE( g_deds ) +
       ARRAY_SIZE( g_formats ) +
@@ -353,7 +354,7 @@ void t_create_builtins( struct task* task ) {
          ARRAY_SIZE( g_funcs ), TOTAL_IMPLS );
       t_bail( task );
    }
-   if ( task->options->lang == LANG_ACS95 ) {
+   if ( lang == LANG_ACS95 ) {
       // Dedicated functions.
       for ( int entry = 0; entry < BOUND_DED_ACS95; ++entry ) {
          setup_func( &setup, entry );
@@ -369,13 +370,14 @@ void t_create_builtins( struct task* task ) {
    }
 }
 
-void init_setup( struct setup* setup, struct task* task ) {
+void init_setup( struct setup* setup, struct task* task, int lang ) {
    setup->task = task;
    setup->func = NULL;
    setup->param = NULL;
    setup->param_tail = NULL;
    setup->empty_string_expr = NULL;
    setup->format = NULL;
+   setup->lang = lang;
 }
 
 void setup_func( struct setup* setup, int entry ) {
@@ -434,7 +436,7 @@ void setup_return_type( struct setup* setup ) {
             "invalid builtin function return type `%c`", setup->format[ 0 ] );
          t_bail( setup->task );
       }
-      switch ( setup->task->options->lang ) {
+      switch ( setup->lang ) {
       case LANG_ACS:
       case LANG_ACS95:
          if ( spec != SPEC_VOID ) {
@@ -450,7 +452,7 @@ void setup_return_type( struct setup* setup ) {
 }
 
 void setup_param_list( struct setup* setup ) {
-   switch ( setup->task->options->lang ) {
+   switch ( setup->lang ) {
    case LANG_ACS:
    case LANG_ACS95:
       setup_param_list_acs( setup );

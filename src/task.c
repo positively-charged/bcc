@@ -75,8 +75,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    expr->root = &literal->node;
    expr->folded = true;
    task->dummy_expr = expr;
-
-   t_create_builtins( task );
 }
 
 struct ns* t_alloc_ns( struct name* name ) {
