@@ -300,9 +300,11 @@ void bind_names( struct semantic* semantic ) {
 
 void bind_namespace( struct semantic* semantic,
    struct ns_fragment* fragment ) {
-   if ( ! ( fragment->ns->name->object &&
-      fragment->ns->name->object->node.type == NODE_NAMESPACE ) ) {
-      s_bind_name( semantic, fragment->ns->name, &fragment->ns->object );
+   struct ns* ns = fragment->ns;
+   while ( ns && ! ( ns->name->object &&
+      ns->name->object->node.type == NODE_NAMESPACE ) ) {
+      s_bind_name( semantic, ns->name, &ns->object );
+      ns = ns->parent;
    }
    semantic->ns_fragment = fragment;
    semantic->ns = fragment->ns;
