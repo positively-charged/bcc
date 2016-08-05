@@ -523,6 +523,20 @@ void read_include( struct parse* parse ) {
 void read_define( struct parse* parse ) {
    bool hidden = ( parse->tk_text[ 0 ] == 'd' );
    p_read_tk( parse );
+   // In BCS, true and false are keywords, but they are defined as constants in
+   // zcommon.acs. To make the file work in BCS, ignore the #defines.
+   if ( parse->lang == LANG_BCS ) {
+      switch ( parse->tk ) {
+      case TK_TRUE:
+      case TK_FALSE:
+         p_read_tk( parse );
+         p_test_tk( parse, TK_LIT_DECIMAL );
+         p_read_tk( parse );
+         return;
+      default:
+         break;
+      }
+   }
    p_test_tk( parse, TK_ID );
    struct constant* constant = t_alloc_constant();
    constant->object.pos = parse->tk_pos;
