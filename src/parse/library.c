@@ -84,9 +84,6 @@ void read_module_item( struct parse* parse ) {
       break;
    default:
       switch ( parse->tk ) {
-      case TK_SPECIAL:
-         p_read_special_list( parse );
-         break;
       case TK_HASH:
          read_pseudo_dirc( parse, false );
          break;
@@ -207,6 +204,9 @@ void read_namespace_member( struct parse* parse ) {
    }
    else if ( parse->tk == TK_USING ) {
       p_read_using( parse, &parse->ns_fragment->usings );
+   }
+   else if ( parse->tk == TK_SPECIAL ) {
+      p_read_special_list( parse );
    }
    else if ( parse->tk == TK_SEMICOLON ) {
       p_read_tk( parse );
