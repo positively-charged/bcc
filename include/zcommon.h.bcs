@@ -1,1 +1,6 @@
+#ifndef INCLUDE_ZCOMMON_H_BCS
+#define INCLUDE_ZCOMMON_H_BCS
+
 #import "lib/zcommon.bcs"
+
+#endif
