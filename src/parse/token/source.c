@@ -154,6 +154,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
          p_bail( parse );
       }
    }
+   parse->prev_tk = TK_NL;
 }
 
 void append_file( struct library* lib, struct file_entry* file ) {

@@ -107,7 +107,7 @@ bool p_read_dirc( struct parse* parse ) {
 enum dirc identify_dirc( struct parse* parse ) {
    struct streamtk_iter iter;
    p_init_streamtk_iter( parse, &iter );
-   p_next_stream( parse, &iter ); 
+   p_next_stream( parse, &iter );
    if ( iter.token->type == TK_HORZSPACE ) {
       p_next_stream( parse, &iter );
    }
