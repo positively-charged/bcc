@@ -895,6 +895,7 @@ void test_objects_bodies( struct semantic* semantic ) {
 void test_objects_bodies_ns( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
+   semantic->ns = fragment->ns;
    semantic->ns_fragment = fragment;
    semantic->strong_type = ( fragment->ns->parent != NULL );
    list_iter_t i;
@@ -917,6 +918,7 @@ void test_objects_bodies_ns( struct semantic* semantic,
       list_next( &i );
    }
    semantic->ns_fragment = parent_fragment;
+   semantic->ns = parent_fragment->ns;
 }
 
 void check_dup_scripts( struct semantic* semantic ) {
