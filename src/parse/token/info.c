@@ -263,10 +263,10 @@ int p_identify_predef_macro( const char* text ) {
       const char* text;
       int macro;
    } table[] = {
-      { "__line__", PREDEFMACROEXPAN_LINE },
-      { "__file__", PREDEFMACROEXPAN_FILE },
-      { "__time__", PREDEFMACROEXPAN_TIME },
-      { "__date__", PREDEFMACROEXPAN_DATE },
+      { "__LINE__", PREDEFMACROEXPAN_LINE },
+      { "__FILE__", PREDEFMACROEXPAN_FILE },
+      { "__TIME__", PREDEFMACROEXPAN_TIME },
+      { "__DATE__", PREDEFMACROEXPAN_DATE },
       { NULL, PREDEFMACROEXPAN_NONE }
    };
    int i = 0;

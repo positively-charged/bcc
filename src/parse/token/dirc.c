@@ -514,6 +514,7 @@ void init_token( struct token* token, enum tk type, const char* text,
    int length ) {
    token->next = NULL;
    token->text = text;
+   token->modifiable_text = NULL;
    token->type = type;
    token->length = length;
    token->is_id = false;
@@ -875,7 +876,7 @@ void p_confirm_ifdircs_closed( struct parse* parse ) {
 
 void p_define_imported_macro( struct parse* parse ) {
    struct macro* macro = alloc_macro( parse );
-   macro->name = "__imported__";
+   macro->name = "__IMPORTED__";
    add_macro( parse, macro );
 }
 

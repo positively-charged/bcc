@@ -1,3 +1,6 @@
+#include <string.h>
+#include <ctype.h>
+
 #include "phase.h"
 
 static void read_peeked_token( struct parse* parse );
@@ -37,6 +40,9 @@ void read_token( struct parse* parse ) {
          if ( p_expand_macro( parse ) ) {
             goto top;
          }
+         else {
+            goto identifier;
+         }
       }
       else {
          switch ( parse->token->type ) {
@@ -62,6 +68,112 @@ void read_token( struct parse* parse ) {
    else {
       p_read_source( parse, parse->source_token );
       parse->token = parse->source_token;
+   }
+   return;
+
+   identifier:
+   // -----------------------------------------------------------------------
+   {
+      char* text = parse->token->modifiable_text;
+      char last_ch = text[ parse->token->length - 1 ];
+      while ( *text ) {
+         *text = tolower( *text );
+         ++text;
+      }
+      // Type name.
+      if ( parse->token->length >= 2 &&
+         parse->token->text[ parse->token->length - 2 ] == '_' &&
+         last_ch == 'T' ) {
+         parse->token->type = TK_TYPENAME;
+         return;
+      }
+      // Reserved identifier.
+      static const struct {
+         const char* name;
+         enum tk tk;
+      } table[] = {
+         { "assert", TK_ASSERT },
+         { "auto", TK_AUTO },
+         { "bluereturn", TK_BLUE_RETURN },
+         { "bool", TK_BOOL },
+         { "break", TK_BREAK },
+         { "case", TK_CASE },
+         { "clientside", TK_CLIENTSIDE },
+         { "const", TK_CONST },
+         { "continue", TK_CONTINUE },
+         { "createtranslation", TK_PALTRANS },
+         { "death", TK_DEATH },
+         { "default", TK_DEFAULT },
+         { "disconnect", TK_DISCONNECT },
+         { "do", TK_DO },
+         { "else", TK_ELSE },
+         { "enter", TK_ENTER },
+         { "enum", TK_ENUM },
+         { "event", TK_EVENT },
+         { "extern", TK_EXTERN },
+         { "false", TK_FALSE },
+         { "fixed", TK_FIXED },
+         { "for", TK_FOR },
+         { "foreach", TK_FOREACH },
+         { "function", TK_FUNCTION },
+         { "global", TK_GLOBAL },
+         { "goto", TK_GOTO },
+         { "if", TK_IF },
+         { "int", TK_INT },
+         { "libdefine", TK_LIBDEFINE },
+         { "lightning", TK_LIGHTNING },
+         { "memcpy", TK_MEMCPY },
+         { "msgbuild", TK_MSGBUILD },
+         { "namespace", TK_NAMESPACE },
+         { "net", TK_NET },
+         { "null", TK_NULL },
+         { "open", TK_OPEN },
+         { "pickup", TK_PICKUP },
+         { "private", TK_PRIVATE },
+         { "raw", TK_RAW },
+         { "redreturn", TK_RED_RETURN },
+         { "ref", TK_REF },
+         { "respawn", TK_RESPAWN },
+         { "restart", TK_RESTART },
+         { "return", TK_RETURN },
+         { "script", TK_SCRIPT },
+         { "special", TK_SPECIAL },
+         { "static", TK_STATIC },
+         { "str", TK_STR },
+         { "strcpy", TK_STRCPY },
+         { "struct", TK_STRUCT },
+         { "suspend", TK_SUSPEND },
+         { "switch", TK_SWITCH },
+         { "terminate", TK_TERMINATE },
+         { "true", TK_TRUE },
+         { "typedef", TK_TYPEDEF },
+         { "unloading", TK_UNLOADING },
+         { "until", TK_UNTIL },
+         { "upmost", TK_UPMOST },
+         { "using", TK_USING },
+         { "void", TK_VOID },
+         { "while", TK_WHILE },
+         { "whitereturn", TK_WHITE_RETURN },
+         { "world", TK_WORLD },
+         // Terminator.
+         { "\x7F", TK_END }
+      };
+      int left = 0;
+      int right = ARRAY_SIZE( table ) - 1;
+      while ( left <= right ) {
+         int middle = ( left + right ) / 2;
+         int result = strcmp( parse->token->text, table[ middle ].name );
+         if ( result > 0 ) {
+            left = middle + 1;
+         }
+         else if ( result < 0 ) {
+            right = middle - 1;
+         }
+         else {
+            parse->token->type = table[ middle ].tk;
+            return;
+         }
+      }
    }
 }
 

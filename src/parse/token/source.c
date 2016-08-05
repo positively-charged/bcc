@@ -77,74 +77,6 @@ static const struct keyword_entry g_keywords_acs95[] = {
    { "\x7F", TK_END }
 };
 
-static const struct keyword_entry g_keywords_bcs[] = {
-   { "assert", TK_ASSERT },
-   { "auto", TK_AUTO },
-   { "bluereturn", TK_BLUE_RETURN },
-   { "bool", TK_BOOL },
-   { "break", TK_BREAK },
-   { "case", TK_CASE },
-   { "clientside", TK_CLIENTSIDE },
-   { "const", TK_CONST },
-   { "continue", TK_CONTINUE },
-   { "createtranslation", TK_PALTRANS },
-   { "death", TK_DEATH },
-   { "default", TK_DEFAULT },
-   { "disconnect", TK_DISCONNECT },
-   { "do", TK_DO },
-   { "else", TK_ELSE },
-   { "enter", TK_ENTER },
-   { "enum", TK_ENUM },
-   { "event", TK_EVENT },
-   { "extern", TK_EXTERN },
-   { "false", TK_FALSE },
-   { "fixed", TK_FIXED },
-   { "for", TK_FOR },
-   { "foreach", TK_FOREACH },
-   { "function", TK_FUNCTION },
-   { "global", TK_GLOBAL },
-   { "goto", TK_GOTO },
-   { "if", TK_IF },
-   { "int", TK_INT },
-   { "libdefine", TK_LIBDEFINE },
-   { "lightning", TK_LIGHTNING },
-   { "memcpy", TK_MEMCPY },
-   { "msgbuild", TK_MSGBUILD },
-   { "namespace", TK_NAMESPACE },
-   { "net", TK_NET },
-   { "null", TK_NULL },
-   { "open", TK_OPEN },
-   { "pickup", TK_PICKUP },
-   { "private", TK_PRIVATE },
-   { "raw", TK_RAW },
-   { "redreturn", TK_RED_RETURN },
-   { "ref", TK_REF },
-   { "respawn", TK_RESPAWN },
-   { "restart", TK_RESTART },
-   { "return", TK_RETURN },
-   { "script", TK_SCRIPT },
-   { "special", TK_SPECIAL },
-   { "static", TK_STATIC },
-   { "str", TK_STR },
-   { "strcpy", TK_STRCPY },
-   { "struct", TK_STRUCT },
-   { "suspend", TK_SUSPEND },
-   { "switch", TK_SWITCH },
-   { "terminate", TK_TERMINATE },
-   { "true", TK_TRUE },
-   { "typedef", TK_TYPEDEF },
-   { "unloading", TK_UNLOADING },
-   { "until", TK_UNTIL },
-   { "upmost", TK_UPMOST },
-   { "using", TK_USING },
-   { "void", TK_VOID },
-   { "while", TK_WHILE },
-   { "whitereturn", TK_WHITE_RETURN },
-   { "world", TK_WORLD },
-   // Terminator.
-   { "\x7F", TK_END }
-};
-
 #define KEYWORDTABLE_ENTRY( keywords ) \
    keywords, \
    ARRAY_SIZE( keywords ), \
@@ -152,10 +84,8 @@ static const struct keyword_entry g_keywords_bcs[] = {
 
 static struct {
    const struct keyword_table acs95;
-   const struct keyword_table bcs;
 } g_keyword_tables = {
    { KEYWORDTABLE_ENTRY( g_keywords_acs95 ) },
-   { KEYWORDTABLE_ENTRY( g_keywords_bcs ) }
 };
 
 void p_load_main_source( struct parse* parse ) {
@@ -1535,11 +1465,9 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    {
       int length = 0;
-      char last_ch = 0;
       text = temp_text( parse );
       while ( isalnum( ch ) || ch == '_' ) {
-         append_ch( text, tolower( ch ) );
-         last_ch = ch;
+         append_ch( text, ch );
          ch = read_ch( parse );
          ++length;
       }
@@ -1551,41 +1479,7 @@ void read_token( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       is_id = true;
-      // Type name.
-      if ( length >= 2 && text->value[ length - 2 ] == '_' &&
-         last_ch == 'T' ) {
-         tk = TK_TYPENAME;
-         goto state_finish;
-      }
-      const struct keyword_table* table = &g_keyword_tables.bcs;
-      switch ( parse->lang ) {
-      case LANG_ACS95:
-         table = &g_keyword_tables.acs95;
-         break;
-      default:
-         break;
-      }
-      int i = 0;
-      const char* id = text->value;
-      if ( strcmp( id, table->entries[ table->mid ].name ) >= 0 ) {
-         i = table->mid;
-      }
-      while ( true ) {
-         // Identifier.
-         if ( table->entries[ i ].name[ 0 ] > *id ) {
-            tk = TK_ID;
-            break;
-         }
-         // Reserved identifier.
-         else if ( strcmp( table->entries[ i ].name, id ) == 0 ) {
-            tk = table->entries[ i ].tk;
-            text = NULL;
-            break;
-         }
-         else {
-            ++i;
-         }
-      }
+      tk = TK_ID;
       goto state_finish;
    }
 
@@ -1888,11 +1782,13 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    token->type = tk;
    if ( text != NULL ) {
-      token->text = copy_text( parse, text );
+      token->modifiable_text = copy_text( parse, text );
+      token->text = token->modifiable_text;
       token->length = text->length;
    }
    else {
       const struct token_info* info = p_get_token_info( tk );
+      token->modifiable_text = NULL;
       token->text = info->shared_text;
       token->length = ( length > 0 ) ?
          length : info->length;

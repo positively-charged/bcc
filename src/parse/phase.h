@@ -186,6 +186,7 @@ struct token {
    // length of the text are applicable only to a token that is an identifier,
    // a string, a character literal, or any of the numbers. For the rest, the
    // text will be NULL and the length will be zero.
+   char* modifiable_text;
    const char* text;
    struct pos pos;
    enum tk type;
