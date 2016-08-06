@@ -128,7 +128,6 @@ static void read_script_type( struct parse* parse,
    struct script_reading* reading, struct script* script );
 static const char* get_script_article( int type );
 static void read_script_flag( struct parse* parse, struct script* );
-static void enable_script_flag( struct parse* parse, struct script* script );
 static void read_script_body( struct parse* parse, struct script* );
 static void read_name( struct parse* parse, struct dec* );
 static void missing_name( struct parse* parse, struct dec* dec );
@@ -2044,38 +2043,36 @@ void read_script_flag( struct parse* parse, struct script* script ) {
    // In ACS, the flags must appear in a specific order.
    if ( parse->lang == LANG_ACS ) {
       if ( parse->tk == TK_NET ) {
-         enable_script_flag( parse, script );
+         script->flags |= SCRIPT_FLAG_NET;
+         p_read_tk( parse );
       }
       if ( parse->tk == TK_CLIENTSIDE ) {
-         enable_script_flag( parse, script );
+         script->flags |= SCRIPT_FLAG_CLIENTSIDE;
+         p_read_tk( parse );
       }
    }
    else {
-      while (
-         parse->tk == TK_NET ||
-         parse->tk == TK_CLIENTSIDE ) {
-         enable_script_flag( parse, script );
+      while ( parse->tk == TK_ID ) {
+         int flag = SCRIPT_FLAG_NET;
+         // In BCS, script flags are context-sensitive keywords.
+         if ( strcmp( parse->tk_text, "net" ) != 0 ) {
+            if ( strcmp( parse->tk_text, "clientside" ) == 0 ) {
+               flag = SCRIPT_FLAG_CLIENTSIDE;
+            }
+            else {
+               break;
+            }
+         }
+         if ( ! ( script->flags & flag ) ) {
+            script->flags |= flag;
+            p_read_tk( parse );
+         }
+         else {
+            p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+               "duplicate %s script-flag", parse->tk_text );
+            p_bail( parse );
+         }
       }
-   }
-}
-
-void enable_script_flag( struct parse* parse, struct script* script ) {
-   int flag = SCRIPT_FLAG_NET;
-   switch ( parse->tk ) {
-   case TK_CLIENTSIDE:
-      flag = SCRIPT_FLAG_CLIENTSIDE;
-      break;
-   default:
-      p_test_tk( parse, TK_NET );
-   }
-   if ( ! ( script->flags & flag ) ) {
-      script->flags |= flag;
-      p_read_tk( parse );
-   }
-   else {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "duplicate %s script-flag", parse->tk_text );
-      p_bail( parse );
    }
 }
 
