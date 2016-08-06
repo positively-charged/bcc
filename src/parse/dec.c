@@ -263,8 +263,14 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
          }
       }
       else if ( parse->tk == TK_EXTERN ) {
-         dec->external = true;
-         p_read_tk( parse );
+         if ( parse->lib->imported ) {
+            p_skip_semicolon( parse );
+            return;
+         }
+         else {
+            dec->external = true;
+            p_read_tk( parse );
+         }
       }
       if ( parse->tk == TK_FUNCTION ) {
          read_func( parse, dec );
