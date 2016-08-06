@@ -1936,6 +1936,7 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
    case TK_UNLOADING: script->type = SCRIPT_TYPE_UNLOADING; break;
    case TK_RETURN: script->type = SCRIPT_TYPE_RETURN; break;
    case TK_EVENT: script->type = SCRIPT_TYPE_EVENT; break;
+   case TK_KILL: script->type = SCRIPT_TYPE_KILL; break;
    default: break;
    }
    // Correct number of parameters need to be specified for a script type.
@@ -1995,7 +1996,7 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
 }
 
 const char* get_script_article( int type ) {
-   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_EVENT + 1 );
+   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_KILL + 1 );
    switch ( type ) {
    case SCRIPT_TYPE_OPEN:
    case SCRIPT_TYPE_ENTER:

@@ -654,6 +654,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          { "import", TK_IMPORT },
          { "include", TK_INCLUDE },
          { "int", TK_INT },
+         { "kill", TK_KILL },
          { "libdefine", TK_LIBDEFINE },
          { "library", TK_LIBRARY },
          { "lightning", TK_LIGHTNING },

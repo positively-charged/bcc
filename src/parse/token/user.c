@@ -120,6 +120,7 @@ void read_token( struct parse* parse ) {
          { "goto", TK_GOTO },
          { "if", TK_IF },
          { "int", TK_INT },
+         { "kill", TK_KILL },
          { "libdefine", TK_LIBDEFINE },
          { "lightning", TK_LIGHTNING },
          { "memcpy", TK_MEMCPY },

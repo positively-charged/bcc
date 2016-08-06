@@ -168,6 +168,7 @@ enum tk {
    TK_ACSNAMEDEXECUTEWAIT,
    TK_LIT_RADIX,
    TK_TYPENAME,
+   TK_KILL,
 
    TK_TOTAL,
 
