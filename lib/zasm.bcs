@@ -367,6 +367,8 @@
 #mnemonic lspec5ex 381
 #mnemonic lspec5exresult 382
 
+namespace upmost {
+
 // Instruction opcodes.
 enum {
    PCD_NOP,
@@ -888,3 +890,5 @@ enum {
    ACSF_GETTEAMSCORE = 19620,
    ACSF_SETTEAMSCORE
 };
+
+}

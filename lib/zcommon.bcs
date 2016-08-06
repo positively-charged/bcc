@@ -5,12 +5,13 @@
 
 */
 
+#library
+
 #ifndef __IMPORTED__
    #error you must #import this file
 #endif
 
-#library
-#include "zstrong.bcs"
+namespace upmost {
 
 // Constants
 // ==========================================================================
@@ -1545,3 +1546,5 @@ special
 
 // End.
 -100000:__EndOfList__(10);
+
+}
