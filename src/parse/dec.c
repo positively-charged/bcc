@@ -197,7 +197,6 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_ENUM:
       case TK_STRUCT:
       case TK_FUNCTION:
-      case TK_REF:
       case TK_AUTO:
       case TK_TYPEDEF:
       case TK_PRIVATE:

@@ -106,7 +106,6 @@ static const struct {
    { "private", TK_PRIVATE },
    { "raw", TK_RAW },
    { "redreturn", TK_RED_RETURN },
-   { "ref", TK_REF },
    { "respawn", TK_RESPAWN },
    { "restart", TK_RESTART },
    { "return", TK_RETURN },
@@ -409,15 +408,14 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "raw", TKF_KEYWORD ),
       ENTRY( "fixed", TKF_KEYWORD ),
       ENTRY( "assert", TKF_KEYWORD ),
-      ENTRY( "ref", TKF_KEYWORD ),
       ENTRY( "auto", TKF_KEYWORD ),
       ENTRY( "typedef", TKF_KEYWORD ),
       ENTRY( "foreach", TKF_KEYWORD ),
       ENTRY( "private", TKF_KEYWORD ),
       ENTRY( "memcpy", TKF_KEYWORD ),
       ENTRY( "msgbuild", TKF_KEYWORD ),
-      // 120
       ENTRY( "null", TKF_KEYWORD ),
+      // 120
       ENTRY( "special", TKF_KEYWORD ),
       ENTRY( "namespace", TKF_KEYWORD ),
       ENTRY( "upmost", TKF_KEYWORD ),
@@ -427,8 +425,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "libdefine", TKF_KEYWORD ),
       ENTRY( "print", TKF_KEYWORD ),
       ENTRY( "printbold", TKF_KEYWORD ),
-      // 130
       ENTRY( "wadauthor", TKF_KEYWORD ),
+      // 130
       ENTRY( "nowadauthor", TKF_KEYWORD ),
       ENTRY( "nocompact", TKF_KEYWORD ),
       ENTRY( "library", TKF_KEYWORD ),
@@ -438,8 +436,8 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( "log", TKF_KEYWORD ),
       ENTRY( "hudmessage", TKF_KEYWORD ),
       ENTRY( "hudmessagebold", TKF_KEYWORD ),
-      // 140
       ENTRY( "strparam", TKF_KEYWORD ),
+      // 140
       ENTRY( "extern", TKF_KEYWORD ),
       ENTRY( "acs_executewait", TKF_KEYWORD ),
       ENTRY( "acs_namedexecutewait", TKF_KEYWORD ),
@@ -571,7 +569,6 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_RAW, "`raw`" },
       { TK_FIXED, "`fixed`" },
       { TK_ASSERT, "`assert`" },
-      { TK_REF, "`ref`" },
       { TK_AUTO, "`auto`" },
       { TK_TYPEDEF, "`typedef`" },
       { TK_FOREACH, "`foreach`" },
@@ -604,7 +601,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
       { TK_LIT_RADIX, "radix number" },
       { TK_KILL, "`kill`" } };
-   STATIC_ASSERT( TK_TOTAL == 147 );
+   STATIC_ASSERT( TK_TOTAL == 146 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
