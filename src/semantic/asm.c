@@ -158,7 +158,11 @@ void test_label_arg( struct semantic* semantic, struct test* test,
 
 void test_var_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
-   struct object* object = s_search_object( semantic, arg->value.id );
+   struct object_search search;
+   s_init_object_search( &search, OBJECTSEARCH_NORMAL, &arg->pos,
+      arg->value.id );
+   s_search_object( semantic, &search );
+   struct object* object = search.object;
    if ( ! object ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "`%s` not found", arg->value.id );
@@ -231,7 +235,11 @@ void test_var_arg( struct semantic* semantic, struct test* test,
 
 void test_func_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
-   struct object* object = s_search_object( semantic, arg->value.id );
+   struct object_search search;
+   s_init_object_search( &search, OBJECTSEARCH_NORMAL, &arg->pos,
+      arg->value.id );
+   s_search_object( semantic, &search );
+   struct object* object = search.object;
    if ( ! object ) {
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "`%s` not found", arg->value.id );

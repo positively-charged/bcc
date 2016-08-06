@@ -52,8 +52,8 @@ static void import_item( struct semantic* semantic, struct ns* ns,
    struct using_item* item );
 static struct object* follow_path( struct semantic* semantic,
    struct path* path, bool only_ns, bool get_type );
-static struct object* search_object( struct semantic* semantic,
-   const char* object_name, bool get_type );
+static void search_linked_object( struct semantic* semantic,
+   struct object_search* search );
 static struct object* get_nsobject( struct ns* ns, const char* object_name,
    bool get_type );
 static void test_objects( struct semantic* semantic );
@@ -683,12 +683,28 @@ struct object* follow_path( struct semantic* semantic, struct path* path,
    }
    while ( path ) {
       if ( get_type && ! path->next ) {
-         object = ns ? s_get_nstypeobject( ns, path->text ) :
-            s_search_type_object( semantic, path->text );
+         if ( ns ) {
+            object = s_get_nstypeobject( ns, path->text );
+         }
+         else {
+            struct object_search search;
+            s_init_object_search( &search, OBJECTSEARCH_STRUCT, &path->pos,
+               path->text );
+            s_search_object( semantic, &search );
+            object = search.object;
+         }
       }
       else {
-         object = ns ? s_get_nsobject( ns, path->text ) :
-            s_search_object( semantic, path->text );
+         if ( ns ) {
+            object = s_get_nsobject( ns, path->text );
+         }
+         else {
+            struct object_search search;
+            s_init_object_search( &search, OBJECTSEARCH_NORMAL, &path->pos,
+               path->text );
+            s_search_object( semantic, &search );
+            object = search.object;
+         }
          if ( ! object ) {
             s_diag( semantic, DIAG_POS_ERR, &path->pos,
                "`%s` not found", path->text );
@@ -715,49 +731,90 @@ struct path* s_last_path_part( struct path* path ) {
    return path;
 }
 
-struct object* s_search_object( struct semantic* semantic,
-   const char* object_name ) {
-   return search_object( semantic, object_name, false );
+void s_init_object_search( struct object_search* search, int type,
+   struct pos* pos, const char* name ) {
+   search->ns = NULL;
+   search->name = name;
+   search->pos = pos;
+   search->object = NULL;
+   search->type = type;
 }
 
-struct object* s_search_type_object( struct semantic* semantic,
-   const char* object_name ) {
-   return search_object( semantic, object_name, true );
-}
-
-struct object* search_object( struct semantic* semantic,
-   const char* object_name, bool get_type ) {
-   struct object* object = NULL;
-   struct ns* ns = semantic->ns;
-   while ( ns ) {
+void s_search_object( struct semantic* semantic,
+   struct object_search* search ) {
+   search->ns = semantic->ns;
+   while ( search->ns ) {
       // Search in the namespace.
-      struct name* name = t_extend_name( get_type ?
-         ns->body_types : ns->body, object_name );
+      struct name* name = t_extend_name( (
+         search->type == OBJECTSEARCH_STRUCT ||
+         search->type == OBJECTSEARCH_ENUM ) ?
+         search->ns->body_types : search->ns->body, search->name );
       if ( name->object ) {
-         object = name->object;
+         search->object = name->object;
          break;
       }
       // Search in any of the linked namespaces.
-      // NOTE: The linked namespaces and the parent namespaces of each linked
-      // namespace are not searched.
-      struct ns_link* link = ns->links;
-      while ( link ) {
-         object = get_type ?
-            s_get_nstypeobject( link->ns, object_name ) :
-            s_get_nsobject( link->ns, object_name );
-         if ( object ) {
+      if ( search->ns->links ) {
+         search_linked_object( semantic, search );
+         if ( search->object ) {
             break;
+         }
+      }
+      // Search in the parent namespace.
+      search->ns = search->ns->parent;
+   }
+   if ( search->object && search->object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) search->object;
+      search->object = alias->target;
+   }
+}
+
+void search_linked_object( struct semantic* semantic,
+   struct object_search* search ) {
+   struct ns_link* link = search->ns->links;
+   while ( link && ! search->object ) {
+      search->object = (
+         search->type == OBJECTSEARCH_STRUCT ||
+         search->type == OBJECTSEARCH_ENUM ) ?
+         s_get_nstypeobject( link->ns, search->name ) :
+         s_get_nsobject( link->ns, search->name );
+      link = link->next;
+   }
+   // Make sure no other object with the same name can be found.]
+   while ( link ) {
+      struct object* object = (
+         search->type == OBJECTSEARCH_STRUCT ||
+         search->type == OBJECTSEARCH_ENUM ) ?
+         s_get_nstypeobject( link->ns, search->name ) :
+         s_get_nsobject( link->ns, search->name );
+      if ( object ) {
+         break;
+      }
+      link = link->next;
+   }
+   if ( link ) {
+      const char* prefix =
+         search->type == OBJECTSEARCH_STRUCT ? "struct " :
+         search->type == OBJECTSEARCH_ENUM ? "enum " : "";
+      s_diag( semantic, DIAG_POS_ERR, search->pos,
+         "multiple instances of %s`%s` found (you must choose one)",
+         prefix, search->name );
+      s_diag( semantic, DIAG_POS, &search->object->pos,
+         "%s`%s` found here", prefix, search->name );
+      while ( link ) {
+         struct object* object = (
+            search->type == OBJECTSEARCH_STRUCT ||
+            search->type == OBJECTSEARCH_ENUM ) ?
+            s_get_nstypeobject( link->ns, search->name ) :
+            s_get_nsobject( link->ns, search->name );
+         if ( object ) {
+            s_diag( semantic, DIAG_POS, &object->pos,
+               "another %s`%s` found here", prefix, search->name );
          }
          link = link->next;
       }
-      // Search in the parent namespace.
-      ns = ns->parent;
+      s_bail( semantic );
    }
-   if ( object && object->node.type == NODE_ALIAS ) {
-      struct alias* alias = ( struct alias* ) object;
-      return alias->target;
-   }
-   return object;
 }
 
 struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {

@@ -3,6 +3,18 @@
 
 #include "task.h"
 
+struct object_search {
+   struct ns* ns;
+   const char* name;
+   struct pos* pos;
+   struct object* object;
+   enum {
+      OBJECTSEARCH_NORMAL,
+      OBJECTSEARCH_STRUCT,
+      OBJECTSEARCH_ENUM,
+   } type;
+};
+
 struct type_info {
    struct ref* ref;
    struct structure* structure;
@@ -150,10 +162,10 @@ bool s_is_value_type( struct type_info* type );
 bool s_is_primitive_type( struct type_info* type );
 void s_iterate_type( struct semantic* semantic, struct type_info* type,
    struct type_iter* iter );
-struct object* s_search_object( struct semantic* semantic,
-   const char* object_name );
-struct object* s_search_type_object( struct semantic* semantic,
-   const char* object_name );
+void s_init_object_search( struct object_search* search, int type,
+   struct pos* pos, const char* name );
+void s_search_object( struct semantic* semantic,
+   struct object_search* search );
 struct object* s_follow_path( struct semantic* semantic, struct path* path );
 struct object* s_follow_type_path( struct semantic* semantic,
    struct path* path );

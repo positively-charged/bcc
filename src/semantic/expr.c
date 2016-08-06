@@ -2019,7 +2019,11 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
       object = name->object;
    }
    if ( ! object ) {
-      object = s_search_object( semantic, usage->text );
+      struct object_search search;
+      s_init_object_search( &search, OBJECTSEARCH_NORMAL, &usage->pos,
+         usage->text );
+      s_search_object( semantic, &search );
+      object = search.object;
    }
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
