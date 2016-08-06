@@ -1922,7 +1922,39 @@ void read_script_param( struct parse* parse, struct script_reading* reading ) {
 
 void read_script_type( struct parse* parse, struct script_reading* reading,
    struct script* script ) {
-   switch ( parse->tk ) {
+   enum tk tk = parse->tk;
+   // In BCS, script types are context-sensitive keywords.
+   if ( parse->lang == LANG_BCS && parse->tk == TK_ID ) {
+      // The keywords are ordered based on potential usage, because a linear
+      // search is used to find the keyword.
+      static const struct {
+         const char* text;
+         enum tk tk;
+      } table[] = {
+         { "open", TK_OPEN },
+         { "enter", TK_ENTER },
+         { "respawn", TK_RESPAWN },
+         { "disconnect", TK_DISCONNECT },
+         { "death", TK_DEATH },
+         { "unloading", TK_UNLOADING },
+         { "event", TK_EVENT },
+         { "kill", TK_KILL },
+         { "lightning", TK_LIGHTNING },
+         { "pickup", TK_PICKUP },
+         { "bluereturn", TK_BLUE_RETURN },
+         { "redreturn", TK_RED_RETURN },
+         { "whitereturn", TK_WHITE_RETURN },
+      };
+      int i = 0;
+      while ( i < ARRAY_SIZE( table ) ) {
+         if ( strcmp( parse->tk_text, table[ i ].text ) == 0 ) {
+            tk = table[ i ].tk;
+            break;
+         }
+         ++i;
+      }
+   }
+   switch ( tk ) {
    case TK_OPEN: script->type = SCRIPT_TYPE_OPEN; break;
    case TK_RESPAWN: script->type = SCRIPT_TYPE_RESPAWN; break;
    case TK_DEATH: script->type = SCRIPT_TYPE_DEATH; break;
