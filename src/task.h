@@ -979,7 +979,8 @@ struct ns {
    struct ns* parent;
    struct name* name;
    struct name* body;
-   struct name* body_types;
+   struct name* body_structs;
+   struct name* body_enums;
    struct ns_link* links;
    struct list objects;
    struct list fragments;

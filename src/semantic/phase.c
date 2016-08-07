@@ -50,12 +50,8 @@ static void import_selection( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc );
 static void import_item( struct semantic* semantic, struct ns* ns,
    struct using_item* item );
-static struct object* follow_path( struct semantic* semantic,
-   struct path* path, bool only_ns, bool get_type );
 static void search_linked_object( struct semantic* semantic,
    struct object_search* search );
-static struct object* get_nsobject( struct ns* ns, const char* object_name,
-   bool get_type );
 static void test_objects( struct semantic* semantic );
 static void test_all( struct semantic* semantic );
 static void test_namespace( struct semantic* semantic,
@@ -541,14 +537,15 @@ void perform_namespace_usings( struct semantic* semantic,
 }
 
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
-   struct ns* ns = ( struct ns* ) follow_path( semantic, dirc->path, true,
-      false );
+   struct follower follower;
+   s_init_follower( &follower, dirc->path, NODE_NAMESPACE );
+   s_follow_path( semantic, &follower );
    switch ( dirc->type ) {
    case USING_ALL:
-      import_all( semantic, ns, dirc );
+      import_all( semantic, follower.result.ns, dirc );
       break;
    case USING_SELECTION:
-      import_selection( semantic, ns, dirc );
+      import_selection( semantic, follower.result.ns, dirc );
       break;
    default:
       UNREACHABLE()
@@ -598,20 +595,15 @@ void import_item( struct semantic* semantic, struct ns* ns,
    struct object* object;
    switch ( item->type ) {
    case USINGITEM_STRUCT:
-      object = s_get_nstypeobject( ns, item->name );
+      object = s_get_ns_object( ns, item->name, NODE_STRUCTURE );
       if ( ! object ) {
          s_diag( semantic, DIAG_POS_ERR, &item->pos,
             "struct `%s` not found", item->name );
          s_bail( semantic );
       }
-      if ( object->node.type != NODE_STRUCTURE ) {
-         s_diag( semantic, DIAG_POS_ERR, &item->pos,
-            "`%s` not a struct", item->name );
-         s_bail( semantic );
-      }
       break;
    case USINGITEM_ENUM:
-      object = s_get_nstypeobject( ns, item->name );
+      object = s_get_ns_object( ns, item->name, NODE_ENUMERATION );
       if ( ! object ) {
          s_diag( semantic, DIAG_POS_ERR, &item->pos,
             "enum `%s` not found", item->name );
@@ -624,22 +616,25 @@ void import_item( struct semantic* semantic, struct ns* ns,
       }
       break;
    default:
-      object = s_get_nsobject( ns, item->name );
+      object = s_get_ns_object( ns, item->name, NODE_NONE );
       if ( ! object ) {
          s_unknown_ns_object( semantic, ns, item->name, &item->pos );
          s_bail( semantic );
       }
    }
    // Bind object to name in current namespace.
-   struct name* name;
+   struct name* body;
    switch ( item->type ) {
    case USINGITEM_STRUCT:
+      body = semantic->ns->body_structs;
+      break;
    case USINGITEM_ENUM:
-      name = t_extend_name( semantic->ns->body_types, item->name );
+      body = semantic->ns->body_enums;
       break;
    default:
-      name = t_extend_name( semantic->ns->body, item->name );
+      body = semantic->ns->body;
    }
+   struct name* name = t_extend_name( body, item->name );
    // Duplicate imports are allowed as long as both names refer to the same
    // object.
    if ( name->object && name->object->node.type == NODE_ALIAS ) {
@@ -663,81 +658,112 @@ void import_item( struct semantic* semantic, struct ns* ns,
    item->alias = alias;
 }
 
-struct object* s_follow_path( struct semantic* semantic, struct path* path ) {
-   return follow_path( semantic, path, false, false );
+// Requested node must be one of the following:
+// - NODE_STRUCTURE
+// - NODE_ENUMERATION
+// - NODE_NAMESPACE
+// - NODE_NONE (Any other object)
+void s_init_follower( struct follower* follower, struct path* path,
+   int requested_node ) {
+   follower->path = path;
+   follower->result.object = NULL;
+   follower->requested_node = requested_node;
 }
 
-struct object* s_follow_type_path( struct semantic* semantic,
-   struct path* path ) {
-   return follow_path( semantic, path, false, true );
-}
-
-struct object* follow_path( struct semantic* semantic, struct path* path,
-   bool only_ns, bool get_type ) {
-   struct ns* ns = NULL;
+void s_follow_path( struct semantic* semantic, struct follower* follower ) {
    struct object* object = NULL;
-   if ( path->upmost ) {
-      ns = semantic->task->upmost_ns;
-      object = &ns->object;
-      path = path->next;
-   }
-   while ( path ) {
-      if ( get_type && ! path->next ) {
-         if ( ns ) {
-            object = s_get_nstypeobject( ns, path->text );
-         }
-         else {
-            struct object_search search;
-            s_init_object_search( &search, OBJECTSEARCH_STRUCT, &path->pos,
-               path->text );
-            s_search_object( semantic, &search );
-            object = search.object;
-         }
+   struct path* path = follower->path;
+   // Multi-part path.
+   if ( path->next ) {
+      // Head.
+      struct ns* ns = NULL;
+      if ( path->upmost ) {
+         ns = semantic->task->upmost_ns;
+         path = path->next;
       }
       else {
-         if ( ns ) {
-            object = s_get_nsobject( ns, path->text );
-         }
-         else {
-            struct object_search search;
-            s_init_object_search( &search, OBJECTSEARCH_NORMAL, &path->pos,
-               path->text );
-            s_search_object( semantic, &search );
-            object = search.object;
-         }
+         struct object_search search;
+         s_init_object_search( &search, NODE_NONE, &path->pos, path->text );
+         s_search_object( semantic, &search );
+         object = search.object;
          if ( ! object ) {
             s_diag( semantic, DIAG_POS_ERR, &path->pos,
                "`%s` not found", path->text );
             s_bail( semantic );
          }
-         if ( path->next || only_ns ) {
-            if ( object->node.type != NODE_NAMESPACE ) {
-               s_diag( semantic, DIAG_POS_ERR, &path->pos,
-                  "`%s` not a namespace", path->text );
-               s_bail( semantic );
-            }
-            ns = ( struct ns* ) object;
+         if ( object->node.type != NODE_NAMESPACE ) {
+            s_diag( semantic, DIAG_POS_ERR, &path->pos,
+               "`%s` not a namespace", path->text );
+            s_bail( semantic );
          }
+         ns = ( struct ns* ) object;
+         path = path->next;
       }
-      path = path->next;
+      // Middle.
+      while ( path->next ) {
+         object = s_get_ns_object( ns, path->text, NODE_NONE );
+         if ( ! object ) {
+            s_diag( semantic, DIAG_POS_ERR, &path->pos,
+               "`%s` not found", path->text );
+            s_bail( semantic );
+         }
+         if ( object->node.type != NODE_NAMESPACE ) {
+            s_diag( semantic, DIAG_POS_ERR, &path->pos,
+               "`%s` not a namespace", path->text );
+            s_bail( semantic );
+         }
+         ns = ( struct ns* ) object;
+         path = path->next;
+      }
+      // Tail.
+      object = s_get_ns_object( ns, path->text, follower->requested_node );
    }
-   return object;
+   // Single-part path.
+   else {
+      if ( path->upmost ) {
+         object = &semantic->task->upmost_ns->object;
+      }
+      else {
+         struct object_search search;
+         s_init_object_search( &search, follower->requested_node, &path->pos,
+            path->text );
+         s_search_object( semantic, &search );
+         object = search.object;
+      }
+   }
+   // Done.
+   if ( ! object ) {
+      const char* prefix;
+      switch ( follower->requested_node ) {
+      case NODE_STRUCTURE:
+         prefix = "struct ";
+         break;
+      case NODE_ENUMERATION:
+         prefix = "enum ";
+      default:
+         prefix = "";
+      }
+      s_diag( semantic, DIAG_POS_ERR, &path->pos,
+         "%s`%s` not found", prefix, path->text );
+      s_bail( semantic );
+   }
+   if ( follower->requested_node == NODE_NAMESPACE &&
+      object->node.type != NODE_NAMESPACE ) {
+      s_diag( semantic, DIAG_POS_ERR, &path->pos,
+         "`%s` not a namespace", path->text );
+      s_bail( semantic );
+   }
+   follower->result.object = object;
+   follower->path = path;
 }
 
-struct path* s_last_path_part( struct path* path ) {
-   while ( path->next ) {
-      path = path->next;
-   }
-   return path;
-}
-
-void s_init_object_search( struct object_search* search, int type,
+void s_init_object_search( struct object_search* search, int requested_node,
    struct pos* pos, const char* name ) {
    search->ns = NULL;
    search->name = name;
    search->pos = pos;
    search->object = NULL;
-   search->type = type;
+   search->requested_node = requested_node;
 }
 
 void s_search_object( struct semantic* semantic,
@@ -745,10 +771,18 @@ void s_search_object( struct semantic* semantic,
    search->ns = semantic->ns;
    while ( search->ns ) {
       // Search in the namespace.
-      struct name* name = t_extend_name( (
-         search->type == OBJECTSEARCH_STRUCT ||
-         search->type == OBJECTSEARCH_ENUM ) ?
-         search->ns->body_types : search->ns->body, search->name );
+      struct name* body;
+      switch ( search->requested_node ) {
+      case NODE_STRUCTURE:
+         body = search->ns->body_structs;
+         break;
+      case NODE_ENUMERATION:
+         body = search->ns->body_enums;
+         break;
+      default:
+         body = search->ns->body;
+      }
+      struct name* name = t_extend_name( body, search->name );
       if ( name->object ) {
          search->object = name->object;
          break;
@@ -773,40 +807,35 @@ void search_linked_object( struct semantic* semantic,
    struct object_search* search ) {
    struct ns_link* link = search->ns->links;
    while ( link && ! search->object ) {
-      search->object = (
-         search->type == OBJECTSEARCH_STRUCT ||
-         search->type == OBJECTSEARCH_ENUM ) ?
-         s_get_nstypeobject( link->ns, search->name ) :
-         s_get_nsobject( link->ns, search->name );
+      search->object = s_get_ns_object( link->ns, search->name,
+         search->requested_node );
       link = link->next;
    }
-   // Make sure no other object with the same name can be found.]
-   while ( link ) {
-      struct object* object = (
-         search->type == OBJECTSEARCH_STRUCT ||
-         search->type == OBJECTSEARCH_ENUM ) ?
-         s_get_nstypeobject( link->ns, search->name ) :
-         s_get_nsobject( link->ns, search->name );
-      if ( object ) {
-         break;
-      }
+   // Make sure no other object with the same name can be found.
+   while ( link && ! s_get_ns_object( link->ns, search->name,
+      search->requested_node ) ) {
       link = link->next;
    }
    if ( link ) {
-      const char* prefix =
-         search->type == OBJECTSEARCH_STRUCT ? "struct " :
-         search->type == OBJECTSEARCH_ENUM ? "enum " : "";
+      const char* prefix;
+      switch ( search->requested_node ) {
+      case NODE_STRUCTURE:
+         prefix = "struct ";
+         break;
+      case NODE_ENUMERATION:
+         prefix = "enum ";
+         break;
+      default:
+         prefix = "";
+      }
       s_diag( semantic, DIAG_POS_ERR, search->pos,
          "multiple instances of %s`%s` found (you must choose one)",
          prefix, search->name );
       s_diag( semantic, DIAG_POS, &search->object->pos,
          "%s`%s` found here", prefix, search->name );
       while ( link ) {
-         struct object* object = (
-            search->type == OBJECTSEARCH_STRUCT ||
-            search->type == OBJECTSEARCH_ENUM ) ?
-            s_get_nstypeobject( link->ns, search->name ) :
-            s_get_nsobject( link->ns, search->name );
+         struct object* object = s_get_ns_object( link->ns, search->name,
+            search->requested_node );
          if ( object ) {
             s_diag( semantic, DIAG_POS, &object->pos,
                "another %s`%s` found here", prefix, search->name );
@@ -817,19 +846,21 @@ void search_linked_object( struct semantic* semantic,
    }
 }
 
-struct object* s_get_nsobject( struct ns* ns, const char* object_name ) {
-   return get_nsobject( ns, object_name, false );
-}
-
-struct object* s_get_nstypeobject( struct ns* ns, const char* object_name ) {
-   return get_nsobject( ns, object_name, true );
-}
-
 // Retrieves an object from a namespace.
-struct object* get_nsobject( struct ns* ns, const char* object_name,
-   bool get_type ) {
-   struct name* name = t_extend_name( get_type ? ns->body_types : ns->body,
-      object_name );
+struct object* s_get_ns_object( struct ns* ns, const char* object_name,
+   int requested_node ) {
+   struct name* body;
+   switch ( requested_node ) {
+   case NODE_STRUCTURE:
+      body = ns->body_structs;
+      break;
+   case NODE_ENUMERATION:
+      body = ns->body_enums;
+      break;
+   default:
+      body = ns->body;
+   }
+   struct name* name = t_extend_name( body, object_name );
    if ( name->object ) {
       struct object* object = name->object;
       while ( object->next_scope ) {

@@ -3,16 +3,23 @@
 
 #include "task.h"
 
+struct follower {
+   struct path* path;
+   union {
+      struct object* object;
+      struct enumeration* enumeration;
+      struct structure* structure;
+      struct ns* ns;
+   } result;
+   int requested_node;
+};
+
 struct object_search {
    struct ns* ns;
    const char* name;
    struct pos* pos;
    struct object* object;
-   enum {
-      OBJECTSEARCH_NORMAL,
-      OBJECTSEARCH_STRUCT,
-      OBJECTSEARCH_ENUM,
-   } type;
+   int requested_node;
 };
 
 struct type_info {
@@ -162,13 +169,13 @@ bool s_is_value_type( struct type_info* type );
 bool s_is_primitive_type( struct type_info* type );
 void s_iterate_type( struct semantic* semantic, struct type_info* type,
    struct type_iter* iter );
-void s_init_object_search( struct object_search* search, int type,
+void s_init_object_search( struct object_search* search, int requested_node,
    struct pos* pos, const char* name );
 void s_search_object( struct semantic* semantic,
    struct object_search* search );
-struct object* s_follow_path( struct semantic* semantic, struct path* path );
-struct object* s_follow_type_path( struct semantic* semantic,
-   struct path* path );
+void s_init_follower( struct follower* follower, struct path* path,
+   int requested_node );
+void s_follow_path( struct semantic* semantic, struct follower* follower );
 struct path* s_last_path_part( struct path* path );
 void s_perform_using( struct semantic* semantic, struct using_dirc* dirc );
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
@@ -187,8 +194,8 @@ void s_type_mismatch( struct semantic* semantic, const char* label_a,
    struct pos* pos );
 void s_test_nested_func( struct semantic* semantic, struct func* func );
 int s_spec( struct semantic* semantic, int spec );
-struct object* s_get_nsobject( struct ns* ns, const char* object_name );
-struct object* s_get_nstypeobject( struct ns* ns, const char* object_name );
+struct object* s_get_ns_object( struct ns* ns, const char* object_name,
+   int requested_node );
 bool s_func_scope_forced( struct semantic* semantic );
 bool s_is_enumerator( struct type_info* type );
 

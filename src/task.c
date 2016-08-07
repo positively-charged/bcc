@@ -83,7 +83,8 @@ struct ns* t_alloc_ns( struct name* name ) {
    ns->parent = NULL;
    ns->name = name;
    ns->body = t_extend_name( name, "." );
-   ns->body_types = t_extend_name( name, ".!t." );
+   ns->body_structs = t_extend_name( name, ".!s." );
+   ns->body_enums = t_extend_name( name, ".!e." );
    ns->links = NULL;
    list_init( &ns->fragments );
    ns->defined = false;

@@ -159,8 +159,7 @@ void test_label_arg( struct semantic* semantic, struct test* test,
 void test_var_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    struct object_search search;
-   s_init_object_search( &search, OBJECTSEARCH_NORMAL, &arg->pos,
-      arg->value.id );
+   s_init_object_search( &search, NODE_NONE, &arg->pos, arg->value.id );
    s_search_object( semantic, &search );
    struct object* object = search.object;
    if ( ! object ) {
@@ -236,8 +235,7 @@ void test_var_arg( struct semantic* semantic, struct test* test,
 void test_func_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    struct object_search search;
-   s_init_object_search( &search, OBJECTSEARCH_NORMAL, &arg->pos,
-      arg->value.id );
+   s_init_object_search( &search, NODE_NONE, &arg->pos, arg->value.id );
    s_search_object( semantic, &search );
    struct object* object = search.object;
    if ( ! object ) {

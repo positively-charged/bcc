@@ -340,7 +340,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
 
 void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
    if ( parse->tk == TK_ID ) {
-      enumeration->name = t_extend_name( parse->ns->body_types,
+      enumeration->name = t_extend_name( parse->ns->body_enums,
          parse->tk_text );
       enumeration->body = t_extend_name( enumeration->name, "." );
       enumeration->object.pos = parse->tk_pos;
@@ -478,7 +478,8 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
 
 void read_struct_name( struct parse* parse, struct structure* structure ) {
    if ( parse->tk == TK_ID ) {
-      structure->name = t_extend_name( parse->ns->body_types, parse->tk_text );
+      structure->name = t_extend_name( parse->ns->body_structs,
+         parse->tk_text );
       structure->object.pos = parse->tk_pos;
       p_read_tk( parse );
    }

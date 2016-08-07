@@ -554,47 +554,24 @@ void init_name_spec_test( struct name_spec_test* test, struct path* path,
 
 void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
    if ( test->spec == SPEC_ENUM ) {
-      struct object* object = s_follow_type_path( semantic, test->path );
-      if ( ! object ) {
-         struct path* path = s_last_path_part( test->path );
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "enum `%s` not found", path->text );
-         s_bail( semantic );
-      }
-      if ( object->node.type != NODE_ENUMERATION ) {
-         struct path* path = s_last_path_part( test->path );
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "`%s` not an enumeration", path->text );
-         s_bail( semantic );
-      }
-      test->enumeration = ( struct enumeration* ) object;
+      struct follower follower;
+      s_init_follower( &follower, test->path, NODE_ENUMERATION );
+      s_follow_path( semantic, &follower );
+      test->enumeration = follower.result.enumeration;
       test->spec = SPEC_ENUM;
    }
    else if ( test->spec == SPEC_STRUCT ) {
-      struct object* object = s_follow_type_path( semantic, test->path );
-      if ( ! object ) {
-         struct path* path = s_last_path_part( test->path );
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "struct `%s` not found", path->text );
-         s_bail( semantic );
-      }
-      if ( object->node.type != NODE_STRUCTURE ) {
-         struct path* path = s_last_path_part( test->path );
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "`%s` not a structure", path->text );
-         s_bail( semantic );
-      }
-      test->structure = ( struct structure* ) object;
+      struct follower follower;
+      s_init_follower( &follower, test->path, NODE_STRUCTURE );
+      s_follow_path( semantic, &follower );
+      test->structure = follower.result.structure;
       test->spec = SPEC_STRUCT;
    }
    else {
-      struct object* object = s_follow_path( semantic, test->path );
-      if ( ! object ) {
-         struct path* path = s_last_path_part( test->path );
-         s_diag( semantic, DIAG_POS_ERR, &path->pos,
-            "`%s` not found", path->text );
-         s_bail( semantic );
-      }
+      struct follower follower;
+      s_init_follower( &follower, test->path, NODE_NONE );
+      s_follow_path( semantic, &follower );
+      struct object* object = follower.result.object;
       if ( object->node.type == NODE_TYPE_ALIAS ) {
          merge_type( semantic, test, ( struct type_alias* ) object );
       }
@@ -609,6 +586,13 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
          s_bail( semantic );
       }
    }
+}
+
+struct path* s_last_path_part( struct path* path ) {
+   while ( path->next ) {
+      path = path->next;
+   }
+   return path;
 }
 
 void merge_type( struct semantic* semantic, struct name_spec_test* test,
