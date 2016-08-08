@@ -314,12 +314,6 @@ int c_total_param_size( struct func* func ) {
       size += param->size;
       param = param->next;
    }
-   // In functions with optional parameters, a hidden parameter used to store
-   // the number of arguments passed is found after the last function
-   // parameter.
-   if ( func->min_param < func->max_param ) {
-      ++size;
-   }
    return size;
 }
 

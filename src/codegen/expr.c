@@ -160,6 +160,8 @@ static void call_nested_user_func( struct codegen* codegen,
 static void call_user_func( struct codegen* codegen, struct result* result,
    struct call* call );
 static void write_call_args( struct codegen* codegen, struct call* call );
+static void push_arg( struct codegen* codegen, struct param* param,
+   struct expr* expr );
 static void set_user_func_call_result( struct codegen* codegen,
    struct call* call, struct result* result );
 static void visit_sample_call( struct codegen* codegen, struct result* result,
@@ -1619,39 +1621,39 @@ void call_user_func( struct codegen* codegen, struct result* result,
 }
 
 void write_call_args( struct codegen* codegen, struct call* call ) {
+   struct param* param = call->func->params;
+   // Push arguments.
    list_iter_t i;
    list_iter_init( &i, &call->args );
-   struct param* param = call->func->params;
    while ( ! list_end( &i ) ) {
-      struct expr* expr = list_data( &i );
-      struct result arg;
-      init_result( &arg, true );
-      arg.push_func = ( param->ref && param->ref->type == REF_FUNCTION );
-      visit_operand( codegen, &arg, expr->root );
-      if ( arg.dim ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, arg.diminfo_start );
-      }
-      else if ( arg.ref && arg.ref->type == REF_ARRAY ) {
-         c_push_dimtrack( codegen );
-      }
-      else if ( arg.null ) {
-         // Dimension information.
-         if ( param->ref && param->ref->type == REF_ARRAY ) {
-            c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-         }
-      }
+      push_arg( codegen, param, list_data( &i ) );
+      param = param->next;
       list_next( &i );
-      param = param->next;
    }
-   // Default arguments.
+   // Push default arguments.
    while ( param ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      push_arg( codegen, param, param->default_value );
       param = param->next;
    }
-   // Number of real arguments passed, for a function with default
-   // parameters.
-   if ( call->func->min_param != call->func->max_param ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, list_size( &call->args ) );
+}
+
+void push_arg( struct codegen* codegen, struct param* param,
+   struct expr* expr ) {
+   struct result arg;
+   init_result( &arg, true );
+   arg.push_func = ( param->ref && param->ref->type == REF_FUNCTION );
+   visit_operand( codegen, &arg, expr->root );
+   if ( arg.dim ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, arg.diminfo_start );
+   }
+   else if ( arg.ref && arg.ref->type == REF_ARRAY ) {
+      c_push_dimtrack( codegen );
+   }
+   else if ( arg.null ) {
+      // Dimension information.
+      if ( param->ref && param->ref->type == REF_ARRAY ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      }
    }
 }
 

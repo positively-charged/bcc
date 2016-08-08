@@ -30,11 +30,6 @@ static void write_string_initz( struct codegen* codegen, struct var* var,
 static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size );
 static void write_multi_initz_acs( struct codegen* codegen, struct var* var );
-static void add_default_params( struct codegen* codegen, struct func* func,
-    int count_param, bool reset_count_param );
-static void write_default_init( struct codegen* codegen, struct func* func,
-   struct param* start, struct param* end, int count_param );
-static bool zero_default_value( struct param* param );
 static void assign_nested_call_ids( struct codegen* codegen,
    struct func* nested_funcs );
 void init_nestedfunc_writing( struct nestedfunc_writing* writing,
@@ -148,7 +143,6 @@ void write_func( struct codegen* codegen, struct func* func ) {
    }
    alloc_param_indexes( &record, func->params );
    alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
-   add_default_params( codegen, func, record.count_param, true );
    c_write_block( codegen, impl->body );
    c_pcd( codegen, PCD_RETURNVOID );
    impl->size = record.size;
@@ -168,25 +162,15 @@ void init_func_record( struct func_record* record, struct func* func ) {
    record->start_index = 0;
    record->array_index = 0;
    record->size = 0;
-   record->count_param = 0;
    record->nested_func = false;
 }
 
 void alloc_param_indexes( struct func_record* func, struct param* param ) {
-   bool default_value_used = false;
    while ( param ) {
       param->index = func->start_index;
       func->start_index += param->size;
       func->size += param->size;
-      if ( param->default_value ) {
-         default_value_used = true;
-      }
       param = param->next;
-   }
-   if ( default_value_used ) {
-      func->count_param = func->start_index;
-      ++func->start_index;
-      ++func->size;
    }
 }
 
@@ -484,71 +468,6 @@ void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
    }
 }
 
-// Implementation detail: a hidden parameter is used to store the number of
-// arguments passed to the function. This parameter is found after the last
-// visible parameter. The index of the parameter is @count_param.
-void add_default_params( struct codegen* codegen, struct func* func,
-   int count_param, bool reset_count_param ) {
-   // Find first default parameter.
-   struct param* param = func->params;
-   while ( param && ! param->default_value ) {
-      param = param->next;
-   }
-   if ( ! param ) {
-      return;
-   }
-   // Find the minimum range that contains all non-zero values.
-   struct param* start = param;
-   struct param* end = start;
-   while ( param ) {
-      if ( ! zero_default_value( param ) ) {
-         end = param->next;
-      }
-      param = param->next;
-   }
-   if ( start != end ) {
-      write_default_init( codegen, func, start, end, count_param );
-   }
-   // Reset count parameter.
-   if ( reset_count_param ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, count_param );
-   }
-}
-
-bool zero_default_value( struct param* param ) {
-   return ( ! param->ref && param->default_value->folded &&
-      param->default_value->value == 0 );
-}
-
-void write_default_init( struct codegen* codegen, struct func* func,
-   struct param* start, struct param* end, int count_param ) {
-   c_pcd( codegen, PCD_PUSHSCRIPTVAR, count_param );
-   struct c_sortedcasejump* table = c_create_sortedcasejump( codegen );
-   c_append_node( codegen, &table->node );
-   c_pcd( codegen, PCD_DROP );
-   struct c_point* exit_point = c_create_point( codegen );
-   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
-   c_append_node( codegen, &exit_jump->node );
-   exit_jump->point = exit_point;
-   int args_passed = func->min_param;
-   struct param* param = start;
-   while ( param != end ) {
-      struct c_point* init_point = c_create_point( codegen );
-      c_append_node( codegen, &init_point->node );
-      if ( ! zero_default_value( param ) ) {
-         c_push_initz_expr( codegen, param->ref, param->default_value );
-         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param->index );
-      }
-      struct c_casejump* entry = c_create_casejump( codegen,
-         args_passed, init_point );
-      c_append_casejump( table, entry );
-      ++args_passed;
-      param = param->next;
-   }
-   c_append_node( codegen, &exit_point->node );
-}
-
 void assign_nested_call_ids( struct codegen* codegen,
    struct func* nested_funcs ) {
    struct func* nested_func = nested_funcs;
@@ -658,7 +577,6 @@ void write_one_nestedfunc( struct codegen* codegen,
    }
    // Assign arguments to parameters.
    int param_index = start_index + total_param_size - 1;
-   int count_param = param_index;
    int i = 0;
    while ( i < total_param_size ) {
       if ( impl->recursive == RECURSIVE_POSSIBLY ) {
@@ -667,10 +585,6 @@ void write_one_nestedfunc( struct codegen* codegen,
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, param_index );
       --param_index;
       ++i;
-   }
-   // Assign default arguments.
-   if ( func->min_param != func->max_param ) {
-      add_default_params( codegen, func, count_param, false );
    }
    c_seek_node( codegen, codegen->node_tail );
    // Epilogue:

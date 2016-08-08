@@ -32,7 +32,6 @@ struct func_record {
    int start_index;
    int array_index;
    int size;
-   int count_param;
    bool nested_func;
 };
 

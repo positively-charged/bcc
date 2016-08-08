@@ -1734,6 +1734,11 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
    if ( expr.undef_erred ) {
       return false;
    }
+   if ( ! param->default_value->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
+         "non-constant default value" );
+      s_bail( semantic );
+   }
    struct type_info param_type;
    s_init_type_info( &param_type, param->ref, param->structure,
       param->enumeration, NULL, param->spec );
@@ -1744,14 +1749,6 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
    }
    if ( s_is_ref_type( &type ) && expr.var ) {
       expr.var->addr_taken = true;
-   }
-   if ( expr.func && expr.func->type == FUNC_USER ) {
-      struct func_user* impl = expr.func->impl;
-      if ( impl->nested ) {
-         s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
-            "nested function used as a default value" );
-         s_bail( semantic );
-      }
    }
    return true;
 }
