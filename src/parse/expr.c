@@ -623,7 +623,6 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_MEMCPY:
       read_memcpy( parse, reading );
       break;
-   case TK_RAW:
    case TK_INT:
    case TK_FIXED:
    case TK_BOOL:
@@ -857,12 +856,8 @@ int extract_fixed_literal_value( const char* text ) {
 }
 
 void read_conversion( struct parse* parse, struct expr_reading* reading ) {
-   int spec = SPEC_RAW;
+   int spec = SPEC_INT;
    switch ( parse->tk ) {
-   case TK_INT:
-      spec = SPEC_INT;
-      p_read_tk( parse );
-      break;
    case TK_FIXED:
       spec = SPEC_FIXED;
       p_read_tk( parse );
@@ -876,9 +871,8 @@ void read_conversion( struct parse* parse, struct expr_reading* reading ) {
       p_read_tk( parse );
       break;
    default:
-      p_test_tk( parse, TK_RAW );
+      p_test_tk( parse, TK_INT );
       p_read_tk( parse );
-      break;
    }
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );

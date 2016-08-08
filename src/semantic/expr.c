@@ -2411,13 +2411,17 @@ bool perform_conversion( struct conversion* conv, struct type_info* from ) {
       // requires a lot of generated code. For now, use a library function to
       // perform these conversions.
       switch ( conv->spec ) {
-      case SPEC_RAW:
       case SPEC_INT:
-         return ( from->spec != SPEC_STR );
       case SPEC_FIXED:
-         return ( from->spec != SPEC_STR );
+      case SPEC_BOOL:
+         switch ( from->spec ) {
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_BOOL:
+            return true;
+         }
       default:
-         return true;
+         return false;
       }
    }
    else {
