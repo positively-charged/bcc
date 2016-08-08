@@ -186,11 +186,13 @@ bool is_dec_bcs( struct parse* parse ) {
    }
    else {
       switch ( parse->tk ) {
-      case TK_RAW:
       case TK_INT:
       case TK_FIXED:
       case TK_BOOL:
       case TK_STR:
+         // Make sure it is not a conversion call.
+         return ( p_peek( parse ) != TK_PAREN_L );
+      case TK_RAW:
       case TK_VOID:
       case TK_WORLD:
       case TK_GLOBAL:
