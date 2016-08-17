@@ -435,6 +435,12 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    }
    if ( s_is_ref_type( &iter.value ) && expr.var ) {
       expr.var->addr_taken = true;
+      if ( ! expr.var->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
+            "non-private collection (references only work with private map "
+            "variables)" );
+         s_bail( semantic );
+      }
    }
    // Key.
    if ( stmt->key ) {
@@ -574,6 +580,12 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    }
    if ( s_is_ref_type( &type ) && expr_test.data_origin ) {
       expr_test.data_origin->addr_taken = true;
+      if ( ! expr_test.data_origin->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+            "non-private return-value (references only work with private map "
+            "variables)" );
+         s_bail( semantic );
+      }
    }
 }
 

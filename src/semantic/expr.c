@@ -676,6 +676,12 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    }
    if ( is_ref_type( &lside ) && rside.data_origin ) {
       rside.data_origin->addr_taken = true;
+      if ( ! rside.data_origin->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+            "non-private right operand (references only work with private map "
+            "variables)" );
+         s_bail( semantic );
+      }
    }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
@@ -847,9 +853,22 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    if ( is_ref_type( &middle ) ) {
       if ( middle.data_origin ) {
          middle.data_origin->addr_taken = true;
+         if ( ! middle.data_origin->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+               "non-private %s (references only work with private "
+               "map variables)", cond->middle ? "middle operand" :
+               "left operand" );
+            s_bail( semantic );
+         }
       }
       if ( right.data_origin ) {
          right.data_origin->addr_taken = true;
+         if ( ! right.data_origin->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &cond->pos,
+               "non-private right operand (references only work with private "
+               "map variables)" );
+            s_bail( semantic );
+         }
       }
    }
    // Compile-time evaluation.
@@ -1260,6 +1279,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       result->spec = lside->spec;
       result->modifiable = true;
    }
+   result->storage = lside->storage;
    result->usable = true;
    result->complete = true;
 }
@@ -1762,6 +1782,12 @@ void test_remaining_arg( struct semantic* semantic,
    ++test->num_args;
    if ( is_ref_type( &result ) && result.data_origin ) {
       result.data_origin->addr_taken = true;
+      if ( ! result.data_origin->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+            "non-private argument (references only work with private "
+            "map variables)" );
+         s_bail( semantic );
+      }
    }
    if ( test->call->constant && ! expr->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
@@ -2034,6 +2060,12 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
       object->node.type == NODE_NAMESPACE ) ) {
       select_object( semantic, test, result, object );
       usage->object = &object->node;
+      if ( object->node.type == NODE_VAR &&
+         ( ( struct var* ) object )->imported ) {
+         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+            "using reference variable of another library" );
+         s_bail( semantic );
+      }
    }
    // Object not found or isn't valid.
    else {
@@ -2131,6 +2163,7 @@ void select_var( struct semantic* semantic, struct result* result,
       result->enumeration = var->enumeration;
       result->dim = var->dim;
       result->spec = s_spec( semantic, var->spec );
+      result->storage = var->storage;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
       }
