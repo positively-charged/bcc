@@ -28,6 +28,7 @@ struct type_info {
    struct enumeration* enumeration;
    struct dim* dim;
    int spec;
+   int storage;
    union {
       struct ref ref;
       struct ref_struct structure;
@@ -150,7 +151,7 @@ void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
    struct inline_asm* inline_asm );
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
-   struct dim* dim, int spec );
+   struct dim* dim, int spec, int storage );
 void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    int dim_count, int spec );

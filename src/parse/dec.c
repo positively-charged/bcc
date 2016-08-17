@@ -431,10 +431,7 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
 
 void read_struct( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_STRUCT && p_peek( parse ) == TK_ID &&
-      ( p_peek_2nd( parse ) == TK_ID || p_peek_2nd( parse ) == TK_UPMOST ) ) {
-      read_var( parse, dec );
-   }
-   else {
+      p_peek_2nd( parse ) == TK_BRACE_L ) {
       read_struct_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
          if ( dec->structure->anon ) {
@@ -450,6 +447,9 @@ void read_struct( struct parse* parse, struct dec* dec ) {
          dec->semicolon_absent = true;
          read_after_spec( parse, dec );
       }
+   }
+   else {
+      read_var( parse, dec );
    }
 }
 
@@ -897,7 +897,6 @@ void prepend_ref( struct ref_reading* reading, struct ref* part ) {
 }
 
 void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
-   read_ref_storage( parse, reading );
    bool nullable = false;
    if ( parse->tk == TK_QUESTION_MARK ) {
       nullable = true;
@@ -908,42 +907,10 @@ void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
    struct ref_struct* part = mem_alloc( sizeof( *part ) );
    init_ref( &part->ref, REF_STRUCTURE, &parse->tk_pos );
    part->ref.nullable = nullable;
-   part->storage = reading->storage;
-   part->storage_index = reading->storage_index;
+   part->storage = STORAGE_MAP;
+   part->storage_index = 0;
    prepend_ref( reading, &part->ref );
    p_read_tk( parse );
-}
-
-void read_ref_storage( struct parse* parse, struct ref_reading* reading ) {
-   // Storage.
-   int storage = STORAGE_MAP;
-   switch ( parse->tk ) {
-   case TK_GLOBAL:
-      storage = STORAGE_GLOBAL;
-      p_read_tk( parse );
-      break;
-   case TK_WORLD:
-      storage = STORAGE_WORLD;
-      p_read_tk( parse );
-      break;
-   case TK_SCRIPT:
-      storage = STORAGE_LOCAL;
-      p_read_tk( parse );
-      break;
-   default:
-      break;
-   }
-   // Storage index. (Optional)
-   int storage_index = 0;
-   if ( ( storage == STORAGE_GLOBAL || storage == STORAGE_WORLD ) &&
-      parse->tk == TK_COLON ) {
-      p_read_tk( parse );
-      p_test_tk( parse, TK_LIT_DECIMAL );
-      storage_index = p_extract_literal_value( parse );
-      p_read_tk( parse );
-   }
-   reading->storage = storage;
-   reading->storage_index = storage_index;
 }
 
 void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
@@ -955,12 +922,11 @@ void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
       p_read_tk( parse );
       ++count;
    }
-   read_ref_storage( parse, reading );
    struct ref_array* part = mem_alloc( sizeof( *part ) );
    init_ref( &part->ref, REF_ARRAY, &pos );
    part->dim_count = count;
-   part->storage = reading->storage;
-   part->storage_index = reading->storage_index;
+   part->storage = STORAGE_MAP;
+   part->storage_index = 0;
    prepend_ref( reading, &part->ref );
 }
 
@@ -1076,11 +1042,7 @@ void read_dim( struct parse* parse, struct dec* dec ) {
    dec->dim = NULL;
    struct dim* tail = NULL;
    while ( parse->tk == TK_BRACKET_L ) {
-      struct dim* dim = mem_alloc( sizeof( *dim ) );
-      dim->next = NULL;
-      dim->length_node = NULL;
-      dim->length = 0;
-      dim->element_size = 0;
+      struct dim* dim = t_alloc_dim();
       dim->pos = parse->tk_pos;
       p_read_tk( parse );
       if ( parse->tk == TK_BRACKET_R ) {

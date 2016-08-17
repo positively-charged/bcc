@@ -331,7 +331,8 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
       s_test_local_var( semantic, stmt->cond.u.var );
       s_init_type_info( &test->cond_type, stmt->cond.u.var->ref,
          stmt->cond.u.var->structure, stmt->cond.u.var->enumeration,
-         stmt->cond.u.var->dim, stmt->cond.u.var->spec );
+         stmt->cond.u.var->dim, stmt->cond.u.var->spec,
+         stmt->cond.u.var->storage );
       s_decay( &test->cond_type );
    }
    else {
@@ -440,7 +441,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
       s_test_foreach_var( semantic, &iter.key, key );
       struct type_info type;
       s_init_type_info( &type, key->ref, key->structure, key->enumeration,
-         key->dim, key->spec );
+         key->dim, key->spec, key->storage );
       if ( ! s_instance_of( &type, &iter.key ) ) {
          s_type_mismatch( semantic, "key", &type,
             "collection-key", &iter.key, &key->object.pos );
@@ -451,7 +452,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_test_foreach_var( semantic, &iter.value, value );
    struct type_info type;
    s_init_type_info( &type, value->ref, value->structure, value->enumeration,
-      value->dim, value->spec );
+      value->dim, value->spec, value->storage );
    if ( ! s_instance_of( &type, &iter.value ) ) {
       s_type_mismatch( semantic, "value", &type,
          "collection-value", &iter.value, &value->object.pos );
@@ -557,7 +558,7 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    // Return value must be of the same type as the return type.
    struct type_info return_type;
    s_init_type_info( &return_type, func->ref, func->structure,
-      func->enumeration, NULL, func->return_spec );
+      func->enumeration, NULL, func->return_spec, STORAGE_LOCAL );
    if ( ! s_instance_of( &return_type, &type ) ) {
       s_type_mismatch( semantic, "return-value", &type,
          "function-return", &return_type, &stmt->return_value->expr->pos );

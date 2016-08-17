@@ -13,6 +13,7 @@ struct result {
    struct object* object;
    int ref_dim;
    int spec;
+   int storage;
    int value;
    bool complete;
    bool usable;
@@ -304,6 +305,7 @@ void init_result( struct result* result ) {
    result->object = NULL;
    result->ref_dim = 0;
    result->spec = SPEC_NONE;
+   result->storage = STORAGE_LOCAL;
    result->value = 0;
    result->complete = false;
    result->usable = false;
@@ -1124,7 +1126,8 @@ bool valid_cast( struct semantic* semantic, struct cast* cast,
 void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    struct type_info cast_type;
-   s_init_type_info( &cast_type, NULL, NULL, NULL, NULL, cast->spec );
+   s_init_type_info( &cast_type, NULL, NULL, NULL, NULL, cast->spec,
+      STORAGE_LOCAL );
    struct type_info operand_type;
    init_type_info( semantic, &operand_type, operand );
    struct str cast_type_s;
@@ -1326,6 +1329,7 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    access->rside = &object->node;
    if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
       result->data_origin = lside.data_origin;
+      result->storage = lside.storage;
    }
 }
 
@@ -1589,7 +1593,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
       { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, 0, 0 };
    struct type_info required_type;
    s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
-      s_spec( semantic, SPEC_INT ) );
+      s_spec( semantic, SPEC_INT ), STORAGE_MAP );
    if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &item->value->pos );
@@ -1738,7 +1742,8 @@ void test_remaining_arg( struct semantic* semantic,
       struct type_info param_type;
       init_type_info( semantic, &type, &result );
       s_init_type_info( &param_type, param->ref, param->structure,
-         param->enumeration, NULL, s_spec( semantic, param->spec ) );
+         param->enumeration, NULL, s_spec( semantic, param->spec ),
+         STORAGE_LOCAL );
       s_decay( &type );
       if ( ! s_instance_of( &param_type, &type ) ) {
          arg_mismatch( semantic, &expr->pos, &type,
@@ -2143,6 +2148,7 @@ void select_var( struct semantic* semantic, struct result* result,
       result->data_origin = var;
       result->structure = var->structure;
       result->spec = s_spec( semantic, var->spec );
+      result->storage = var->storage;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
       }
@@ -2490,7 +2496,7 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
    }
    else {
       s_init_type_info( type, result->ref, result->structure,
-         result->enumeration, result->dim, result->spec );
+         result->enumeration, result->dim, result->spec, result->storage );
    }
 }
 

@@ -3,6 +3,7 @@
 #include "phase.h"
 
 static bool same_ref( struct ref* a, struct ref* b );
+static bool same_ref_struct( struct ref_struct* a, struct ref_struct* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
 static bool same_spec( int a, int b );
@@ -22,12 +23,13 @@ static struct ref* dup_ref( struct ref* ref );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
-   struct dim* dim, int spec ) {
+   struct dim* dim, int spec, int storage ) {
    type->ref = ref;
    type->structure = structure;
    type->enumeration = enumeration;
    type->dim = dim;
    type->spec = spec;
+   type->storage = storage;
    type->implicit_ref = false;
    type->builtin_func = false;
 }
@@ -35,12 +37,14 @@ void s_init_type_info( struct type_info* type, struct ref* ref,
 void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    int dim_count, int spec ) {
-   s_init_type_info( type, ref, structure, enumeration, NULL, spec );
+   s_init_type_info( type, ref, structure, enumeration, NULL, spec,
+      STORAGE_LOCAL );
    struct ref_array* array = &type->implicit_ref_part.array;
    array->ref.next = type->ref;
    array->ref.type = REF_ARRAY;
    array->ref.nullable = false;
    array->dim_count = dim_count;
+   array->storage = STORAGE_MAP;
    type->ref = &array->ref;
    type->implicit_ref = true;
 }
@@ -49,7 +53,8 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct param* params, int return_spec, int min_param, int max_param,
    bool msgbuild ) {
-   s_init_type_info( type, ref, structure, enumeration, NULL, return_spec );
+   s_init_type_info( type, ref, structure, enumeration, NULL, return_spec,
+      STORAGE_LOCAL );
    // NOTE: At this time, I don't see where in the compiler a distinction needs
    // to be made between a function and a reference-to-function. So decay a
    // function into reference-to-function at all times.
@@ -66,16 +71,16 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
 }
 
 void s_init_type_info_builtin_func( struct type_info* type ) {
-   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE );
+   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE, STORAGE_LOCAL );
    type->builtin_func = true;
 }
 
 void s_init_type_info_scalar( struct type_info* type, int spec ) {
-   s_init_type_info( type, NULL, NULL, NULL, NULL, spec );
+   s_init_type_info( type, NULL, NULL, NULL, NULL, spec, STORAGE_LOCAL );
 }
 
 void s_init_type_info_null( struct type_info* type ) {
-   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE );
+   s_init_type_info( type, NULL, NULL, NULL, NULL, SPEC_NONE, STORAGE_LOCAL );
    struct ref* ref = &type->implicit_ref_part.ref;
    ref->next = NULL;
    ref->type = REF_NULL;
@@ -92,6 +97,7 @@ void s_decay( struct type_info* type ) {
       array->ref.type = REF_ARRAY;
       array->ref.nullable = false;
       array->dim_count = 0;
+      array->storage = type->storage;
       struct dim* count_dim = type->dim;
       while ( count_dim ) {
          ++array->dim_count;
@@ -107,6 +113,7 @@ void s_decay( struct type_info* type ) {
       implicit_ref->ref.next = NULL;
       implicit_ref->ref.type = REF_STRUCTURE;
       implicit_ref->ref.nullable = false;
+      implicit_ref->storage = type->storage;
       type->ref = &implicit_ref->ref;
       type->implicit_ref = true;
    }
@@ -152,7 +159,9 @@ bool same_ref( struct ref* a, struct ref* b ) {
          break;
       case REF_STRUCTURE:
       case REF_NULL:
-         same = true;
+         same = same_ref_struct(
+            ( struct ref_struct* ) a,
+            ( struct ref_struct* ) b );
          break;
       }
       if ( ! same ) {
@@ -164,8 +173,12 @@ bool same_ref( struct ref* a, struct ref* b ) {
    return ( a == NULL && b == NULL );
 }
 
+bool same_ref_struct( struct ref_struct* a, struct ref_struct* b ) {
+   return ( a->storage == b->storage );
+}
+
 bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
-   return ( a->dim_count == b->dim_count );
+   return ( a->dim_count == b->dim_count && a->storage == b->storage );
 }
 
 bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
@@ -308,6 +321,12 @@ void present_ref( struct ref* ref, struct str* string,
          for ( int i = 0; i < part->dim_count; ++i ) {
             str_append( string, "[]" );
          }
+         switch ( part->storage ) {
+         case STORAGE_LOCAL: str_append( string, " local" ); break;
+         case STORAGE_WORLD: str_append( string, " world" ); break;
+         case STORAGE_GLOBAL: str_append( string, " global" ); break;
+         default: break;
+         }
          if ( ref->nullable ) {
             str_append( string, "?" );
          }
@@ -318,6 +337,13 @@ void present_ref( struct ref* ref, struct str* string,
          }
       }
       else if ( ref->type == REF_STRUCTURE ) {
+         struct ref_struct* structure = ( struct ref_struct* ) ref;
+         switch ( structure->storage ) {
+         case STORAGE_LOCAL: str_append( string, " local" ); break;
+         case STORAGE_WORLD: str_append( string, " world" ); break;
+         case STORAGE_GLOBAL: str_append( string, " global" ); break;
+         default: break;
+         }
          if ( ref->nullable ) {
             str_append( string, "?" );
          }
@@ -427,12 +453,12 @@ void subscript_array_type( struct type_info* type,
    struct type_info* element_type ) {
    if ( type->dim ) {
       s_init_type_info( element_type, type->ref, type->structure,
-         type->enumeration, type->dim->next, type->spec );
+         type->enumeration, type->dim->next, type->spec, type->storage );
       s_decay( element_type );
    }
    else if ( type->ref && type->ref->type == REF_ARRAY ) {
       s_init_type_info( element_type, type->ref, type->structure,
-         type->enumeration, NULL, type->spec );
+         type->enumeration, NULL, type->spec, STORAGE_LOCAL );
       struct ref_array* array = ( struct ref_array* ) type->ref;
       if ( array->dim_count > 1 ) {
          struct ref_array* implicit_array =
@@ -441,6 +467,7 @@ void subscript_array_type( struct type_info* type,
          implicit_array->ref.type = REF_ARRAY;
          implicit_array->ref.nullable = false;
          implicit_array->dim_count = array->dim_count - 1;
+         implicit_array->storage = STORAGE_MAP;
          element_type->ref = &implicit_array->ref;
          element_type->implicit_ref = true;
       }
