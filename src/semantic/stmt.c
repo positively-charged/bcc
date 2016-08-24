@@ -50,7 +50,7 @@ static void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt );
 static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt );
-static void test_paltrans_arg( struct semantic* semantic, struct expr* expr );
+static void test_paltrans_arg( struct semantic* semantic, struct expr* arg );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void test_packed_expr( struct semantic* semantic,
@@ -631,10 +631,18 @@ void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_paltrans_arg( struct semantic* semantic, struct expr* expr ) {
-   struct expr_test arg;
-   s_init_expr_test( &arg, true, false );
-   s_test_expr( semantic, &arg, expr );
+void test_paltrans_arg( struct semantic* semantic, struct expr* arg ) {
+   struct type_info type;
+   struct expr_test expr;
+   s_init_expr_test( &expr, true, false );
+   s_test_expr_type( semantic, &expr, &type, arg );
+   struct type_info required_type;
+   s_init_type_info_scalar( &required_type, s_spec( semantic, SPEC_INT ) );
+   if ( ! s_instance_of( &required_type, &type ) ) {
+      s_type_mismatch( semantic, "argument", &type,
+         "required", &required_type, &arg->pos );
+      s_bail( semantic );
+   }
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
