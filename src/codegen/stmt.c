@@ -923,14 +923,19 @@ void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
    while ( range ) {
       c_push_expr( codegen, range->begin );
       c_push_expr( codegen, range->end );
-      if ( range->rgb ) {
+      if ( range->rgb || range->saturated ) {
          c_push_expr( codegen, range->value.rgb.red1 );
          c_push_expr( codegen, range->value.rgb.green1 );
          c_push_expr( codegen, range->value.rgb.blue1 );
          c_push_expr( codegen, range->value.rgb.red2 );
          c_push_expr( codegen, range->value.rgb.green2 );
          c_push_expr( codegen, range->value.rgb.blue2 );
-         c_pcd( codegen, PCD_TRANSLATIONRANGE2 );
+         if ( range->saturated ) {
+            c_pcd( codegen, PCD_TRANSLATIONRANGE3 );
+         }
+         else {
+            c_pcd( codegen, PCD_TRANSLATIONRANGE2 );
+         }
       }
       else {
          c_push_expr( codegen, range->value.ent.begin );

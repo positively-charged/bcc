@@ -622,6 +622,8 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
    while ( parse->tk == TK_COMMA ) {
       struct palrange* range = mem_alloc( sizeof( *range ) );
       range->next = NULL;
+      range->rgb = false;
+      range->saturated = false;
       p_read_tk( parse );
       p_init_expr_reading( &expr, false, false, false, true );
       p_read_expr( parse, &expr );
@@ -633,14 +635,20 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
       range->end = expr.output_node;
       p_test_tk( parse, TK_ASSIGN );
       p_read_tk( parse );
-      if ( parse->tk == TK_BRACKET_L ) {
+      if ( parse->tk == TK_MOD ) {
+         range->saturated = true;
+         p_read_tk( parse );
+      }
+      if ( parse->tk == TK_BRACKET_L || range->saturated ) {
          read_palrange_rgb_field( parse, &range->value.rgb.red1,
             &range->value.rgb.green1, &range->value.rgb.blue1 );
          p_test_tk( parse, TK_COLON );
          p_read_tk( parse );
          read_palrange_rgb_field( parse, &range->value.rgb.red2,
             &range->value.rgb.green2, &range->value.rgb.blue2 );
-         range->rgb = true;
+         if ( ! range->saturated ) {
+            range->rgb = true;
+         }
       }
       else {
          p_init_expr_reading( &expr, false, false, false, true );
@@ -651,7 +659,6 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
          p_init_expr_reading( &expr, false, false, false, true );
          p_read_expr( parse, &expr );
          range->value.ent.end = expr.output_node;
-         range->rgb = false;
       }
       if ( stmt->ranges ) {
          stmt->ranges_tail->next = range;

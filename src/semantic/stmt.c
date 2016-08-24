@@ -50,7 +50,8 @@ static void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt );
 static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt );
-static void test_paltrans_arg( struct semantic* semantic, struct expr* arg );
+static void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
+   bool require_fixed_type );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void test_packed_expr( struct semantic* semantic,
@@ -610,34 +611,48 @@ void test_goto( struct semantic* semantic, struct stmt_test* test,
 
 void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt ) {
-   test_paltrans_arg( semantic, stmt->number );
+   test_paltrans_arg( semantic, stmt->number, false );
    struct palrange* range = stmt->ranges;
    while ( range ) {
-      test_paltrans_arg( semantic, range->begin );
-      test_paltrans_arg( semantic, range->end );
-      if ( range->rgb ) {
-         test_paltrans_arg( semantic, range->value.rgb.red1 );
-         test_paltrans_arg( semantic, range->value.rgb.green1 );
-         test_paltrans_arg( semantic, range->value.rgb.blue1 );
-         test_paltrans_arg( semantic, range->value.rgb.red2 );
-         test_paltrans_arg( semantic, range->value.rgb.green2 );
-         test_paltrans_arg( semantic, range->value.rgb.blue2 );
+      test_paltrans_arg( semantic, range->begin, false );
+      test_paltrans_arg( semantic, range->end, false );
+      if ( range->rgb || range->saturated ) {
+         test_paltrans_arg( semantic,
+            range->value.rgb.red1,
+            range->saturated );
+         test_paltrans_arg( semantic,
+            range->value.rgb.green1,
+            range->saturated );
+         test_paltrans_arg( semantic,
+            range->value.rgb.blue1,
+            range->saturated );
+         test_paltrans_arg( semantic,
+            range->value.rgb.red2,
+            range->saturated );
+         test_paltrans_arg( semantic,
+            range->value.rgb.green2,
+            range->saturated );
+         test_paltrans_arg( semantic,
+            range->value.rgb.blue2,
+            range->saturated );
       }
       else {
-         test_paltrans_arg( semantic, range->value.ent.begin );
-         test_paltrans_arg( semantic, range->value.ent.end );
+         test_paltrans_arg( semantic, range->value.ent.begin, false );
+         test_paltrans_arg( semantic, range->value.ent.end, false );
       }
       range = range->next;
    }
 }
 
-void test_paltrans_arg( struct semantic* semantic, struct expr* arg ) {
+void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
+   bool require_fixed_type ) {
    struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr_type( semantic, &expr, &type, arg );
    struct type_info required_type;
-   s_init_type_info_scalar( &required_type, s_spec( semantic, SPEC_INT ) );
+   s_init_type_info_scalar( &required_type, s_spec( semantic,
+      require_fixed_type ? SPEC_FIXED : SPEC_INT ) );
    if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &arg->pos );

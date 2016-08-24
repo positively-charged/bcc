@@ -820,6 +820,7 @@ struct palrange {
       } rgb;
    } value;
    bool rgb;
+   bool saturated;
 };
 
 struct paltrans {
