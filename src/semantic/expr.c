@@ -153,6 +153,10 @@ static void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
+static void test_found_object( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct name_usage* usage,
+   struct object* object );
+static struct ref* find_map_ref( struct ref* ref );
 static void select_object( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct object* object );
 static void select_constant( struct semantic* semantic, struct expr_test* test,
@@ -2058,14 +2062,7 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
-      select_object( semantic, test, result, object );
-      usage->object = &object->node;
-      if ( object->node.type == NODE_VAR &&
-         ( ( struct var* ) object )->imported ) {
-         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-            "using reference variable of another library" );
-         s_bail( semantic );
-      }
+      test_found_object( semantic, test, result, usage, object );
    }
    // Object not found or isn't valid.
    else {
@@ -2085,6 +2082,77 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
          longjmp( test->bail, 1 );
       }
    }
+}
+
+void test_found_object( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct name_usage* usage, struct object* object ) {
+   // The engine does not support accessing of arrays in another library unless
+   // explicitly imported. So array and struct references only work in the
+   // library which contains the referenced data.
+   if ( object->node.type == NODE_VAR &&
+      ( ( struct var* ) object )->imported ) {
+      struct var* var = ( struct var* ) object;
+      struct ref* ref = find_map_ref( var->ref );
+      if ( ref ) {
+         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+            "imported variable's type includes reference-to-%s (%s references "
+            "from another library cannot be used)",
+            ref->type == REF_STRUCTURE ? "struct" : "array",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_bail( semantic );
+      }
+   }
+   else if ( object->node.type == NODE_FUNC &&
+      ( ( struct func* ) object )->type == FUNC_USER &&
+      ( ( struct func* ) object )->imported ) {
+      struct func* func = ( struct func* ) object;
+      struct ref* ref = find_map_ref( func->ref );
+      if ( ref ) {
+         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+            "imported function's return type includes reference-to-%s (%s "
+            "references returned from another library cannot be used)",
+            ref->type == REF_STRUCTURE ? "struct" : "array",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_bail( semantic );
+      }
+      struct param* param = func->params;
+      while ( param ) {
+         struct ref* ref = find_map_ref( param->ref );
+         if ( ref ) {
+            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+               "imported function has parameter whose type includes "
+               "reference-to-%s (%s references cannot be passed to another "
+               "library)",
+               ref->type == REF_STRUCTURE ? "struct" : "array",
+               ref->type == REF_STRUCTURE ? "struct" : "array" );
+            s_bail( semantic );
+         }
+         param = param->next;
+      }
+   }
+   select_object( semantic, test, result, object );
+   usage->object = &object->node;
+}
+
+struct ref* find_map_ref( struct ref* ref ) {
+   while ( ref ) {
+      if ( ref->type == REF_FUNCTION ) {
+         struct ref_func* func = ( struct ref_func* ) ref;
+         struct param* param = func->params;
+         while ( param ) {
+            struct ref* nested_ref = find_map_ref( param->ref );
+            if ( nested_ref ) {
+               return nested_ref;
+            }
+            param = param->next;
+         }
+      }
+      else {
+         return ref;
+      }
+      ref = ref->next;
+   }
+   return NULL;
 }
 
 void select_object( struct semantic* semantic, struct expr_test* test,

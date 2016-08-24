@@ -779,13 +779,6 @@ void test_ref_part( struct semantic* semantic, struct ref_test* test,
          s_bail( semantic );
       }
    }
-   if ( semantic->lib->importable && ref->type != REF_FUNCTION ) {
-      s_diag( semantic, DIAG_POS_ERR, &ref->pos,
-         "invalid reference type" );
-      s_diag( semantic, DIAG_POS, &ref->pos,
-         "only function-reference type is valid in an importable library" );
-      s_bail( semantic );
-   }
 }
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {

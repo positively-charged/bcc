@@ -185,7 +185,8 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
    struct param* param_a = a->params;
    struct param* param_b = b->params;
    while ( param_a && param_b &&
-      param_a->spec == param_b->spec ) {
+      param_a->spec == param_b->spec &&
+      same_ref( param_a->ref, param_b->ref ) ) {
       param_a = param_a->next;
       param_b = param_b->next;
    }
