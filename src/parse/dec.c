@@ -132,13 +132,16 @@ static void read_script_body( struct parse* parse, struct script* );
 static void read_name( struct parse* parse, struct dec* );
 static void missing_name( struct parse* parse, struct dec* dec );
 static void read_dim( struct parse* parse, struct dec* );
-static void read_init( struct parse* parse, struct dec* );
-static void read_single_init( struct parse* parse, struct dec* dec );
-static void read_init_acs( struct parse* parse, struct dec* dec );
-static void init_initial( struct initial*, bool );
-static struct value* alloc_value( void );
+static void read_var_init( struct parse* parse, struct dec* dec );
+static void read_imported_init( struct parse* parse, struct dec* dec );
+static bool has_implicit_length_dim( struct dec* dec );
+static void read_imported_multi_init( struct parse* parse, struct dim* dim );
+static void read_init( struct parse* parse, struct dec* dec );
 static void read_multi_init( struct parse* parse, struct dec*,
    struct multi_value_read* );
+static void init_initial( struct initial*, bool );
+static struct value* alloc_value( void );
+static void read_single_init( struct parse* parse, struct dec* dec );
 static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void add_var( struct parse* parse, struct dec* );
 static struct var* alloc_var( struct dec* dec );
@@ -644,7 +647,7 @@ void read_var_acs( struct parse* parse, struct dec* dec ) {
       default:
          break;
       }
-      read_init( parse, dec );
+      read_var_init( parse, dec );
       test_var( parse, dec );
       add_var( parse, dec );
       if ( parse->tk == TK_COMMA ) {
@@ -982,7 +985,7 @@ void read_instance( struct parse* parse, struct dec* dec ) {
    read_storage_index( parse, dec );
    read_name( parse, dec );
    read_dim( parse, dec );
-   read_init( parse, dec );
+   read_var_init( parse, dec );
    test_var( parse, dec );
    add_var( parse, dec );
 }
@@ -1066,9 +1069,95 @@ void read_dim( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_init( struct parse* parse, struct dec* dec ) {
+void read_var_init( struct parse* parse, struct dec* dec ) {
    dec->initz.pos = parse->tk_pos;
    dec->initz.initial = NULL;
+   if ( parse->lib->imported ) {
+      read_imported_init( parse, dec );
+   }
+   else {
+      read_init( parse, dec );
+   }
+}
+
+void read_imported_init( struct parse* parse, struct dec* dec ) {
+   if ( dec->dim ) {
+      if ( parse->tk == TK_ASSIGN || has_implicit_length_dim( dec ) ) {
+         p_test_tk( parse, TK_ASSIGN );
+         p_read_tk( parse );
+         read_imported_multi_init( parse, dec->dim );
+      }
+   }
+   else {
+      if ( parse->tk == TK_ASSIGN ) {
+         // The initializer of an imported variable is not needed.
+         while ( ! (
+            parse->tk == TK_SEMICOLON ||
+            parse->tk == TK_COMMA ||
+            parse->tk == TK_END ) ) {
+            p_read_tk( parse );
+         }
+      }
+   }
+}
+
+bool has_implicit_length_dim( struct dec* dec ) {
+   struct dim* dim = dec->dim;
+   while ( dim ) {
+      if ( ! dim->length_node ) {
+         return true;
+      }
+      dim = dim->next;
+   }
+   return false;
+}
+
+void read_imported_multi_init( struct parse* parse, struct dim* dim ) {
+   p_test_tk( parse, TK_BRACE_L );
+   p_read_tk( parse );
+   int length = 0;
+   while ( true ) {
+      if ( dim->next ) {
+         read_imported_multi_init( parse, dim->next );
+      }
+      else {
+         if ( parse->tk == TK_BRACE_R ) {
+            p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+               "empty brace initializer" );
+            p_bail( parse );
+         }
+         // Structure element initializer.
+         if ( parse->tk == TK_BRACE_L ) {
+            p_skip_block( parse );
+         }
+         else {
+            while ( ! (
+               parse->tk == TK_COMMA ||
+               parse->tk == TK_BRACE_R ||
+               parse->tk == TK_END ) ) {
+               p_read_tk( parse );
+            }
+         }
+      }
+      ++length;
+      if ( parse->tk == TK_COMMA ) {
+         p_read_tk( parse );
+         if ( parse->tk == TK_BRACE_R ) {
+            break;
+         }
+      }
+      else {
+         break;
+      }
+   }
+   p_test_tk( parse, TK_BRACE_R );
+   p_read_tk( parse );
+   if ( ! dim->length_node && length > dim->length ) {
+      dim->length = length;
+   }
+}
+
+void read_init( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_ASSIGN ) {
       dec->initz.specified = true;
       p_read_tk( parse );
@@ -1089,15 +1178,6 @@ void read_init( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_single_init( struct parse* parse, struct dec* dec ) {
-   struct expr_reading expr;
-   p_init_expr_reading( &expr, false, false, false, true );
-   p_read_expr( parse, &expr );
-   struct value* value = alloc_value();
-   value->expr = expr.output_node;
-   dec->initz.initial = &value->initial;
-}
-
 void read_multi_init( struct parse* parse, struct dec* dec,
    struct multi_value_read* parent ) {
    p_test_tk( parse, TK_BRACE_L );
@@ -1113,8 +1193,6 @@ void read_multi_init( struct parse* parse, struct dec* dec,
    if ( parse->tk == TK_BRACE_R ) {
       p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
          "empty brace initializer" );
-      p_diag( parse, DIAG_POS, &dec->type_pos,
-         "a brace initializer must initialize at least one element" );
       p_bail( parse );
    }
    while ( true ) {
@@ -1182,10 +1260,19 @@ struct value* alloc_value( void ) {
    return value;
 }
 
+void read_single_init( struct parse* parse, struct dec* dec ) {
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   struct value* value = alloc_value();
+   value->expr = expr.output_node;
+   dec->initz.initial = &value->initial;
+}
+
 void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
    while ( true ) {
       read_name( parse, dec );
-      read_init( parse, dec );
+      read_var_init( parse, dec );
       test_var( parse, dec );
       add_var( parse, dec );
       if ( parse->tk == TK_COMMA ) {

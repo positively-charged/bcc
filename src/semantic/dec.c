@@ -127,7 +127,6 @@ static bool test_dim_length( struct semantic* semantic, struct dim_test* test,
 static bool test_var_initz( struct semantic* semantic, struct var* var );
 static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
-static bool test_imported_object_initz( struct var* var );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
 static void describe_var( struct var* var );
@@ -882,25 +881,22 @@ bool test_dim_length( struct semantic* semantic, struct dim_test* test,
 }
 
 bool test_var_initz( struct semantic* semantic, struct var* var ) {
-   if ( var->initial ) {
-      if ( var->imported ) {
-         return test_imported_object_initz( var );
-      }
-      else {
+   if ( ! var->imported ) {
+      if ( var->initial ) {
          return test_object_initz( semantic, var );
       }
-   }
-   else {
-      // References must always have a valid value.
-      if ( var->ref || ( var->structure &&
-         var->structure->has_ref_member ) ) {
-         refnotinit_var( semantic, var );
-         s_bail( semantic );
+      else {
+         // References must always have a valid value.
+         if ( var->ref || ( var->structure &&
+            var->structure->has_ref_member ) ) {
+            refnotinit_var( semantic, var );
+            s_bail( semantic );
+         }
       }
-   }
-   // All dimensions of implicit length need to have a length.
-   if ( var->dim ) {
-      confirm_dim_length( semantic, var );
+      // All dimensions of implicit length need to have a length.
+      if ( var->dim ) {
+         confirm_dim_length( semantic, var );
+      }
    }
    return true;
 }
@@ -1350,22 +1346,6 @@ void refnotinit( struct semantic* semantic, struct initz_pres* pres,
       "a reference-type %s must be initialized with a valid reference value",
       pres->member_last ? "member" : "element" );
    str_deinit( &pres->output );
-}
-
-bool test_imported_object_initz( struct var* var ) {
-   if ( var->dim ) {
-      // TODO: Add error checking.
-      if ( ! var->dim->length_node && ! var->dim->length ) {
-         struct multi_value* multi_value =
-            ( struct multi_value* ) var->initial;
-         struct initial* initial = multi_value->body;
-         while ( initial ) {
-            initial = initial->next;
-            ++var->dim->length;
-         }
-      }
-   }
-   return true;
 }
 
 void confirm_dim_length( struct semantic* semantic, struct var* var ) {
