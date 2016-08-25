@@ -57,6 +57,7 @@ struct stmt_test {
    struct type_info cond_type;
    bool in_loop;
    bool manual_scope;
+   bool case_allowed;
 };
 
 struct expr_test {

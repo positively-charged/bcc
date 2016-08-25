@@ -65,6 +65,7 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->jump_continue = NULL;
    test->in_loop = false;
    test->manual_scope = false;
+   test->case_allowed = false;
 }
 
 void s_test_body( struct semantic* semantic, struct node* node ) {
@@ -91,6 +92,7 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
    while ( ! list_end( &i ) ) {
       struct stmt_test nested;
       s_init_stmt_test( &nested, test );
+      nested.case_allowed = test->case_allowed;
       test_block_item( semantic, &nested, list_data( &i ) );
       list_next( &i );
    }
@@ -144,13 +146,18 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
 
 void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct stmt_test* switch_test = test;
+   struct stmt_test* switch_test = test->parent;
    while ( switch_test && ! switch_test->switch_stmt ) {
       switch_test = switch_test->parent;
    }
    if ( ! switch_test ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case outside switch statement" );
+      s_bail( semantic );
+   }
+   if ( ! test->case_allowed ) {
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
+         "case nested inside another statement" );
       s_bail( semantic );
    }
    struct type_info type;
@@ -196,13 +203,18 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
 
 void test_default_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
-   struct stmt_test* switch_test = test;
+   struct stmt_test* switch_test = test->parent;
    while ( switch_test && ! switch_test->switch_stmt ) {
       switch_test = switch_test->parent;
    }
    if ( ! switch_test ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "default outside switch statement" );
+      s_bail( semantic );
+   }
+   if ( ! test->case_allowed ) {
+      s_diag( semantic, DIAG_POS_ERR, &label->pos,
+         "default case nested inside another statement" );
       s_bail( semantic );
    }
    if ( switch_test->switch_stmt->case_default ) {
@@ -321,6 +333,7 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    test_switch_cond( semantic, test, stmt );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
+   body.case_allowed = true;
    test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = test->jump_break;
    s_pop_scope( semantic );
