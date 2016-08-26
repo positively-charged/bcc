@@ -15,8 +15,7 @@ enum pseudo_dirc {
    PSEUDODIRC_NOWADAUTHOR,
    PSEUDODIRC_NOCOMPACT,
    PSEUDODIRC_REGION,
-   PSEUDODIRC_ENDREGION,
-   PSEUDODIRC_MNEMONIC
+   PSEUDODIRC_ENDREGION
 };
 
 static void read_module( struct parse* parse );
@@ -480,9 +479,6 @@ void read_pseudo_dirc( struct parse* parse, bool first_object ) {
    case TK_ENDREGION:
       p_read_tk( parse );
       break;
-   case TK_MNEMONIC:
-      p_read_mnemonic( parse );
-      break;
    default:
       p_diag( parse, DIAG_POS_ERR, &pos,
          "unknown directive: %s", parse->tk_text );
@@ -501,8 +497,7 @@ enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
       { "encryptstrings", TK_ENCRYPTSTRINGS },
       { "nocompact", TK_NOCOMPACT },
       { "wadauthor", TK_WADAUTHOR },
-      { "nowadauthor", TK_NOWADAUTHOR },
-      { "mnemonic", TK_MNEMONIC },
+      { "nowadauthor", TK_NOWADAUTHOR }
    };
    for ( int i = 0; i < ARRAY_SIZE( table ); ++i ) {
       if ( strcmp( parse->tk_text, table[ i ].text ) == 0 ) {

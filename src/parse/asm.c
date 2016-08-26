@@ -4,68 +4,9 @@
 #include "codegen/phase.h"
 #include "codegen/pcode.h"
 
-static struct mnemonic* alloc_mnemonic( void );
-static void append_mnemonic( struct parse* parse, struct task* task,
-   struct mnemonic* mnemonic );
 static struct inline_asm* alloc_inline_asm( void );
 static void read_arg( struct parse* parse, struct inline_asm* inline_asm );
 static struct inline_asm_arg* alloc_inline_asm_arg( struct pos* pos );
-
-void p_read_mnemonic( struct parse* parse ) {
-   p_test_tk( parse, TK_ID );
-   p_read_tk( parse );
-   struct mnemonic* mnemonic = alloc_mnemonic();
-   p_test_tk( parse, TK_ID );
-   mnemonic->name = parse->tk_text;
-   mnemonic->pos = parse->tk_pos;
-   p_read_tk( parse );
-   p_test_tk( parse, TK_LIT_DECIMAL );
-   mnemonic->opcode = p_extract_literal_value( parse );
-   p_read_tk( parse );
-   append_mnemonic( parse, parse->task, mnemonic );
-   struct pcode* instruction = c_get_pcode_info( mnemonic->opcode );
-   if ( ! instruction ) {
-      p_diag( parse, DIAG_POS_ERR, &mnemonic->pos,
-         "`%s` instruction (opcode %d) not supported",
-         mnemonic->name, mnemonic->opcode );
-      p_bail( parse );
-   }
-   mnemonic->args = instruction->args_format;
-}
-
-struct mnemonic* alloc_mnemonic( void ) {
-   struct mnemonic* mnemonic = mem_alloc( sizeof( *mnemonic ) );
-   mnemonic->name = NULL;
-   mnemonic->args = NULL;
-   mnemonic->next = NULL;
-   mnemonic->opcode = 0;
-   return mnemonic;
-}
-
-void append_mnemonic( struct parse* parse, struct task* task,
-   struct mnemonic* mnemonic ) {
-   struct mnemonic* prev = NULL;
-   struct mnemonic* curr = task->mnemonics;
-   while ( curr && strcmp( curr->name, mnemonic->name ) <= 0 ) {
-      prev = curr;
-      curr = curr->next;
-   }
-   if ( prev ) {
-      if ( strcmp( prev->name, mnemonic->name ) == 0 ) {
-         p_diag( parse, DIAG_POS_ERR, &mnemonic->pos,
-            "duplicate mnemonic" );
-         p_diag( parse, DIAG_POS_ERR, &prev->pos,
-            "mnemonic previously defined here" );
-         p_bail( parse );
-      }
-      mnemonic->next = prev->next;
-      prev->next = mnemonic;
-   }
-   else {
-      mnemonic->next = task->mnemonics;
-      task->mnemonics = mnemonic;
-   }
-}
 
 void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
    parse->create_nltk = true;

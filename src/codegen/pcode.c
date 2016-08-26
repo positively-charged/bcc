@@ -406,6 +406,7 @@ static struct pcode pcode_info[] = {
 };
 
 struct pcode* c_get_pcode_info( int code ) {
+   STATIC_ASSERT( PCD_TOTAL == 383 );
    if ( code < ARRAY_SIZE( pcode_info ) ) {
       return ( pcode_info + code );
    }

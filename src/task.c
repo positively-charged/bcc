@@ -39,7 +39,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
-   task->mnemonics = NULL;
    list_init( &task->runtime_asserts );
    task->root_name = t_create_name();
    task->upmost_ns = t_alloc_ns( task->root_name );

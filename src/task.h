@@ -924,14 +924,6 @@ struct str_table {
    int size;
 };
 
-struct mnemonic {
-   const char* name;
-   const char* args;
-   struct mnemonic* next;
-   struct pos pos;
-   int opcode;
-};
-
 struct inline_asm {
    struct node node;
    struct pos pos;
@@ -1100,7 +1092,6 @@ struct task {
    int last_id;
    time_t compile_time;
    struct gbuf growing_buffer;
-   struct mnemonic* mnemonics;
    struct list runtime_asserts;
    struct name* root_name;
    struct name* array_name;

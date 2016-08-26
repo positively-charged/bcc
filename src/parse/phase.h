@@ -176,7 +176,6 @@ enum tk {
    TK_STRINGIZE,
    TK_PLACEMARKER,
    TK_PROCESSEDHASH,
-   TK_MNEMONIC,
    TK_LINKLIBRARY,
 };
 
@@ -492,7 +491,6 @@ struct queue_entry* p_push_entry( struct parse* parse,
 struct token* p_shift_entry( struct parse* parse, struct token_queue* queue );
 void p_fill_queue( struct parse* parse, struct token_queue* queue,
    int required_size );
-void p_read_mnemonic( struct parse* parse );
 void p_read_asm( struct parse* parse, struct stmt_reading* reading );
 struct var* p_read_cond_var( struct parse* parse );
 void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
