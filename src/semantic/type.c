@@ -265,6 +265,7 @@ void present_extended_spec( struct structure* structure,
          struct str name;
          str_init( &name );
          t_copy_name( enumeration->name, false, &name );
+         str_append( string, "enum " );
          str_append( string, name.value );
          str_deinit( &name );
       }
@@ -280,6 +281,7 @@ void present_extended_spec( struct structure* structure,
          struct str name;
          str_init( &name );
          t_copy_name( structure->name, false, &name );
+         str_append( string, "struct " );
          str_append( string, name.value );
          str_deinit( &name );
       }
