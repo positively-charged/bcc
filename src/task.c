@@ -682,17 +682,12 @@ struct indexed_string* t_intern_script_name( struct task* task,
 struct indexed_string* t_lookup_string( struct task* task, int index ) {
    struct str_table* table = index / STRTABLE_MAXSIZE ==
       STRTABLE_SCRIPTNAME ? &task->script_name_table : &task->str_table;
-   struct indexed_string* string = table->root;
+   struct indexed_string* string = table->head;
    while ( string ) {
-      if ( index < string->index ) {
-         string = string->left;
-      }
-      else if ( index > string->index ) {
-         string = string->right;
-      }
-      else {
+      if ( string->index == index ) {
          return string;
       }
+      string = string->next;
    }
    return NULL;
 }
