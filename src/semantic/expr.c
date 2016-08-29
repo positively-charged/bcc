@@ -1375,6 +1375,12 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       name = t_extend_name( name, access->name );
       return name->object;
    }
+   else if ( is_value_type( semantic, lside ) && lside->spec == SPEC_STR ) {
+      access->type = ACCESS_STR;
+      struct name* name = t_extend_name( semantic->task->str_name, "." );
+      name = t_extend_name( name, access->name );
+      return name->object;
+   }
    else {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand does not support member access" );
@@ -1417,6 +1423,10 @@ void unknown_member( struct semantic* semantic, struct access* access,
    else if ( is_array( lside ) ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "`%s` not a property of an array", access->name );
+   }
+   else if ( is_value_type( semantic, lside ) && lside->spec == SPEC_STR ) {
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "`%s` not a member of `str` type", access->name );
    }
    else {
       UNREACHABLE();

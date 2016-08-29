@@ -64,6 +64,20 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->append_func = func;
    func->name = t_extend_name( task->root_name, ".append" );
 
+   // `str` functions.
+   task->str_name = t_create_name();
+   // Function: str.length()
+   impl = mem_alloc( sizeof( *impl ) );
+   impl->id = INTERN_FUNC_STR_LENGTH;
+   func = t_alloc_func();
+   func->object.resolved = true;
+   func->type = FUNC_INTERNAL;
+   func->impl = impl;
+   func->return_spec = SPEC_INT;
+   name = t_extend_name( task->str_name, ".length" );
+   func->name = name;
+   name->object = &func->object;
+
    // Dummy nodes.
    struct expr* expr = t_alloc_expr();
    expr->pos.id = ALTERN_FILENAME_COMPILER;

@@ -1378,6 +1378,9 @@ void visit_access( struct codegen* codegen, struct result* result,
       default:
          UNREACHABLE();
       }
+      break;
+   case ACCESS_STR:
+      visit_suffix( codegen, result, access->lside );
    }
 }
 

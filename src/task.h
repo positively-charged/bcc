@@ -396,7 +396,8 @@ struct access {
    enum {
       ACCESS_STRUCTURE,
       ACCESS_NAMESPACE,
-      ACCESS_ARRAY
+      ACCESS_ARRAY,
+      ACCESS_STR
    } type;
 };
 
@@ -1095,6 +1096,7 @@ struct task {
    struct list runtime_asserts;
    struct name* root_name;
    struct name* array_name;
+   struct name* str_name;
    struct func* append_func;
    struct expr* dummy_expr;
    struct ns* upmost_ns;
