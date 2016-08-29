@@ -1544,6 +1544,7 @@ special
 -127:SystemTime():int,
 -128:GetTimeProperty(int,int;bool):int,
 -129:Strftime(int,str;bool):str,
+-200:CheckClass(str):bool,
 -19620:GetTeamScore(int):int,
 -19621:SetTeamScore(int,int):void,
 
