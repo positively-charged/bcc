@@ -58,6 +58,13 @@ struct initz_pres {
    bool member_last;
 };
 
+struct param_list_test {
+   struct func* func;
+   struct ref_func* func_ref;
+   struct param* params;
+   struct param* prev_param;
+};
+
 struct builtin_aliases {
    struct alias* append;
 };
@@ -112,9 +119,13 @@ static void merge_func_type( struct semantic* semantic,
 static struct ref* get_last_ref_part( struct ref* ref );
 static bool test_var_ref( struct semantic* semantic, struct var* var );
 static void init_ref_test( struct ref_test* test, struct ref* ref, int spec );
-static void test_ref( struct semantic* semantic, struct ref_test* test );
-static void test_ref_part( struct semantic* semantic, struct ref_test* test,
-   struct ref* ref );
+static bool test_ref( struct semantic* semantic, struct ref_test* test );
+static bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
+   struct ref_struct* structure );
+static bool test_ref_array( struct semantic* semantic, struct ref_test* test,
+   struct ref_array* array );
+static bool test_ref_func( struct semantic* semantic, struct ref_test* test,
+   struct ref_func* func );
 static bool test_var_name( struct semantic* semantic, struct var* var );
 static bool test_var_dim( struct semantic* semantic, struct var* var );
 static void init_dim_test( struct dim_test* test, struct dim* dim,
@@ -178,19 +189,23 @@ static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_qual( struct semantic* semantic, struct func* func );
 static bool test_func_return_spec( struct semantic* semantic,
    struct func* func );
+static bool test_func_ref( struct semantic* semantic, struct func* func );
 static bool test_func_name( struct semantic* semantic, struct func* func );
 static bool test_func_after_name( struct semantic* semantic,
    struct func* func );
-static bool test_param_list( struct semantic* semantic, struct func* func );
-static void test_param( struct semantic* semantic, struct func* func,
-   struct param* param );
+static void init_param_list_test( struct param_list_test* test,
+   struct func* func, struct ref_func* func_ref );
+static bool test_param_list( struct semantic* semantic,
+   struct param_list_test* test );
+static void test_param( struct semantic* semantic,
+   struct param_list_test* test, struct param* param );
 static bool test_param_spec( struct semantic* semantic, struct param* param );
 static bool test_param_name( struct semantic* semantic, struct param* param );
 static bool test_param_ref( struct semantic* semantic, struct param* param );
-static bool test_param_after_ref( struct semantic* semantic, struct func* func,
-   struct param* param );
+static bool test_param_after_name( struct semantic* semantic,
+   struct param_list_test* test, struct param* param );
 static bool test_param_default_value( struct semantic* semantic,
-   struct func* func, struct param* param );
+   struct param_list_test* test, struct param* param );
 static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct type_info* param_type,
    struct type_info* type, struct pos* pos );
@@ -375,14 +390,11 @@ bool test_member_spec( struct semantic* semantic, struct structure* structure,
       member->dim = test.dim;
       member->spec = test.spec;
    }
-   if ( member->spec == SPEC_VOID ) {
-      struct ref* ref = get_last_ref_part( member->ref );
-      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
-         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &member->object.pos,
-            "%s of void type", ref ? "non-function reference" :
-            "struct member" );
-         s_bail( semantic );
-      }
+   if ( member->spec == SPEC_VOID && ! member->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &member->object.pos, member->dim ?
+         "array struct member has void element type" :
+         "struct member has void type" );
+      s_bail( semantic );
    }
    if ( member->spec == SPEC_STRUCT ) {
       return member->structure->object.resolved ||
@@ -400,8 +412,7 @@ bool test_member_ref( struct semantic* semantic,
    struct structure_member* member ) {
    struct ref_test test;
    init_ref_test( &test, member->ref, member->spec );
-   test_ref( semantic, &test );
-   return true;
+   return test_ref( semantic, &test );
 }
 
 bool test_member_name( struct semantic* semantic,
@@ -445,13 +456,11 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
       alias->dim = test.dim;
       alias->spec = test.spec;
    }
-   if ( alias->spec == SPEC_VOID ) {
-      struct ref* ref = get_last_ref_part( alias->ref );
-      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
-         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &alias->object.pos,
-            "%s of void type", ref ? "non-function reference" : "typedef" );
-         s_bail( semantic );
-      }
+   if ( alias->spec == SPEC_VOID && ! alias->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &alias->object.pos, alias->dim ?
+         "array type synonym has void element type" :
+         "type synonym has void type" );
+      s_bail( semantic );
    }
    if ( alias->spec == SPEC_STRUCT ) {
       return alias->structure->object.resolved;
@@ -467,8 +476,7 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
 bool test_typedef_ref( struct semantic* semantic, struct type_alias* alias ) {
    struct ref_test test;
    init_ref_test( &test, alias->ref, alias->spec );
-   test_ref( semantic, &test );
-   return true;
+   return test_ref( semantic, &test );
 }
 
 bool test_typedef_name( struct semantic* semantic, struct type_alias* alias ) {
@@ -519,13 +527,10 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
       var->dim = test.dim;
       var->spec = test.spec;
    }
-   if ( var->spec == SPEC_VOID ) {
-      struct ref* ref = get_last_ref_part( var->ref );
-      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
-         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &var->object.pos,
-            "%s of void type", ref ? "non-function reference" : "variable" );
-         s_bail( semantic );
-      }
+   if ( var->spec == SPEC_VOID && ! var->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos, var->dim ?
+         "array has void element type" : "variable has void type" );
+      s_bail( semantic );
    }
    var->spec = s_spec( semantic, var->spec );
    var->func_scope = s_func_scope_forced( semantic );
@@ -746,7 +751,7 @@ bool test_var_ref( struct semantic* semantic, struct var* var ) {
    if ( var->ref ) {
       struct ref_test test;
       init_ref_test( &test, var->ref, var->spec );
-      test_ref( semantic, &test );
+      return test_ref( semantic, &test );
    }
    return true;
 }
@@ -756,28 +761,68 @@ void init_ref_test( struct ref_test* test, struct ref* ref, int spec ) {
    test->spec = spec;
 }
 
-void test_ref( struct semantic* semantic, struct ref_test* test ) {
+bool test_ref( struct semantic* semantic, struct ref_test* test ) {
    struct ref* ref = test->ref;
    while ( ref ) {
-      test_ref_part( semantic, test, ref );
+      bool resolved = false;
+      switch ( ref->type ) {
+      case REF_STRUCTURE:
+         resolved = test_ref_struct( semantic, test,
+            ( struct ref_struct* ) ref );
+         break;
+      case REF_ARRAY:
+         resolved = test_ref_array( semantic, test,
+            ( struct ref_array* ) ref );
+         break;
+      case REF_FUNCTION:
+         resolved = test_ref_func( semantic, test,
+            ( struct ref_func* ) ref );
+         break;
+      default:
+         UNREACHABLE();
+      }
+      if ( ! resolved ) {
+         return false;
+      }
       ref = ref->next;
    }
+   return true;
 }
 
-void test_ref_part( struct semantic* semantic, struct ref_test* test,
-   struct ref* ref ) {
-   if ( ref->type == REF_FUNCTION ) {
-      // TODO
+bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
+   struct ref_struct* structure ) {
+   if ( test->spec != SPEC_STRUCT ) {
+      s_diag( semantic, DIAG_POS_ERR, &structure->ref.pos,
+         "invalid reference type (expecting reference-to-struct)" );
+      s_bail( semantic );
    }
-   else if ( ref->type == REF_STRUCTURE ) {
-      if ( test->spec != SPEC_STRUCT ) {
-         s_diag( semantic, DIAG_POS_ERR, &ref->pos,
-            "invalid reference type" );
-         s_diag( semantic, DIAG_POS, &ref->pos,
-            "only array/structure/function reference type is valid" );
-         s_bail( semantic );
-      }
+   return true;
+}
+
+bool test_ref_array( struct semantic* semantic, struct ref_test* test,
+   struct ref_array* array ) {
+   if ( test->spec == SPEC_VOID && ! array->ref.next ) {
+      s_diag( semantic, DIAG_POS_ERR, &array->ref.pos,
+         "array reference has void element type" );
+      s_bail( semantic );
    }
+   return true;
+}
+
+bool test_ref_func( struct semantic* semantic, struct ref_test* test,
+   struct ref_func* func ) {
+   if ( test->spec == SPEC_STRUCT && ! func->ref.next ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->ref.pos,
+         "function reference returning a struct (a struct can "
+         "only be returned by reference)" );
+      s_bail( semantic );
+   }
+   s_add_scope( semantic, true );
+   struct param_list_test param_test;
+   init_param_list_test( &param_test, NULL, func );
+   bool resolved = test_param_list( semantic, &param_test );
+   s_pop_scope( semantic );
+   return resolved;
 }
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
@@ -1536,6 +1581,7 @@ void s_test_func( struct semantic* semantic, struct func* func ) {
    func->object.resolved =
       test_func_qual( semantic, func ) &&
       test_func_return_spec( semantic, func ) &&
+      test_func_ref( semantic, func ) &&
       test_func_name( semantic, func ) &&
       test_func_after_name( semantic, func );
 }
@@ -1579,6 +1625,12 @@ bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
    }
 }
 
+bool test_func_ref( struct semantic* semantic, struct func* func ) {
+   struct ref_test test;
+   init_ref_test( &test, func->ref, func->return_spec );
+   return test_ref( semantic, &test );
+}
+
 bool test_func_name( struct semantic* semantic, struct func* func ) {
    if ( func->name && semantic->in_localscope ) {
       s_bind_name( semantic, func->name, &func->object );
@@ -1588,7 +1640,9 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
 
 bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    s_add_scope( semantic, true );
-   bool resolved = test_param_list( semantic, func );
+   struct param_list_test param_test;
+   init_param_list_test( &param_test, func, NULL );
+   bool resolved = test_param_list( semantic, &param_test );
    if ( resolved && func->prototype ) {
       resolved = test_func_prototype( semantic, func );
    }
@@ -1596,8 +1650,22 @@ bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    return resolved;
 }
 
-bool test_param_list( struct semantic* semantic, struct func* func ) {
-   struct param* param = func->params;
+void init_param_list_test( struct param_list_test* test, struct func* func,
+   struct ref_func* func_ref ) {
+   test->func = func;
+   test->func_ref = func_ref;
+   if ( func_ref ) {
+      test->params = func_ref->params;
+   }
+   else {
+      test->params = func->params;
+   }
+   test->prev_param = NULL;
+}
+
+bool test_param_list( struct semantic* semantic,
+   struct param_list_test* test ) {
+   struct param* param = test->params;
    while ( param ) {
       if ( param->object.resolved ) {
          if ( param->name ) {
@@ -1605,30 +1673,32 @@ bool test_param_list( struct semantic* semantic, struct func* func ) {
          }
       }
       else {
-         test_param( semantic, func, param );
+         test_param( semantic, test, param );
          if ( ! param->object.resolved ) {
             return false;
          }
       }
+      test->prev_param = param;
       param = param->next;
    }
    // Action-specials can take up to 5 arguments.
    enum { MAX_ASPEC_PARAMS = 5 };
-   if ( func->type == FUNC_ASPEC && func->max_param > MAX_ASPEC_PARAMS ) {
-      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+   if ( test->func && test->func->type == FUNC_ASPEC &&
+      test->func->max_param > MAX_ASPEC_PARAMS ) {
+      s_diag( semantic, DIAG_POS_ERR, &test->func->object.pos,
          "action-special has more than %d parameters", MAX_ASPEC_PARAMS );
       s_bail( semantic );
    }
    return true;
 }
 
-void test_param( struct semantic* semantic, struct func* func,
+void test_param( struct semantic* semantic, struct param_list_test* test,
    struct param* param ) {
    param->object.resolved =
       test_param_spec( semantic, param ) &&
       test_param_ref( semantic, param ) &&
       test_param_name( semantic, param ) &&
-      test_param_after_ref( semantic, func, param );
+      test_param_after_name( semantic, test, param );
    if ( param->object.resolved ) {
       calc_param_size( param );
    }
@@ -1645,13 +1715,10 @@ bool test_param_spec( struct semantic* semantic, struct param* param ) {
       param->enumeration = test.enumeration;
       param->spec = test.spec;
    }
-   if ( param->spec == SPEC_VOID ) {
-      struct ref* ref = get_last_ref_part( param->ref );
-      if ( ! ( ref && ref->type == REF_FUNCTION ) ) {
-         s_diag( semantic, DIAG_POS_ERR, ref ? &ref->pos : &param->object.pos,
-            "%s of void type", ref ? "non-function reference" : "parameter" );
-         s_bail( semantic );
-      }
+   if ( param->spec == SPEC_STRUCT && ! param->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
+         "struct parameter (structs can only be passed by reference)" );
+      s_bail( semantic );
    }
    if ( param->spec == SPEC_STRUCT ) {
       return param->structure->object.resolved;
@@ -1667,8 +1734,7 @@ bool test_param_spec( struct semantic* semantic, struct param* param ) {
 bool test_param_ref( struct semantic* semantic, struct param* param ) {
    struct ref_test test;
    init_ref_test( &test, param->ref, param->spec );
-   test_ref( semantic, &test );
-   return true;
+   return test_ref( semantic, &test );
 }
 
 bool test_param_name( struct semantic* semantic, struct param* param ) {
@@ -1678,10 +1744,10 @@ bool test_param_name( struct semantic* semantic, struct param* param ) {
    return true;
 }
 
-bool test_param_after_ref( struct semantic* semantic, struct func* func,
-   struct param* param ) {
+bool test_param_after_name( struct semantic* semantic,
+   struct param_list_test* test, struct param* param ) {
    // Builtin functions accept only primitive arguments.
-   if ( func->type != FUNC_USER ) {
+   if ( test->func && test->func->type != FUNC_USER ) {
       struct type_info type;
       s_init_type_info( &type, param->ref, param->structure,
          param->enumeration, NULL, param->spec, STORAGE_LOCAL );
@@ -1692,18 +1758,28 @@ bool test_param_after_ref( struct semantic* semantic, struct func* func,
       }
    }
    if ( param->default_value ) {
-      return test_param_default_value( semantic, func, param );
+      return test_param_default_value( semantic, test, param );
    }
    else {
+      if ( test->prev_param && test->prev_param->default_value ) {
+         s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
+            "parameter missing default value" );
+         s_bail( semantic );
+      }
       return true;
    }
 }
 
-bool test_param_default_value( struct semantic* semantic, struct func* func,
-   struct param* param ) {
-   if ( func->type == FUNC_ALIAS ) {
+bool test_param_default_value( struct semantic* semantic,
+   struct param_list_test* test, struct param* param ) {
+   if ( test->func && test->func->type == FUNC_ALIAS ) {
       s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
          "default value specified for parameter of function alias" );
+      s_bail( semantic );
+   }
+   if ( test->func_ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
+         "default argument specified in a function reference" );
       s_bail( semantic );
    }
    struct type_info type;
@@ -1722,7 +1798,7 @@ bool test_param_default_value( struct semantic* semantic, struct func* func,
    s_init_type_info( &param_type, param->ref, param->structure,
       param->enumeration, NULL, param->spec, STORAGE_LOCAL );
    if ( ! s_instance_of( &param_type, &type ) ) {
-      default_value_mismatch( semantic, func, param, &param_type, &type,
+      default_value_mismatch( semantic, test->func, param, &param_type, &type,
          &param->default_value->pos );
       s_bail( semantic );
    }

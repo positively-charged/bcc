@@ -1644,13 +1644,6 @@ void read_param_default_value( struct parse* parse, struct params* params,
          p_read_expr( parse, &value );
          param->default_value = value.output_node;
       }
-      else {
-         if ( params->tail && params->tail->default_value ) {
-            p_diag( parse, DIAG_POS_ERR, &param->object.pos,
-               "parameter missing default value" );
-            p_bail( parse );
-         }
-      }
       break;
    default:
       break;
