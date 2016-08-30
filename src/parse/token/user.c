@@ -5,6 +5,7 @@
 
 static void read_peeked_token( struct parse* parse );
 static void read_token( struct parse* parse );
+static void read_token_bcs( struct parse* parse );
 static struct token* push_token( struct parse* parse );
 
 // Functions used by the parser.
@@ -33,41 +34,48 @@ void read_peeked_token( struct parse* parse ) {
 }
 
 void read_token( struct parse* parse ) {
-   if ( parse->lang == LANG_BCS ) {
-      top:
-      p_read_stream( parse );
-      if ( parse->token->is_id ) {
-         if ( p_expand_macro( parse ) ) {
-            goto top;
-         }
-         else {
-            goto identifier;
-         }
+   switch ( parse->lang ) {
+   case LANG_BCS:
+      read_token_bcs( parse );
+      break;
+   default:
+      p_read_source( parse, parse->source_token );
+      parse->token = parse->source_token;
+   }
+}
+
+void read_token_bcs( struct parse* parse ) {
+   top:
+   p_read_stream( parse );
+   if ( parse->token->is_id ) {
+      if ( p_expand_macro( parse ) ) {
+         goto top;
       }
       else {
-         switch ( parse->token->type ) {
-         case TK_HASH:
-            if ( parse->line_beginning ) {
-               if ( p_read_dirc( parse ) ) {
-                  goto top;
-               }
-            }
-            break;
-         case TK_NL:
-            if ( ! parse->create_nltk ) {
-               goto top;
-            }
-            break;
-         case TK_HORZSPACE:
-            goto top;
-         default:
-            break;
-         }
+         goto identifier;
       }
    }
    else {
-      p_read_source( parse, parse->source_token );
-      parse->token = parse->source_token;
+      switch ( parse->token->type ) {
+      case TK_HASH:
+         if ( parse->line_beginning ) {
+            if ( p_read_dirc( parse ) ) {
+               goto top;
+            }
+         }
+         break;
+      case TK_NL:
+         if ( ! parse->create_nltk ) {
+            goto top;
+         }
+         break;
+      case TK_HORZSPACE:
+         goto top;
+      case TK_LIT_STRING:
+         goto string;
+      default:
+         break;
+      }
    }
    return;
 
@@ -157,6 +165,48 @@ void read_token( struct parse* parse ) {
             parse->token->type = table[ middle ].tk;
             return;
          }
+      }
+   }
+   return;
+
+   // Concatenate adjacent strings.
+   string:
+   // -----------------------------------------------------------------------
+   {
+      struct streamtk_iter iter;
+      p_init_streamtk_iter( parse, &iter );
+      p_next_stream( parse, &iter );
+      while (
+         iter.token->type == TK_HORZSPACE ||
+         iter.token->type == TK_NL ) {
+         p_next_stream( parse, &iter );
+      }
+      if ( iter.token->type == TK_LIT_STRING ) {
+         struct str text;
+         str_init( &text );
+         str_append( &text, parse->token->text );
+         struct pos pos = parse->token->pos;
+         while ( true ) {
+            p_init_streamtk_iter( parse, &iter );
+            p_next_stream( parse, &iter );
+            if ( 
+               iter.token->type == TK_HORZSPACE ||
+               iter.token->type == TK_NL ) {
+               p_read_stream( parse );
+            }
+            else if ( iter.token->type == TK_LIT_STRING ) {
+               p_read_stream( parse );
+               str_append( &text, parse->token->text );
+            }
+            else {
+               break;
+            }
+         }
+         parse->token->pos = pos;
+         parse->token->modifiable_text = p_copy_text( parse, &text );
+         parse->token->text = parse->token->modifiable_text;
+         parse->token->length = text.length;
+         str_deinit( &text );
       }
    }
 }

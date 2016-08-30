@@ -29,7 +29,6 @@ static char read_ch( struct parse* parse );
 static char peek_ch( struct parse* parse );
 static void read_initial_ch( struct parse* parse );
 static struct str* temp_text( struct parse* parse );
-static char* copy_text( struct parse* parse, struct str* text );
 static void append_ch( struct str* str, char ch );
 
 struct keyword_entry {
@@ -931,7 +930,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
             *copied_text = '\0';
             if ( temp_text ) {
                temp_text->length = copied_text - temp_text->value;
-               text = copy_text( parse, temp_text );
+               text = p_copy_text( parse, temp_text );
                length = temp_text->length;
             }
             else {
@@ -1708,18 +1707,6 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
-/*
-         if ( parse->read_flags & READF_CONCATSTRINGS ) {
-            while ( isspace( ch ) ) {
-               ch = read_ch( parse );
-            }
-            // Next string.
-            if ( ch == '"' ) {
-               ch = read_ch( parse );
-               continue;
-            }
-         }
-*/
          // Done.
          tk = TK_LIT_STRING;
          goto state_finish;
@@ -1784,7 +1771,7 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    token->type = tk;
    if ( text != NULL ) {
-      token->modifiable_text = copy_text( parse, text );
+      token->modifiable_text = p_copy_text( parse, text );
       token->text = token->modifiable_text;
       token->length = text->length;
    }
@@ -2020,7 +2007,7 @@ struct str* temp_text( struct parse* parse ) {
    return &parse->temp_text;
 }
 
-char* copy_text( struct parse* parse, struct str* str ) {
+char* p_copy_text( struct parse* parse, struct str* str ) {
    struct text_buffer* buffer = get_text_buffer( parse, str->length + 1 );
    memcpy( buffer->left, str->value, str->length + 1 );
    char* text = buffer->left;

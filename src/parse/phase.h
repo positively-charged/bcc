@@ -445,7 +445,6 @@ void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
 enum tk p_peek_2nd( struct parse* parse );
 struct token* p_peek_tk( struct parse* parse );
-struct token* p_peek_stream( struct parse* parse, bool nonwhitespace );
 const char* p_get_token_name( enum tk type );
 int p_extract_literal_value( struct parse* parse );
 void p_load_included_source( struct parse* parse, const char* file_path,
@@ -504,5 +503,6 @@ void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
+char* p_copy_text( struct parse* parse, struct str* text );
 
 #endif
