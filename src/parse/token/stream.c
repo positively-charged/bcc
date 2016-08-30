@@ -78,21 +78,19 @@ void read_peeked_token( struct parse* parse ) {
 // not present, or there are no more tokens available in the macro expansion,
 // reads a token from the source file.
 void read_token( struct parse* parse ) {
-   if ( parse->lang == LANG_BCS ) {
-      // Read from a predefined-macro expansion.
-      if ( parse->predef_macro_expan != PREDEFMACROEXPAN_NONE ) {
-         p_read_sourcepos_token( parse, parse->macro_expan ?
-            &parse->macro_expan->pos : &parse->token->pos );
-         parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
+   // Read from a predefined-macro expansion.
+   if ( parse->predef_macro_expan != PREDEFMACROEXPAN_NONE ) {
+      p_read_sourcepos_token( parse, parse->macro_expan ?
+         &parse->macro_expan->pos : &parse->token->pos );
+      parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
+      return;
+   }
+   // Read from a macro expansion.
+   parse->token = NULL;
+   while ( parse->macro_expan ) {
+      read_token_expan( parse );
+      if ( parse->token ) {
          return;
-      }
-      // Read from a macro expansion.
-      parse->token = NULL;
-      while ( parse->macro_expan ) {
-         read_token_expan( parse );
-         if ( parse->token ) {
-            return;
-         }
       }
    }
    // Read from a source file.
@@ -399,7 +397,6 @@ void read_macro_arg( struct parse* parse, struct arg_reading* reading ) {
 }
 
 void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
-   p_read_stream( parse );
    switch ( parse->token->type ) {
    case TK_HORZSPACE:
    case TK_NL:
@@ -420,10 +417,12 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
             parse->column = 0;
          }
       }
+      p_read_stream( parse );
       break;
    case TK_PAREN_L:
       ++reading->paren_depth;
       add_seq_token( parse, reading );
+      p_read_stream( parse );
       break;
    case TK_PAREN_R:
       --reading->paren_depth;
@@ -436,6 +435,7 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
       }
       else {
          add_seq_token( parse, reading );
+         p_read_stream( parse );
       }
       break;
    case TK_COMMA:
@@ -445,11 +445,13 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
       else {
          add_seq_token( parse, reading );
       }
+      p_read_stream( parse );
       break;
    case TK_ID:
       if ( ! p_expand_macro( parse ) ) {
          add_seq_token( parse, reading );
       }
+      p_read_stream( parse );
       break;
    case TK_END:
       p_diag( parse, DIAG_POS_ERR, &reading->expan->pos,
@@ -458,7 +460,7 @@ void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
       break;
    default:
       add_seq_token( parse, reading );
-      break;
+      p_read_stream( parse );
    }
 }
 
