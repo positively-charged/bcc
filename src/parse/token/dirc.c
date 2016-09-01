@@ -44,41 +44,46 @@ struct endif_search {
 
 static enum dirc identify_dirc( struct parse* parse );
 static enum dirc identify_named_dirc( const char* name );
-static void read_identified_dirc( struct parse* parse,
-   struct pos* pos, enum dirc dirc );
-static void read_include( struct parse* parse );
-static void read_error( struct parse* parse, struct pos* pos );
-static void read_line( struct parse* parse );
+static void read_identified_dirc( struct parse* parse, struct pos* pos,
+   enum dirc dirc );
 static void read_define( struct parse* parse );
 static void read_macro_name( struct parse* parse,
    struct macro_reading* reading );
-static struct macro* alloc_macro( struct parse* parse );
 static bool valid_macro_name( const char* name );
+static struct macro* alloc_macro( struct parse* parse );
 static void read_macro_param_list( struct parse* parse,
    struct macro_reading* reading );
-static void read_param_list( struct parse* parse, struct macro* macro );
+static void read_param_list( struct parse* parse,
+   struct macro_reading* reading );
 static struct macro_param* alloc_param( struct parse* parse );
 static void append_param( struct macro* macro, struct macro_param* param );
 static void read_macro_body( struct parse* parse,
    struct macro_reading* reading );
-static void read_body_item( struct parse* parse, struct macro* macro );
+static void read_body( struct parse* parse, struct macro_reading* reading );
+static void read_body_item( struct parse* parse,
+   struct macro_reading* reading );
 static bool valid_macro_param( struct parse* parse, struct macro* macro );
 static struct token* alloc_token( struct parse* parse );
 static void init_token( struct token* token, enum tk type, const char* text,
    int length );
 static void append_token( struct macro* macro, struct token* token );
+static void finish_macro( struct parse* parse, struct macro_reading* reading );
 static bool same_macro( struct macro* a, struct macro* b );
-static void add_macro( struct parse* parse, struct macro* macro );
-static struct macro* remove_macro( struct parse* parse, const char* name );
 static void free_macro( struct parse* parse, struct macro* macro );
+static void append_macro( struct parse* parse, struct macro* macro );
+static void read_include( struct parse* parse );
+static void read_error( struct parse* parse, struct pos* pos );
+static void read_line( struct parse* parse );
 static void read_undef( struct parse* parse );
-static bool space_token( struct parse* parse );
-static bool dirc_end( struct parse* parse );
+static struct macro* remove_macro( struct parse* parse, const char* name );
 static void read_if( struct parse* parse, struct pos* pos );
-static void read_ifdef( struct parse* parse, struct pos* pos );
 static void push_ifdirc( struct parse* parse, const char* name,
    struct pos* pos );
+static bool pop_ifdirc( struct parse* parse );
+static void read_ifdef( struct parse* parse, struct pos* pos );
 static void find_elif( struct parse* parse );
+static void init_endif_search( struct endif_search* search,
+   bool execute_else );
 static void find_endif( struct parse* parse, struct endif_search* search );
 static void read_search_dirc( struct parse* parse, struct endif_search* search,
    struct pos* pos );
@@ -88,7 +93,6 @@ static void read_else( struct parse* parse, struct endif_search* search,
    struct pos* pos );
 static void read_endif( struct parse* parse, struct endif_search* search,
    struct pos* pos );
-static bool pop_ifdirc( struct parse* parse );
 static void skip_section( struct parse* parse, struct pos* pos );
 static void read_region( struct parse* parse );
 
@@ -119,7 +123,7 @@ enum dirc identify_dirc( struct parse* parse ) {
       switch ( dirc ) {
       case DIRC_DEFINE:
       case DIRC_INCLUDE:
-         if ( ! parse->ifdirc_top ) {
+         if ( ! parse->ifdirc ) {
             dirc = DIRC_NONE;
          }
          break;
@@ -161,14 +165,23 @@ enum dirc identify_named_dirc( const char* name ) {
    return table[ i ].dirc;
 }
 
-void read_identified_dirc( struct parse* parse,
-   struct pos* pos, enum dirc dirc ) {
+void read_identified_dirc( struct parse* parse, struct pos* pos,
+   enum dirc dirc ) {
    switch ( dirc ) {
    case DIRC_DEFINE:
       read_define( parse );
       break;
    case DIRC_INCLUDE:
       read_include( parse );
+      break;
+   case DIRC_ERROR:
+      read_error( parse, pos );
+      break;
+   case DIRC_LINE:
+      read_line( parse );
+      break;
+   case DIRC_UNDEF:
+      read_undef( parse );
       break;
    case DIRC_IFDEF:
    case DIRC_IFNDEF:
@@ -182,15 +195,6 @@ void read_identified_dirc( struct parse* parse,
    case DIRC_ENDIF:
       skip_section( parse, pos );
       break;
-   case DIRC_UNDEF:
-      read_undef( parse );
-      break;
-   case DIRC_ERROR:
-      read_error( parse, pos );
-      break;
-   case DIRC_LINE:
-      read_line( parse );
-      break;
    case DIRC_REGION:
    case DIRC_ENDREGION:
       read_region( parse );
@@ -203,98 +207,33 @@ void read_identified_dirc( struct parse* parse,
    }
 }
 
-void read_include( struct parse* parse ) {
-   p_test_preptk( parse, TK_ID );
-   p_read_expanpreptk( parse );
-   p_test_preptk( parse, TK_LIT_STRING );
-   const char* path = parse->token->text;
-   struct pos pos = parse->token->pos;
-   p_read_expanpreptk( parse );
-   p_test_preptk( parse, TK_NL );
-   p_load_included_source( parse, path, &pos );
-}
-
-void read_error( struct parse* parse, struct pos* pos ) {
-   p_test_preptk( parse, TK_ID );
-   p_read_preptk( parse );
-   struct str message;
-   str_init( &message );
-   while ( parse->token->type != TK_NL ) {
-      str_append( &message, parse->token->text );
-      p_read_stream( parse );
-   }
-   p_diag( parse, DIAG_POS_ERR | DIAG_CUSTOM, pos, message.value );
-   p_bail( parse );
-}
-
-void read_line( struct parse* parse ) {
-   p_test_preptk( parse, TK_ID );
-   p_read_preptk( parse );
-   p_test_preptk( parse, TK_LIT_DECIMAL );
-   int line = strtol( parse->token->text, NULL, 10 );
-   if ( line == 0 ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-         "invalid line-number argument" );
-      p_bail( parse );
-   }
-   parse->source->line = line;
-   p_read_stream( parse );
-   if ( parse->token->type == TK_HORZSPACE ) {
-      p_read_stream( parse );
-   }
-   // Custom filename.
-   if ( parse->token->type == TK_LIT_STRING ) {
-      parse->source->file_entry_id = t_add_altern_filename(
-         parse->task, parse->token->text );
-      p_read_stream( parse );
-      if ( parse->token->type == TK_HORZSPACE ) {
-         p_read_stream( parse );
-      }
-   }
-}
-
 void read_define( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    struct macro_reading reading;
    read_macro_name( parse, &reading );
-   if ( parse->token->type == TK_PAREN_L ) {
-      read_param_list( parse, reading.macro );
-   }
-   if ( parse->token->type != TK_NL ) {
-      read_macro_body( parse, &reading );
-   }
-   struct macro* prev_macro = p_find_macro( parse, reading.macro->name );
-   if ( prev_macro ) {
-      if ( same_macro( prev_macro, reading.macro ) ) {
-         prev_macro->pos = reading.macro->pos;
-         free_macro( parse, reading.macro );
-      }
-      else {
-         p_diag( parse, DIAG_POS_ERR, &reading.macro->pos,
-            "macro `%s` redefined", reading.macro->name );
-         p_diag( parse, DIAG_POS, &prev_macro->pos,
-            "macro previously defined here" );
-         p_bail( parse );
-      }
-   }
-   else {
-      add_macro( parse, reading.macro );
-   }
+   read_macro_param_list( parse, &reading );
+   read_macro_body( parse, &reading );
+   finish_macro( parse, &reading );
 }
 
 void read_macro_name( struct parse* parse, struct macro_reading* reading ) {
-   struct macro* macro = alloc_macro( parse );
    p_test_preptk( parse, TK_ID );
    if ( ! valid_macro_name( parse->token->text ) ) {
       p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
          "invalid macro name" );
       p_bail( parse );
    }
+   struct macro* macro = alloc_macro( parse );
    macro->name = parse->token->text;
    macro->pos = parse->token->pos;
    reading->macro = macro;
    p_read_stream( parse );
+}
+
+inline bool valid_macro_name( const char* name ) {
+   // At this time, only one name is reserved and cannot be used.
+   return ( strcmp( name, "defined" ) != 0 );
 }
 
 struct macro* alloc_macro( struct parse* parse ) {
@@ -311,31 +250,27 @@ struct macro* alloc_macro( struct parse* parse ) {
    macro->param_head = NULL;
    macro->param_tail = NULL;
    macro->body = NULL;
+   macro->body_tail = NULL;
    macro->param_count = 0;
    macro->func_like = false;
    macro->variadic = false;
    return macro;
 }
 
-inline bool valid_macro_name( const char* name ) {
-   // At this time, only one name is reserved and cannot be used.
-   return ( strcmp( name, "defined" ) != 0 );
-}
-
 void read_macro_param_list( struct parse* parse,
    struct macro_reading* reading ) {
    if ( parse->token->type == TK_PAREN_L ) {
-      read_param_list( parse, reading->macro );
+      read_param_list( parse, reading );
    }
 }
 
-void read_param_list( struct parse* parse, struct macro* macro ) {
+void read_param_list( struct parse* parse, struct macro_reading* reading ) {
    p_test_preptk( parse, TK_PAREN_L );
    p_read_preptk( parse );
    // Named parameters.
+   bool comma = false;
    while ( parse->token->is_id ) {
-      // Check for a duplicate parameter.
-      struct macro_param* param = macro->param_head;
+      struct macro_param* param = reading->macro->param_head;
       while ( param ) {
          if ( strcmp( param->name, parse->token->text ) == 0 ) {
             p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
@@ -346,30 +281,34 @@ void read_param_list( struct parse* parse, struct macro* macro ) {
       }
       param = alloc_param( parse );
       param->name = parse->token->text;
-      append_param( macro, param );
+      append_param( reading->macro, param );
       p_read_preptk( parse );
-      if ( parse->token->type == TK_COMMA ) {
+      comma = ( parse->token->type == TK_COMMA );
+      if ( comma ) {
          p_read_preptk( parse );
-         if ( parse->token->type != TK_ID &&
-            parse->token->type != TK_ELLIPSIS ) {
+         if ( ! (
+            parse->token->type == TK_ID ||
+            parse->token->type == TK_ELLIPSIS ) ) {
             p_unexpect_diag( parse );
-            p_unexpect_name( parse, NULL, "macro-parameter name" );
+            p_unexpect_name( parse, NULL, "macro parameter name" );
             p_unexpect_last( parse, NULL, TK_ELLIPSIS );
             p_bail( parse );
          }
       }
    }
    // Variadic parameter.
-   if ( parse->token->type == TK_ELLIPSIS ) {
+   if ( parse->token->type == TK_ELLIPSIS &&
+      ( comma || reading->macro->param_count == 0 ) ) {
       struct macro_param* param = alloc_param( parse );
-      param->name = "__va_args__";
-      append_param( macro, param );
-      macro->variadic = true;
+      param->name = "__VA_ARGS__";
+      append_param( reading->macro, param );
+      reading->macro->variadic = true;
+      parse->variadic_macro_context = true;
       p_read_preptk( parse );
    }
    p_test_preptk( parse, TK_PAREN_R );
    p_read_preptk( parse );
-   macro->func_like = true;
+   reading->macro->func_like = true;
 }
 
 struct macro_param* alloc_param( struct parse* parse ) {
@@ -397,51 +336,56 @@ void append_param( struct macro* macro, struct macro_param* param ) {
 }
 
 void read_macro_body( struct parse* parse, struct macro_reading* reading ) {
-   bool initial_space = false;
-   if ( parse->token->type == TK_HORZSPACE ) {
-      p_read_stream( parse );
-      initial_space = true;
+   if ( parse->token->type != TK_NL ) {
+      read_body( parse, reading );
    }
-   // For an object-like macro, there needs to be whitespace between the
-   // name and the body of the macro.
-   if ( ! reading->macro->func_like && ! initial_space ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-         "missing whitespace between macro name and macro body" );
-      p_bail( parse );
-   }
-   parse->prep_context = PREPCONTEXT_DEFINEBODY;
-   while ( ! dirc_end( parse ) ) {
-      read_body_item( parse, reading->macro );
-   }
-   parse->prep_context = PREPCONTEXT_NONE;
 }
 
-void read_body_item( struct parse* parse, struct macro* macro ) {
+void read_body( struct parse* parse, struct macro_reading* reading ) {
+   if ( parse->token->type == TK_HORZSPACE ) {
+      p_read_preptk( parse );
+   }
+   else {
+      // For an object-like macro, there needs to be whitespace between the
+      // name and the body of the macro.
+      if ( ! reading->macro->func_like ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
+            "missing whitespace between macro name and macro body" );
+         p_bail( parse );
+      }
+   }
+   while ( parse->token->type != TK_NL ) {
+      read_body_item( parse, reading );
+   }
+   if ( reading->macro->body_tail &&
+      reading->macro->body_tail->type == TK_PREP_HASHHASH ) {
+      p_diag( parse, DIAG_POS_ERR, &reading->macro->body_tail->pos,
+         "`##` operator at end of macro body" );
+      p_bail( parse );
+   }
+}
+
+void read_body_item( struct parse* parse, struct macro_reading* reading ) {
    // `#` operator.
    if ( parse->token->type == TK_HASH ) {
-      if ( macro->func_like ) {
-         struct pos hash_pos = parse->token->pos;
-         p_read_stream( parse );
-         if ( parse->token->type == TK_HORZSPACE ) {
-            p_read_stream( parse );
-         }
+      if ( reading->macro->func_like ) {
+         p_read_preptk( parse );
          p_test_preptk( parse, TK_ID );
-         if ( ! valid_macro_param( parse, macro ) ) {
+         if ( ! valid_macro_param( parse, reading->macro ) ) {
             p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-               "`%s` not a parameter of macro `%s`",
-               parse->token->text, macro->name );
+               "`%s` not a parameter of `%s` macro",
+               parse->token->text, reading->macro->name );
             p_bail( parse );
          }
-         //token.pos = hash_pos;
          parse->token->type = TK_STRINGIZE;
       }
-else {
-   parse->token->type = TK_PROCESSEDHASH;
-}
+      else {
+         parse->token->type = TK_PROCESSEDHASH;
+      }
    }
    // `##` operator.
    else if ( parse->token->type == TK_PREP_HASHHASH ) {
-      if ( ! macro->body ) {
+      if ( ! reading->macro->body ) {
          p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
             "`##` operator at beginning of macro body" );
          p_bail( parse );
@@ -456,34 +400,13 @@ else {
          return;
       }
    }
-/*
-   else if ( parse->token->type == TK_HORZSPACE ) {
-      struct token* space_token = parse->token;
-      p_read_stream( parse );
-      if ( ! dirc_end( parse ) ) {
-         struct token* token = alloc_token( parse );
-         *token = *space_token;
-         append_token( macro, token );
-         token->length = 1;
-         p_read_stream( parse );
-         return;
-      }
-   }
-*/
    struct token* token = alloc_token( parse );
    *token = *parse->token;
    if ( token->type == TK_HORZSPACE ) {
       token->length = 1;
    }
-   append_token( macro, token );
+   append_token( reading->macro, token );
    p_read_stream( parse );
-   if ( dirc_end( parse ) ) {
-      if ( macro->body_tail && macro->body_tail->type == TK_PREP_HASHHASH ) {
-         p_diag( parse, DIAG_POS_ERR, &macro->body_tail->pos,
-            "`##` operator at end of macro body" );
-         p_bail( parse );
-      }
-   }
 }
 
 bool valid_macro_param( struct parse* parse, struct macro* macro ) {
@@ -528,6 +451,27 @@ void append_token( struct macro* macro, struct token* token ) {
       macro->body = token;
    }
    macro->body_tail = token;
+}
+
+void finish_macro( struct parse* parse, struct macro_reading* reading ) {
+   struct macro* prev_macro = p_find_macro( parse, reading->macro->name );
+   if ( prev_macro ) {
+      if ( same_macro( prev_macro, reading->macro ) ) {
+         prev_macro->pos = reading->macro->pos;
+         free_macro( parse, reading->macro );
+      }
+      else {
+         p_diag( parse, DIAG_POS_ERR, &reading->macro->pos,
+            "macro `%s` redefined", reading->macro->name );
+         p_diag( parse, DIAG_POS, &prev_macro->pos,
+            "macro previously defined here" );
+         p_bail( parse );
+      }
+   }
+   else {
+      append_macro( parse, reading->macro );
+   }
+   parse->variadic_macro_context = false;
 }
 
 struct macro* p_find_macro( struct parse* parse, const char* name ) {
@@ -590,23 +534,6 @@ bool same_macro( struct macro* a, struct macro* b ) {
    return true;
 }
 
-void add_macro( struct parse* parse, struct macro* macro ) {
-   struct macro* prev = NULL;
-   struct macro* curr = parse->macro_head;
-   while ( curr && strcmp( curr->name, macro->name ) < 0 ) {
-      prev = curr;
-      curr = curr->next;
-   }
-   if ( prev ) {
-      macro->next = prev->next;
-      prev->next = macro;
-   }
-   else {
-      macro->next = parse->macro_head;
-      parse->macro_head = macro;
-   }
-}
-
 void free_macro( struct parse* parse, struct macro* macro ) {
    // Reuse parameters.
    if ( macro->param_head ) {
@@ -623,12 +550,78 @@ void free_macro( struct parse* parse, struct macro* macro ) {
    parse->macro_free = macro;
 }
 
+void append_macro( struct parse* parse, struct macro* macro ) {
+   struct macro* prev = NULL;
+   struct macro* curr = parse->macro_head;
+   while ( curr && strcmp( curr->name, macro->name ) < 0 ) {
+      prev = curr;
+      curr = curr->next;
+   }
+   if ( prev ) {
+      macro->next = prev->next;
+      prev->next = macro;
+   }
+   else {
+      macro->next = parse->macro_head;
+      parse->macro_head = macro;
+   }
+}
+
 void p_clear_macros( struct parse* parse ) {
    struct macro* macro = parse->macro_head;
    while ( macro ) {
       parse->macro_head = macro->next;
       free_macro( parse, macro );
       macro = parse->macro_head;
+   }
+}
+
+void read_include( struct parse* parse ) {
+   p_test_preptk( parse, TK_ID );
+   p_read_expanpreptk( parse );
+   p_test_preptk( parse, TK_LIT_STRING );
+   const char* path = parse->token->text;
+   struct pos pos = parse->token->pos;
+   p_read_expanpreptk( parse );
+   p_test_preptk( parse, TK_NL );
+   p_load_included_source( parse, path, &pos );
+}
+
+void read_error( struct parse* parse, struct pos* pos ) {
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
+   struct str message;
+   str_init( &message );
+   while ( parse->token->type != TK_NL ) {
+      str_append( &message, parse->token->text );
+      p_read_stream( parse );
+   }
+   p_diag( parse, DIAG_POS_ERR | DIAG_CUSTOM, pos, message.value );
+   p_bail( parse );
+}
+
+void read_line( struct parse* parse ) {
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
+   p_test_preptk( parse, TK_LIT_DECIMAL );
+   int line = strtol( parse->token->text, NULL, 10 );
+   if ( line == 0 ) {
+      p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
+         "invalid line-number argument" );
+      p_bail( parse );
+   }
+   parse->source->line = line;
+   p_read_preptk( parse );
+   const char* filename = NULL;
+   if ( parse->token->type == TK_LIT_STRING ) {
+      filename = parse->token->text;
+      p_read_preptk( parse );
+   }
+   p_test_preptk( parse, TK_NL );
+   parse->source->line = line;
+   if ( filename ) {
+      parse->source->file_entry_id =
+         t_add_altern_filename( parse->task, filename );
    }
 }
 
@@ -641,16 +634,18 @@ void read_undef( struct parse* parse ) {
          "invalid macro name", parse->token->text );
       p_bail( parse );
    }
-   if ( p_identify_predef_macro( parse->token->text ) != PREDEFMACROEXPAN_NONE ) {
+   if ( p_identify_predef_macro( parse->token->text ) !=
+      PREDEFMACROEXPAN_NONE ) {
       p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
          "undefining a predefined macro" );
       p_bail( parse );
    }
-   struct macro* macro = remove_macro( parse, parse->tk_text );
+   struct macro* macro = remove_macro( parse, parse->token->text );
    if ( macro ) {
       free_macro( parse, macro );
    }
-   p_read_tk( parse );
+   p_read_preptk( parse );
+   p_test_preptk( parse, TK_NL );
 }
 
 struct macro* remove_macro( struct parse* parse, const char* name ) {
@@ -681,22 +676,43 @@ struct macro* remove_macro( struct parse* parse, const char* name ) {
    return macro;
 }
 
-inline bool space_token( struct parse* parse ) {
-   return ( parse->token->type == TK_SPACE || parse->token->type == TK_TAB );
-}
-
-inline bool dirc_end( struct parse* parse ) {
-   return ( parse->token->type == TK_NL || parse->token->type == TK_END );
-}
-
 void read_if( struct parse* parse, struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    push_ifdirc( parse, parse->token->text, pos );
    int value = p_eval_prep_expr( parse );
    p_test_preptk( parse, TK_NL );
-   if ( value == 0 ) {
+   if ( ! value ) {
       find_elif( parse );
    }
+}
+
+void push_ifdirc( struct parse* parse, const char* name, struct pos* pos ) {
+   struct ifdirc* entry;
+   if ( parse->ifdirc_free ) {
+      entry = parse->ifdirc_free;
+      parse->ifdirc_free = entry->prev;
+   }
+   else {
+      entry = mem_alloc( sizeof( *entry ) );
+   }
+   entry->prev = parse->ifdirc;
+   entry->name = name;
+   entry->pos = *pos;
+   entry->effective = false;
+   entry->section_found = false;
+   entry->else_found = false;
+   parse->ifdirc = entry;
+}
+
+bool pop_ifdirc( struct parse* parse ) {
+   if ( parse->ifdirc ) {
+      struct ifdirc* entry = parse->ifdirc;
+      parse->ifdirc = entry->prev;
+      entry->prev = parse->ifdirc_free;
+      parse->ifdirc_free = entry;
+      return true;
+   }
+   return false;
 }
 
 // Handles #ifdef/#ifndef.
@@ -705,30 +721,31 @@ void read_ifdef( struct parse* parse, struct pos* pos ) {
    push_ifdirc( parse, parse->token->text, pos );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_ID );
-   struct macro* macro = p_find_macro( parse, parse->token->text );
+   bool defined = p_is_macro_defined( parse, parse->token->text );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_NL );
-   bool success = ( parse->ifdirc_top->name[ 2 ] == 'd' ) ?
-      macro != NULL : macro == NULL;
-   if ( ! success ) {
+   if ( ! (
+      ( parse->ifdirc->name[ 2 ] == 'd' && defined ) ||
+      ( parse->ifdirc->name[ 2 ] == 'n' && ! defined ) ) ) {
       find_elif( parse );
    }
 }
 
-void push_ifdirc( struct parse* parse, const char* name, struct pos* pos ) {
-   struct ifdirc* entry = mem_alloc( sizeof( *entry ) );
-   entry->prev = parse->ifdirc_top;
-   entry->name = name;
-   entry->pos = *pos;
-   entry->effective = false;
-   entry->section_found = false;
-   entry->else_found = false;
-   parse->ifdirc_top = entry;
+bool p_is_macro_defined( struct parse* parse, const char* name ) {
+   return ( p_find_macro( parse, name ) || p_identify_predef_macro( name ) !=
+      PREDEFMACROEXPAN_NONE );
 }
 
 void find_elif( struct parse* parse ) {
-   struct endif_search search = { 1, false, true };
+   struct endif_search search;
+   init_endif_search( &search, true );
    find_endif( parse, &search );
+}
+
+void init_endif_search( struct endif_search* search, bool execute_else ) {
+   search->depth = 1;
+   search->done = false;
+   search->execute_else = execute_else;
 }
 
 void find_endif( struct parse* parse, struct endif_search* search ) {
@@ -738,12 +755,9 @@ void find_endif( struct parse* parse, struct endif_search* search ) {
          if ( parse->token->type == TK_HASH ) {
             struct pos pos = parse->token->pos;
             p_read_preptk( parse );
-            if ( ! parse->token->is_id ) {
-               p_unexpect_diag( parse );
-               p_unexpect_last( parse, NULL, TK_ID );
-               p_bail( parse );
+            if ( parse->token->is_id ) {
+               read_search_dirc( parse, search, &pos );
             }
-            read_search_dirc( parse, search, &pos );
          }
       }
       else {
@@ -781,18 +795,17 @@ void read_search_dirc( struct parse* parse, struct endif_search* search,
 void read_elif( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
-   p_read_preptk( parse );
    int value = p_eval_prep_expr( parse );
    p_test_preptk( parse, TK_NL );
-   if ( ! parse->ifdirc_top ) {
+   if ( ! parse->ifdirc ) {
       p_diag( parse, DIAG_POS_ERR, pos,
          "#elif outside an if-directive" );
       p_bail( parse );
    }
-   if ( parse->ifdirc_top->else_found ) {
+   if ( parse->ifdirc->else_found ) {
       p_diag( parse, DIAG_POS_ERR, pos,
          "#elif found after #else" );
-      p_diag( parse, DIAG_POS, &parse->ifdirc_top->else_pos,
+      p_diag( parse, DIAG_POS, &parse->ifdirc->else_pos,
          "#else found here" );
       p_bail( parse );
    }
@@ -803,23 +816,23 @@ void read_elif( struct parse* parse, struct endif_search* search,
 
 void read_else( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
-   p_test_preptk( parse, TK_ELSE );
+   p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_NL );
-   if ( ! parse->ifdirc_top ) {
+   if ( ! parse->ifdirc ) {
       p_diag( parse, DIAG_POS_ERR, pos,
          "#else used with no open if-directive" );
       p_bail( parse );
    }
-   if ( parse->ifdirc_top->else_found ) {
+   if ( parse->ifdirc->else_found ) {
       p_diag( parse, DIAG_POS_ERR, pos,
          "duplicate #else" );
-      p_diag( parse, DIAG_POS, &parse->ifdirc_top->else_pos,
+      p_diag( parse, DIAG_POS, &parse->ifdirc->else_pos,
          "#else previously found here" );
       p_bail( parse );
    }
-   parse->ifdirc_top->else_pos = *pos;
-   parse->ifdirc_top->else_found = true;
+   parse->ifdirc->else_pos = *pos;
+   parse->ifdirc->else_found = true;
    if ( search->execute_else ) {
       search->done = true;
    }
@@ -829,42 +842,28 @@ void read_endif( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
+   p_test_preptk( parse, TK_NL );
    if ( ! pop_ifdirc( parse ) ) {
       p_diag( parse, DIAG_POS_ERR, pos,
          "#endif used with no open if-directive" );
       p_bail( parse );
    }
-   p_test_preptk( parse, TK_NL );
    --search->depth;
    if ( search->depth == 0 ) {
       search->done = true;
    }
 }
 
-bool pop_ifdirc( struct parse* parse ) {
-   if ( parse->ifdirc_top ) {
-      parse->ifdirc_top = parse->ifdirc_top->prev;
-      return true;
-   }
-   return false;
-}
-
 void skip_section( struct parse* parse, struct pos* pos ) {
-   struct endif_search search = { 1, false, false };
+   struct endif_search search;
+   init_endif_search( &search, false );
    read_search_dirc( parse, &search, pos );
    find_endif( parse, &search );
 }
 
-int eval_expr( struct parse* parse ) {
-   p_test_preptk( parse, TK_LIT_DECIMAL );
-   int value = strtol( parse->token->text, NULL, 10 );
-   p_read_preptk( parse );
-   return value;
-}
-
 void p_confirm_ifdircs_closed( struct parse* parse ) {
-   if ( parse->ifdirc_top ) {
-      struct ifdirc* entry = parse->ifdirc_top;
+   if ( parse->ifdirc ) {
+      struct ifdirc* entry = parse->ifdirc;
       while ( entry ) {
          p_diag( parse, DIAG_POS_ERR, &entry->pos,
             "unterminated #%s", entry->name );
@@ -877,7 +876,7 @@ void p_confirm_ifdircs_closed( struct parse* parse ) {
 void p_define_imported_macro( struct parse* parse ) {
    struct macro* macro = alloc_macro( parse );
    macro->name = "__IMPORTED__";
-   add_macro( parse, macro );
+   append_macro( parse, macro );
 }
 
 void p_define_cmdline_macros( struct parse* parse ) {
@@ -893,7 +892,7 @@ void p_define_cmdline_macros( struct parse* parse ) {
          macro = alloc_macro( parse );
          macro->name = name;
          append_token( macro, token );
-         add_macro( parse, macro );
+         append_macro( parse, macro );
       }
       list_next( &i );
    }

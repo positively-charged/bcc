@@ -260,9 +260,7 @@ bool p_expand_macro( struct parse* parse ) {
       struct streamtk_iter iter;
       p_init_streamtk_iter( parse, &iter );
       p_next_stream( parse, &iter );
-      while (
-         iter.token->type == TK_HORZSPACE ||
-         iter.token->type == TK_NL ) {
+      while ( iter.token->type == TK_HORZSPACE ) {
          p_next_stream( parse, &iter );
       }
       if ( iter.token->type != TK_PAREN_L ) {
@@ -332,27 +330,35 @@ void init_arg_reading( struct arg_reading* reading,
    reading->surpassed_param_count = false;
 }
 
-void skip_whitespace( struct parse* parse ) {
-   while ( true ) {
-      switch ( parse->token->type ) {
-      case TK_HORZSPACE:
-      case TK_NL:
-         p_read_stream( parse );
-         break;
-      default:
-         return;
-      }
+void skip_horzspace( struct parse* parse ) {
+   while ( parse->token->type == TK_HORZSPACE ) {
+      p_read_stream( parse );
    }
 } 
 
 void read_macro_arg_list( struct parse* parse, struct macro_expan* expan ) {
-   skip_whitespace( parse );
+   skip_horzspace( parse );
    p_test_tk( parse, TK_PAREN_L );
    p_read_stream( parse );
-   skip_whitespace( parse );
+   skip_horzspace( parse );
    struct arg_reading reading;
    init_arg_reading( &reading, expan );
-   if ( parse->token->type != TK_PAREN_R ) {
+   if ( parse->token->type == TK_PAREN_R ) {
+      if ( expan->macro->param_count > 0 ) {
+         struct macro_arg* arg = mem_alloc( sizeof( *arg ) );
+         arg->next = NULL;
+         arg->sequence = reading.token_head;
+         if ( reading.head ) {
+            reading.tail->next = arg;
+         }
+         else {
+            reading.head = arg;
+         }
+         reading.tail = arg;
+         ++reading.given;
+      }
+   }
+   else {
       while ( ! reading.done ) {
          read_macro_arg( parse, &reading );
       }
@@ -398,8 +404,11 @@ void read_macro_arg( struct parse* parse, struct arg_reading* reading ) {
 
 void read_seq_token( struct parse* parse, struct arg_reading* reading ) {
    switch ( parse->token->type ) {
-   case TK_HORZSPACE:
    case TK_NL:
+      reading->done_seq = true;
+      reading->done = true;
+      break;
+   case TK_HORZSPACE:
       if ( reading->token_tail && reading->token_tail->type != TK_HORZSPACE ) {
          struct streamtk_iter iter;
          p_init_streamtk_iter( parse, &iter );

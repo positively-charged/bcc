@@ -380,7 +380,8 @@ struct parse {
    struct macro_param* macro_param_free;
    struct macro_expan* macro_expan;
    struct macro_expan* macro_expan_free;
-   struct ifdirc* ifdirc_top;
+   struct ifdirc* ifdirc;
+   struct ifdirc* ifdirc_free;
 
    int line;
    int column;
@@ -412,6 +413,7 @@ struct parse {
    const struct lang_limits* lang_limits;
    struct text_buffer* text_buffer;
    bool main_source_deinited;
+   bool variadic_macro_context;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -428,7 +430,6 @@ void p_read_preptk( struct parse* parse );
 void p_read_expanpreptk( struct parse* parse );
 void p_read_eoptiontk( struct parse* parse );
 void p_read_stream( struct parse* parse );
-void p_read_stream_custom( struct parse* parse, int options );
 void p_test_tk( struct parse* parse, enum tk type );
 void p_test_preptk( struct parse* parse, enum tk type );
 void p_test_stream( struct parse* parse, enum tk type );
@@ -504,5 +505,6 @@ void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
 char* p_copy_text( struct parse* parse, struct str* text );
+bool p_is_macro_defined( struct parse* parse, const char* name );
 
 #endif

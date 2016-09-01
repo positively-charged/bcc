@@ -39,6 +39,7 @@ void output_source( struct parse* parse, struct str* output ) {
          break;
       }
    }
+   p_confirm_ifdircs_closed( parse );
 }
 
 int line = 1;

@@ -73,6 +73,9 @@ void read_token_bcs( struct parse* parse ) {
          goto top;
       case TK_LIT_STRING:
          goto string;
+      case TK_PROCESSEDHASH:
+         parse->token->type = TK_HASH;
+         break;
       default:
          break;
       }

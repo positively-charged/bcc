@@ -19,7 +19,7 @@ static int eval_prefix( struct parse* parse, struct calc* calc );
 static int eval_primary( struct parse* parse, struct calc* calc );
 static int eval_ch( struct parse* parse );
 static int eval_id( struct parse* parse );
-static bool eval_defined( struct parse* parse );
+static int eval_defined( struct parse* parse );
 static int eval_number( struct parse* parse );
 static int eval_paren( struct parse* parse, struct calc* calc );
 
@@ -321,7 +321,7 @@ int eval_ch( struct parse* parse ) {
 
 int eval_id( struct parse* parse ) {
    if ( strcmp( parse->token->text, "defined" ) == 0 ) {
-      return ( int ) eval_defined( parse );
+      return eval_defined( parse );
    }
    else {
       p_read_expanpreptk( parse );
@@ -329,21 +329,22 @@ int eval_id( struct parse* parse ) {
    }
 }
 
-bool eval_defined( struct parse* parse ) {
-   p_read_expanpreptk( parse );
+int eval_defined( struct parse* parse ) {
+   p_test_preptk( parse, TK_ID );
+   p_read_preptk( parse );
    bool paren = false;
    if ( parse->token->type == TK_PAREN_L ) {
-      p_read_expanpreptk( parse );
+      p_read_preptk( parse );
       paren = true;
    }
    p_test_preptk( parse, TK_ID );
-   struct macro* macro = p_find_macro( parse, parse->token->text );
-   p_read_expanpreptk( parse );
+   bool defined = p_is_macro_defined( parse, parse->token->text );
    if ( paren ) {
+      p_read_preptk( parse );
       p_test_preptk( parse, TK_PAREN_R );
-      p_read_expanpreptk( parse );
    }
-   return ( macro != NULL );
+   p_read_expanpreptk( parse );
+   return ( int ) defined;
 }
 
 int eval_number( struct parse* parse ) {

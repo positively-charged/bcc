@@ -1397,11 +1397,13 @@ void read_token( struct parse* parse, struct token* token ) {
       p_bail( parse );
    }
    else if ( ch == '#' ) {
-      tk = TK_HASH;
       ch = read_ch( parse );
       if ( ch == '#' ) {
          tk = TK_PREP_HASHHASH;
          ch = read_ch( parse );
+      }
+      else {
+         tk = TK_HASH;
       }
       goto state_finish;
    }
@@ -1471,6 +1473,14 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
          ++length;
+      }
+      if ( strcmp( text->value, "__VA_ARGS__" ) == 0 &&
+         ! parse->variadic_macro_context ) {
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file->id, line, column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "`__VA_ARGS__` can only appear in the body of a variadic macro" );
+         p_bail( parse );
       }
       if ( parse->lang == LANG_ACS95 &&
          length > parse->lang_limits->max_id_length ) {
@@ -2031,12 +2041,10 @@ void p_increment_pos( struct pos* pos, enum tk tk ) {
 }
 
 void p_deinit_tk( struct parse* parse ) {
-   while ( parse->source ) {
+   while ( parse->source->prev ) {
       pop_source( parse );
-      if ( ! parse->source->prev ) {
-         break;
-      }
    }
+   pop_source( parse );
 }
 
 #include <time.h>

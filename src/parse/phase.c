@@ -19,7 +19,8 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->macro_param_free = NULL;
    parse->macro_expan = NULL;
    parse->macro_expan_free = NULL;
-   parse->ifdirc_top = NULL;
+   parse->ifdirc = NULL;
+   parse->ifdirc_free = NULL;
 
    parse->line = 0;
    parse->column = 0;
@@ -37,6 +38,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->lang = LANG_BCS;
    parse->text_buffer = NULL;
    parse->main_source_deinited = false;
+   parse->variadic_macro_context = false;
 }
 
 void p_run( struct parse* parse ) {

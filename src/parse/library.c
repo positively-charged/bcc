@@ -73,6 +73,7 @@ void read_module( struct parse* parse ) {
    while ( parse->tk != TK_END ) {
       read_module_item( parse );
    }
+   p_confirm_ifdircs_closed( parse );
 }
 
 void read_module_item( struct parse* parse ) {
