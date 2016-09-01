@@ -898,7 +898,7 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    if ( codegen->func->nested_func ) {
       if ( stmt->return_value ) {
          c_push_initz_expr( codegen, codegen->func->func->ref,
-            stmt->return_value->expr );
+            stmt->return_value );
       }
       struct c_jump* epilogue_jump = c_create_jump( codegen, PCD_GOTO );
       c_append_node( codegen, &epilogue_jump->node );
@@ -907,7 +907,7 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    else {
       if ( stmt->return_value ) {
          c_push_initz_expr( codegen, codegen->func->func->ref,
-            stmt->return_value->expr );
+            stmt->return_value );
          c_pcd( codegen, PCD_RETURNVAL );
       }
       else {

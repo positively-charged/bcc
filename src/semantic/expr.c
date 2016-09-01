@@ -198,7 +198,6 @@ static bool is_ref_type( struct result* result );
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
    test->name_offset = NULL;
-   test->msgbuild_func = NULL;
    test->var = NULL;
    test->func = NULL;
    test->result_required = result_required;
@@ -213,12 +212,6 @@ void s_init_expr_test_enumerator( struct expr_test* test,
    if ( enumeration->name ) {
       test->name_offset = enumeration->body;
    }
-}
-
-void s_init_expr_test_packed( struct expr_test* test,
-   struct func* msgbuild_func, bool result_required ) {
-   s_init_expr_test( test, result_required, false );
-   test->msgbuild_func = msgbuild_func;
 }
 
 void s_test_expr( struct semantic* semantic, struct expr_test* test,
@@ -1534,16 +1527,9 @@ void test_call_format_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test, struct call* call ) {
    if ( test->format_param ) {
       if ( ! call->format_item ) {
-         if ( expr_test->msgbuild_func ) {
-            struct format_item* item = t_alloc_format_item();
-            item->cast = FCAST_MSGBUILD;
-            call->format_item = item;
-         }
-         else {
-            s_diag( semantic, DIAG_POS_ERR, &call->pos,
-               "function call missing format argument" );
-            s_bail( semantic );
-         }
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
+            "function call missing format argument" );
+         s_bail( semantic );
       }
       test_format_item_list( semantic, expr_test, call->format_item );
    }
@@ -1663,12 +1649,14 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
 
 void test_msgbuild_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item ) {
-   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
-   extra->func = expr_test->msgbuild_func;
-   extra->call = NULL;
-   item->extra = extra;
+   struct format_item_msgbuild* extra = item->extra;
    if ( item->value ) {
       test_msgbuild_arg( semantic, expr_test, item, extra ); 
+   }
+   else {
+      if ( extra->func ) {
+         s_test_nested_func( semantic, extra->func );
+      }
    }
    if ( extra->func ) {
       struct func_user* impl = extra->func->impl;

@@ -472,11 +472,6 @@ struct expr {
    bool has_str;
 };
 
-struct packed_expr {
-   struct expr* expr;
-   struct func* msgbuild_func;
-};
-
 struct jump {
    struct node node;
    enum {
@@ -502,7 +497,7 @@ struct script_jump {
 
 struct return_stmt {
    struct node node;
-   struct packed_expr* return_value;
+   struct expr* return_value;
    struct return_stmt* next;
    struct c_jump* epilogue_jump;
    struct pos pos;
@@ -584,7 +579,6 @@ struct foreach_stmt {
 struct expr_stmt {
    struct node node;
    struct list expr_list;
-   struct func* msgbuild_func;
 };
 
 struct dim {

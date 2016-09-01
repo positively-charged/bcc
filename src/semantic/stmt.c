@@ -2,12 +2,6 @@
 
 #include "phase.h"
 
-struct packed_expr_test {
-   struct type_info* type;
-   struct var* data_origin;
-   struct func* func;
-};
-
 static void test_block( struct semantic* semantic, struct stmt_test* test,
    struct block* block );
 static void test_block_item( struct semantic* semantic, struct stmt_test* test,
@@ -54,8 +48,6 @@ static void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
    bool require_fixed_type );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
-static void test_packed_expr( struct semantic* semantic,
-   struct packed_expr_test* test, struct packed_expr* packed_expr );
 static void check_dup_label( struct semantic* semantic );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
@@ -568,10 +560,11 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
    struct func* func = semantic->func_test->func;
    struct type_info type;
-   struct packed_expr_test expr_test = { &type, NULL, NULL };
-   test_packed_expr( semantic, &expr_test, stmt->return_value );
+   struct expr_test expr;
+   s_init_expr_test( &expr, true, false );
+   s_test_expr_type( semantic, &expr, &type, stmt->return_value );
    if ( func->return_spec == SPEC_VOID ) {
-      s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+      s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
          "returning a value from void function" );
       s_bail( semantic );
    }
@@ -581,21 +574,21 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
       func->enumeration, NULL, func->return_spec, STORAGE_LOCAL );
    if ( ! s_instance_of( &return_type, &type ) ) {
       s_type_mismatch( semantic, "return-value", &type,
-         "function-return", &return_type, &stmt->return_value->expr->pos );
+         "function-return", &return_type, &stmt->return_value->pos );
       s_bail( semantic );
    }
-   if ( expr_test.func && expr_test.func->type == FUNC_USER ) {
-      struct func_user* impl = expr_test.func->impl;
+   if ( expr.func && expr.func->type == FUNC_USER ) {
+      struct func_user* impl = expr.func->impl;
       if ( impl->nested ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
             "returning nested function" );
          s_bail( semantic );
       }
    }
-   if ( s_is_ref_type( &type ) && expr_test.data_origin ) {
-      expr_test.data_origin->addr_taken = true;
-      if ( ! expr_test.data_origin->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->expr->pos,
+   if ( s_is_ref_type( &type ) && expr.var ) {
+      expr.var->addr_taken = true;
+      if ( ! expr.var->hidden ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
             "non-private return-value (references only work with private map "
             "variables)" );
          s_bail( semantic );
@@ -674,9 +667,6 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
-   if ( stmt->msgbuild_func ) {
-      s_test_nested_func( semantic, stmt->msgbuild_func );
-   }
    list_iter_t i;
    list_iter_init( &i, &stmt->expr_list );
    bool require_assign = ( list_size( &stmt->expr_list ) > 1 );
@@ -696,43 +686,9 @@ void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
          break;
       }
       struct expr_test expr_test;
-      s_init_expr_test_packed( &expr_test, stmt->msgbuild_func, false );
+      s_init_expr_test( &expr_test, false, false );
       s_test_expr( semantic, &expr_test, expr );
       list_next( &i );
-   }
-   if ( stmt->msgbuild_func ) {
-      struct func_user* impl = stmt->msgbuild_func->impl;
-      if ( ! impl->usage ) {
-         s_diag( semantic, DIAG_POS | DIAG_WARN,
-            &stmt->msgbuild_func->object.pos,
-            "one-time message-building function not used" );
-      }
-   }
-}
-
-void test_packed_expr( struct semantic* semantic,
-   struct packed_expr_test* test, struct packed_expr* packed_expr ) {
-   if ( packed_expr->msgbuild_func ) {
-      s_test_nested_func( semantic, packed_expr->msgbuild_func );
-   }
-   struct expr_test expr_test;
-   s_init_expr_test_packed( &expr_test, packed_expr->msgbuild_func,
-      ( test->type != NULL ) );
-   if ( test->type ) {
-      s_test_expr_type( semantic, &expr_test, test->type, packed_expr->expr );
-   }
-   else {
-      s_test_expr( semantic, &expr_test, packed_expr->expr );
-   }
-   test->data_origin = expr_test.var;
-   test->func = expr_test.func;
-   if ( packed_expr->msgbuild_func ) {
-      struct func_user* impl = packed_expr->msgbuild_func->impl;
-      if ( ! impl->usage ) {
-         s_diag( semantic, DIAG_POS | DIAG_WARN,
-            &packed_expr->msgbuild_func->object.pos,
-            "one-time message-building function not used" );
-      }
    }
 }
 

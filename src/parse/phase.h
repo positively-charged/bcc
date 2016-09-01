@@ -333,8 +333,6 @@ struct stmt_reading {
    struct list* labels;
    struct node* node;
    struct block* block_node;
-   struct packed_expr* packed_expr;
-   struct func* msgbuild_func;
 };
 
 struct expr_reading {

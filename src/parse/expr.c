@@ -56,6 +56,8 @@ static void read_format_cast( struct parse* parse, struct format_cast* cast );
 static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
+static void read_msgbuild_format_item( struct parse* parse,
+   struct format_item* item );
 static void read_id( struct parse* parse, struct expr_reading* reading );
 static void read_literal( struct parse* parse, struct expr_reading* reading );
 static void read_string( struct parse* parse, struct expr_reading* reading );
@@ -1088,6 +1090,9 @@ struct format_item* read_format_item( struct parse* parse ) {
          item->extra = extra;
       }
    }
+   else if ( item->cast == FCAST_MSGBUILD ) {
+      read_msgbuild_format_item( parse, item );
+   }
    else {
       struct expr_reading value;
       p_init_expr_reading( &value, false, false, false, true );
@@ -1191,6 +1196,31 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+}
+
+void read_msgbuild_format_item( struct parse* parse,
+   struct format_item* item ) {
+   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
+   extra->func = NULL;
+   extra->call = NULL;
+   item->extra = extra;
+   if ( parse->tk == TK_BRACE_L ) {
+      struct func_user* impl = t_alloc_func_user();
+      impl->nested = true;
+      struct func* func = t_alloc_func();
+      func->type = FUNC_USER;
+      func->impl = impl;
+      func->msgbuild = true;
+      p_read_func_body( parse, func );
+      func->object.pos = impl->body->pos;
+      extra->func = func;
+   }
+   else {
+      struct expr_reading value;
+      p_init_expr_reading( &value, false, false, false, true );
+      p_read_expr( parse, &value );
+      item->value = value.output_node;
+   }
 }
 
 void read_sure( struct parse* parse, struct expr_reading* reading ) {
