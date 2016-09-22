@@ -1617,7 +1617,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    init_type_info( semantic, &type, &root );
    s_decay( &type );
    static struct ref_array array = {
-      { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, 0, 0 };
+      { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, STORAGE_MAP, 0 };
    struct type_info required_type;
    s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
       s_spec( semantic, SPEC_INT ), STORAGE_MAP );
