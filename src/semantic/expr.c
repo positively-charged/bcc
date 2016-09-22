@@ -1083,17 +1083,21 @@ bool perform_inc( struct semantic* semantic, struct inc* inc,
 
 void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast ) {
-   test_operand( semantic, test, result, cast->operand );
-   if ( ! result->usable ) {
+   struct result operand;
+   init_result( &operand );
+   test_operand( semantic, test, &operand, cast->operand );
+   if ( ! operand.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &cast->pos,
          "cast operand not a value" );
       s_bail( semantic );
    }
-   if ( ! valid_cast( semantic, cast, result ) ) {
-      invalid_cast( semantic, cast, result );
+   if ( ! valid_cast( semantic, cast, &operand ) ) {
+      invalid_cast( semantic, cast, &operand );
       s_bail( semantic );
    }
    result->spec = cast->spec;
+   result->complete = true;
+   result->usable = true;
 }
 
 bool valid_cast( struct semantic* semantic, struct cast* cast,
