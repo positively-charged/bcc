@@ -1545,6 +1545,8 @@ special
 -128:GetTimeProperty(int,int;bool):int,
 -129:Strftime(int,str;bool):str,
 -200:CheckClass(str):bool,
+-201:DamageActor(int,int,int,int,int,str):int,
+-202:SetActorFlag(int,str,bool):int,
 -19620:GetTeamScore(int):int,
 -19621:SetTeamScore(int,int):void,
 
