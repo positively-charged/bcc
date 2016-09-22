@@ -2536,6 +2536,7 @@ bool perform_conversion( struct conversion* conv, struct type_info* from ) {
       case SPEC_INT:
       case SPEC_FIXED:
       case SPEC_BOOL:
+      case SPEC_STR:
          switch ( from->spec ) {
          case SPEC_INT:
          case SPEC_FIXED:
