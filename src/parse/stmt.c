@@ -569,15 +569,14 @@ void read_return( struct parse* parse, struct stmt_reading* reading ) {
    stmt->epilogue_jump = NULL;
    stmt->pos = parse->tk_pos;
    p_read_tk( parse );
-   if ( parse->tk == TK_SEMICOLON ) {
-      p_read_tk( parse );
-   }
-   else {
+   if ( parse->tk != TK_SEMICOLON ) {
       struct expr_reading expr;
       p_init_expr_reading( &expr, false, false, false, true );
       p_read_expr( parse, &expr );
       stmt->return_value = expr.output_node;
    }
+   p_test_tk( parse, TK_SEMICOLON );
+   p_read_tk( parse );
    reading->node = &stmt->node;
 }
 
