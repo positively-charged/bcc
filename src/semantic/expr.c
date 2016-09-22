@@ -1098,6 +1098,7 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
    result->spec = cast->spec;
    result->complete = true;
    result->usable = true;
+   result->folded = true;
 }
 
 bool valid_cast( struct semantic* semantic, struct cast* cast,
