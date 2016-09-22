@@ -1,0 +1,2551 @@
+#library "jm"
+
+#include "zcommon.h"
+
+// ==========================================================================
+namespace Jm {
+// ==========================================================================
+
+enum Mode {
+   MODE_COOP,
+   MODE_SVMZ
+};
+
+enum MapType {
+   MAP_SOLO,
+   MAP_TEAM
+};
+
+enum Flag {
+   F_NONE = 0x0,
+   F_MANUALTIMER = 0x1
+};
+
+private enum Mode gMode = MODE_COOP;
+private enum MapType gMapType = MAP_SOLO;
+private int gFlags = F_NONE;
+private str gPar = "";
+private int gPoints = 0;
+
+function void InitSolo( str par ) {
+   Init( MAP_SOLO, par );
+}
+
+function void InitTeam( str par, int points ) {
+   Init( MAP_TEAM, par );
+   gPoints = points;
+}
+
+private function void Init( enum MapType mapType, str par ) {
+   Utility.Init();
+   gMapType = mapType;
+   gPar = par;
+   if ( GetCvar( "survival" ) ) {
+      gMode = MODE_SVMZ;
+      Hs.Disable();
+      if ( mapType == MAP_TEAM ) {
+         TeamRanker.PrepareForSvmz();
+      }
+   }
+   else {
+      Timer.SetPar( par );
+      if ( GetCvar( "sv_disallowsuicide" ) ) {
+         ConsoleCommand( "sv_disallowsuicide false" );
+      }
+   }
+}
+
+function void EnableFlag( int flag ) {
+   gFlags |= flag;
+}
+
+function void DisableFlags( int flag ) {
+   gFlags ^= flag;
+}
+
+function void Run() {
+   if ( gMode == MODE_COOP ) {
+      if ( gFlags & F_MANUALTIMER ) {
+         Timer.ShowTime( 0 );
+      }
+      else {
+         Timer.Run();
+      }
+      if ( gMapType == MAP_SOLO ) {
+         Acs_NamedExecute( "SoloRanker.Start", 0 );
+      }
+      else {
+         Acs_NamedExecute( "TeamRanker.Start", 0, gPoints );
+      }
+   }
+   else {
+      RunSvmz( "map map01" );
+   }
+}
+
+function void RunSvmz( str mapRestartCommand ) {
+   if ( Svmz.Init() ) {
+      ConsoleCommand( mapRestartCommand );
+   }
+   if ( gMapType == MAP_TEAM ) {
+      // Clear the points table from the previous round if the players failed
+      // to complete the map. If not done, the table from the previous round
+      // will overlap with the new one.
+      TeamRanker.ClearPointsTable();
+      Acs_NamedExecute( "TeamRanker.Start", 0, gPoints );
+   }
+   Acs_NamedExecute( "Svmz.Start", 0, gPar );
+}
+
+function void StartTimer() {
+   if ( gFlags & F_MANUALTIMER ) {
+      Timer.Run();
+   }
+   else {
+      PrintBold(
+         s: "\cJm.StartTimer() error: timer is not set to manual" );
+   }
+}
+
+function void SetMapMessage( str name, str author, enum MapMsg.Skill skill ) {
+   MapMsg.Set( name, author, skill, gPar );
+}
+
+function void AddPoint() {
+   if ( gMapType == MAP_TEAM ) {
+      Acs_NamedExecuteAlways( "TeamRanker.AddPoint", 0 );
+   }
+   else {
+      PrintBold( s: "\ciCan't give a point on a non-team map" );
+   }
+}
+
+function void FinishLine() {
+   if ( gMode == MODE_COOP ) {
+      if ( gMapType == MAP_SOLO ) {
+         SoloRanker.Finish();
+      }
+      else {
+         AddPoint();
+      }
+   }
+   else {
+      Svmz.MakeEscapee();
+      if ( gMapType == MAP_TEAM ) {
+         AddPoint();
+      }
+   }
+}
+
+function void DisallowHs( int player ) {
+   Hs.Disallow( player );
+}
+
+function void Exit() {
+   if ( gMode == MODE_COOP ||
+      ( gMode == MODE_SVMZ && Svmz.ValidateExit() ) ) {
+      WhoExited.ShowAndExit();
+   }
+}
+
+function bool IsValidExit() {
+   if ( gMode == MODE_SVMZ ) {
+      return Svmz.ValidateExit();
+   }
+   else {
+      return true;
+   }
+}
+
+script 931 death {
+   if ( gMode == MODE_COOP && ! GetCvar( "jm_disable_telepatch" ) ) {
+      // This function changes the activator of the script, so we better have
+      // this block of code as the last block of the script.
+      Telepatch.OnDeath( PlayerNumber() );
+   }
+}
+
+script 932 respawn {
+   auto player = PlayerNumber();
+   if ( gMode == MODE_COOP ) {
+      Telepatch.OnRespawn( player );
+   }
+}
+
+script 933 ( int player ) disconnect {
+   if ( gMode == MODE_COOP ) {
+      Telepatch.OnDisconnect( player );
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Cfg {
+// ==========================================================================
+
+enum { TICS_IN_SECOND = 35 };
+enum { MAX_PLAYERS = 32 };
+enum { VALUE_NONE = -1 };
+// Looking at the screen, in Doom Builder 2, left is West and right is East.
+enum {
+   ANGLE_EAST = 0,
+   ANGLE_NORTHEAST = 32,
+   ANGLE_NORTH = 64,
+   ANGLE_NORTHWEST = 96,
+   ANGLE_WEST = 128,
+   ANGLE_SOUTHWEST = 160,
+   ANGLE_SOUTH = 192,
+   ANGLE_SOUTHEAST = 224,
+};
+
+}
+
+// ==========================================================================
+namespace Jm.Utility {
+// ==========================================================================
+
+function void Init() {
+   if ( GetCvar( "util_ishosted" ) == 0 ) {
+      if ( GameType() != GAME_SINGLE_PLAYER ) {
+         ConsoleCommand( "set util_ishosted 1" );
+      }
+      else {
+         ConsoleCommand( "set util_ishosted 2" );
+      }
+   }
+}
+
+function bool IsOnline() {
+   return ( GetCvar( "util_ishosted" ) == 1 );
+}
+
+// Convert a par time string into seconds.
+function int ParToSeconds( str par ) {
+   auto pos = par.length() - 1;
+   // Seconds:
+   auto base = 1;
+   auto seconds = 0;
+   while ( pos >= 0 && par[ pos ] != ':' ) {
+      if ( par[ pos ] >= '0' && par[ pos ] <= '9' ) {
+         seconds += ( par[ pos ] - '0' ) * base;
+         base *= 10;
+      }
+      --pos;
+   }
+   // Minutes:
+   base = 1;
+   auto minutes = 0;
+   while ( pos >= 0 ) {
+      if ( par[ pos ] >= '0' && par[ pos ] <= '9' ) {
+         minutes += ( par[ pos ] - '0' ) * base;
+         base *= 10;
+      }
+      --pos;
+   }
+   return ( minutes * 60 ) + seconds;
+}
+
+function str ZeroPad( int number ) {
+   return ( number >= 0 && number <= 9 ? "0" : "" );
+}
+
+function str OrdinalSuffix( int value ) {
+   switch ( value ) {
+   case 11:
+   case 12:
+   case 13:
+      return "th";
+   default:
+      switch ( value % 10 ) {
+      case 1: return "st";
+      case 2: return "nd";
+      case 3: return "rd";
+      case 4: return "th";
+      default:
+         return "th";
+      }
+   }
+}
+
+function void ClearMessage( int id ) {
+   HudMessage( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
+}
+
+function void ClearMessageBold( int id ) {
+   HudMessageBold( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
+}
+
+// Function to calculate the centiseconds from any remaining tics after
+// subtracting full seconds from the total tics.
+function int CalCseconds( int tics ) {
+   auto centiseconds = 0;
+   if ( tics > 0 ) {
+      // TODO: Explain this algorithm better than this comment!
+      auto percent = 10000 / ( ( Jm.Cfg.TICS_IN_SECOND * 100 ) / tics );
+      centiseconds = ( 1000 * percent ) / 1000;
+   }
+   return centiseconds;
+}
+
+function str GetMonthName( int month ) {
+   static str names[] = {
+      "January", "February", "March", "April", "May", "June", 
+      "July", "August", "September", "October", "November", "December" };
+   return ( month >= 1 && month <= names.length() ? names[ month - 1 ] : "" );
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Client {
+// ==========================================================================
+
+// Player number retrival.
+// Thanks to Euranna for the solution and helping me understand it.
+// Source: http://www.skulltag.com/forum/viewtopic.php?p=310483#p310483
+
+// -2 indicates the library has not been initialized.
+private int gNumber = -2;
+
+script 940 open clientside {
+   // Force player to execute a script upon connecting to the server. Offline,
+   // this script takes more than one tic to execute, so any ENTER scripts
+   // should be aware of this behavior.
+   ConsoleCommand( "puke 941" );
+}
+
+script 941 net clientside {
+   // Player should be the activator of this script. We can now save their
+   // player number for later comparisons.
+   gNumber = PlayerNumber();
+}
+
+function int GetNumber() {
+   return gNumber;
+}
+
+// Executes client-side script for player with given player number.
+function void Execute( int player, int number ) {
+   ExecuteArg( player, number, 0 );
+}
+
+// Same as ClientExecute(), but allows including script arguments. Currently,
+// only one script argument is supported.
+function void ExecuteArg( int player, int number, int arg1 ) {
+   Acs_Execute( 943, 0, player, number, arg1 );
+}
+
+// NOTE: It's possible to combine the player and scriptNum variables into
+// a single variable so we can allow for an extra script argument.
+script 943 ( int player, int number, int arg1 ) clientside {
+   if ( player == gNumber ) {
+      Acs_Execute( number, 0, arg1 );
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.MapMsg {
+// ==========================================================================
+
+using Cfg;
+
+enum Skill {
+   SKILL_VARIED,
+   SKILL_VERYEASY,
+   SKILL_EASY,
+   SKILL_MODERATE,
+   SKILL_HARD,
+   SKILL_VERYHARD,
+   SKILL_TOTAL
+};
+// Seconds to wait for the record holder name to load before proceeding
+// further.
+enum { TIMEOUT = 2 };
+// How long to display the map startup message on screen.
+enum : fixed { DISPLAY_TIME = 3.0 };
+
+// String versions with appropriate colors of the map skills available.
+private str gNames[] = {
+   "\ccVaried\c-",
+   "\cqVery Easy\c-",
+   "\cdEasy\c-",
+   "\chModerate\c-",
+   "\cgHard\c-",
+   "\cmVery Hard\c-" };
+private str gAuthor = "";
+private str gName = "";
+private str gSkill = "";
+private int gNumber = VALUE_NONE;
+private str gPar = "";
+private bool gIsSet = false;
+
+function void Set( str name, str author, enum Skill skill, str par ) {
+   gAuthor = author;
+   gName = name;
+   gNumber = GetLevelInfo( LEVELINFO_LEVELNUM );
+   if ( skill < 0 || skill >= SKILL_TOTAL ) {
+      skill = SKILL_VARIED;
+   }
+   gSkill = gNames[ skill ];
+   SetPar( par );
+   gIsSet = true;
+}
+
+script 980 enter {
+   Delay( 66 );
+   if ( ! gIsSet ) {
+      terminate;
+   }
+   // High score.
+   if ( Hs.IsEnabled() ) {
+      // Wait for the ranker to complete loading the high score.
+      if ( Hs.gLoadStatus == Hs.STATUS_WORKING ) {
+         NamedScriptWait( Hs.gLoadScript );
+      }
+      // Auto show high score details table if enabled. We put this code
+      // here so we can show the details table at the same time as the
+      // map message appears.
+      if ( Hs.IsSet() && Hs.IsAutoShowDetailsTable() ) {
+         Hs.ShowDetails( ( raw ) DISPLAY_TIME );
+      }
+   }
+   Show();
+}
+
+private function void Show() {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      append(
+         s: "\cf", s: gName, s: " - ",
+         s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
+         i: gNumber, s: " - ",
+         s: "Author: ", s: gAuthor, s: "\n\n",
+         s: "\ciLevel of Difficulty\n", s: gSkill, s: "\n\n",
+         s: "\ciPar Time\n", s: "\cn", s: gPar
+      );
+      // We don't need to display the record holder's name in the map
+      // message if the record details auto show feature is enabled. This
+      // only applies to the solo ranker.
+      if ( Jm.gMapType == Jm.MAP_SOLO && Hs.IsSet() &&
+         ! Hs.IsAutoShowDetailsTable() ) {
+         append(
+            s: "\n\n",
+            s: "\ciMap record set by:", s: "\n",
+            s: SoloRanker.GetHsAuthorName()
+         );
+      }
+   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME,
+      1.0 );
+}
+
+// Removes the whitespace found in the par time, so it looks nicer when shown
+// in the map message.
+private function void SetPar( str par ) {
+   gPar = StrParam( msgbuild: {
+      foreach ( int ch; par ) {
+         if ( ch != ' ' ) {
+            append( c: ch );
+         }
+      }
+   } );
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Timer {
+// ==========================================================================
+
+using Upmost;
+using Jm: Cfg;
+
+private str gPar = "";
+// Number of tics that passed before the timer is started. This is used to
+// adjust the finish times when the timer is started manually.
+private int gSkipped = 0;
+
+function void Run() {
+   gSkipped = Timer();
+   Acs_NamedExecute( "Timer.Start", 0 );
+}
+
+function void SetPar( str par ) {
+   gPar = par;
+}
+
+script "Timer.Start" {
+   auto time = 0;
+   while ( true ) {
+      ShowTime( time );
+      ++time;
+      Delay( Cfg.TICS_IN_SECOND );
+   }
+}
+
+function void ShowTime( int time ) {
+   SetFont( "BIGFONT" );
+   HudMessage(
+      d: time / 60, s: "  :  ",
+      d: time % 60 / 10, s: "  ",
+      d: time % 10;
+      HUDMSG_PLAIN, 985, CR_BLUE, 0.95, 0.95, 0.0 );
+}
+
+// Show par.
+script 986 open clientside {
+   Delay( 2 );
+   ConsoleCommand( "puke 987" );
+}
+
+script 987 net {
+   if ( gPar != "" ) {
+      SetFont( "BIGFONT" );
+      HudMessage( s: gPar; HUDMSG_PLAIN, 986, CR_RED, 0.95, 0.90, 0.0 );
+   }
+}
+
+function int GetTics() {
+   return Timer() - gSkipped;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.WhoExited {
+// ==========================================================================
+
+function void Show() {
+   HudMessageBold( 
+      s: "\cc",
+      n: PlayerNumber() + 1,
+      s: "\cg exited the level";
+      HUDMSG_FADEINOUT | HUDMSG_LOG,
+      // Avoid displaying the message on screen by setting a long fade-in time.
+      0, 0, 0.0, 0.0, 1.0, 1000.0, 0.0 );
+}
+
+function void ShowAndExit() {
+   // Only show message in multi-player because it's already shown in
+   // single-player.
+   if ( Utility.IsOnline() ) {
+      Show();
+   }
+   Exit_Normal( 0 );
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Luk {
+// ==========================================================================
+
+// Query delimiter.
+enum : str { QEURY_DELIM = "\b" };
+// Query identifier.
+enum : str { QUERY_HEADER = "luk" };
+// Timeout in seconds for luk replies.
+enum { QUERY_TIMEOUT = 3 };
+// RETRIEVE query types.
+enum {
+   RETQUERY_INT,
+   RETQUERY_STR,
+   RETQUERY_DATE
+};
+// Query execution results from luk.
+enum {
+   RESPONSE_OK,
+   RESPONSE_FAILED,
+};
+// Query execution results we will tell the user.
+enum {
+   RESULT_OK,
+   RESULT_FAILED,
+   RESULT_TIMEOUT,
+   RESULT_UNKNOWN,
+};
+// Because we will be encoding each character in three digits of an integer
+// value and the ASCII value of some characters is only two digits, we will add
+// a padding to the ASCII value of each character we send and receieve. This
+// padding will make sure that even those characters with two digit ASCII
+// values will have a value of three digits.  
+enum { ASCII_PADDING = 100 };
+// Maximum size of a string that we will recieve.
+enum { MAX_STR_VALUE_SIZE = 100 };
+// Maximum characters per string segment transfer.
+enum { MAX_STR_SEGMENT_CHARS = 3 };
+// To help with readability when calling the retrieval scripts, we will create
+// a descriptive constant that contains the script number.
+enum { RETSCRIPT = 970 };
+enum { LRETSCRIPT = 975 };
+
+// Array variable to store the complete string value.
+int gString[ MAX_STR_VALUE_SIZE ];
+// Variable to store the luk response data.
+int gData = Cfg.VALUE_NONE;
+// Variables to hold unpacked date segments.
+int gYear = Cfg.VALUE_NONE;
+int gMonth = Cfg.VALUE_NONE;
+int gDay = Cfg.VALUE_NONE;
+
+// We can only store a maximum of 3 characters in a 32-bit integer value if
+// each character is encoded as three.
+private int gSegmentR[ MAX_STR_SEGMENT_CHARS ];
+// This variable will store the unique query ID that we will use to check
+// whether luk has responded.
+private int gQueryId = 0;
+// This variable will contain the result of a query.
+private int gQueryResult = RESULT_UNKNOWN;
+
+// This script retrieves a value from luk.
+script 970 ( int type, raw key ) {
+   if ( type == RETQUERY_INT ) {
+      Acs_ExecuteWait( 971, 0, Retrieve( key ) );
+   }
+   else if ( type == RETQUERY_STR ) {
+      auto queryId = InitStringTransmission( key );
+      Acs_ExecuteWait( 971, 0, queryId );
+      if ( gQueryResult != RESULT_OK ) {
+         terminate;
+      }
+      auto left = gData;
+      auto length = 0;
+      while ( left > 0 ) {
+         queryId = RetrieveStringSegment();
+         Acs_ExecuteWait( 971, 0, queryId );
+         if ( gQueryResult != RESULT_OK ) {
+            terminate;
+         }
+         length += UnpackAscii( gData, length );
+         --left;
+         Delay( 1 );
+      }
+      gString[ length ] = '\0';
+   }
+   // Date:
+   else {
+      Acs_ExecuteWait( 971, 0, RetrieveDate( key ) );
+      if ( gQueryResult == RESULT_OK ) {
+         // Format of data: YYYYMMDD
+         auto data = gData;
+         gDay = data % 100;
+         data /= 100;
+         gMonth = data % 100;
+         data /= 100;
+         gYear = data;
+      }
+   }
+}
+
+script 971 ( int queryId ) {
+   auto ticsLeft = Cfg.TICS_IN_SECOND * QUERY_TIMEOUT;
+   auto isAnswered = false;
+   while ( ticsLeft > 0 ) {
+      // A luk query is answered when luk sets the appropriate console variable
+      // to the query ID, indicating it successfully received the query and
+      // processed it.
+      if ( GetCvar( "luk_qid" ) == queryId ) {
+         isAnswered = true;
+         break;
+      }
+      --ticsLeft;
+      Delay( 1 );
+   }
+   // Process the query response.
+   auto result = RESULT_TIMEOUT;
+   if ( isAnswered ) {
+      // If the query was answered successfully, see what information luk said
+      // about the query.
+      switch ( GetCvar( "luk_qr" ) ) {
+      // OK, no errors, result:
+      case RESPONSE_OK:
+         // Save the data of the query response if the response is OK.
+         gData = GetCvar( "luk_d" );
+         result = RESULT_OK;
+         break;
+      // The command failed to successfully execute.
+      case RESPONSE_FAILED:
+         result = RESULT_FAILED;
+         break;
+      default:
+         result = RESULT_UNKNOWN;
+         break;
+      }
+   }
+   // Save the result to let the user know the result of the query.
+   gQueryResult = result;
+}
+
+// List version of the above script, allowing the key to be concatenated with a
+// number to form a new key that represents an item in a list. We have to make
+// this nearly duplicate script because of the inflexibility of ACS. Things
+// would have been so much simpler if ACS supported dynamic creation of
+// strings. This applies to the functions that send the queries below, too.
+script 975 ( int type, raw keyName, raw keyNum ) {
+   switch( type ) {
+   case RETQUERY_INT:
+      Acs_ExecuteWait( 972, 0, RetrieveL( keyName, keyNum ) );
+      break;
+   case RETQUERY_STR:
+      Acs_ExecuteWait( 973, 0, InitStringTransmissionL( keyName, keyNum ) );
+      break;
+      // We don't have any functions and scripts to handle list values
+      // for dates because we don't need any at the moment.
+   }
+}
+
+function int UnpackAscii( int packed, int length ) {
+   auto sep = 1000;
+   auto ch = 0;
+   // First, decode the luk-encoded ASCII package into real ASCII.
+   while ( packed > 0 ) {
+      gSegmentR[ ch ] = ( packed % sep ) - ASCII_PADDING;
+      packed /= sep;
+      ++ch;
+   }
+   auto numRead = ch;
+   // At this stage, we have the data loaded into ACS, but it's
+   // reversed, so we'll have to reverse the characters to make
+   // it readable again.
+   auto i = 0;
+   while ( ch > 0 ) {
+      gString[ length + i ] = gSegmentR[ ch - 1 ];
+      --ch;
+      ++i;
+   }
+   return numRead;
+}
+
+function bool IsEnabled() {
+   return ( GetCvar( "luk_system" ) == 1 );
+}
+
+// The query ID is generated by incrementing the last given query ID. luk will
+// compare the current query ID with the last query ID it processed. If the
+// current query ID is the same as or below the last query ID, it will ignore
+// the current query.
+function int GenerateQueryId() {
+   static auto id = 0;
+   return ++id;
+}
+
+// Query functions:
+//
+// These functions send retrieval queries to luk and return the queries ID for
+// further handling. 
+
+// This function is used for simple, numeric value retrievals.
+function int Retrieve( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE ", 
+      s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveDate( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_DATE ", s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int InitStringTransmission( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_INITIATE ",
+      s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveStringSegment() {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_SEGMENT ",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreInt( str key, int value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " ", i: value,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreStr( str key, str value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " {", s: value, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreName( str key, int playerNum ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " {", n : playerNum + 1, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreDate( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE_DATE ", s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+// These functions are the same as their above counterparts, but
+// allow the query key to be concatenated with a number. These
+// functions are useful for making a list of values by using
+// a single key name.
+function int StoreNameL( str key, int keyNum, int playerNum ) {
+   auto queryId = GenerateQueryId();
+   Log(
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, i: keyNum,
+      s: " {", n : playerNum + 1, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreIntL( str key, int keyNum, int value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, i: keyNum,
+      s: " ", i: value,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveL( str key, int keyNum ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE ", 
+      s: key, i: keyNum, 
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int InitStringTransmissionL( str key, int num ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_INITIATE ",
+      s: key, i: num, 
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Hs {
+// ==========================================================================
+
+enum { LINE_NOTICE = 27233 };
+enum : fixed { LINE_NOTICE_Y = 0.55 };
+enum : fixed { TBL_SHOW_TIME = 8.0 };
+enum {
+   STATUS_NONE,
+   STATUS_LOADED,
+   STATUS_WORKING,
+   STATUS_ERROR
+};
+
+int gLoadStatus = STATUS_NONE;
+// Stores a ranker's high score load script number so other files can wait
+// for the ranker to complete loading the high score.
+str gLoadScript = "";
+// Script of the ranker that shows the high score details table.
+str gDetailsScript = "";
+private bool gCheated[ Cfg.MAX_PLAYERS ];
+private bool gManualDisable = false;
+// High score finish time. We put some of the finish time handling here
+// because both rankers use the same code.
+private int gTics = Cfg.VALUE_NONE;
+
+function bool IsAutoShowDetailsTable() {
+   return ( GetCvar( "jm_show_rdetails" ) == 1 );
+}
+
+function bool IsCheater( int player ) {
+   return ( gCheated[ player ] || IsCheatsEnabled() );
+}
+
+function bool IsCheatsEnabled() {
+   return ( GetCvar( "sv_cheats" ) == 1 );
+}
+
+function bool IsEnabled() {
+   return ( Utility.IsOnline() && Luk.IsEnabled() && ! gManualDisable );
+}
+
+function void Disable() {
+   gManualDisable = true;
+}
+
+function int GetFinishTime() {
+   return gTics;
+}
+
+function void SetFinishTime( int tics ) {
+   gTics = tics;
+}
+
+function bool IsSet() {
+   return ( gTics != Cfg.VALUE_NONE );
+}
+
+function bool IsNew( int time ) {
+   return ( gTics == Cfg.VALUE_NONE || time < gTics );
+}
+
+function void Disallow( int player ) {
+   gCheated[ player ] = true;
+}
+
+script 999 net {
+   ShowDetails( ( int ) TBL_SHOW_TIME );
+}
+
+// Shows high score details table.
+function void ShowDetails( int showTime ) {
+   SetFont( "SMALLFONT" );
+   // High score disabled.
+   if ( ! IsEnabled() ) {
+      HudMessage(
+         s: "\ciThe high score is disabled";
+         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+   }
+   // High score loading.
+   else if ( gLoadStatus != STATUS_LOADED ) {
+      // High score is loading.
+      if ( gLoadStatus == STATUS_WORKING ) {
+         HudMessage( 
+            s: "\ciThe high score is loading. Please retry in a bit";
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+      // Error.
+      else {
+         HudMessage( 
+            s: "\ciThe high score failed to load";
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+   }
+   // No high score set.
+   else if ( ! IsSet() ) {
+      HudMessage( 
+         s: "\ciNo high score is set for the map";
+         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+   }
+   // Show.
+   else {
+      Acs_NamedExecuteAlways( gDetailsScript, 0, showTime );
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.SoloRanker {
+// ==========================================================================
+
+using Cfg;
+using Utility: ZeroPad; 
+
+enum { SHOW_DELAY_TIME = 16 };
+enum { INDI_TIME_LINEID = 732 };
+enum { AUTO_SHOW_DELAY = 3 };
+enum { RANK_LIMIT_MIN = 3 };
+enum { RANK_LIMIT_MAX = 5 };
+enum { TBL_REFRESH_TIME = 8 };
+enum : fixed { TBL_X = 0.0038147 };
+enum : fixed { TBL_Y = 0.688171 };
+enum { TBL_LINEID = 733 };
+
+struct Spot {
+   int player;
+   int minutes;
+   int seconds;
+   int centiseconds;
+};
+
+struct Table {
+   struct Spot spots[ RANK_LIMIT_MAX ];
+   int size;
+};
+
+private struct Table gTable;
+private bool gFinished[ MAX_PLAYERS ];
+private int gShowLimit = RANK_LIMIT_MAX;
+private str gRankColors[ RANK_LIMIT_MAX ] = {
+   "f", // Gold
+   "j", // Silver
+   "e", // Brown
+   "n", // Light blue
+   "t", // Purple
+};
+
+// Start.
+script "SoloRanker.Start" {
+   if ( Utility.IsOnline() ) {
+      if ( Hs.IsEnabled() ) {
+         Hs.gLoadScript = "SoloRanker.LoadHs";
+         Hs.gDetailsScript = "SoloRanker.ShowHs";
+         Acs_NamedExecuteWait( "SoloRanker.LoadHs", 0 );
+      }
+      Acs_NamedExecute( "SoloRanker.Refresh", 0 );
+   }
+}
+
+script "SoloRanker.Refresh" {
+   auto timePassed = 0;
+   auto limit = 0;
+   while ( true ) {
+      limit = GetCvar( "jm_table_show_limit" );
+      if ( limit != gShowLimit && limit >= RANK_LIMIT_MIN &&
+         limit <= RANK_LIMIT_MAX ) {
+         ClearTable();
+         gShowLimit = limit;
+         ShowTable();
+      }
+      else if ( timePassed % TBL_REFRESH_TIME == 0 ) {
+         ShowTable();
+      }
+      Delay( TICS_IN_SECOND );
+      ++timePassed;
+   }
+}
+
+script "SoloRanker.ClientEnter" enter {
+   ClearIndividualTime();
+   gFinished[ PlayerNumber() ] = false;
+}
+
+function void Finish() {
+   if ( PlayerNumber() >= 0 && ! gFinished[ PlayerNumber() ] ) {
+      gFinished[ PlayerNumber() ] = true;
+      if ( Utility.IsOnline() ) {
+         Acs_NamedExecuteAlways( "SoloRanker.AddPlayer", 0, PlayerNumber(),
+            Timer.GetTics() );
+      }
+      else {
+         ShowIndividualTime( Timer.GetTics() );
+      }
+   }
+}
+
+script "SoloRanker.AddPlayer" ( int player, int time ) {
+   auto isAdded = false;
+   if ( gTable.size < RANK_LIMIT_MAX ) {
+      SaveInTable( player, time );
+      isAdded = true;
+      // High score.
+      // Only first ranked player matters for high score.
+      if ( gTable.size == 1 && Hs.IsEnabled() && Hs.IsNew( time ) ) {
+         if ( ! Hs.IsCheater( player ) ) {
+            SaveHs( player, time );
+            AnnounceHs();
+            Acs_NamedExecuteWait( "SoloRanker.LoadHs", 0 );
+         }
+         else {
+            AnnounceCheat();
+         }
+      }
+   }
+   // Display.
+   // Small delay to replicate old script's delay effect.
+   Delay( SHOW_DELAY_TIME );
+   // Show updated table if modified and show-limit isn't passed.
+   if ( isAdded && gTable.size <= gShowLimit ) {
+      ShowTable();
+   }
+   // Otherwise, show individual time for player.
+   else {
+      ShowIndividualTime( time );
+   }
+}
+
+private function void SaveInTable( int player, int tics ) {
+   auto spot = gTable.spots[ gTable.size ];
+   spot.player = player;
+   auto seconds = tics / TICS_IN_SECOND;
+   spot.minutes = seconds / 60;
+   spot.seconds = seconds % 60;
+   spot.centiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
+   ++gTable.size;
+}
+
+private function struct Spot? FindSpot( int player ) {
+   for ( auto i = 0; i < gTable.size; ++i ) {
+      if ( gTable.spots[ i ].player == player ) {
+         return gTable.spots[ i ];
+      }
+   }
+   return null;
+}
+
+script "SoloRanker.ClientQuit" ( int player ) disconnect {
+   if ( auto spot = FindSpot( player ) ) {
+      spot.player = VALUE_NONE;
+   }
+}
+
+private function void ShowTable() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( msgbuild: {
+      if ( Hs.IsSet() ) {
+         DrawHsTime();
+         append( s: "\n" );
+      }
+      // Skip invisible spots.
+      for ( auto i = gShowLimit; i < RANK_LIMIT_MAX; ++i ) {
+         append( s: "\n" );
+      }
+      auto count = ( gTable.size > gShowLimit ) ? gShowLimit : gTable.size;
+      for ( auto i = 0; i < count; ++i ) {
+         auto spot = gTable.spots[ i ];
+         append( s: "\c", s: gRankColors[ i ], d: i + 1,
+            s: Utility.OrdinalSuffix( i + 1 ), s: ": " );
+         if ( spot.player != VALUE_NONE ) {
+            append( n: spot.player + 1 );
+         }
+         else {
+            append( s: "Disconnected" );
+         }
+         append( s: "\n" );
+         append( s: "\ciTime: \cb",
+            s: ZeroPad( spot.minutes ), d: spot.minutes, s: ":",
+            s: ZeroPad( spot.seconds ), d: spot.seconds, s: "\cs.",
+            s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
+            s: "\n\n" );
+      }
+   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+}
+
+private function void ClearTable() {
+   Utility.ClearMessageBold( TBL_LINEID );
+}
+
+private function void ShowIndividualTime( int tics ) {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
+         append( s: "\n" );
+      }
+      auto minutes = tics / TICS_IN_SECOND / 60;
+      auto seconds = tics / TICS_IN_SECOND % 60;
+      auto centiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
+      append( s: "\crTime: \cc",
+         s: ZeroPad( minutes ), d: minutes, s: ":", 
+         s: ZeroPad( seconds ), d: seconds, s: "\cu.",
+         s: ZeroPad( centiseconds ), d: centiseconds );
+   }; HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+}
+
+private function void ClearIndividualTime() {
+   Utility.ClearMessage( INDI_TIME_LINEID );
+}
+
+// High Score (luk-specific functions and scripts)
+// -----------------------------------------------------------------------
+
+enum : fixed { HS_TBL_X = -1.75 };
+enum : fixed { HS_TBL_Y = 0.7 };
+enum { HS_TBL_LINE = Hs.LINE_NOTICE };
+enum : fixed { HS_TBL_SHOW_TIME = 8.0 };
+enum : str { HS_RTIME = "jrs_hs_time" };
+enum : str { HS_RAUTHOR = "jrs_hs_author" };
+enum : str { HS_RDATE = "jrs_hs_rdate" };
+
+private str gHsAuthor = "";
+private int gHsMinutes = VALUE_NONE;
+private int gHsSeconds = VALUE_NONE;
+private int gHsCentiseconds = VALUE_NONE;
+private int gHsYear = 0;
+private int gHsMonth = 0;
+private int gHsDay = 0;
+
+// High score loading.
+script "SoloRanker.LoadHs" {
+   Hs.gLoadStatus = Hs.STATUS_WORKING;
+   // Load high score finish time.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_INT, HS_RTIME );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      // If luk returns an error code, that means no high score is set.
+      if ( Luk.gQueryResult == Luk.RESULT_FAILED ) {
+         Hs.gLoadStatus = Hs.STATUS_LOADED;
+      }
+      // Error.
+      else {
+         Hs.gLoadStatus = Hs.STATUS_ERROR;
+      }
+      terminate;
+   }
+   SetHsFinishTime( Luk.gData );
+   // Load author of high score.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_STR, HS_RAUTHOR );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsAuthor = StrParam( a: Luk.gString );
+   // Load date of high score.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_DATE, HS_RDATE );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsYear = Luk.gYear;
+   gHsMonth = Luk.gMonth;
+   gHsDay = Luk.gDay;
+   Hs.gLoadStatus = Hs.STATUS_LOADED;
+}
+
+// Sets the finish time, in tics, of the high score and converts it into more
+// familiar units like minutes and seconds.
+private function void SetHsFinishTime( int tics ) {
+   if ( tics > 0 ) {
+      gHsMinutes = tics / TICS_IN_SECOND / 60;
+      gHsSeconds = tics / TICS_IN_SECOND % 60;
+      gHsCentiseconds = Utility.CalCseconds( tics % 60 );
+      Hs.SetFinishTime( tics );
+   }
+}
+
+// Saves high score and all of its details in permanent storage.
+private function void SaveHs( int player, int tics ) { 
+   Luk.StoreName( HS_RAUTHOR, player );
+   Luk.StoreInt( HS_RTIME, tics );
+   Luk.StoreDate( HS_RDATE );
+}
+
+private function msgbuild void DrawHsTime() {
+   append( s: "\cnRecord: \cb",
+      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+}
+
+private function void AnnounceHs() {
+   SetFont( "SMALL" );
+   HudMessageBold( s: "\cd", n: 0, s: "\cd set a new map record!";
+      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
+   AmbientSound( "JM2HSWIN", 127 );
+}
+
+private function void AnnounceCheat() {
+   HudMessageBold( s: "\cgClever \cc", n: 0, s: "\cg tried to cheat to the "
+      "high score"; HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0,
+      1.0 );
+   AmbientSound( "JM2HSLOS", 127 );
+}
+
+// Prints high score details table.
+script "SoloRanker.ShowHs" ( raw showTime ) {
+   SetFont( "SMALLFONT" );
+   HudMessage( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
+      s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
+      s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n", s: "\cb",
+      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds, s: "\n\n",
+      s: "\ckRecord Holder:", s: "\n", s: "\cc", s: gHsAuthor; HUDMSG_FADEOUT,
+      HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+}
+
+function str GetHsAuthorName() {
+   return gHsAuthor;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.TeamRanker {
+// ==========================================================================
+
+using Jm.Cfg;
+using Jm.Utility: ZeroPad;
+
+enum { MAX_POINTS = 10 };
+enum { SHOW_DELAY_TIME = 16 };
+enum : fixed { TBL_X = ( fixed ) 250 };
+enum : fixed { TBL_Y = ( fixed ) 50000 };
+enum { TBL_START_POSITION = 52000 };
+enum { TBL_PLACE_HEIGHT = 1000 };
+enum { TBL_REFRESH_TIME = 8 }; // In seconds
+enum { TBL_LINEID_OFFSET = 960 };
+enum { HS_LINE = ( TBL_LINEID_OFFSET + 2 + MAX_POINTS ) };
+
+private struct {
+   struct Spot {
+      int player;
+      int points;
+   } spots[ MAX_POINTS ];
+   int size;
+} gTable;
+private int gPointsLeft = MAX_POINTS;
+private int gPointsTotal = MAX_POINTS;
+private int gMinutes;
+private int gSeconds;
+private int gCentiseconds;
+private str gEndMessage;
+
+script "TeamRanker.Start" ( int points ) {
+   if ( points <= MAX_POINTS ) {
+      gPointsLeft = points;
+      gPointsTotal = points;
+   }
+   if ( Utility.IsOnline() ) {
+      if ( Hs.IsEnabled() ) {
+         Hs.gLoadScript = "TeamRanker.LoadHs";
+         Hs.gDetailsScript = "TeamRanker.ShowHs";
+         Acs_NamedExecuteWait( "TeamRanker.LoadHs", 0 );
+      }
+      while ( true ) {
+         ShowTable();
+         Delay( Cfg.TICS_IN_SECOND * TBL_REFRESH_TIME );
+      }
+   } 
+   else {
+      ShowGoals();
+   }
+}
+
+script "TeamRanker.AddPoint" {
+   if ( gPointsLeft > 0 ) {
+      AddPointToPlayer( PlayerNumber() );
+      if ( ! gPointsLeft ) {
+         auto time = Jm.Timer.GetTics();
+         SetFinishTime( time );
+         if ( Hs.IsEnabled() && Hs.IsNew( time ) ) {
+            if ( ! Hs.IsCheatsEnabled() ) {
+               SaveHs( time );
+               AnnounceHs();
+               Acs_NamedExecuteWait( "TeamRanker.LoadHs", 0 );
+            }
+            else {
+               AnnounceCheat();
+            }
+         }
+      }
+      Delay( SHOW_DELAY_TIME );
+      if ( Utility.IsOnline() ) {
+         ShowTable();
+      }
+      else {
+         ShowGoals();
+      }
+   }
+}
+
+private function void AddPointToPlayer( int player ) {
+   auto spot = FindSpot( player );
+   if ( spot == null ) {
+      spot = gTable.spots[ gTable.size ];
+      spot.player = player;
+      ++gTable.size;
+   }
+   ++spot.points;
+   --gPointsLeft;
+}
+
+private function struct Spot? FindSpot( int player ) {
+   for ( auto i = 0; i < gTable.size; ++i ) {
+      if ( gTable.spots[ i ].player == player ) {
+         return gTable.spots[ i ];
+      }
+   }
+   return null;
+}
+
+private function void SetFinishTime( int tics ) {
+   gMinutes = tics / TICS_IN_SECOND / 60;
+   gSeconds = tics / TICS_IN_SECOND % 60;
+   gCentiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
+}
+
+private function bool IsSpotActive( int spot ) {
+   return ( gTable.spots[ spot ].player != Cfg.VALUE_NONE );
+}
+
+script 961 ( int player ) disconnect {
+   if ( auto spot = FindSpot( player ) ) {
+      spot.player = VALUE_NONE;
+      Delay( SHOW_DELAY_TIME );
+      ShowTable();
+   }
+}
+
+private function void ShowTable() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( msgbuild: {
+      if ( Hs.IsSet() ) {
+         DrawHsTime();
+         append( s: "\n\n" );
+      }
+      if ( gPointsLeft == 0 ) {
+         DrawTime();
+         append( s: "\n\n" );
+      }
+      append( s : "\cfMain Helpers", s: "\n\n" );
+      for ( auto i = 0; i < gTable.size; ++i ) {
+         if ( gTable.spots[ i ].player != VALUE_NONE ) {
+            append( s: "\cc", n: gTable.spots[ i ].player + 1, s: " \cd",
+               d: gTable.spots[ i ].points );
+         }
+         else {
+            append( s: "\cgDisconnected", s: " \cd",
+               d: gTable.spots[ i ].points );
+         }
+      }
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+}
+
+private function msgbuild void DrawTime() {
+   // Custom end message.
+   if ( gEndMessage ) {
+      append( s: "\ci", s: gEndMessage );
+   }
+   else {
+      append( s: Utility.IsOnline() ? "\ciTeamtime: " : "\crTime: ", s: "\cb",
+         s: ZeroPad( gMinutes ), d: gMinutes, s: ":",
+         s: ZeroPad( gSeconds ), d: gSeconds, s: "\cs.",
+         s: ZeroPad( gCentiseconds ), d: gCentiseconds );
+   }
+}
+
+private function void ShowGoals() {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      if ( gPointsLeft == 0 ) {
+         DrawTime();
+      }
+      append( s: "\n\n" );
+      auto labelColor = ( gPointsLeft == 0 ) ? "\cd" : "\cc";
+      auto pointColor = ( gPointsLeft == 0 ) ? "\cq" : "\ck";
+      auto totalColor = ( gPointsLeft == 0 ) ? "\cq" : "\ci";
+      // Even though there likely won't be any maps that will contain one
+      // point, we'll still choose the appropriate label based on the quantity
+      // of the points.
+      auto label = ( gPointsTotal == 1 ) ? "Goal" : "Goals";
+      append( s: labelColor, s: label, s: ": ", s: pointColor,
+         // For single player, there's only one player playing and therefore
+         // always one place taken in the score table, which will be the first.
+         d: gTable.spots[ 0 ].points, s: labelColor, s: " / ", s: totalColor,
+         d: gPointsTotal );
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+}
+
+function void ClearPointsTable() {
+   // Clear all posssible player places and the table header with the finish
+   // time.
+   auto linesToClear = MAX_POINTS + 2;
+   for ( auto i = 0; i < linesToClear; ++i ) {
+      Utility.ClearMessage( TBL_LINEID_OFFSET + i );
+   }
+}
+
+// High Score (luk-specific functions and scripts)
+// ---------------------------------------------------------------------------
+
+// luk database record keys.
+enum : str { HS_RTIME = "jrt_hs_time" };
+enum : str { HS_RPLAYER_PREFIX = "jrt_hs_helper" };
+enum : str { HS_RPOINTS_PREFIX = "jrt_hs_points" };
+enum : str { HS_RTOTAL_PLAYERS = "jrt_hs_total_players" };
+enum : str { HS_RDATE = "jrt_hs_rdate" };
+enum : fixed { HS_TBL_X = -1.75 };
+enum : fixed { HS_TBL_Y = 0.7 };
+enum { HS_TBL_LINE = Hs.LINE_NOTICE };
+
+private int gHsMinutes;
+private int gHsSeconds;
+private int gHsCentiseconds;
+private int gHsHelpersTotal;
+private str gHsHelpersName[ MAX_POINTS ];
+private int gHsHelpersPoints[ MAX_POINTS ];
+private int gHsUnaccountedPoints;
+private int gHsYear;
+private int gHsMonth;
+private int gHsDay;
+
+script "TeamRanker.LoadHs" {
+   Hs.gLoadStatus = Hs.STATUS_WORKING;
+   // Load finish time.
+   Acs_ExecuteWait( Luk.RETSCRIPT, 0, Luk.RETQUERY_INT, HS_RTIME );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      // No high score is set.
+      if ( Luk.gQueryResult == Luk.RESULT_FAILED ) {
+         Hs.gLoadStatus = Hs.STATUS_LOADED;
+      }
+      // Loading error.
+      else {
+         Hs.gLoadStatus = Hs.STATUS_ERROR;
+      }
+      terminate;
+   }
+   SetHsFinishTime( Luk.gData );
+   // Load date.
+   Acs_ExecuteWait( Luk.RETSCRIPT, 0, Luk.RETQUERY_DATE, HS_RDATE );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsYear = Luk.gYear;
+   gHsMonth = Luk.gMonth;
+   gHsDay = Luk.gDay;
+   // Load total helpers.
+   Acs_ExecuteWait( Luk.RETSCRIPT, 0, Luk.RETQUERY_INT, HS_RTOTAL_PLAYERS );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsHelpersTotal = Luk.gData;
+   // Load name and points of each helper.
+   auto pointsCollected = 0;
+   for ( auto i = 0; i < gHsHelpersTotal; ++i ) {
+      Acs_ExecuteWait( Luk.RETSCRIPT, 0, Luk.RETQUERY_STR, 
+         HS_RPLAYER_PREFIX + str( i + 1 ) );
+      if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+         Hs.gLoadStatus = Hs.STATUS_ERROR;
+         terminate;
+      }
+      gHsHelpersName[ i ] = StrParam( a: Luk.gString );
+      Acs_NamedExecuteWait( "Luk.Retrieve", 0, Luk.RETQUERY_INT, 
+         HS_RPOINTS_PREFIX + str( i + 1 ) );
+      if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+         Hs.gLoadStatus = Hs.STATUS_ERROR;
+         terminate;
+      }
+      gHsHelpersPoints[ i ] = Luk.gData;
+      pointsCollected += gHsHelpersPoints[ i ];
+   }
+   gHsUnaccountedPoints = gPointsTotal - pointsCollected;
+   Hs.gLoadStatus = Hs.STATUS_LOADED;
+}
+
+private function void SetHsFinishTime( int tics ) {
+   if ( tics > 0 ) {
+      gHsMinutes = tics / Cfg.TICS_IN_SECOND / 60;
+      gHsSeconds = tics / Cfg.TICS_IN_SECOND % 60;
+      gHsCentiseconds = Utility.CalCseconds( tics % Cfg.TICS_IN_SECOND );
+      Hs.SetFinishTime( tics );
+   }
+}
+
+// Saves map run information as high score in permanent storage.
+private function void SaveHs( int finishTime ) {
+   Luk.StoreInt( HS_RTIME, finishTime );
+   Luk.StoreDate( HS_RDATE );
+   auto numConnected = 0;
+   for ( auto i = 0; i < gTable.size; ++i ) {
+      auto spot = gTable.spots[ i ];
+      if ( spot.player != VALUE_NONE ) {
+         Luk.StoreStr( HS_RPLAYER_PREFIX + str( numConnected + 1 ),
+            StrParam( n: spot.player + 1 ) );
+         Luk.StoreInt( HS_RPOINTS_PREFIX + str( numConnected + 1 ),
+            spot.points );
+         ++numConnected;
+      }
+   }
+   Luk.StoreInt( HS_RTOTAL_PLAYERS, numConnected );
+}
+
+private function msgbuild void DrawHsTime() {
+   append( s: "\cnRecord: \cb",
+      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+}
+
+private function void AnnounceHs() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( s: "\cdA new map record has been set!"; HUDMSG_FADEOUT |
+      HUDMSG_LOG, 1900, 0, 1.5, 0.14, 5.0, 1.0 );
+   AmbientSound( "JM2HSWIN", 127 );
+}
+
+private function void AnnounceCheat() {
+   SetFont( "SMALLFONT" );
+/*
+   HudMessageBold( s: "\ccThis team of super marines is beyond the high"
+      "score"; HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
+   AmbientSound( "JM2HSLOS", 127 );*/
+}
+
+// Prints high score details table.
+script "TeamRanker.ShowHs" ( raw showTime ) {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      append( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
+         s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
+         s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n",
+         s: "\cb", s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+         s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+         s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds, s: "\n\n",
+         s: "\ckMain Helpers:", s: "\n" );
+      for ( auto helper = 0; helper < gHsHelpersTotal; ++helper ) {
+         append( s: "\cc", s: gHsHelpersName[ helper ], s: " \cd",
+            d: gHsHelpersPoints[ helper ], s: "\n" );
+      }
+      if ( gHsUnaccountedPoints > 0 ) {
+         append( s: "\cgUnaccounted \cd", d: gHsUnaccountedPoints );
+      }
+   }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+}
+
+function void PrepareForSvmz() {
+   gEndMessage = "Maze Complete";
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Telepatch {
+// ==========================================================================
+
+using Cfg;
+
+// Holds TIDs of temporary teleport destinations.
+private int gDest[ MAX_PLAYERS ];
+
+function void OnDeath( int player ) {
+   // Change the activator of the script to the killer of the dead player to
+   // determine if the player got telefragged.
+   SetActivatorToTarget( 0 );
+   if ( PlayerNumber() >= 0 && PlayerNumber() != player ) {
+      // Create a TID for a temporary teleport destination.
+      enum { TID_OFFSET = 28100 };
+      gDest[ player ] = TID_OFFSET + player;
+      // Spawn the teleport destination at killer's coordinates.
+      Spawn( "TeleportDest2", GetActorX( 0 ),
+         GetActorY( 0 ), GetActorZ( 0 ), gDest[ player ], 
+         ( int ) GetActorAngle( 0 ) >> 8 );
+   }
+}
+
+function void OnRespawn( int player ) {
+   if ( gDest[ player ] != 0 ) {
+      Teleport( gDest[ player ], 0, 0 );
+      OnDisconnect( player );
+   }
+}
+
+// Remove any temporary destinations that might have been left behind if a
+// player disconnected while being dead.
+function void OnDisconnect( int player ) {
+   if ( gDest[ player ] != 0 ) {
+      Thing_Remove( gDest[ player ] );
+      gDest[ player ] = 0;
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.AutoFist {
+// ==========================================================================
+
+using upmost;
+using Jm: Client;
+
+script 995 enter {
+   Acs_ExecuteAlways( 996, 0 );
+}
+
+script 996 respawn {
+   // Small delay to make sure the clearInventory() script has finished
+   // executing. I don't like this solution but it will do for now.
+   Delay( 2 );
+   Client.Execute( PlayerNumber(), 997 );
+}
+
+script 997 {
+   if ( GetCvar( "jm_auto_fist" ) ) {
+      ConsoleCommand( "use fist" );
+   }
+}
+
+}
+
+// Resolution Sensitive Display is a client-side message display system that
+// breaks down a long string message into smaller segments that fit nicely on
+// a player's screens and shows them one at a time.
+// ==========================================================================
+namespace Jm.Rsd {
+// ==========================================================================
+
+using upmost;
+
+enum { RSD_START_SCRIPT = 945 };
+enum : fixed { RSD_TICS_IN_SECOND = 35.71 };
+// Width of an individual character, in pixels. Note that not all characters
+// are actually 8 pixels but most are.
+enum { RSD_CHARACTER_WIDTH = 8 };
+// A segment is a smaller section of a whole message. The size of a segment
+// is the number of lines it contains. A line is a single, physical line of
+// text that can fit on a player's screen.
+enum { RSD_SEGMENT_SIZE = 3 };
+enum { RSD_DEFAULT_PADDING = 20 };
+enum { RSD_MAX_PADDING = 100 };
+enum { RSD_ELLIPSIS_COLOR = 'i' };
+// hudMessage() values for when displaying.
+enum { RSD_LINE = 11142 };
+enum : fixed { RSD_Y = 0.60 };
+enum : fixed { RSD_TYPETIME = 0.042 };
+enum : fixed { RSD_FADETIME = 2.0 };
+enum { RSD_MAX_DATA_SIZE = 1280 };
+enum { RSD_MAX_ARGS = 3 };
+enum { RSD_MAX_ARG_SIZE = 64 };
+
+// Contains data to show.
+int _rsd_data[ RSD_MAX_DATA_SIZE + 1 ];
+int _rsd_data_size = 0;
+// First index of argument contains length of argument.
+int _rsd_args[ RSD_MAX_ARGS ][ RSD_MAX_ARG_SIZE ];
+int _rsd_args_size = 0;
+// Percent of screen to pad both sides.
+int _rsd_padding = RSD_DEFAULT_PADDING;
+// Holds limit of line size.
+int _rsd_line_max_size = 120;
+// Contains data that will be shown.
+int _rsd_segment[ RSD_MAX_DATA_SIZE ];
+
+function void RsdSetPadding( int padding ) {
+   if ( padding >= 0 && padding * 2 < RSD_MAX_PADDING ) {
+      _rsd_padding = padding;
+   }
+}
+
+// Set to 0 to remove maximum restriction.
+function void RsdSetMaxLineSize( int size ) {
+   _rsd_line_max_size = size;
+}
+
+// Adds a number onto the arguments queue.
+function void RsdAddNumArg( int num ) {
+   if ( _rsd_args_size < RSD_MAX_ARGS ) {
+      int size = 0;
+
+      // Convert number into a character string.
+      while ( num > 0 ) {
+         size += 1;
+         _rsd_args[ _rsd_args_size ][ size ] = '0' + ( num % 10 );
+         num /= 10;
+      }
+
+      // Add prefix of zero if necessary.
+      while ( size < 2 ) {
+         size += 1;
+         _rsd_args[ _rsd_args_size ][ size ] = '0';
+      }
+
+      // Reverse characters into correct order.
+      int mid_point = size / 2;
+      int pos = 0;
+
+      int left_c = 0;
+      int right_c = 0;
+
+      while ( pos < mid_point ) {
+         left_c = _rsd_args[ _rsd_args_size ][ pos + 1 ];
+         right_c = _rsd_args[ _rsd_args_size ][ size - pos ];
+
+         // Swap left side character with right side.
+         _rsd_args[ _rsd_args_size ][ pos + 1 ] = right_c;
+         _rsd_args[ _rsd_args_size ][ size - pos ] = left_c;
+
+         pos += 1;
+      }
+
+      _rsd_args[ _rsd_args_size ][ 0 ] = size;
+      _rsd_args_size += 1;
+   }
+}
+
+function void RsdAddStrArg( str value ) {
+   int length = Strlen( value );
+
+   // Only proceed if we have enough space.
+   if ( _rsd_args_size < RSD_MAX_ARGS && length < RSD_MAX_ARG_SIZE ) {
+      for ( int pos = 0; pos < length; pos += 1 ) {
+         _rsd_args[ _rsd_args_size ][ pos + 1 ] = GetChar( value, pos );
+      }
+
+      _rsd_args[ _rsd_args_size ][ 0 ] = length;
+      _rsd_args_size += 1;
+   }
+}
+
+// Start.
+script RSD_START_SCRIPT ( int msg, int holdTime ) {
+   // Terminate any running scripts before proceeding.
+   Acs_Terminate( 946, 0 );
+   Acs_Terminate( 947, 0 );
+   Acs_ExecuteWait( 946, 0, msg );
+   Acs_ExecuteWait( 947, 0, holdTime );
+}
+
+// Preprocessing.
+script 946 ( raw msg ) {
+   int msg_length = Strlen( msg );
+   int msg_pos = 0;
+
+   int arg_size = 0;
+   int arg_pos = 0;
+   int arg_num = 0;
+
+   int character = 0;
+   int data_pos = 0;
+
+   while ( true ) {
+      // Select character.
+      if ( arg_size > 0 ) {
+         character = _rsd_args[ arg_num ][ arg_pos + 1 ];
+         arg_pos += 1;
+
+         if ( arg_pos >= arg_size ) {
+            arg_pos = 0;
+            arg_size = 0;
+            arg_num += 1;
+         }
+      }
+      else {
+         // End process if no more characters are left.
+         if ( msg_pos >= msg_length ) {
+            break;
+         }
+
+         character = GetChar( msg, msg_pos );
+         msg_pos += 1;
+      }
+
+      // Expand place holders.
+      if ( character == '$' && _rsd_args_size > 0 ) {
+         arg_size = _rsd_args[ arg_num ][ 0 ];
+      }
+      else {
+         _rsd_data[ data_pos ] = character;
+         data_pos += 1;
+      }
+   }
+
+   _rsd_data_size = data_pos;
+   _rsd_args_size = 0;
+}
+
+// Display.
+script 947 ( int holdTime ) {
+   // No need to show an empty message.
+   if ( _rsd_data_size == 0 ) {
+      terminate;
+   }
+
+   int screen_w = GetScreenWidth();
+   int padding = screen_w * _rsd_padding / RSD_MAX_PADDING;
+   int free_space = screen_w - ( padding * 2 );
+
+   bool is_done = false;
+   int character = 0;
+   int pos = 0;
+   int data_pos = 0;
+
+   // Line.
+   int line_max_size = free_space / RSD_CHARACTER_WIDTH;
+   if ( _rsd_line_max_size > 0 && line_max_size > _rsd_line_max_size ) {
+      line_max_size = _rsd_line_max_size;
+   }
+   int line_size = 0;
+   int line_color = 0;
+   bool line_is_continued = false;
+
+   // Segment.
+   int segment_pos = 0;
+   int segment_size = 0;
+
+   // Break the message into segments and show them.
+   while ( ! is_done ) {
+      // Determine length of new line.
+      int next_line_start_pos = data_pos + line_max_size;
+
+      if ( next_line_start_pos < _rsd_data_size ) {
+         line_size = line_max_size;
+
+         int next_line_character = _rsd_data[ next_line_start_pos ];
+         pos = next_line_start_pos - 1;
+
+         while ( _rsd_data[ pos ] != ' ' && line_size > 0 ) {
+            line_size -= 1;
+            pos -= 1;
+         }
+
+         if ( line_size == 0 ) {
+            line_is_continued = true;
+            line_size = line_max_size - 1;
+         }
+      }
+      else {
+         line_size = _rsd_data_size - data_pos;
+         is_done = true;
+      }
+      
+      // Add color code to new line if it's continued from previous line.
+      if ( line_color ) {
+         _rsd_segment[ segment_pos++ ] = '\\';
+         _rsd_segment[ segment_pos++ ] = 'c';
+         _rsd_segment[ segment_pos++ ] = line_color;
+      }
+
+      // Collect single line of segment.
+      pos = 0;
+
+      while ( pos < line_size ) {
+         character = _rsd_data[ data_pos ];
+
+         // Color codes.
+         if ( character == '\\' && data_pos + 2 <= _rsd_data_size ) {
+            if ( _rsd_data[ data_pos + 1 ] == 'c' ) {
+               line_color = _rsd_data[ data_pos + 2 ];
+               // Turn off color code for next line.
+               if ( line_color == '-' ) {
+                  line_color = 0;
+               }
+            }
+         }
+
+         _rsd_segment[ segment_pos++ ] = character;
+
+         data_pos += 1;
+         pos += 1;
+      }
+
+      // Add dash at end of line if data was too long.
+      if ( line_is_continued ) {
+         _rsd_segment[ segment_pos++ ] = '-';
+         line_is_continued = false;
+      }
+
+      // Append newline character to line.
+      _rsd_segment[ segment_pos++ ] = '\n';
+
+      // Once line is built, increase size of segment.
+      segment_size += 1;
+
+      // Fill segment before moving onwards.
+      if ( ! is_done ) {
+         // If the segment is full, add an ellipsis to indicate more
+         // segments to come.
+         if ( segment_size == RSD_SEGMENT_SIZE ) {
+            _rsd_segment[ segment_pos++ ] = '\n';
+
+            // Color code.
+            _rsd_segment[ segment_pos++ ] = '\\';
+            _rsd_segment[ segment_pos++ ] = 'c';
+            _rsd_segment[ segment_pos++ ] = RSD_ELLIPSIS_COLOR;
+
+            _rsd_segment[ segment_pos++ ] = '.';
+            _rsd_segment[ segment_pos++ ] = '.';
+            _rsd_segment[ segment_pos++ ] = '.';
+         }
+         // Otherwise, collect more lines.
+         else {
+            continue;
+         }
+      }
+
+      _rsd_segment[ segment_pos ] = '\0';
+
+      // Show segment.
+
+      // Hold portion of the message.
+      raw hold_time = ( int ) FixedDiv( fixed( segment_pos ),
+         fixed( _rsd_data_size ) ) * holdTime;
+      // Total time the message is shown for.
+      int show_time = hold_time + ( ( int ) RSD_TYPETIME * segment_pos );
+      int delay_time = int( FixedMul( ( fixed ) show_time,
+         RSD_TICS_IN_SECOND ) );
+
+      // Add fade time to last segment.
+      raw fade_time = 0;
+      if ( is_done ) {
+         fade_time = RSD_FADETIME;
+      }
+
+      // Show.
+      SetFont( "SMALLFONT" );
+      HudMessage( 
+         a : _rsd_segment ; 
+         HUDMSG_TYPEON, RSD_LINE, CR_WHITE, 1.5, RSD_Y, hold_time, 
+         RSD_TYPETIME, fade_time );
+      Delay( delay_time );
+
+      segment_pos = 0;
+      segment_size = 0;
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Utility;
+
+// The smallest minimum escapee requirement possible.
+enum { ESCAPEE_MIN = 1 };
+// Percentage of total players that will be used to determine the minimum
+// escapee requirement.
+enum : fixed { REQ_PERCENT = 0.67 };
+// The number of players that must be present on map start for extra time to be
+// added for each extra player.
+enum { EXTRA_TIME_PLAYERS_NEEDED = 1 };
+// The number of seconds to add to the timer for each extra player.
+enum { EXTRA_PLAYER_TIME = 12 };
+// Minimum start time percentage of the par time.
+enum : fixed { TIME_MIN_PERCENT = 0.15 };
+// Extra times given by the Time Boost items.
+enum { TIME_BOOST1 = 1 };
+enum { TIME_BOOST2 = 3 };
+enum { TIME_BOOST3 = 10 };
+enum { RESULT_NONE = 0 };
+enum { RESULT_LOSE = 1 };
+enum { RESULT_WIN = 2 };
+// Hud message IDs:
+enum { LINE_NOTICE = 17200 };
+enum { LINE_STATS = 17201 };
+enum { LINE_TIMER = 17202 };
+enum { STATS_REFRESH_TIME = 8 };  // In seconds.
+
+private int gResult = RESULT_NONE;
+private int gMinEscapees = ESCAPEE_MIN;
+private bool gIsAlive[ Cfg.MAX_PLAYERS ];
+
+function bool Is() {
+   return ( GetCvar( "survival" ) == 1 );
+}
+
+// Initializes the server to play Survival Maze.
+function bool Init() {
+   auto doRestart = false;
+   if ( ! GetCvar( "survival" ) ) {
+      ConsoleCommand( "survival true" );
+      doRestart = true;
+   }
+   // I would like to get rid of the countdown entirely but it can't be done at
+   // this time.
+   if ( GetCvar( "sv_survivalcountdowntime" ) != 3 ) {
+      ConsoleCommand( "sv_survivalcountdowntime 3" );
+      doRestart = true;
+   }
+   // Survival Maze is a one-life game for now.
+   if ( GetCvar( "sv_maxlives" ) != 1 ) {
+      ConsoleCommand( "sv_maxlives 1" );
+      doRestart = true;
+   }
+   return doRestart;
+}
+
+// Main game script.
+script "Svmz.Start" ( raw par ) {
+   // Bail out if we don't have a single player playing, like on an empty
+   // server.
+   auto numPlayers = PlayerCount();
+   if ( numPlayers == 0 ) {
+      terminate;
+   }
+   // Determine minimum escapee requirement.
+   ChooseMinEscapees();
+   // Display escapee statistics.
+   Acs_Execute( 901, 0 );
+   // Initialize timer.
+   Timer.Init( CalcStartTime( par, numPlayers ) );
+   Timer.Display();
+   auto isWon = false;
+   auto ticsPassed = 0;
+   // Main game loop.
+   while ( true ) {
+      // Wining condition.
+      if ( Escapee.GetCount() == GetMinEscapees() ) {
+         isWon = true;
+         break;
+      }
+      // Minimum-alive-players-needed check.
+      // We need two conditions here. The first condition checks the actual
+      // count of players currently alive. This is needed to prevent the game
+      // ending because of players getting telefragged at map start. The second
+      // condition is our own tracking of alive players. We adjust that count
+      // manually so we have a chance to readjust the minimum escapee
+      // requirement when an alive player disconnects. If we solely rely on the
+      // first condition, a race condition is created: the DISCONNECT script
+      // might not finish readjusting the minimum requirement before this
+      // condition is checked.
+      if ( PlayerCount() < GetMinEscapees() &&
+         GetNumAlive() < GetMinEscapees() ) {
+         // Print a message to all players indicating the failure.
+         if ( numPlayers >= 2 ) {
+            DisplayMinEscapeesFail();
+         }
+         break;
+      }
+      // Update timer if we have time left.
+      if ( Timer.GetTimeLeft() > 0 ) {
+         if ( ticsPassed == Cfg.TICS_IN_SECOND ) {
+            ticsPassed = 0;
+            Timer.Decrease();
+            Timer.Display();
+         }
+         ++ticsPassed;
+      }
+      // Otherwise, bail out.
+      else {
+         Timer.Display();
+         break;
+      }
+      // Loop every tic so we can check the above conditions quickly.
+      Delay( 1 );
+   }
+   // Win.
+   if ( isWon ) {
+      SetResult( RESULT_WIN );
+      Acs_Execute( 908, 0 );
+   }
+   // Lose.
+   else {
+      SetResult( RESULT_LOSE );
+      // If all players spectated or disconnected, remove the statistics
+      // display script.
+      if ( PlayerCount() == 0 ) {
+         Acs_Terminate( 901, 0 );
+         Utility.ClearMessageBold( LINE_STATS );
+         Utility.ClearMessageBold( LINE_TIMER );
+      }
+   }
+}
+
+// Calculates initial time.
+private function int CalcStartTime( str par, int totalPlayers ) {
+   // The starting time is based on the par time of the map.
+   auto parInSeconds = Utility.ParToSeconds( par );
+   // To increase the challenge, we reduce the starting time by the total
+   // number of seconds we can get from collecting all of the Time Boost items
+   // to.
+   auto totalBoostTime = 
+      ThingCountName( "SvmzTimeBoost1", 0 ) * TIME_BOOST1 +
+      ThingCountName( "SvmzTimeBoost2", 0 ) * TIME_BOOST2 +
+      ThingCountName( "SvmzTimeBoost3", 0 ) * TIME_BOOST3;
+   auto startTime = parInSeconds - totalBoostTime;
+   // Make sure we have a decent amount of time.
+   auto minTime = int( fixed( parInSeconds ) * TIME_MIN_PERCENT );
+   if ( startTime < minTime ) {
+      startTime = minTime;
+   }
+   // Add extra time for each extra player.
+   auto extraPlayers = totalPlayers - EXTRA_TIME_PLAYERS_NEEDED;
+   if ( extraPlayers > 0 ) {
+      startTime += extraPlayers * EXTRA_PLAYER_TIME;
+   }
+   return startTime;
+}
+
+// Selects and sets the minimum escapee requirement.
+private function void ChooseMinEscapees() {
+   auto numEscapees = 0;
+   auto numPlayers = PlayerCount();
+   switch ( numPlayers ) {
+   case 0: break;
+   case 1: numEscapees = 1; break;
+   case 2: numEscapees = 2; break;
+   default:
+      numEscapees = int( fixed( numPlayers ) * REQ_PERCENT );
+      break;
+   }
+   // Take any Escapee Reduce items into account.
+   numEscapees -= Item.GetNumImpunityPicked();
+   SetMinEscapees( numEscapees );
+}
+
+function void SetMinEscapees( int numEscapees ) {
+   if ( numEscapees >= ESCAPEE_MIN ) {
+      gMinEscapees = numEscapees;
+   }
+}
+
+// Returns minimum escapee requirement.
+function int GetMinEscapees() {
+   return gMinEscapees;
+}
+
+// Escapee statistics message display script.
+script 901 {
+   while ( true ) {
+      DisplayEscapeeStats();
+      Delay( Cfg.TICS_IN_SECOND * STATS_REFRESH_TIME );
+   }
+}
+
+script 902 enter {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = true;
+      // Wait for the main game script to finish.
+      ScriptWait( 900 );
+      // Kill player if game was lost.
+      if ( GetResult() == RESULT_LOSE ) {
+         DamageThing( 1000 );
+      }
+   }
+}
+
+script 903 death {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = false;
+   }
+}
+
+script 904 respawn {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = true;
+   }
+}
+
+// If a player disconnects while a game is running, adjust the minimum escapee
+// requirement based on the existing players count. It's either I do this or I
+// kill all players and end the round because there won't be enough remaining
+// players to complete the original requirement.
+script 905 ( int player ) disconnect {
+   // Only proceed if the game is not finished yet.
+   if ( ! Is() || GetResult() != RESULT_NONE ) {
+      terminate;
+   }
+   // If the player was alive when they disconnected, readjust the minimum
+   // escapee requirement.
+   if ( gIsAlive[ player ] ) {
+      gIsAlive[ player ] = false;
+      ChooseMinEscapees();
+   }
+   if ( Escapee.Is( player ) ) {
+      Escapee.Remove( player );
+   }
+   DisplayEscapeeStats();
+}
+
+function void SetResult( int result ) {
+   gResult = result;
+}
+
+function int GetResult() {
+   return gResult;
+}
+
+// Escape line function, where a player is registered as escaped.
+function void MakeEscapee() {
+   auto player = PlayerNumber();
+   if ( ! Escapee.Is( player ) ) {
+      Escapee.Make( player );
+      DisplayEscapeeStats();
+   }
+}
+
+// Exit validation.
+function bool ValidateExit() {
+   auto toExit = true;
+   if ( GetResult() != RESULT_WIN ) {
+      toExit = false;
+      SetFont( "SMALLFONT" );
+      HudMessage(
+         s: "\ciNot enough escapees are present to exit";
+         HUDMSG_FADEOUT, LINE_NOTICE, 0, 1.5, 0.15, 3.0, 0.6 );
+   }
+   return toExit;
+}
+
+function void DisplayMinEscapeesFail() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold(
+      s: "\cgMinimum players failed to escape the maze";
+      HUDMSG_FADEOUT | HUDMSG_LOG, LINE_NOTICE, 0, 1.5, 0.15, 5.0, 0.6 );
+}
+
+function void DisplayEscapeeStats() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( msgbuild: {
+      auto minEscapees = GetMinEscapees();
+      auto numEscapees = Escapee.GetCount();
+      // Change the color of the statistic to green to indicate success.
+      if ( numEscapees >= minEscapees ) {
+         append( s: "\cdEscapees: \cq", d: numEscapees, s: "\cd / \cq",
+            d: minEscapees, s: "\n", s: "\ckExit enabled" );
+      }
+      else {
+         append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
+            d: minEscapees );
+      }
+   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+}
+
+private function int GetNumAlive() {
+   auto numAlive = 0;
+   foreach ( auto isAlive; gIsAlive ) {
+      numAlive += int( isAlive );
+   }
+   return numAlive;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Escapee {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Svmz;
+
+private bool gEscaped[ Cfg.MAX_PLAYERS ];
+private int gCount = 0;
+
+function void Make( int player ) {
+   gEscaped[ player ] = true;
+   ++gCount;
+   SetFont( "SMALLFONT" );
+   HudMessageBold( 
+      n: player + 1, s: "\cd escaped the maze" ;
+      HUDMSG_FADEOUT | HUDMSG_LOG, Svmz.LINE_NOTICE, 
+      0, 1.5, 0.15, 3.0, 0.6 );
+}
+
+function bool Is( int player ) {
+   return gEscaped[ player ];
+}
+
+function void Remove( int number ) {
+   gEscaped[ number ] = false;
+   --gCount;
+}
+
+function int GetCount() {
+   return gCount;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Timer {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Svmz;
+
+enum { WARNING_TIME = 10 }; // In seconds.
+enum { FINISH_TIME_REFRESH_TIME = 8 }; // In seconds.
+
+private int gTimeLeft = 0;
+
+function void Init( int time ) {
+   gTimeLeft = time;
+}
+
+function int GetTimeLeft() {
+   return gTimeLeft;
+}
+
+function void Decrease() {
+   --gTimeLeft;
+}
+
+function void Extend( int seconds ) {
+   gTimeLeft += seconds;
+   // We cannot go below zero seconds. We need this check in case a Raging Bomb
+   // item lowers the time below zero.
+   if ( gTimeLeft < 0 ) {
+      gTimeLeft = 0;
+   }
+}
+
+// Displays current time.
+function void Display() {
+   // If time is near expiration, change the color of the time to warn the
+   // players.
+   DisplayTime( gTimeLeft, ( gTimeLeft <= WARNING_TIME ) ? "\cg" : "\ch" );
+}
+
+// Displays customizable time.
+private function void DisplayTime( int time, str color ) {
+   SetFont( "BIGFONT" );
+   HudMessageBold(
+      s: color,
+      d: time / 60, s: "  :  ", 
+      d: time % 60 / 10, s: "  ",
+      d: time % 10;
+      HUDMSG_PLAIN, Svmz.LINE_TIMER, 0, 0.95, 0.95, 0.0
+   );
+}
+
+// Displays finished time.
+script 908 {
+   while ( true ) {
+      DisplayTime( gTimeLeft, ( gTimeLeft <= WARNING_TIME ) ? "\ci" : "\cn" );
+      Delay( Cfg.TICS_IN_SECOND * FINISH_TIME_REFRESH_TIME );
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Item {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Utility, Svmz;
+
+// Item initialization script, executed from DECORATE.
+script 910 {
+   auto toSpawn = false;
+   if ( GetCvar( "survival" ) ) {
+      toSpawn = true;
+      // Spawn the item marker for the item only at map start.
+      if ( Timer() == 0 ) {
+         SetActorState( 0, "spawn_marker" );
+      }
+   }
+   SetResultValue( int( toSpawn ) );
+}
+
+// Time extension items:
+// -----------------------------------------------------------------------
+
+enum { TE_LIFETIME = 3 };
+
+private int gTeAccumulatedTime = 0;
+private int gTeDeadline = 0;
+
+// Time Boost:
+
+script 911 ( int extraTime ) {
+   Acs_ExecuteAlways( 912, 0, extraTime );
+   // Custom pickup flash effect.
+   FadeRange( 218, 165, 32, 0.10, 0, 0, 0, 0.0, 0.25 );
+}
+
+// Extends timer.
+script 912 ( int extraTime ) {
+   // Don't add extra time if map is already complete.
+   if ( Svmz.GetResult() != Svmz.RESULT_NONE ) {
+      terminate;
+   }
+   Svmz.Timer.Extend( extraTime );
+   // Time accumulation visual effect.
+   auto currentTime = Timer() / Cfg.TICS_IN_SECOND;
+   // Reset accumulated time if the visual effect has expired.
+   if ( currentTime > gTeDeadline ) {
+      gTeAccumulatedTime = 0;
+   }
+   gTeAccumulatedTime += extraTime;
+   gTeDeadline = currentTime + TE_LIFETIME;
+   DisplayBoostTime( gTeAccumulatedTime );
+}
+
+private function void DisplayBoostTime( int time ) {
+   auto sign = "+";
+   auto color = "\ck";
+   if ( time < 0 ) {
+      sign = "-";
+      color = "\ci";
+      time *= -1;
+   }
+   SetFont( "BIGFONT" );
+   HudMessageBold( s: color, s: " ", s: sign, s: " ", d: time / 60, s: "  :  ", 
+      d: time % 60 / 10,  s: "  ", d: time % 10; HUDMSG_FADEOUT, 12201, 0,
+      0.95, 0.90, 2.0, 1.0 );
+}
+
+// Raging Bomb:
+
+enum { RB_DAMAGE_LOW = 30 };
+enum { RB_DAMAGE_HIGH = 38 };
+
+script 913 ( int secondsToRemove ) {
+   // Randomize the damage to make things more interesting.
+   DamageThing( Random( RB_DAMAGE_LOW, RB_DAMAGE_HIGH ) );
+   // Reduce timer time.
+   Acs_ExecuteAlways( 912, 0, secondsToRemove * -1 );
+}
+
+// Impunity:
+// -----------------------------------------------------------------------
+
+// Number of players needed for the item to be available.
+enum { IM_MIN_PLAYERS_NEEDED = 2 };
+
+// Number of items picked up when recalculating minimum escapee
+// requirement if a player leaves.
+private int gImNumPicked = 0;
+
+script 915 {
+   SetResultValue( int( PlayerCount() >= IM_MIN_PLAYERS_NEEDED ) );
+}
+
+script 916 {
+   auto minEscapees = Svmz.GetMinEscapees();
+   // This item cannot nullify the minimum escapee requirement.
+   if ( minEscapees <= Svmz.ESCAPEE_MIN ) {
+      terminate;
+   }
+   Svmz.SetMinEscapees( minEscapees - 1 );
+   Svmz.DisplayEscapeeStats();
+   SetFont( "SMALLFONT" );
+   HudMessageBold( 
+      s: "\ck", n: 0, s: "\ck picked up an Impunity item";
+      HUDMSG_PLAIN | HUDMSG_LOG, Svmz.LINE_NOTICE, 0, 1.5, 0.15, 3.0 );
+   ++gImNumPicked;
+}
+
+function int GetNumImpunityPicked() {
+   return gImNumPicked;
+}
+
+}
