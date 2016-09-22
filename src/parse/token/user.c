@@ -6,6 +6,7 @@
 static void read_peeked_token( struct parse* parse );
 static void read_token( struct parse* parse );
 static void read_token_bcs( struct parse* parse );
+static void read_token_acs( struct parse* parse );
 static struct token* push_token( struct parse* parse );
 
 // Functions used by the parser.
@@ -34,13 +35,11 @@ void read_peeked_token( struct parse* parse ) {
 }
 
 void read_token( struct parse* parse ) {
-   switch ( parse->lang ) {
-   case LANG_BCS:
+   if ( parse->lang == LANG_BCS ) {
       read_token_bcs( parse );
-      break;
-   default:
-      p_read_source( parse, parse->source_token );
-      parse->token = parse->source_token;
+   }
+   else {
+      read_token_acs( parse );
    }
 }
 
@@ -205,10 +204,23 @@ void read_token_bcs( struct parse* parse ) {
          }
          parse->token->pos = pos;
          parse->token->modifiable_text = p_copy_text( parse, &text );
+         parse->token->type = TK_LIT_STRING;
          parse->token->text = parse->token->modifiable_text;
          parse->token->length = text.length;
          str_deinit( &text );
       }
+   }
+}
+
+void read_token_acs( struct parse* parse ) {
+   top:
+   p_read_stream( parse );
+   switch ( parse->token->type ) {
+   case TK_NL:
+   case TK_HORZSPACE:
+      goto top;
+   default:
+      break;
    }
 }
 
@@ -248,21 +260,11 @@ void p_next_tk( struct parse* parse, struct parsertk_iter* iter ) {
 }
 
 struct token* push_token( struct parse* parse ) {
-   struct token* token = parse->token;
-   struct token* source_token = parse->source_token;
-   parse->source_token = &parse->token_peeked;
-   read_token( parse );
    struct queue_entry* entry = p_push_entry( parse, &parse->parser_tkque );
-   entry->token_allocated = ( parse->token == &parse->token_peeked );
-   if ( entry->token_allocated ) {
-      entry->token = p_alloc_token( parse );
-      *entry->token = *parse->token;
-   }
-   else {
-      entry->token = parse->token;
-   }
-   parse->source_token = source_token;
-   parse->token = token;
+   entry->token = p_alloc_token( parse );
+   entry->token_allocated = true;
+   read_token( parse );
+   entry->token[ 0 ] = parse->token[ 0 ];
    return entry->token;
 }
 
@@ -279,19 +281,18 @@ void read_stream( struct parse* parse ) {
 */
 
 void p_test_tk( struct parse* parse, enum tk expected ) {
-   if ( parse->token->type != expected ) {
-      if ( parse->token->type == TK_RESERVED ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
+   if ( parse->tk != expected ) {
+      if ( parse->tk == TK_RESERVED ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "`%s` is a reserved identifier that is not currently used",
-            parse->token->text );
+            parse->tk_text );
       }
       else {
-         p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos, 
-            "unexpected %s", p_get_token_name( parse->token->type ) );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-            &parse->token->pos,
+         p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos, 
+            "unexpected %s", p_get_token_name( parse->tk ) );
+         p_diag( parse, DIAG_POS, &parse->tk_pos,
             "expecting %s here", p_get_token_name( expected ),
-            p_get_token_name( parse->token->type ) );
+            p_get_token_name( parse->tk ) );
       }
       p_bail( parse );
    }
@@ -389,7 +390,14 @@ void p_read_eoptiontk( struct parse* parse ) {
 }
 
 void p_test_preptk( struct parse* parse, enum tk expected ) {
-   p_test_tk( parse, expected );
+   if ( parse->token->type != expected ) {
+      p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos, 
+         "unexpected %s", p_get_token_name( parse->token->type ) );
+      p_diag( parse, DIAG_POS, &parse->token->pos,
+         "expecting %s here", p_get_token_name( expected ),
+         p_get_token_name( parse->token->type ) );
+      p_bail( parse );
+   }
 }
 
 // ==========================================================================

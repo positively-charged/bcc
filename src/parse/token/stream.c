@@ -33,7 +33,7 @@ struct macro_arg {
 };
 
 static void read_peeked_token( struct parse* parse );
-static void read_token( struct parse* parse );
+static void read_token( struct parse* parse, struct token* token );
 static void free_expan( struct parse* parse, struct macro_expan* expan );
 static struct macro_expan* alloc_expan( struct parse* parse );
 static void init_macro_expan( struct macro_expan* expan,
@@ -87,38 +87,44 @@ void p_init_stream( struct parse* parse ) {
    parse->token_free = NULL;
    parse->tkque_free_entry = NULL;
    parse->source_token = &parse->token_source;
-   p_init_token_queue( &parse->tkque, true );
+   parse->tkque = NULL;
    p_init_token_queue( &parse->parser_tkque, false );
 }
 
 void p_read_stream( struct parse* parse ) {
-   read_peeked_token( parse );
+   while ( parse->source_entry->source ) {
+      read_peeked_token( parse );
+      if ( parse->token->type != TK_END ) {
+         break;
+      }
+      p_pop_source( parse );
+   }
    parse->line_beginning = ( parse->prev_tk == TK_NL ) ||
       ( parse->prev_tk == TK_HORZSPACE && parse->line_beginning );
    parse->prev_tk = parse->token->type;
 }
 
 void read_peeked_token( struct parse* parse ) {
-   if ( parse->tkque.size > 0 ) {
-      parse->token = p_shift_entry( parse, &parse->tkque );
+   if ( parse->tkque->size > 0 ) {
+      parse->token = p_shift_entry( parse, parse->tkque );
    }
    else {
-      read_token( parse );
+      parse->token = &parse->token_source;
+      read_token( parse, parse->token );
    }
 }
 
 // Begins by reading tokens from a macro expansion. When a macro expansion is
 // not present, or there are no more tokens available in the macro expansion,
 // reads a token from the source file.
-void read_token( struct parse* parse ) {
+void read_token( struct parse* parse, struct token* token ) {
    // Read from a macro expansion.
-   parse->token = NULL;
    while ( parse->macro_expan ) {
       if ( parse->macro_expan->output ) {
-         parse->token = parse->macro_expan->output;
-         parse->macro_expan->output = parse->token->next;
-         if ( parse->token->type == TK_MACRONAME ) {
-            parse->token->type = TK_ID;
+         token[ 0 ] = parse->macro_expan->output[ 0 ];
+         parse->macro_expan->output = token->next;
+         if ( token->type == TK_MACRONAME ) {
+            token->type = TK_ID;
          }
          return;
       }
@@ -129,8 +135,7 @@ void read_token( struct parse* parse ) {
       }
    }
    // Read from a source file.
-   p_read_source( parse, parse->source_token );
-   parse->token = parse->source_token;
+   p_read_source( parse, token );
 }
 
 bool p_expand_macro( struct parse* parse ) {
@@ -750,7 +755,7 @@ void concat( struct parse* parse, struct macro_expan* expan,
 }
 
 void p_init_streamtk_iter( struct parse* parse, struct streamtk_iter* iter ) {
-   iter->entry = parse->tkque.head;
+   iter->entry = parse->tkque->head;
    iter->token = NULL;
 }
 
@@ -766,23 +771,10 @@ void p_next_stream( struct parse* parse, struct streamtk_iter* iter ) {
 }
 
 struct token* push_token( struct parse* parse ) {
-   struct token* token = parse->token;
-   struct token* source_token = parse->source_token;
-   struct token peeked_token;
-   parse->source_token = &peeked_token;
-   read_token( parse );
-   struct queue_entry* entry = p_push_entry( parse, &parse->tkque );
-   entry->token_allocated = ( parse->token == &peeked_token );
-   if ( entry->token_allocated ) {
-      struct token* fresh_token = p_alloc_token( parse );
-      *fresh_token = peeked_token;
-      entry->token = fresh_token;
-   }
-   else {
-      entry->token = parse->token;
-   }
-   parse->source_token = source_token;
-   parse->token = token;
+   struct queue_entry* entry = p_push_entry( parse, parse->tkque );
+   entry->token = p_alloc_token( parse );
+   entry->token_allocated = true;
+   read_token( parse, entry->token );
    return entry->token;
 }
 

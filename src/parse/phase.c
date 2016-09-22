@@ -9,6 +9,8 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->token = NULL;
    parse->source = NULL;
    parse->free_source = NULL;
+   parse->source_entry = NULL;
+   parse->source_entry_free = NULL;
    parse->last_id = 0;
    str_init( &parse->temp_text );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;

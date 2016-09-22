@@ -272,13 +272,19 @@ struct source {
    int file_entry_id;
    int line;
    int column;
-   bool find_dirc;
    bool load_once;
-   bool imported;
    char ch;
    // Plus one for the null character.
    char buffer[ SOURCE_BUFFER_SIZE + 2 ];
    int buffer_pos;
+};
+
+struct source_entry {
+   struct source_entry* prev;
+   struct source* source;
+   struct macro_expan* macro_expan;
+   struct token_queue peeked;
+   bool main;
 };
 
 struct request {
@@ -361,6 +367,7 @@ struct parse {
    struct token* token_free;
    struct token token_source;
    struct token token_peeked;
+   struct token token_expan;
    enum tk tk;
    enum tk prev_tk;
    struct pos tk_pos;
@@ -368,6 +375,8 @@ struct parse {
    int tk_length;
    struct source* source;
    struct source* free_source;
+   struct source_entry* source_entry;
+   struct source_entry* source_entry_free;
    int last_id;
    struct str temp_text;
    enum {
@@ -394,7 +403,7 @@ struct parse {
 
    struct token* source_token;
    struct queue_entry* tkque_free_entry;
-   struct token_queue tkque;
+   struct token_queue* tkque;
    struct token_queue parser_tkque;
    bool create_nltk;
    struct ns* ns;
@@ -500,5 +509,6 @@ char* p_copy_text( struct parse* parse, struct str* text );
 char* p_intern_text( struct parse* parse, const char* value, int length );
 bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
+void p_pop_source( struct parse* parse );
 
 #endif
