@@ -59,6 +59,7 @@ static const struct {
    { "<<", TK_SHIFT_L },
    { ">>", TK_SHIFT_R },
    { "#", TK_HASH },
+   { "\\", TK_BACKSLASH },
    { NULL, TK_END }
 };
 static const struct {
@@ -162,7 +163,7 @@ enum tk p_identify_token_type( const char* text ) {
       return TK_LIT_BINARY;
    }
    if ( text[ 0 ] == '#' && text[ 1 ] == '#' && text[ 2 ] == 0 ) {
-      return TK_PREP_HASHHASH;
+      return TK_HASHHASH;
    }
    return TK_NONE;
 }
@@ -255,25 +256,6 @@ bool is_bin_literal_token( const char* text ) {
    else {
       return false;
    }
-}
-
-int p_identify_predef_macro( const char* text ) {
-   static const struct {
-      const char* text;
-      int macro;
-   } table[] = {
-      { "__LINE__", PREDEFMACROEXPAN_LINE },
-      { "__FILE__", PREDEFMACROEXPAN_FILE },
-      { "__TIME__", PREDEFMACROEXPAN_TIME },
-      { "__DATE__", PREDEFMACROEXPAN_DATE },
-      { NULL, PREDEFMACROEXPAN_NONE }
-   };
-   int i = 0;
-   while ( table[ i ].text != NULL &&
-      strcmp( text, table[ i ].text ) != 0 ) {
-      ++i;
-   }
-   return table[ i ].macro;
 }
 
 const struct token_info* p_get_token_info( enum tk tk ) {
@@ -444,6 +426,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( "kill", TKF_KEYWORD ),
+      ENTRY( "\\", TKF_NONE ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -564,7 +547,7 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_QUESTION_MARK, "`?`" },
       { TK_ELLIPSIS, "`...`" },
       { TK_HORZSPACE, "horizontal space" },
-      { TK_PREP_HASHHASH, "`##`" },
+      { TK_HASHHASH, "`##`" },
       { TK_STRCPY, "`strcpy`" },
       { TK_RAW, "`raw`" },
       { TK_FIXED, "`fixed`" },
@@ -600,8 +583,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ACSEXECUTEWAIT, "`acs_executewait`" },
       { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
       { TK_LIT_RADIX, "radix number" },
-      { TK_KILL, "`kill`" } };
-   STATIC_ASSERT( TK_TOTAL == 146 );
+      { TK_KILL, "`kill`" },
+      { TK_BACKSLASH, "`\\`" } };
+   STATIC_ASSERT( TK_TOTAL == 147 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";

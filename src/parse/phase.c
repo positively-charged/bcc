@@ -19,13 +19,12 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->macro_param_free = NULL;
    parse->macro_expan = NULL;
    parse->macro_expan_free = NULL;
+   parse->macro_arg_free = NULL;
    parse->ifdirc = NULL;
    parse->ifdirc_free = NULL;
 
    parse->line = 0;
    parse->column = 0;
-   parse->predef_macro_expan = PREDEFMACROEXPAN_NONE;
-   parse->prep_context = PREPCONTEXT_NONE;
    parse->cache = cache;
    parse->create_nltk = false;
    p_init_stream( parse );
@@ -54,6 +53,7 @@ void p_run( struct parse* parse ) {
    parse->lib = lib;
    parse->ns_fragment = lib->upmost_ns_fragment;
    parse->ns = parse->ns_fragment->ns;
+   p_define_predef_macros( parse );
    p_define_cmdline_macros( parse );
    p_load_main_source( parse );
    if ( parse->task->options->preprocess ) {
@@ -111,7 +111,6 @@ int p_determine_lang_from_file_path( const char* path ) {
 void p_diag( struct parse* parse, int flags, ... ) {
    va_list args;
    va_start( args, flags );
-   p_macro_trace_diag( parse );
    t_diag_args( parse->task, flags, &args );
    va_end( args );
 }

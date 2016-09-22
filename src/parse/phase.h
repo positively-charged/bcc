@@ -127,7 +127,7 @@ enum tk {
    TK_TAB,
    TK_ELLIPSIS,
    TK_HORZSPACE,
-   TK_PREP_HASHHASH,
+   TK_HASHHASH,
    // 110
    TK_RAW,
    TK_FIXED,
@@ -168,6 +168,7 @@ enum tk {
    TK_LIT_RADIX,
    TK_TYPENAME,
    TK_KILL,
+   TK_BACKSLASH,
 
    TK_TOTAL,
 
@@ -177,6 +178,9 @@ enum tk {
    TK_PLACEMARKER,
    TK_PROCESSEDHASH,
    TK_LINKLIBRARY,
+   TK_ENDMACRO,
+   TK_ENDMACROARG,
+   TK_MACRONAME,
 };
 
 struct token {
@@ -190,7 +194,6 @@ struct token {
    struct pos pos;
    enum tk type;
    int length;
-   bool is_id;
 };
 
 enum {
@@ -220,6 +223,13 @@ struct macro {
    struct token* body_tail;
    struct pos pos;
    int param_count;
+   enum {
+      PREDEFMACRO_NONE,
+      PREDEFMACRO_LINE,
+      PREDEFMACRO_FILE,
+      PREDEFMACRO_TIME,
+      PREDEFMACRO_DATE,
+   } predef;
    bool func_like;
    bool variadic;
 };
@@ -345,12 +355,8 @@ struct expr_reading {
    bool expect_expr;
 };
 
-#define TK_BUFFER_SIZE 5
-
 struct parse {
    struct task* task;
-   //struct token* queue[ TK_BUFFER_SIZE ];
-   //struct token queue_source[ TK_BUFFER_SIZE ];
    struct token* token;
    struct token* token_free;
    struct token token_source;
@@ -378,22 +384,12 @@ struct parse {
    struct macro_param* macro_param_free;
    struct macro_expan* macro_expan;
    struct macro_expan* macro_expan_free;
+   struct macro_arg* macro_arg_free;
    struct ifdirc* ifdirc;
    struct ifdirc* ifdirc_free;
 
    int line;
    int column;
-   enum {
-      PREDEFMACROEXPAN_NONE,
-      PREDEFMACROEXPAN_LINE,
-      PREDEFMACROEXPAN_FILE,
-      PREDEFMACROEXPAN_TIME,
-      PREDEFMACROEXPAN_DATE,
-   } predef_macro_expan;
-   enum {
-      PREPCONTEXT_NONE,
-      PREPCONTEXT_DEFINEBODY
-   } prep_context;
    struct cache* cache;
 
    struct token* source_token;
@@ -469,12 +465,9 @@ void p_read_source( struct parse* parse, struct token* token );
 bool p_read_dirc( struct parse* parse );
 void p_confirm_ifdircs_closed( struct parse* parse );
 struct macro* p_find_macro( struct parse* parse, const char* name );
-void p_macro_trace_diag( struct parse* parse );
 bool p_read_dirc( struct parse* parse );
 enum tk p_identify_token_type( const char* text );
 int p_eval_prep_expr( struct parse* parse );
-void p_read_sourcepos_token( struct parse* parse, struct pos* pos );
-int p_identify_predef_macro( const char* text );
 const struct token_info* p_get_token_info( enum tk tk );
 struct token* p_alloc_token( struct parse* parse );
 void p_free_token( struct parse* parse, struct token* token );
@@ -498,11 +491,14 @@ bool p_peek_type_path( struct parse* parse );
 void p_read_using( struct parse* parse, struct list* output );
 void p_read_target_lib( struct parse* parse );
 void p_clear_macros( struct parse* parse );
+void p_define_predef_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
 char* p_copy_text( struct parse* parse, struct str* text );
+char* p_intern_text( struct parse* parse, const char* value, int length );
 bool p_is_macro_defined( struct parse* parse, const char* name );
+void p_init_token( struct token* token );
 
 #endif

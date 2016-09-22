@@ -1041,7 +1041,6 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    token->pos.column = column;
    token->pos.id = id;
    token->next = NULL;
-   token->is_id = false;
 }
 
 inline struct text_buffer* get_text_buffer( struct parse* parse,
@@ -1092,7 +1091,6 @@ void read_token( struct parse* parse, struct token* token ) {
    int length = 0;
    enum tk tk = TK_END;
    struct str* text = NULL;
-   bool is_id = false;
 
    state_space:
    // -----------------------------------------------------------------------
@@ -1389,6 +1387,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       goto state_finish;
    }
+/*
    else if ( ch == '\\' ) {
       struct pos pos = { parse->source->line, column,
          parse->source->file->id };
@@ -1396,10 +1395,11 @@ void read_token( struct parse* parse, struct token* token ) {
          "`\\` not followed with newline character" );
       p_bail( parse );
    }
+*/
    else if ( ch == '#' ) {
       ch = read_ch( parse );
       if ( ch == '#' ) {
-         tk = TK_PREP_HASHHASH;
+         tk = TK_HASHHASH;
          ch = read_ch( parse );
       }
       else {
@@ -1444,6 +1444,7 @@ void read_token( struct parse* parse, struct token* token ) {
          '~', TK_BIT_NOT,
          '?', TK_QUESTION_MARK,
          ':', TK_COLON,
+         '\\', TK_BACKSLASH,
          0 };
       int i = 0;
       while ( true ) {
@@ -1489,7 +1490,6 @@ void read_token( struct parse* parse, struct token* token ) {
             length, parse->lang_limits->max_id_length );
          p_bail( parse );
       }
-      is_id = true;
       tk = TK_ID;
       goto state_finish;
    }
@@ -1796,7 +1796,6 @@ void read_token( struct parse* parse, struct token* token ) {
    token->pos.column = column;
    token->pos.id = parse->source->file_entry_id;
    token->next = NULL;
-   token->is_id = is_id;
 }
 
 char read_ch( struct parse* parse ) {
@@ -2025,6 +2024,14 @@ char* p_copy_text( struct parse* parse, struct str* str ) {
    return text;
 }
 
+char* p_intern_text( struct parse* parse, const char* value, int length ) {
+   struct text_buffer* buffer = get_text_buffer( parse, length + 1 );
+   memcpy( buffer->left, value, length + 1 );
+   char* text = buffer->left;
+   buffer->left += length + 1;
+   return text;
+}
+
 void append_ch( struct str* str, char ch ) {
    char segment[ 2 ] = { ch, '\0' };
    str_append( str, segment );
@@ -2045,66 +2052,4 @@ void p_deinit_tk( struct parse* parse ) {
       pop_source( parse );
    }
    pop_source( parse );
-}
-
-#include <time.h>
-
-void p_read_sourcepos_token( struct parse* parse, struct pos* pos ) {
-   const char* file;
-   int line;
-   int column;
-   t_decode_pos( parse->task, pos, &file, &line, &column );
-   if ( parse->predef_macro_expan == PREDEFMACROEXPAN_LINE ) {
-      struct str* text = temp_text( parse );
-      str_grow( text, 11 );
-      int length = snprintf( text->value, 11, "%d", line );
-      static struct token token;
-      token.type = TK_LIT_DECIMAL;
-      token.text = text->value;
-      token.length = length;
-      token.pos = parse->token->pos;
-      token.is_id = false;
-      parse->token = &token;
-   }
-   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_FILE ) {
-      static struct token token;
-      token.type = TK_LIT_STRING;
-      token.text = ( char* ) file;
-      token.length = strlen( token.text );
-      token.pos = parse->token->pos;
-      token.is_id = false;
-      parse->token = &token;
-   }
-   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_TIME ) {
-      static char buffer[ 9 ];
-      time_t timestamp;
-      time( &timestamp );
-      struct tm* info = localtime( &timestamp );
-      int length = snprintf( buffer, 9, "%02d:%02d:%02d", info->tm_hour,
-         info->tm_min, info->tm_sec );
-      static struct token token;
-      token.type = TK_LIT_STRING;
-      token.text = buffer;
-      token.length = strlen( buffer );
-      token.pos = parse->token->pos;
-      token.is_id = false;
-      parse->token = &token;
-   }
-   else if ( parse->predef_macro_expan == PREDEFMACROEXPAN_DATE ) {
-      time_t timestamp;
-      time( &timestamp );
-      struct tm* info = localtime( &timestamp );
-      static char buffer[ 12 ];
-      strftime( buffer, 12, "%b %e %Y", info );
-      static struct token token;
-      token.type = TK_LIT_STRING;
-      token.text = buffer;
-      token.length = strlen( buffer );
-      token.pos = parse->token->pos;
-      token.is_id = false;
-      parse->token = &token;
-   }
-   else {
-      UNREACHABLE();
-   }
 }

@@ -47,38 +47,36 @@ void read_token( struct parse* parse ) {
 void read_token_bcs( struct parse* parse ) {
    top:
    p_read_stream( parse );
-   if ( parse->token->is_id ) {
+   switch ( parse->token->type ) {
+   case TK_ID:
       if ( p_expand_macro( parse ) ) {
          goto top;
       }
       else {
          goto identifier;
       }
-   }
-   else {
-      switch ( parse->token->type ) {
-      case TK_HASH:
-         if ( parse->line_beginning ) {
-            if ( p_read_dirc( parse ) ) {
-               goto top;
-            }
-         }
-         break;
-      case TK_NL:
-         if ( ! parse->create_nltk ) {
+      break;
+   case TK_HASH:
+      if ( parse->line_beginning ) {
+         if ( p_read_dirc( parse ) ) {
             goto top;
          }
-         break;
-      case TK_HORZSPACE:
-         goto top;
-      case TK_LIT_STRING:
-         goto string;
-      case TK_PROCESSEDHASH:
-         parse->token->type = TK_HASH;
-         break;
-      default:
-         break;
       }
+      break;
+   case TK_NL:
+      if ( ! parse->create_nltk ) {
+         goto top;
+      }
+      break;
+   case TK_HORZSPACE:
+      goto top;
+   case TK_LIT_STRING:
+      goto string;
+   case TK_PROCESSEDHASH:
+      parse->token->type = TK_HASH;
+      break;
+   default:
+      break;
    }
    return;
 
@@ -358,53 +356,40 @@ void p_read_preptk( struct parse* parse ) {
 void p_read_expanpreptk( struct parse* parse ) {
    top:
    p_read_stream( parse );
-   if ( parse->token->is_id ) {
+   switch ( parse->token->type ) {
+   case TK_ID:
       if ( p_expand_macro( parse ) ) {
          goto top;
       }
-   }
-   else {
-      switch ( parse->token->type ) {
-      case TK_HORZSPACE:
-         goto top;
-      default:
-         break;
-      }
+      break;
+   case TK_HORZSPACE:
+      goto top;
+   default:
+      break;
    }
 }
 
 void p_read_eoptiontk( struct parse* parse ) {
    top:
    p_read_stream( parse );
-   if ( parse->token->is_id ) {
+   switch ( parse->token->type ) {
+   case TK_ID:
       if ( p_expand_macro( parse ) ) {
          goto top;
       }
-   }
-   else {
-      switch ( parse->token->type ) {
-      case TK_HASH:
-         if ( parse->line_beginning ) {
-            if ( p_read_dirc( parse ) ) {
-               goto top;
-            }
-         }
-         break;
-      default:
-         break;
+      break;
+   case TK_HASH:
+      if ( parse->line_beginning ) {
+         p_read_dirc( parse );
       }
+      break;
+   default:
+      break;
    }
 }
 
 void p_test_preptk( struct parse* parse, enum tk expected ) {
-   if ( expected == TK_ID ) {
-      if ( ! parse->token->is_id ) {
-         p_test_tk( parse, TK_ID );
-      }
-   }
-   else {
-      p_test_tk( parse, expected );
-   }
+   p_test_tk( parse, expected );
 }
 
 // ==========================================================================

@@ -63,9 +63,6 @@ static void read_body( struct parse* parse, struct macro_reading* reading );
 static void read_body_item( struct parse* parse,
    struct macro_reading* reading );
 static bool valid_macro_param( struct parse* parse, struct macro* macro );
-static struct token* alloc_token( struct parse* parse );
-static void init_token( struct token* token, enum tk type, const char* text,
-   int length );
 static void append_token( struct macro* macro, struct token* token );
 static void finish_macro( struct parse* parse, struct macro_reading* reading );
 static bool same_macro( struct macro* a, struct macro* b );
@@ -116,7 +113,7 @@ enum dirc identify_dirc( struct parse* parse ) {
       p_next_stream( parse, &iter );
    }
    enum dirc dirc = DIRC_NONE;
-   if ( iter.token->is_id ) {
+   if ( iter.token->type == TK_ID ) {
       dirc = identify_named_dirc( iter.token->text );
       // To stay compatible with ACS, only execute the following directives
       // when inside the #if family of directives.
@@ -251,7 +248,9 @@ struct macro* alloc_macro( struct parse* parse ) {
    macro->param_tail = NULL;
    macro->body = NULL;
    macro->body_tail = NULL;
+   t_init_pos_id( &macro->pos, ALTERN_FILENAME_COMPILER );
    macro->param_count = 0;
+   macro->predef = PREDEFMACRO_NONE;
    macro->func_like = false;
    macro->variadic = false;
    return macro;
@@ -269,7 +268,7 @@ void read_param_list( struct parse* parse, struct macro_reading* reading ) {
    p_read_preptk( parse );
    // Named parameters.
    bool comma = false;
-   while ( parse->token->is_id ) {
+   while ( parse->token->type == TK_ID ) {
       struct macro_param* param = reading->macro->param_head;
       while ( param ) {
          if ( strcmp( param->name, parse->token->text ) == 0 ) {
@@ -358,7 +357,7 @@ void read_body( struct parse* parse, struct macro_reading* reading ) {
       read_body_item( parse, reading );
    }
    if ( reading->macro->body_tail &&
-      reading->macro->body_tail->type == TK_PREP_HASHHASH ) {
+      reading->macro->body_tail->type == TK_HASHHASH ) {
       p_diag( parse, DIAG_POS_ERR, &reading->macro->body_tail->pos,
          "`##` operator at end of macro body" );
       p_bail( parse );
@@ -384,7 +383,7 @@ void read_body_item( struct parse* parse, struct macro_reading* reading ) {
       }
    }
    // `##` operator.
-   else if ( parse->token->type == TK_PREP_HASHHASH ) {
+   else if ( parse->token->type == TK_HASHHASH ) {
       if ( ! reading->macro->body ) {
          p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
             "`##` operator at beginning of macro body" );
@@ -395,17 +394,30 @@ void read_body_item( struct parse* parse, struct macro_reading* reading ) {
       struct streamtk_iter iter;
       p_init_streamtk_iter( parse, &iter );
       p_next_stream( parse, &iter );
-      if ( iter.token->type == TK_NL ) {
+      if (
+         iter.token->type == TK_NL ||
+         iter.token->type == TK_HASHHASH || (
+         reading->macro->body_tail &&
+         reading->macro->body_tail->type == TK_HASHHASH ) ) {
          p_read_stream( parse );
          return;
       }
    }
-   struct token* token = alloc_token( parse );
+   struct token* token = p_alloc_token( parse );
    *token = *parse->token;
    if ( token->type == TK_HORZSPACE ) {
       token->length = 1;
    }
    append_token( reading->macro, token );
+   if ( strcmp( token->text, reading->macro->name ) == 0 ) {
+      struct macro_param* param = reading->macro->param_head;
+      while ( param && strcmp( param->name, token->text ) != 0 ) {
+         param = param->next;
+      }
+      if ( ! param ) {
+         token->type = TK_MACRONAME;
+      }
+   }
    p_read_stream( parse );
 }
 
@@ -418,29 +430,6 @@ bool valid_macro_param( struct parse* parse, struct macro* macro ) {
       param = param->next;
    }
    return false;
-}
-
-// NOTE: Does not initialize fields.
-struct token* alloc_token( struct parse* parse ) {
-   struct token* token;
-   if ( parse->token_free ) {
-      token = parse->token_free;
-      parse->token_free = token->next;
-   }
-   else {
-      token = mem_alloc( sizeof( *token ) );
-   }
-   return token;
-}
-
-void init_token( struct token* token, enum tk type, const char* text,
-   int length ) {
-   token->next = NULL;
-   token->text = text;
-   token->modifiable_text = NULL;
-   token->type = type;
-   token->length = length;
-   token->is_id = false;
 }
 
 void append_token( struct macro* macro, struct token* token ) {
@@ -456,6 +445,11 @@ void append_token( struct macro* macro, struct token* token ) {
 void finish_macro( struct parse* parse, struct macro_reading* reading ) {
    struct macro* prev_macro = p_find_macro( parse, reading->macro->name );
    if ( prev_macro ) {
+      if ( ! ( prev_macro->predef == PREDEFMACRO_NONE ) ) {
+         p_diag( parse, DIAG_POS_ERR, &reading->macro->pos,
+            "redefining predefined macro" );
+         p_bail( parse );
+      }
       if ( same_macro( prev_macro, reading->macro ) ) {
          prev_macro->pos = reading->macro->pos;
          free_macro( parse, reading->macro );
@@ -634,14 +628,13 @@ void read_undef( struct parse* parse ) {
          "invalid macro name", parse->token->text );
       p_bail( parse );
    }
-   if ( p_identify_predef_macro( parse->token->text ) !=
-      PREDEFMACROEXPAN_NONE ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
-         "undefining a predefined macro" );
-      p_bail( parse );
-   }
    struct macro* macro = remove_macro( parse, parse->token->text );
    if ( macro ) {
+      if ( ! ( macro->predef == PREDEFMACRO_NONE ) ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
+            "undefining a predefined macro" );
+         p_bail( parse );
+      }
       free_macro( parse, macro );
    }
    p_read_preptk( parse );
@@ -732,8 +725,7 @@ void read_ifdef( struct parse* parse, struct pos* pos ) {
 }
 
 bool p_is_macro_defined( struct parse* parse, const char* name ) {
-   return ( p_find_macro( parse, name ) || p_identify_predef_macro( name ) !=
-      PREDEFMACROEXPAN_NONE );
+   return ( p_find_macro( parse, name ) != NULL );
 }
 
 void find_elif( struct parse* parse ) {
@@ -755,7 +747,7 @@ void find_endif( struct parse* parse, struct endif_search* search ) {
          if ( parse->token->type == TK_HASH ) {
             struct pos pos = parse->token->pos;
             p_read_preptk( parse );
-            if ( parse->token->is_id ) {
+            if ( parse->token->type == TK_ID ) {
                read_search_dirc( parse, search, &pos );
             }
          }
@@ -879,6 +871,29 @@ void p_define_imported_macro( struct parse* parse ) {
    append_macro( parse, macro );
 }
 
+void p_define_predef_macros( struct parse* parse ) {
+   // Macro: __LINE__
+   struct macro* macro = alloc_macro( parse );
+   macro->name = "__LINE__";
+   macro->predef = PREDEFMACRO_LINE;
+   append_macro( parse, macro );
+   // Macro: __FILE__
+   macro = alloc_macro( parse );
+   macro->name = "__FILE__";
+   macro->predef = PREDEFMACRO_FILE;
+   append_macro( parse, macro );
+   // Macro: __TIME__
+   macro = alloc_macro( parse );
+   macro->name = "__TIME__";
+   macro->predef = PREDEFMACRO_TIME;
+   append_macro( parse, macro );
+   // Macro: __DATE__
+   macro = alloc_macro( parse );
+   macro->name = "__DATE__";
+   macro->predef = PREDEFMACRO_DATE;
+   append_macro( parse, macro );
+}
+
 void p_define_cmdline_macros( struct parse* parse ) {
    list_iter_t i;
    list_iter_init( &i, &parse->task->options->defines );
@@ -886,9 +901,11 @@ void p_define_cmdline_macros( struct parse* parse ) {
       const char* name = list_data( &i );
       struct macro* macro = p_find_macro( parse, name );
       if ( ! macro ) {
-         struct token* token = alloc_token( parse );
-         init_token( token, TK_LIT_DECIMAL, CMDLINEMACRO_TEXT,
-            strlen( CMDLINEMACRO_TEXT ) );
+         struct token* token = p_alloc_token( parse );
+         p_init_token( token );
+         token->type = TK_LIT_DECIMAL;
+         token->text = CMDLINEMACRO_TEXT,
+         token->length = strlen( CMDLINEMACRO_TEXT );
          macro = alloc_macro( parse );
          macro->name = name;
          append_token( macro, token );

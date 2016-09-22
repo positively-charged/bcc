@@ -21,6 +21,7 @@ struct queue_entry* p_push_entry( struct parse* parse,
    }
    // Initialize necessary fields of the entry.
    entry->next = NULL;
+   entry->token_allocated = false;
    // Append the entry.
    if ( queue->head ) {
       queue->tail->next = entry;

@@ -93,7 +93,14 @@ void output_token( struct parse* parse, struct str* output ) {
       break;
    case TK_LIT_STRING:
       str_append( output, "\"" );
-      str_append( output, parse->token->text );
+      for ( int i = 0; i < parse->token->length; ++i ) {
+         if ( parse->token->text[ i ] == '"' ) {
+            str_append( output, "\\" );
+         }
+         char ch[] = { parse->token->text[ i ], 0 };
+         str_append( output, ch );
+      }
+      //str_append( output, parse->token->text );
       str_append( output, "\"" );
       break;
    case TK_LIT_CHAR:
