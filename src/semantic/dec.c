@@ -1534,6 +1534,11 @@ void assign_inferred_type( struct semantic* semantic, struct var* var,
       var->spec = SPEC_ENUM;
    }
    else {
+      if ( s_is_null( type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "cannot deduce variable type from `null`" );
+         s_bail( semantic );
+      }
       struct type_snapshot snapshot;
       s_take_type_snapshot( type, &snapshot );
       var->ref = snapshot.ref;

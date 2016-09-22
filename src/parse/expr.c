@@ -40,6 +40,8 @@ static void read_fixed_literal( struct parse* parse,
 static int extract_fixed_literal_value( const char* text );
 static void read_conversion( struct parse* parse,
    struct expr_reading* reading );
+static void read_anon_func( struct parse* parse,
+   struct expr_reading* reading );
 static void read_suffix( struct parse* parse, struct expr_reading* reading );
 static void read_subscript( struct parse* parse,
    struct expr_reading* reading );
@@ -631,6 +633,9 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_STR:
       read_conversion( parse, reading );
       break;
+   case TK_BRACE_L:
+      read_anon_func( parse, reading );
+      break;
    case TK_PAREN_L:
       read_paren( parse, reading );
       break;
@@ -890,6 +895,18 @@ void read_conversion( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &conv->node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+}
+
+void read_anon_func( struct parse* parse, struct expr_reading* reading ) {
+   struct func_user* impl = t_alloc_func_user();
+   impl->nested = true;
+   struct func* func = t_alloc_func();
+   func->type = FUNC_USER;
+   func->impl = impl;
+   func->return_spec = SPEC_AUTO;
+   p_read_func_body( parse, func );
+   func->object.pos = impl->body->pos;
+   reading->node = &func->object.node;
 }
 
 void read_suffix( struct parse* parse, struct expr_reading* reading ) {

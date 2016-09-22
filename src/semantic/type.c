@@ -541,3 +541,7 @@ bool s_is_int_value( struct type_info* type ) {
 bool s_is_enumerator( struct type_info* type ) {
    return ( s_is_value_type( type ) && type->enumeration );
 }
+
+bool s_is_null( struct type_info* type ) {
+   return ( s_is_ref_type( type ) && type->ref->type == REF_NULL );
+}

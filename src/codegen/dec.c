@@ -611,7 +611,7 @@ void write_one_nestedfunc( struct codegen* codegen,
       }
    }
    // Push return-value onto the stack.
-   if ( func->return_spec != SPEC_VOID ) {
+   if ( func->return_spec != SPEC_VOID || func->ref ) {
       if ( impl->recursive == RECURSIVE_POSSIBLY ) {
          if ( impl->size > 0 ) {
             c_pcd( codegen, PCD_PUSHSCRIPTVAR, return_var );

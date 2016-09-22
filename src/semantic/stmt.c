@@ -546,7 +546,11 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
       test_return_value( semantic, test, stmt );
    }
    else {
-      if ( semantic->func_test->func->return_spec != SPEC_VOID ) {
+      if ( semantic->func_test->func->return_spec == SPEC_AUTO ) {
+         semantic->func_test->func->return_spec = SPEC_VOID;
+      }
+      if ( ! ( semantic->func_test->func->return_spec == SPEC_VOID &&
+         ! semantic->func_test->func->ref ) ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
             "missing return value" );
          s_bail( semantic );
@@ -563,19 +567,33 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr_type( semantic, &expr, &type, stmt->return_value );
-   if ( func->return_spec == SPEC_VOID ) {
+   if ( func->return_spec == SPEC_VOID && ! func->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
          "returning a value from void function" );
       s_bail( semantic );
    }
    // Return value must be of the same type as the return type.
-   struct type_info return_type;
-   s_init_type_info( &return_type, func->ref, func->structure,
-      func->enumeration, NULL, func->return_spec, STORAGE_LOCAL );
-   if ( ! s_instance_of( &return_type, &type ) ) {
-      s_type_mismatch( semantic, "return-value", &type,
-         "function-return", &return_type, &stmt->return_value->pos );
-      s_bail( semantic );
+   if ( func->return_spec == SPEC_AUTO ) {
+      if ( s_is_null( &type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
+            "cannot deduce return type from `null`" );
+         s_bail( semantic );
+      }
+      struct type_snapshot snapshot;
+      s_take_type_snapshot( &type, &snapshot );
+      func->ref = snapshot.ref;
+      func->structure = snapshot.structure;
+      func->return_spec = snapshot.spec;
+   }
+   else {
+      struct type_info return_type;
+      s_init_type_info( &return_type, func->ref, func->structure,
+         func->enumeration, NULL, func->return_spec, STORAGE_LOCAL );
+      if ( ! s_instance_of( &return_type, &type ) ) {
+         s_type_mismatch( semantic, "return-value", &type,
+            "function-return", &return_type, &stmt->return_value->pos );
+         s_bail( semantic );
+      }
    }
    if ( expr.func && expr.func->type == FUNC_USER ) {
       struct func_user* impl = expr.func->impl;

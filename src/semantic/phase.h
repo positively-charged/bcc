@@ -197,5 +197,6 @@ struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node );
 bool s_func_scope_forced( struct semantic* semantic );
 bool s_is_enumerator( struct type_info* type );
+bool s_is_null( struct type_info* type );
 
 #endif

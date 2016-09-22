@@ -187,6 +187,8 @@ static bool perform_conversion( struct conversion* conv,
    struct type_info* from );
 static void unsupported_conversion( struct semantic* semantic,
    struct type_info* from, int to_spec, struct pos* pos );
+static void test_anon_func( struct semantic* semantic, struct result* result,
+   struct func* func );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
 static void test_upmost( struct semantic* semantic, struct result* result );
@@ -1461,7 +1463,8 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       result->enumeration = operand.func->enumeration;
       result->spec = s_spec( semantic, operand.func->return_spec );
       result->complete = true;
-      result->usable = ( operand.func->return_spec != SPEC_VOID );
+      result->usable = ( operand.func->return_spec != SPEC_VOID ||
+         operand.func->ref != NULL );
       call->func = operand.func;
       if ( operand.func->type == FUNC_USER ) {
          struct func_user* impl = operand.func->impl;
@@ -1816,14 +1819,19 @@ void arg_mismatch( struct semantic* semantic, struct pos* pos,
 
 void present_func( struct call_test* test, struct str* msg ) {
    if ( test->func ) {
-      struct str name;
-      str_init( &name );
-      t_copy_name( test->func->name, false, &name );
-      str_append( msg, "function " );
-      str_append( msg, "`" );
-      str_append( msg, name.value );
-      str_append( msg, "`" );
-      str_deinit( &name );
+      if ( test->func->name ) {
+         struct str name;
+         str_init( &name );
+         t_copy_name( test->func->name, false, &name );
+         str_append( msg, "function " );
+         str_append( msg, "`" );
+         str_append( msg, name.value );
+         str_append( msg, "`" );
+         str_deinit( &name );
+      }
+      else {
+         str_append( msg, "anonymous function" );
+      }
    }
    else {
       str_append( msg, "referenced function" );
@@ -1989,6 +1997,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
    case NODE_CONVERSION:
       test_conversion( semantic, test, result,
          ( struct conversion* ) node );
+      break;
+   case NODE_FUNC:
+      test_anon_func( semantic, result,
+         ( struct func* ) node );
       break;
    case NODE_PAREN:
       test_paren( semantic, test, result,
@@ -2554,6 +2566,12 @@ void unsupported_conversion( struct semantic* semantic, struct type_info* from,
       to_s.value );
    str_deinit( &from_s );
    str_deinit( &to_s );
+}
+
+void test_anon_func( struct semantic* semantic, struct result* result,
+   struct func* func ) {
+   s_test_nested_func( semantic, func );
+   select_func( semantic, result, func );
 }
 
 void test_paren( struct semantic* semantic, struct expr_test* test,
