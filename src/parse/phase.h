@@ -169,6 +169,7 @@ enum tk {
    TK_TYPENAME,
    TK_KILL,
    TK_BACKSLASH,
+   TK_REOPEN,
 
    TK_TOTAL,
 

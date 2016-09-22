@@ -703,6 +703,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          { "pickup", TK_PICKUP },
          { "redreturn", TK_RED_RETURN },
          { "region", TK_REGION },
+         { "reopen", TK_REOPEN },
          { "respawn", TK_RESPAWN },
          { "restart", TK_RESTART },
          { "return", TK_RETURN },

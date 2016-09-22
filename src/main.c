@@ -592,7 +592,7 @@ void print_acc_stats_bcs( struct task* task, struct parse* parse,
 }
 
 const char* get_script_type_label( int type ) {
-   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_KILL + 1 );
+   STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_REOPEN + 1 );
    switch ( type ) {
    case SCRIPT_TYPE_CLOSED: return "closed";
    case SCRIPT_TYPE_OPEN: return "open";
@@ -609,6 +609,7 @@ const char* get_script_type_label( int type ) {
    case SCRIPT_TYPE_RETURN: return "return";
    case SCRIPT_TYPE_EVENT: return "event";
    case SCRIPT_TYPE_KILL: return "kill";
+   case SCRIPT_TYPE_REOPEN: return "reopen";
    default: return "";
    }
 }

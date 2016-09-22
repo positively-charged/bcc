@@ -427,6 +427,7 @@ const struct token_info* p_get_token_info( enum tk tk ) {
       ENTRY( BLANK, TKF_NONE ),
       ENTRY( "kill", TKF_KEYWORD ),
       ENTRY( "\\", TKF_NONE ),
+      ENTRY( "reopen", TKF_KEYWORD ),
 
       // Invalid entry.
       // This entry should not be reached when all tokens are acccounted for.
@@ -584,8 +585,9 @@ const char* p_get_token_name( enum tk tk ) {
       { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
       { TK_LIT_RADIX, "radix number" },
       { TK_KILL, "`kill`" },
-      { TK_BACKSLASH, "`\\`" } };
-   STATIC_ASSERT( TK_TOTAL == 147 );
+      { TK_BACKSLASH, "`\\`" },
+      { TK_REOPEN, "`reopen`" } };
+   STATIC_ASSERT( TK_TOTAL == 148 );
    switch ( tk ) {
    case TK_LIT_STRING:
       return "string literal";
