@@ -42,7 +42,8 @@ static void patch_nestedfunc_addresses( struct codegen* codegen,
    struct func* func );
 
 void c_write_user_code( struct codegen* codegen ) {
-   if ( codegen->lang == LANG_BCS ) {
+   if ( codegen->lang == LANG_BCS &&
+      codegen->task->library_main->uses_nullable_refs ) {
       write_null_handler( codegen );
    }
    // Scripts.

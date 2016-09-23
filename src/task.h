@@ -1057,6 +1057,7 @@ struct library {
    bool compiletime;
    bool header;
    bool wadauthor;
+   bool uses_nullable_refs;
 };
 
 struct library_link {

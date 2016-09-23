@@ -1240,6 +1240,9 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    if ( ! lside->dim && lside->ref_dim == 0 ) {
       struct ref_array* array = ( struct ref_array* ) lside->ref;
       lside->ref_dim = array->dim_count;
+      if ( lside->ref->nullable ) {
+         semantic->lib->uses_nullable_refs = true;
+      }
    }
    // Move on to array element:
    // Sub-array.
@@ -1365,6 +1368,9 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    if ( is_struct( lside ) ) {
       struct name* name = t_extend_name( lside->structure->body,
          access->name );
+      if ( lside->ref->nullable ) {
+         semantic->lib->uses_nullable_refs = true;
+      }
       return name->object;
    }
    else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
@@ -1376,6 +1382,9 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       access->type = ACCESS_ARRAY;
       struct name* name = t_extend_name( semantic->task->array_name, "." );
       name = t_extend_name( name, access->name );
+      if ( lside->ref->nullable ) {
+         semantic->lib->uses_nullable_refs = true;
+      }
       return name->object;
    }
    else if ( is_value_type( semantic, lside ) && lside->spec == SPEC_STR ) {
@@ -1526,6 +1535,9 @@ void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
       test->params = func->params;
       test->min_param = func->min_param;
       test->max_param = func->max_param;
+      if ( operand->ref->nullable ) {
+         semantic->lib->uses_nullable_refs = true;
+      }
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
@@ -1935,6 +1947,7 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
       result->null = true;
       result->complete = true;
       result->usable = true;
+      semantic->lib->uses_nullable_refs = true;
    }
    else {
       //if ( type.ref->nullable ) {
@@ -1959,6 +1972,7 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
      //    result->ref = type.ref;
       if ( type.ref->nullable ) {
          result->ref->nullable = false;
+         semantic->lib->uses_nullable_refs = true;
       }
       else {
          sure->already_safe = true;
