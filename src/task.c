@@ -311,9 +311,6 @@ void show_diag( struct task* task, int flags, va_list* args ) {
    if ( flags & DIAG_SYNTAX ) {
       printf( "syntax " );
    }
-   else if ( flags & DIAG_CUSTOM ) {
-      printf( "custom " );
-   }
    else if ( flags & DIAG_INTERNAL ) {
       printf( "internal " );
    }
@@ -349,9 +346,6 @@ void log_diag( struct task* task, int flags, va_list* args ) {
    fprintf( task->err_file, " " );
    if ( flags & DIAG_SYNTAX ) {
       fprintf( task->err_file, "syntax " );
-   }
-   else if ( flags & DIAG_CUSTOM ) {
-      printf( "custom " );
    }
    else if ( flags & DIAG_INTERNAL ) {
       printf( "internal " );

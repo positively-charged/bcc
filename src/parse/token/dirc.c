@@ -586,11 +586,12 @@ void read_error( struct parse* parse, struct pos* pos ) {
    p_read_preptk( parse );
    struct str message;
    str_init( &message );
+   str_append( &message, "#error " );
    while ( parse->token->type != TK_NL ) {
       str_append( &message, parse->token->text );
       p_read_stream( parse );
    }
-   p_diag( parse, DIAG_POS_ERR | DIAG_CUSTOM, pos, message.value );
+   p_diag( parse, DIAG_POS_ERR, pos, message.value );
    p_bail( parse );
 }
 
