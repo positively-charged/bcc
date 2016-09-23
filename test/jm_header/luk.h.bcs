@@ -1,0 +1,45 @@
+#ifndef TEST_JMHEADER_LUK_H
+#define TEST_JMHEADER_LUK_H
+
+#linklibrary "luk"
+
+// ==========================================================================
+namespace Jm.Luk {
+// ==========================================================================
+
+// RETRIEVE query types.
+enum {
+   RETQUERY_INT,
+   RETQUERY_STR,
+   RETQUERY_DATE
+};
+// Query execution results we will tell the user.
+enum {
+   RESULT_OK,
+   RESULT_FAILED,
+   RESULT_TIMEOUT,
+   RESULT_UNKNOWN,
+};
+// Maximum size of a string that we will recieve.
+enum { MAX_STR_VALUE_SIZE = 100 };
+// To help with readability when calling the retrieval scripts, we will create
+// a descriptive constant that contains the script number.
+enum { RETSCRIPT = 970 };
+enum { LRETSCRIPT = 975 };
+
+extern int gString[ MAX_STR_VALUE_SIZE ];
+extern int gData;
+extern int gYear;
+extern int gMonth;
+extern int gDay;
+extern int gQueryResult;
+
+function bool IsEnabled();
+function int StoreInt( str key, int value );
+function int StoreStr( str key, str value );
+function int StoreName( str key, int playerNum );
+function int StoreDate( str key );
+
+}
+
+#endif

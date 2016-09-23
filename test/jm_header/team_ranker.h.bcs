@@ -1,0 +1,13 @@
+#ifndef TEST_JMHEADER_TEAMRANKER_H
+#define TEST_JMHEADER_TEAMRANKER_H
+
+#linklibrary "teamrank"
+
+namespace Jm.TeamRanker {
+
+function void ClearPointsTable();
+function void PrepareForSvmz();
+
+}
+
+#endif

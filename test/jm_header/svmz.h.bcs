@@ -1,0 +1,15 @@
+#ifndef TEST_JMHEADER_SVMZ_H
+#define TEST_JMHEADER_SVMZ_H
+
+#linklibrary "svmz"
+
+namespace Jm.Svmz {
+
+function bool Is();
+function bool Init();
+function void MakeEscapee();
+function bool ValidateExit();
+
+}
+
+#endif

@@ -1,0 +1,326 @@
+#if 1
+
+#library "solorank"
+
+#include "zcommon.h"
+#include "config.h"
+#include "utility.h"
+#include "timer.h"
+#include "solo_ranker.h"
+#include "hs.h"
+#include "luk.h"
+
+// ==========================================================================
+namespace Jm.SoloRanker {
+// ==========================================================================
+
+using Cfg;
+using Utility: ZeroPad; 
+
+enum { SHOW_DELAY_TIME = 16 };
+enum { INDITIME_LINEID = 732 };
+enum { AUTO_SHOW_DELAY = 3 };
+enum { RANK_LIMIT_MIN = 3 };
+enum { RANK_LIMIT_MAX = 5 };
+enum { TBL_REFRESH_TIME = 8 };
+enum : fixed { TBL_X = 0.0038147 };
+enum : fixed { TBL_Y = 0.688171 };
+enum { TBL_LINEID = 733 };
+
+struct Spot {
+   int player;
+   int minutes;
+   int seconds;
+   int centiseconds;
+};
+
+struct Table {
+   struct Spot spots[ RANK_LIMIT_MAX ];
+   int size;
+};
+
+private struct Table gTable;
+private bool gFinished[ MAX_PLAYERS ];
+private int gShowLimit = RANK_LIMIT_MAX;
+private str gRankColors[ RANK_LIMIT_MAX ] = {
+   "f", // Gold
+   "j", // Silver
+   "e", // Brown
+   "n", // Light blue
+   "t", // Purple
+};
+
+// Start.
+script "SoloRanker.Start" {
+   if ( Utility.IsOnline() ) {
+      if ( Hs.IsEnabled() ) {
+         Hs.gLoadScript = "SoloRanker.LoadHs";
+         Hs.gDetailsScript = "SoloRanker.ShowHs";
+         Acs_NamedExecuteWait( "SoloRanker.LoadHs", 0 );
+      }
+      Acs_NamedExecute( "SoloRanker.Refresh", 0 );
+   }
+}
+
+script "SoloRanker.Refresh" {
+   auto timePassed = 0;
+   auto limit = 0;
+   while ( true ) {
+      limit = GetCvar( "jm_table_show_limit" );
+      if ( limit != gShowLimit && limit >= RANK_LIMIT_MIN &&
+         limit <= RANK_LIMIT_MAX ) {
+         ClearTable();
+         gShowLimit = limit;
+         ShowTable();
+      }
+      else if ( timePassed % TBL_REFRESH_TIME == 0 ) {
+         ShowTable();
+      }
+      Delay( TICS_IN_SECOND );
+      ++timePassed;
+   }
+}
+
+script "SoloRanker.ClientEnter" enter {
+   ClearIndividualTime();
+   gFinished[ PlayerNumber() ] = false;
+}
+
+function void Finish() {
+   if ( PlayerNumber() >= 0 && ! gFinished[ PlayerNumber() ] ) {
+      gFinished[ PlayerNumber() ] = true;
+      if ( Utility.IsOnline() ) {
+         Acs_NamedExecuteAlways( "SoloRanker.AddPlayer", 0, PlayerNumber(),
+            Timer.GetTics() );
+      }
+      else {
+         ShowIndividualTime( Timer.GetTics() );
+      }
+   }
+}
+
+script "SoloRanker.AddPlayer" ( int player, int time ) {
+   auto isAdded = false;
+   if ( gTable.size < RANK_LIMIT_MAX ) {
+      SaveInTable( player, time );
+      isAdded = true;
+      // High score.
+      // Only first ranked player matters for high score.
+      if ( gTable.size == 1 && Hs.IsEnabled() && Hs.IsNew( time ) ) {
+         if ( ! Hs.IsCheater( player ) ) {
+            SaveHs( player, time );
+            AnnounceHs();
+            Acs_NamedExecuteWait( "SoloRanker.LoadHs", 0 );
+         }
+         else {
+            AnnounceCheat();
+         }
+      }
+   }
+   // Display.
+   // Small delay to replicate old script's delay effect.
+   Delay( SHOW_DELAY_TIME );
+   // Show updated table if modified and show-limit isn't passed.
+   if ( isAdded && gTable.size <= gShowLimit ) {
+      ShowTable();
+   }
+   // Otherwise, show individual time for player.
+   else {
+      ShowIndividualTime( time );
+   }
+}
+
+private function void SaveInTable( int player, int tics ) {
+   auto spot = gTable.spots[ gTable.size ];
+   spot.player = player;
+   spot.minutes = ( tics / TICS_IN_SECOND ) / 60;
+   spot.seconds = ( tics / TICS_IN_SECOND ) % 60;
+   spot.centiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
+   ++gTable.size;
+}
+
+private function struct Spot? FindSpot( int player ) {
+   for ( auto i = 0; i < gTable.size; ++i ) {
+      if ( gTable.spots[ i ].player == player ) {
+         return gTable.spots[ i ];
+      }
+   }
+   return null;
+}
+
+script "SoloRanker.ClientQuit" ( int player ) disconnect {
+   if ( auto spot = FindSpot( player ) ) {
+      spot.player = VALUE_NONE;
+   }
+}
+
+private function void ShowTable() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( msgbuild: {
+      if ( Hs.IsSet() ) {
+         DrawHsTime();
+         append( s: "\n" );
+      }
+      // Skip invisible spots.
+      for ( auto i = gShowLimit; i < RANK_LIMIT_MAX; ++i ) {
+         append( s: "\n" );
+      }
+      auto count = ( gTable.size > gShowLimit ) ? gShowLimit : gTable.size;
+      for ( auto i = 0; i < count; ++i ) {
+         auto spot = gTable.spots[ i ];
+         append( s: "\c", s: gRankColors[ i ], d: i + 1,
+            s: Utility.OrdinalSuffix( i + 1 ), s: ": " );
+         if ( spot.player != VALUE_NONE ) {
+            append( n: spot.player + 1 );
+         }
+         else {
+            append( s: "\cgDisconnected" );
+         }
+         append( s: "\n" );
+         append( s: "\ciTime: \cb",
+            s: ZeroPad( spot.minutes ), d: spot.minutes, s: ":",
+            s: ZeroPad( spot.seconds ), d: spot.seconds, s: "\cs.",
+            s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
+            s: "\n\n" );
+      }
+   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+}
+
+private function void ClearTable() {
+   HudMessage( s: ""; HUDMSG_PLAIN, TBL_LINEID, 0, 0.0, 0.0, 0.0 );
+}
+
+private function void ShowIndividualTime( int tics ) {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
+         append( s: "\n" );
+      }
+      auto minutes = tics / TICS_IN_SECOND / 60;
+      auto seconds = tics / TICS_IN_SECOND % 60;
+      auto centiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
+      append( s: "\crTime: \cc",
+         s: ZeroPad( minutes ), d: minutes, s: ":", 
+         s: ZeroPad( seconds ), d: seconds, s: "\cu.",
+         s: ZeroPad( centiseconds ), d: centiseconds );
+   }; HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+}
+
+private function void ClearIndividualTime() {
+   HudMessage( s: ""; HUDMSG_PLAIN, INDITIME_LINEID, 0, 0.0, 0.0, 0.0 );
+}
+
+// High Score (luk-specific functions and scripts)
+// -----------------------------------------------------------------------
+
+enum : fixed { HS_TBL_X = -1.75 };
+enum : fixed { HS_TBL_Y = 0.7 };
+enum { HS_TBL_LINE = Hs.LINE_NOTICE };
+enum : fixed { HS_TBL_SHOW_TIME = 8.0 };
+enum : str { HS_RTIME = "jrs_hs_time" };
+enum : str { HS_RAUTHOR = "jrs_hs_author" };
+enum : str { HS_RDATE = "jrs_hs_rdate" };
+
+private str gHsAuthor = "";
+private int gHsMinutes = VALUE_NONE;
+private int gHsSeconds = VALUE_NONE;
+private int gHsCentiseconds = VALUE_NONE;
+private int gHsYear = 0;
+private int gHsMonth = 0;
+private int gHsDay = 0;
+
+// High score loading.
+script "SoloRanker.LoadHs" {
+   Hs.gLoadStatus = Hs.STATUS_WORKING;
+   // Load high score finish time.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_INT, HS_RTIME );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      // If luk returns an error code, that means no high score is set.
+      if ( Luk.gQueryResult == Luk.RESULT_FAILED ) {
+         Hs.gLoadStatus = Hs.STATUS_LOADED;
+      }
+      // Error.
+      else {
+         Hs.gLoadStatus = Hs.STATUS_ERROR;
+      }
+      terminate;
+   }
+   SetHsFinishTime( Luk.gData );
+   // Load author of high score.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_STR, HS_RAUTHOR );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsAuthor = StrParam( a: Luk.gString );
+   // Load date of high score.
+   Acs_ExecuteWait( 970, 0, Luk.RETQUERY_DATE, HS_RDATE );
+   if ( Luk.gQueryResult != Luk.RESULT_OK ) {
+      Hs.gLoadStatus = Hs.STATUS_ERROR;
+      terminate;
+   }
+   gHsYear = Luk.gYear;
+   gHsMonth = Luk.gMonth;
+   gHsDay = Luk.gDay;
+   Hs.gLoadStatus = Hs.STATUS_LOADED;
+}
+
+// Sets the finish time, in tics, of the high score and converts it into more
+// familiar units like minutes and seconds.
+private function void SetHsFinishTime( int tics ) {
+   if ( tics > 0 ) {
+      gHsMinutes = tics / TICS_IN_SECOND / 60;
+      gHsSeconds = tics / TICS_IN_SECOND % 60;
+      gHsCentiseconds = Utility.CalCseconds( tics % 60 );
+      Hs.SetFinishTime( tics );
+   }
+}
+
+// Saves high score and all of its details in permanent storage.
+private function void SaveHs( int player, int tics ) { 
+   Luk.StoreName( HS_RAUTHOR, player );
+   Luk.StoreInt( HS_RTIME, tics );
+   Luk.StoreDate( HS_RDATE );
+}
+
+private function msgbuild void DrawHsTime() {
+   append( s: "\cnRecord: \cb",
+      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+}
+
+private function void AnnounceHs() {
+   SetFont( "SMALL" );
+   HudMessageBold( s: "\cd", n: 0, s: "\cd set a new map record!";
+      HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
+   AmbientSound( "JM2HSWIN", 127 );
+}
+
+private function void AnnounceCheat() {
+   HudMessageBold( s: "\cgClever \cc", n: 0, s: "\cg tried to cheat to the "
+      "high score"; HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0,
+      1.0 );
+   AmbientSound( "JM2HSLOS", 127 );
+}
+
+// Prints high score details table.
+script "SoloRanker.ShowHs" ( raw showTime ) {
+   SetFont( "SMALLFONT" );
+   HudMessage( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
+      s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
+      s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n", s: "\cb",
+      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds, s: "\n\n",
+      s: "\ckRecord Holder:", s: "\n", s: "\cc", s: gHsAuthor; HUDMSG_FADEOUT,
+      HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+}
+
+function str GetHsAuthorName() {
+   return gHsAuthor;
+}
+
+}
+
+#endif

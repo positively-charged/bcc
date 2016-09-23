@@ -1,0 +1,67 @@
+#if 1
+
+#library "timer"
+
+#include "zcommon.h"
+#include "config.h"
+#include "timer.h"
+
+// ==========================================================================
+namespace Jm.Timer {
+// ==========================================================================
+
+using Upmost;
+using Jm: Cfg;
+
+private str gPar = "";
+// Number of tics that passed before the timer is started. This is used to
+// adjust the finish times when the timer is started manually.
+private int gSkipped = 0;
+
+function void Run() {
+   gSkipped = Timer();
+   Acs_NamedExecute( "Timer.Start", 0 );
+}
+
+function void SetPar( str par ) {
+   gPar = par;
+}
+
+script "Timer.Start" {
+   auto time = 0;
+   while ( true ) {
+      ShowTime( time );
+      ++time;
+      Delay( Cfg.TICS_IN_SECOND );
+   }
+}
+
+function void ShowTime( int time ) {
+   SetFont( "BIGFONT" );
+   HudMessage(
+      d: time / 60, s: "  :  ",
+      d: time % 60 / 10, s: "  ",
+      d: time % 10;
+      HUDMSG_PLAIN, 985, CR_BLUE, 0.95, 0.95, 0.0 );
+}
+
+// Show par.
+script "Timer.ClientShow" open clientside {
+   Delay( 2 );
+   ConsoleCommand( "pukename \"Timer.Show\"" );
+}
+
+script "Timer.Show" net {
+   if ( gPar != "" ) {
+      SetFont( "BIGFONT" );
+      HudMessage( s: gPar; HUDMSG_PLAIN, 986, CR_RED, 0.95, 0.90, 0.0 );
+   }
+}
+
+function int GetTics() {
+   return Timer() - gSkipped;
+}
+
+}
+
+#endif

@@ -1,0 +1,332 @@
+#if 1
+
+#library "luk"
+
+#include "config.h"
+#include "luk.h"
+
+// ==========================================================================
+namespace Jm.Luk {
+// ==========================================================================
+
+// Query delimiter.
+enum : str { QEURY_DELIM = "\b" };
+// Query identifier.
+enum : str { QUERY_HEADER = "luk" };
+// Timeout in seconds for luk replies.
+enum { QUERY_TIMEOUT = 3 };
+// Query execution results from luk.
+enum {
+   RESPONSE_OK,
+   RESPONSE_FAILED,
+};
+// Because we will be encoding each character in three digits of an integer
+// value and the ASCII value of some characters is only two digits, we will add
+// a padding to the ASCII value of each character we send and receieve. This
+// padding will make sure that even those characters with two digit ASCII
+// values will have a value of three digits.  
+enum { ASCII_PADDING = 100 };
+// Maximum characters per string segment transfer.
+enum { MAX_STR_SEGMENT_CHARS = 3 };
+
+// Array variable to store the complete string value.
+int gString[ MAX_STR_VALUE_SIZE ];
+// Variable to store the luk response data.
+int gData = Cfg.VALUE_NONE;
+// Variables to hold unpacked date segments.
+int gYear = Cfg.VALUE_NONE;
+int gMonth = Cfg.VALUE_NONE;
+int gDay = Cfg.VALUE_NONE;
+
+// We can only store a maximum of 3 characters in a 32-bit integer value if
+// each character is encoded as three.
+private int gSegmentR[ MAX_STR_SEGMENT_CHARS ];
+// This variable will store the unique query ID that we will use to check
+// whether luk has responded.
+private int gQueryId = 0;
+// This variable will contain the result of a query.
+int gQueryResult = RESULT_UNKNOWN;
+
+// This script retrieves a value from luk.
+script 970 ( int type, raw key ) {
+   if ( type == RETQUERY_INT ) {
+      Acs_ExecuteWait( 971, 0, Retrieve( key ) );
+   }
+   else if ( type == RETQUERY_STR ) {
+      auto queryId = InitStringTransmission( key );
+      Acs_ExecuteWait( 971, 0, queryId );
+      if ( gQueryResult != RESULT_OK ) {
+         terminate;
+      }
+      auto left = gData;
+      auto length = 0;
+      while ( left > 0 ) {
+         queryId = RetrieveStringSegment();
+         Acs_ExecuteWait( 971, 0, queryId );
+         if ( gQueryResult != RESULT_OK ) {
+            terminate;
+         }
+         length += UnpackAscii( gData, length );
+         --left;
+         Delay( 1 );
+      }
+      gString[ length ] = '\0';
+   }
+   // Date:
+   else {
+      Acs_ExecuteWait( 971, 0, RetrieveDate( key ) );
+      if ( gQueryResult == RESULT_OK ) {
+         // Format of data: YYYYMMDD
+         auto data = gData;
+         gDay = data % 100;
+         data /= 100;
+         gMonth = data % 100;
+         data /= 100;
+         gYear = data;
+      }
+   }
+}
+
+script 971 ( int queryId ) {
+   auto ticsLeft = Cfg.TICS_IN_SECOND * QUERY_TIMEOUT;
+   auto isAnswered = false;
+   while ( ticsLeft > 0 ) {
+      // A luk query is answered when luk sets the appropriate console variable
+      // to the query ID, indicating it successfully received the query and
+      // processed it.
+      if ( GetCvar( "luk_qid" ) == queryId ) {
+         isAnswered = true;
+         break;
+      }
+      --ticsLeft;
+      Delay( 1 );
+   }
+   // Process the query response.
+   auto result = RESULT_TIMEOUT;
+   if ( isAnswered ) {
+      // If the query was answered successfully, see what information luk said
+      // about the query.
+      switch ( GetCvar( "luk_qr" ) ) {
+      // OK, no errors, result:
+      case RESPONSE_OK:
+         // Save the data of the query response if the response is OK.
+         gData = GetCvar( "luk_d" );
+         result = RESULT_OK;
+         break;
+      // The command failed to successfully execute.
+      case RESPONSE_FAILED:
+         result = RESULT_FAILED;
+         break;
+      default:
+         result = RESULT_UNKNOWN;
+         break;
+      }
+   }
+   // Save the result to let the user know the result of the query.
+   gQueryResult = result;
+}
+
+// List version of the above script, allowing the key to be concatenated with a
+// number to form a new key that represents an item in a list. We have to make
+// this nearly duplicate script because of the inflexibility of ACS. Things
+// would have been so much simpler if ACS supported dynamic creation of
+// strings. This applies to the functions that send the queries below, too.
+script 975 ( int type, raw keyName, raw keyNum ) {
+   switch( type ) {
+   case RETQUERY_INT:
+      Acs_ExecuteWait( 972, 0, RetrieveL( keyName, keyNum ) );
+      break;
+   case RETQUERY_STR:
+      Acs_ExecuteWait( 973, 0, InitStringTransmissionL( keyName, keyNum ) );
+      break;
+      // We don't have any functions and scripts to handle list values
+      // for dates because we don't need any at the moment.
+   }
+}
+
+function int UnpackAscii( int packed, int length ) {
+   auto sep = 1000;
+   auto ch = 0;
+   // First, decode the luk-encoded ASCII package into real ASCII.
+   while ( packed > 0 ) {
+      gSegmentR[ ch ] = ( packed % sep ) - ASCII_PADDING;
+      packed /= sep;
+      ++ch;
+   }
+   auto numRead = ch;
+   // At this stage, we have the data loaded into ACS, but it's
+   // reversed, so we'll have to reverse the characters to make
+   // it readable again.
+   auto i = 0;
+   while ( ch > 0 ) {
+      gString[ length + i ] = gSegmentR[ ch - 1 ];
+      --ch;
+      ++i;
+   }
+   return numRead;
+}
+
+function bool IsEnabled() {
+   return ( GetCvar( "luk_system" ) == 1 );
+}
+
+// The query ID is generated by incrementing the last given query ID. luk will
+// compare the current query ID with the last query ID it processed. If the
+// current query ID is the same as or below the last query ID, it will ignore
+// the current query.
+function int GenerateQueryId() {
+   static auto id = 0;
+   return ++id;
+}
+
+// Query functions:
+//
+// These functions send retrieval queries to luk and return the queries ID for
+// further handling. 
+
+// This function is used for simple, numeric value retrievals.
+function int Retrieve( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE ", 
+      s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveDate( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_DATE ", s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int InitStringTransmission( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_INITIATE ",
+      s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveStringSegment() {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_SEGMENT ",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreInt( str key, int value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " ", i: value,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreStr( str key, str value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " {", s: value, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreName( str key, int playerNum ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, s: " {", n : playerNum + 1, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreDate( str key ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE_DATE ", s: key,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+// These functions are the same as their above counterparts, but
+// allow the query key to be concatenated with a number. These
+// functions are useful for making a list of values by using
+// a single key name.
+function int StoreNameL( str key, int keyNum, int playerNum ) {
+   auto queryId = GenerateQueryId();
+   Log(
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, i: keyNum,
+      s: " {", n : playerNum + 1, s: "}",
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int StoreIntL( str key, int keyNum, int value ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " STORE ", s: key, i: keyNum,
+      s: " ", i: value,
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int RetrieveL( str key, int keyNum ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE ", 
+      s: key, i: keyNum, 
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+function int InitStringTransmissionL( str key, int num ) {
+   auto queryId = GenerateQueryId();
+   Log( 
+      s: QEURY_DELIM,
+      s: QUERY_HEADER,
+      s: " ", i: queryId,
+      s: " RETRIEVE_STRING_INITIATE ",
+      s: key, i: num, 
+      s: QEURY_DELIM );
+   return queryId;
+}
+
+}
+
+#endif

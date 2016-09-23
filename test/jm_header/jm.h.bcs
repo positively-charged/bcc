@@ -1,0 +1,37 @@
+#ifndef TEST_JMHEADER_JM_H
+#define TEST_JMHEADER_JM_H
+
+#linklibrary "jm"
+
+// ==========================================================================
+namespace Jm {
+// ==========================================================================
+
+enum Flag {
+   F_NONE = 0b0,
+   F_MANUALTIMER = 0b1,
+};
+
+extern enum MapType {
+   MAP_SOLO,
+   MAP_TEAM,
+} gMapType;
+
+function void InitSolo( str par );
+function void InitTeam( str par, int points );
+function void EnableFlag( int flag );
+function void DisableFlags( int flag );
+function void Run();
+function void RunSvmz( str mapRestartCommand );
+function void StartTimer();
+function void SetMapMessage( str name, str author,
+   enum Jm.MapMsg.Skill skill );
+function void AddPoint();
+function void FinishLine();
+function void DisallowHs( int player );
+function void Exit();
+function bool IsValidExit();
+
+}
+
+#endif

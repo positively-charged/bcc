@@ -1,0 +1,320 @@
+#if 1
+
+#library "rsd"
+
+#include "zcommon.h"
+#include "rsd.h"
+
+// ==========================================================================
+namespace Jm.Rsd {
+// ==========================================================================
+
+enum : fixed { RSD_TICS_IN_SECOND = 35.71 };
+// Width of an individual character, in pixels. Note that not all characters
+// are actually 8 pixels but most are.
+enum { RSD_CHARACTER_WIDTH = 8 };
+// A segment is a smaller section of a whole message. The size of a segment
+// is the number of lines it contains. A line is a single, physical line of
+// text that can fit on a player's screen.
+enum { RSD_SEGMENT_SIZE = 3 };
+enum { RSD_DEFAULT_PADDING = 20 };
+enum { RSD_MAX_PADDING = 100 };
+enum { RSD_ELLIPSIS_COLOR = 'i' };
+// hudMessage() values for when displaying.
+enum { RSD_LINE = 11142 };
+enum : fixed { RSD_Y = 0.60 };
+enum : fixed { RSD_TYPETIME = 0.042 };
+enum : fixed { RSD_FADETIME = 2.0 };
+enum { RSD_MAX_DATA_SIZE = 1280 };
+enum { RSD_MAX_ARGS = 3 };
+enum { RSD_MAX_ARG_SIZE = 64 };
+
+// Contains data to show.
+private int _rsd_data[ RSD_MAX_DATA_SIZE + 1 ];
+private int _rsd_data_size = 0;
+// First index of argument contains length of argument.
+private int _rsd_args[ RSD_MAX_ARGS ][ RSD_MAX_ARG_SIZE ];
+private int _rsd_args_size = 0;
+// Percent of screen to pad both sides.
+private int _rsd_padding = RSD_DEFAULT_PADDING;
+// Holds limit of line size.
+private int _rsd_line_max_size = 120;
+// Contains data that will be shown.
+private int _rsd_segment[ RSD_MAX_DATA_SIZE ];
+
+function void RsdSetPadding( int padding ) {
+   if ( padding >= 0 && padding * 2 < RSD_MAX_PADDING ) {
+      _rsd_padding = padding;
+   }
+}
+
+// Set to 0 to remove maximum restriction.
+function void RsdSetMaxLineSize( int size ) {
+   _rsd_line_max_size = size;
+}
+
+// Adds a number onto the arguments queue.
+function void RsdAddNumArg( int num ) {
+   if ( _rsd_args_size < RSD_MAX_ARGS ) {
+      int size = 0;
+
+      // Convert number into a character string.
+      while ( num > 0 ) {
+         size += 1;
+         _rsd_args[ _rsd_args_size ][ size ] = '0' + ( num % 10 );
+         num /= 10;
+      }
+
+      // Add prefix of zero if necessary.
+      while ( size < 2 ) {
+         size += 1;
+         _rsd_args[ _rsd_args_size ][ size ] = '0';
+      }
+
+      // Reverse characters into correct order.
+      int mid_point = size / 2;
+      int pos = 0;
+
+      int left_c = 0;
+      int right_c = 0;
+
+      while ( pos < mid_point ) {
+         left_c = _rsd_args[ _rsd_args_size ][ pos + 1 ];
+         right_c = _rsd_args[ _rsd_args_size ][ size - pos ];
+
+         // Swap left side character with right side.
+         _rsd_args[ _rsd_args_size ][ pos + 1 ] = right_c;
+         _rsd_args[ _rsd_args_size ][ size - pos ] = left_c;
+
+         pos += 1;
+      }
+
+      _rsd_args[ _rsd_args_size ][ 0 ] = size;
+      _rsd_args_size += 1;
+   }
+}
+
+function void RsdAddStrArg( str value ) {
+   int length = Strlen( value );
+
+   // Only proceed if we have enough space.
+   if ( _rsd_args_size < RSD_MAX_ARGS && length < RSD_MAX_ARG_SIZE ) {
+      for ( int pos = 0; pos < length; pos += 1 ) {
+         _rsd_args[ _rsd_args_size ][ pos + 1 ] = GetChar( value, pos );
+      }
+
+      _rsd_args[ _rsd_args_size ][ 0 ] = length;
+      _rsd_args_size += 1;
+   }
+}
+
+// Start.
+script RSD_START_SCRIPT ( int msg, int holdTime ) {
+   // Terminate any running scripts before proceeding.
+   Acs_Terminate( 946, 0 );
+   Acs_Terminate( 947, 0 );
+   Acs_ExecuteWait( 946, 0, msg );
+   Acs_ExecuteWait( 947, 0, holdTime );
+}
+
+// Preprocessing.
+script 946 ( raw msg ) {
+   int msg_length = Strlen( msg );
+   int msg_pos = 0;
+
+   int arg_size = 0;
+   int arg_pos = 0;
+   int arg_num = 0;
+
+   int character = 0;
+   int data_pos = 0;
+
+   while ( true ) {
+      // Select character.
+      if ( arg_size > 0 ) {
+         character = _rsd_args[ arg_num ][ arg_pos + 1 ];
+         arg_pos += 1;
+
+         if ( arg_pos >= arg_size ) {
+            arg_pos = 0;
+            arg_size = 0;
+            arg_num += 1;
+         }
+      }
+      else {
+         // End process if no more characters are left.
+         if ( msg_pos >= msg_length ) {
+            break;
+         }
+
+         character = GetChar( msg, msg_pos );
+         msg_pos += 1;
+      }
+
+      // Expand place holders.
+      if ( character == '$' && _rsd_args_size > 0 ) {
+         arg_size = _rsd_args[ arg_num ][ 0 ];
+      }
+      else {
+         _rsd_data[ data_pos ] = character;
+         data_pos += 1;
+      }
+   }
+
+   _rsd_data_size = data_pos;
+   _rsd_args_size = 0;
+}
+
+// Display.
+script 947 ( int holdTime ) {
+   // No need to show an empty message.
+   if ( _rsd_data_size == 0 ) {
+      terminate;
+   }
+
+   int screen_w = GetScreenWidth();
+   int padding = screen_w * _rsd_padding / RSD_MAX_PADDING;
+   int free_space = screen_w - ( padding * 2 );
+
+   bool is_done = false;
+   int character = 0;
+   int pos = 0;
+   int data_pos = 0;
+
+   // Line.
+   int line_max_size = free_space / RSD_CHARACTER_WIDTH;
+   if ( _rsd_line_max_size > 0 && line_max_size > _rsd_line_max_size ) {
+      line_max_size = _rsd_line_max_size;
+   }
+   int line_size = 0;
+   int line_color = 0;
+   bool line_is_continued = false;
+
+   // Segment.
+   int segment_pos = 0;
+   int segment_size = 0;
+
+   // Break the message into segments and show them.
+   while ( ! is_done ) {
+      // Determine length of new line.
+      int next_line_start_pos = data_pos + line_max_size;
+
+      if ( next_line_start_pos < _rsd_data_size ) {
+         line_size = line_max_size;
+
+         int next_line_character = _rsd_data[ next_line_start_pos ];
+         pos = next_line_start_pos - 1;
+
+         while ( _rsd_data[ pos ] != ' ' && line_size > 0 ) {
+            line_size -= 1;
+            pos -= 1;
+         }
+
+         if ( line_size == 0 ) {
+            line_is_continued = true;
+            line_size = line_max_size - 1;
+         }
+      }
+      else {
+         line_size = _rsd_data_size - data_pos;
+         is_done = true;
+      }
+      
+      // Add color code to new line if it's continued from previous line.
+      if ( line_color ) {
+         _rsd_segment[ segment_pos++ ] = '\\';
+         _rsd_segment[ segment_pos++ ] = 'c';
+         _rsd_segment[ segment_pos++ ] = line_color;
+      }
+
+      // Collect single line of segment.
+      pos = 0;
+
+      while ( pos < line_size ) {
+         character = _rsd_data[ data_pos ];
+
+         // Color codes.
+         if ( character == '\\' && data_pos + 2 <= _rsd_data_size ) {
+            if ( _rsd_data[ data_pos + 1 ] == 'c' ) {
+               line_color = _rsd_data[ data_pos + 2 ];
+               // Turn off color code for next line.
+               if ( line_color == '-' ) {
+                  line_color = 0;
+               }
+            }
+         }
+
+         _rsd_segment[ segment_pos++ ] = character;
+
+         data_pos += 1;
+         pos += 1;
+      }
+
+      // Add dash at end of line if data was too long.
+      if ( line_is_continued ) {
+         _rsd_segment[ segment_pos++ ] = '-';
+         line_is_continued = false;
+      }
+
+      // Append newline character to line.
+      _rsd_segment[ segment_pos++ ] = '\n';
+
+      // Once line is built, increase size of segment.
+      segment_size += 1;
+
+      // Fill segment before moving onwards.
+      if ( ! is_done ) {
+         // If the segment is full, add an ellipsis to indicate more
+         // segments to come.
+         if ( segment_size == RSD_SEGMENT_SIZE ) {
+            _rsd_segment[ segment_pos++ ] = '\n';
+
+            // Color code.
+            _rsd_segment[ segment_pos++ ] = '\\';
+            _rsd_segment[ segment_pos++ ] = 'c';
+            _rsd_segment[ segment_pos++ ] = RSD_ELLIPSIS_COLOR;
+
+            _rsd_segment[ segment_pos++ ] = '.';
+            _rsd_segment[ segment_pos++ ] = '.';
+            _rsd_segment[ segment_pos++ ] = '.';
+         }
+         // Otherwise, collect more lines.
+         else {
+            continue;
+         }
+      }
+
+      _rsd_segment[ segment_pos ] = '\0';
+
+      // Show segment.
+
+      // Hold portion of the message.
+      raw hold_time = ( int ) FixedDiv( fixed( segment_pos ),
+         fixed( _rsd_data_size ) ) * holdTime;
+      // Total time the message is shown for.
+      int show_time = hold_time + ( ( int ) RSD_TYPETIME * segment_pos );
+      int delay_time = int( FixedMul( ( fixed ) show_time,
+         RSD_TICS_IN_SECOND ) );
+
+      // Add fade time to last segment.
+      raw fade_time = 0;
+      if ( is_done ) {
+         fade_time = RSD_FADETIME;
+      }
+
+      // Show.
+      SetFont( "SMALLFONT" );
+      HudMessage( 
+         a : _rsd_segment ; 
+         HUDMSG_TYPEON, RSD_LINE, CR_WHITE, 1.5, RSD_Y, hold_time, 
+         RSD_TYPETIME, fade_time );
+      Delay( delay_time );
+
+      segment_pos = 0;
+      segment_size = 0;
+   }
+}
+
+}
+
+#endif

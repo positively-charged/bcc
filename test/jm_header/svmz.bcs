@@ -1,0 +1,529 @@
+#if 1
+
+#library "svmz"
+
+#include "zcommon.h"
+#include "config.h"
+#include "utility.h"
+
+// ==========================================================================
+namespace Jm.Svmz {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Utility;
+
+// The smallest minimum escapee requirement possible.
+enum { ESCAPEE_MIN = 1 };
+// Percentage of total players that will be used to determine the minimum
+// escapee requirement.
+enum : fixed { REQ_PERCENT = 0.67 };
+// The number of players that must be present on map start for extra time to be
+// added for each extra player.
+enum { EXTRA_TIME_PLAYERS_NEEDED = 1 };
+// The number of seconds to add to the timer for each extra player.
+enum { EXTRA_PLAYER_TIME = 12 };
+// Minimum start time percentage of the par time.
+enum : fixed { TIME_MIN_PERCENT = 0.15 };
+// Extra times given by the Time Boost items.
+enum { TIME_BOOST1 = 1 };
+enum { TIME_BOOST2 = 3 };
+enum { TIME_BOOST3 = 10 };
+enum { RESULT_NONE = 0 };
+enum { RESULT_LOSE = 1 };
+enum { RESULT_WIN = 2 };
+// Hud message IDs:
+enum { LINE_NOTICE = 17200 };
+enum { LINE_STATS = 17201 };
+enum { LINE_TIMER = 17202 };
+enum { STATS_REFRESH_TIME = 8 };  // In seconds.
+
+private int gResult = RESULT_NONE;
+private int gMinEscapees = ESCAPEE_MIN;
+private bool gIsAlive[ Cfg.MAX_PLAYERS ];
+
+function bool Is() {
+   return ( GetCvar( "survival" ) == 1 );
+}
+
+// Initializes the server to play Survival Maze.
+function bool Init() {
+   auto doRestart = false;
+   if ( ! GetCvar( "survival" ) ) {
+      ConsoleCommand( "survival true" );
+      doRestart = true;
+   }
+   // I would like to get rid of the countdown entirely but it can't be done at
+   // this time.
+   if ( GetCvar( "sv_survivalcountdowntime" ) != 3 ) {
+      ConsoleCommand( "sv_survivalcountdowntime 3" );
+      doRestart = true;
+   }
+   // Survival Maze is a one-life game for now.
+   if ( GetCvar( "sv_maxlives" ) != 1 ) {
+      ConsoleCommand( "sv_maxlives 1" );
+      doRestart = true;
+   }
+   return doRestart;
+}
+
+// Main game script.
+script "Svmz.Start" ( raw par ) {
+   // Bail out if we don't have a single player playing, like on an empty
+   // server.
+   auto numPlayers = PlayerCount();
+   if ( numPlayers == 0 ) {
+      terminate;
+   }
+   // Determine minimum escapee requirement.
+   ChooseMinEscapees();
+   // Display escapee statistics.
+   Acs_Execute( 901, 0 );
+   // Initialize timer.
+   Timer.Init( CalcStartTime( par, numPlayers ) );
+   Timer.Display();
+   auto isWon = false;
+   auto ticsPassed = 0;
+   // Main game loop.
+   while ( true ) {
+      // Wining condition.
+      if ( Escapee.GetCount() == GetMinEscapees() ) {
+         isWon = true;
+         break;
+      }
+      // Minimum-alive-players-needed check.
+      // We need two conditions here. The first condition checks the actual
+      // count of players currently alive. This is needed to prevent the game
+      // ending because of players getting telefragged at map start. The second
+      // condition is our own tracking of alive players. We adjust that count
+      // manually so we have a chance to readjust the minimum escapee
+      // requirement when an alive player disconnects. If we solely rely on the
+      // first condition, a race condition is created: the DISCONNECT script
+      // might not finish readjusting the minimum requirement before this
+      // condition is checked.
+      if ( PlayerCount() < GetMinEscapees() &&
+         GetNumAlive() < GetMinEscapees() ) {
+         // Print a message to all players indicating the failure.
+         if ( numPlayers >= 2 ) {
+            DisplayMinEscapeesFail();
+         }
+         break;
+      }
+      // Update timer if we have time left.
+      if ( Timer.GetTimeLeft() > 0 ) {
+         if ( ticsPassed == Cfg.TICS_IN_SECOND ) {
+            ticsPassed = 0;
+            Timer.Decrease();
+            Timer.Display();
+         }
+         ++ticsPassed;
+      }
+      // Otherwise, bail out.
+      else {
+         Timer.Display();
+         break;
+      }
+      // Loop every tic so we can check the above conditions quickly.
+      Delay( 1 );
+   }
+   // Win.
+   if ( isWon ) {
+      SetResult( RESULT_WIN );
+      Acs_Execute( 908, 0 );
+   }
+   // Lose.
+   else {
+      SetResult( RESULT_LOSE );
+      // If all players spectated or disconnected, remove the statistics
+      // display script.
+      if ( PlayerCount() == 0 ) {
+         Acs_Terminate( 901, 0 );
+         Utility.ClearMessageBold( LINE_STATS );
+         Utility.ClearMessageBold( LINE_TIMER );
+      }
+   }
+}
+
+// Calculates initial time.
+private function int CalcStartTime( str par, int totalPlayers ) {
+   // The starting time is based on the par time of the map.
+   auto parInSeconds = Utility.ParToSeconds( par );
+   // To increase the challenge, we reduce the starting time by the total
+   // number of seconds we can get from collecting all of the Time Boost items
+   // to.
+   auto totalBoostTime = 
+      ThingCountName( "SvmzTimeBoost1", 0 ) * TIME_BOOST1 +
+      ThingCountName( "SvmzTimeBoost2", 0 ) * TIME_BOOST2 +
+      ThingCountName( "SvmzTimeBoost3", 0 ) * TIME_BOOST3;
+   auto startTime = parInSeconds - totalBoostTime;
+   // Make sure we have a decent amount of time.
+   auto minTime = int( fixed( parInSeconds ) * TIME_MIN_PERCENT );
+   if ( startTime < minTime ) {
+      startTime = minTime;
+   }
+   // Add extra time for each extra player.
+   auto extraPlayers = totalPlayers - EXTRA_TIME_PLAYERS_NEEDED;
+   if ( extraPlayers > 0 ) {
+      startTime += extraPlayers * EXTRA_PLAYER_TIME;
+   }
+   return startTime;
+}
+
+// Selects and sets the minimum escapee requirement.
+private function void ChooseMinEscapees() {
+   auto numEscapees = 0;
+   auto numPlayers = PlayerCount();
+   switch ( numPlayers ) {
+   case 0: break;
+   case 1: numEscapees = 1; break;
+   case 2: numEscapees = 2; break;
+   default:
+      numEscapees = int( fixed( numPlayers ) * REQ_PERCENT );
+      break;
+   }
+   // Take any Escapee Reduce items into account.
+   numEscapees -= Item.GetNumImpunityPicked();
+   SetMinEscapees( numEscapees );
+}
+
+function void SetMinEscapees( int numEscapees ) {
+   if ( numEscapees >= ESCAPEE_MIN ) {
+      gMinEscapees = numEscapees;
+   }
+}
+
+// Returns minimum escapee requirement.
+function int GetMinEscapees() {
+   return gMinEscapees;
+}
+
+// Escapee statistics message display script.
+script 901 {
+   while ( true ) {
+      DisplayEscapeeStats();
+      Delay( Cfg.TICS_IN_SECOND * STATS_REFRESH_TIME );
+   }
+}
+
+script 902 enter {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = true;
+      // Wait for the main game script to finish.
+      ScriptWait( 900 );
+      // Kill player if game was lost.
+      if ( GetResult() == RESULT_LOSE ) {
+         DamageThing( 1000 );
+      }
+   }
+}
+
+script 903 death {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = false;
+   }
+}
+
+script 904 respawn {
+   if ( Is() ) {
+      gIsAlive[ PlayerNumber() ] = true;
+   }
+}
+
+// If a player disconnects while a game is running, adjust the minimum escapee
+// requirement based on the existing players count. It's either I do this or I
+// kill all players and end the round because there won't be enough remaining
+// players to complete the original requirement.
+script 905 ( int player ) disconnect {
+   // Only proceed if the game is not finished yet.
+   if ( ! Is() || GetResult() != RESULT_NONE ) {
+      terminate;
+   }
+   // If the player was alive when they disconnected, readjust the minimum
+   // escapee requirement.
+   if ( gIsAlive[ player ] ) {
+      gIsAlive[ player ] = false;
+      ChooseMinEscapees();
+   }
+   if ( Escapee.Is( player ) ) {
+      Escapee.Remove( player );
+   }
+   DisplayEscapeeStats();
+}
+
+function void SetResult( int result ) {
+   gResult = result;
+}
+
+function int GetResult() {
+   return gResult;
+}
+
+// Escape line function, where a player is registered as escaped.
+function void MakeEscapee() {
+   auto player = PlayerNumber();
+   if ( ! Escapee.Is( player ) ) {
+      Escapee.Make( player );
+      DisplayEscapeeStats();
+   }
+}
+
+// Exit validation.
+function bool ValidateExit() {
+   auto toExit = true;
+   if ( GetResult() != RESULT_WIN ) {
+      toExit = false;
+      SetFont( "SMALLFONT" );
+      HudMessage(
+         s: "\ciNot enough escapees are present to exit";
+         HUDMSG_FADEOUT, LINE_NOTICE, 0, 1.5, 0.15, 3.0, 0.6 );
+   }
+   return toExit;
+}
+
+function void DisplayMinEscapeesFail() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold(
+      s: "\cgMinimum players failed to escape the maze";
+      HUDMSG_FADEOUT | HUDMSG_LOG, LINE_NOTICE, 0, 1.5, 0.15, 5.0, 0.6 );
+}
+
+function void DisplayEscapeeStats() {
+   SetFont( "SMALLFONT" );
+   HudMessageBold( msgbuild: {
+      auto minEscapees = GetMinEscapees();
+      auto numEscapees = Escapee.GetCount();
+      // Change the color of the statistic to green to indicate success.
+      if ( numEscapees >= minEscapees ) {
+         append( s: "\cdEscapees: \cq", d: numEscapees, s: "\cd / \cq",
+            d: minEscapees, s: "\n", s: "\ckExit enabled" );
+      }
+      else {
+         append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
+            d: minEscapees );
+      }
+   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+}
+
+private function int GetNumAlive() {
+   auto numAlive = 0;
+   foreach ( auto isAlive; gIsAlive ) {
+      numAlive += int( isAlive );
+   }
+   return numAlive;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Escapee {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Svmz;
+
+private bool gEscaped[ Cfg.MAX_PLAYERS ];
+private int gCount = 0;
+
+function void Make( int player ) {
+   gEscaped[ player ] = true;
+   ++gCount;
+   SetFont( "SMALLFONT" );
+   HudMessageBold( 
+      n: player + 1, s: "\cd escaped the maze" ;
+      HUDMSG_FADEOUT | HUDMSG_LOG, Svmz.LINE_NOTICE, 
+      0, 1.5, 0.15, 3.0, 0.6 );
+}
+
+function bool Is( int player ) {
+   return gEscaped[ player ];
+}
+
+function void Remove( int number ) {
+   gEscaped[ number ] = false;
+   --gCount;
+}
+
+function int GetCount() {
+   return gCount;
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Timer {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Svmz;
+
+enum { WARNING_TIME = 10 }; // In seconds.
+enum { FINISH_TIME_REFRESH_TIME = 8 }; // In seconds.
+
+private int gTimeLeft = 0;
+
+function void Init( int time ) {
+   gTimeLeft = time;
+}
+
+function int GetTimeLeft() {
+   return gTimeLeft;
+}
+
+function void Decrease() {
+   --gTimeLeft;
+}
+
+function void Extend( int seconds ) {
+   gTimeLeft += seconds;
+   // We cannot go below zero seconds. We need this check in case a Raging Bomb
+   // item lowers the time below zero.
+   if ( gTimeLeft < 0 ) {
+      gTimeLeft = 0;
+   }
+}
+
+// Displays current time.
+function void Display() {
+   // If time is near expiration, change the color of the time to warn the
+   // players.
+   DisplayTime( gTimeLeft, ( gTimeLeft <= WARNING_TIME ) ? "\cg" : "\ch" );
+}
+
+// Displays customizable time.
+private function void DisplayTime( int time, str color ) {
+   SetFont( "BIGFONT" );
+   HudMessageBold(
+      s: color,
+      d: time / 60, s: "  :  ", 
+      d: time % 60 / 10, s: "  ",
+      d: time % 10;
+      HUDMSG_PLAIN, Svmz.LINE_TIMER, 0, 0.95, 0.95, 0.0
+   );
+}
+
+// Displays finished time.
+script 908 {
+   while ( true ) {
+      DisplayTime( gTimeLeft, ( gTimeLeft <= WARNING_TIME ) ? "\ci" : "\cn" );
+      Delay( Cfg.TICS_IN_SECOND * FINISH_TIME_REFRESH_TIME );
+   }
+}
+
+}
+
+// ==========================================================================
+namespace Jm.Svmz.Item {
+// ==========================================================================
+
+using upmost;
+using Jm: Cfg, Utility, Svmz;
+
+// Item initialization script, executed from DECORATE.
+script 910 {
+   auto toSpawn = false;
+   if ( GetCvar( "survival" ) ) {
+      toSpawn = true;
+      // Spawn the item marker for the item only at map start.
+      if ( Timer() == 0 ) {
+         SetActorState( 0, "spawn_marker" );
+      }
+   }
+   SetResultValue( int( toSpawn ) );
+}
+
+// Time extension items:
+// -----------------------------------------------------------------------
+
+enum { TE_LIFETIME = 3 };
+
+private int gTeAccumulatedTime = 0;
+private int gTeDeadline = 0;
+
+// Time Boost:
+
+script 911 ( int extraTime ) {
+   Acs_ExecuteAlways( 912, 0, extraTime );
+   // Custom pickup flash effect.
+   FadeRange( 218, 165, 32, 0.10, 0, 0, 0, 0.0, 0.25 );
+}
+
+// Extends timer.
+script 912 ( int extraTime ) {
+   // Don't add extra time if map is already complete.
+   if ( Svmz.GetResult() != Svmz.RESULT_NONE ) {
+      terminate;
+   }
+   Svmz.Timer.Extend( extraTime );
+   // Time accumulation visual effect.
+   auto currentTime = Timer() / Cfg.TICS_IN_SECOND;
+   // Reset accumulated time if the visual effect has expired.
+   if ( currentTime > gTeDeadline ) {
+      gTeAccumulatedTime = 0;
+   }
+   gTeAccumulatedTime += extraTime;
+   gTeDeadline = currentTime + TE_LIFETIME;
+   DisplayBoostTime( gTeAccumulatedTime );
+}
+
+private function void DisplayBoostTime( int time ) {
+   auto sign = "+";
+   auto color = "\ck";
+   if ( time < 0 ) {
+      sign = "-";
+      color = "\ci";
+      time *= -1;
+   }
+   SetFont( "BIGFONT" );
+   HudMessageBold( s: color, s: " ", s: sign, s: " ", d: time / 60, s: "  :  ", 
+      d: time % 60 / 10,  s: "  ", d: time % 10; HUDMSG_FADEOUT, 12201, 0,
+      0.95, 0.90, 2.0, 1.0 );
+}
+
+// Raging Bomb:
+
+enum { RB_DAMAGE_LOW = 30 };
+enum { RB_DAMAGE_HIGH = 38 };
+
+script 913 ( int secondsToRemove ) {
+   // Randomize the damage to make things more interesting.
+   DamageThing( Random( RB_DAMAGE_LOW, RB_DAMAGE_HIGH ) );
+   // Reduce timer time.
+   Acs_ExecuteAlways( 912, 0, secondsToRemove * -1 );
+}
+
+// Impunity:
+// -----------------------------------------------------------------------
+
+// Number of players needed for the item to be available.
+enum { IM_MIN_PLAYERS_NEEDED = 2 };
+
+// Number of items picked up when recalculating minimum escapee
+// requirement if a player leaves.
+private int gImNumPicked = 0;
+
+script 915 {
+   SetResultValue( int( PlayerCount() >= IM_MIN_PLAYERS_NEEDED ) );
+}
+
+script 916 {
+   auto minEscapees = Svmz.GetMinEscapees();
+   // This item cannot nullify the minimum escapee requirement.
+   if ( minEscapees <= Svmz.ESCAPEE_MIN ) {
+      terminate;
+   }
+   Svmz.SetMinEscapees( minEscapees - 1 );
+   Svmz.DisplayEscapeeStats();
+   SetFont( "SMALLFONT" );
+   HudMessageBold( 
+      s: "\ck", n: 0, s: "\ck picked up an Impunity item";
+      HUDMSG_PLAIN | HUDMSG_LOG, Svmz.LINE_NOTICE, 0, 1.5, 0.15, 3.0 );
+   ++gImNumPicked;
+}
+
+function int GetNumImpunityPicked() {
+   return gImNumPicked;
+}
+
+}
+
+#endif

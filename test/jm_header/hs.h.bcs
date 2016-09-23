@@ -1,0 +1,42 @@
+#ifndef TEST_JMHEADER_HS_H
+#define TEST_JMHEADER_HS_H
+
+#linklibrary "hs"
+
+// ==========================================================================
+namespace Jm.Hs {
+// ==========================================================================
+
+enum {
+   STATUS_NONE,
+   STATUS_LOADED,
+   STATUS_WORKING,
+   STATUS_ERROR
+};
+
+enum { LINE_NOTICE = 27233 };
+
+extern int gLoadStatus;
+// Stores a ranker's high score load script number so other files can wait
+// for the ranker to complete loading the high score.
+extern str gLoadScript;
+// Script of the ranker that shows the high score details table.
+extern str gDetailsScript;
+
+function bool IsAutoShowDetailsTable();
+function bool IsCheater( int player );
+function bool IsCheatsEnabled();
+function bool IsEnabled();
+function void Disable();
+function int GetFinishTime();
+function void SetFinishTime( int tics );
+function bool IsSet();
+function bool IsNew( int time );
+function void Disallow( int player );
+
+// Shows high score details table.
+function void ShowDetails( int showTime );
+
+}
+
+#endif

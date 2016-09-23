@@ -1,0 +1,32 @@
+#if 1
+
+#library "autofist"
+
+#include "zcommon.h"
+#include "auto_fist.h"
+#include "client.h"
+
+// ==========================================================================
+namespace Jm.AutoFist {
+// ==========================================================================
+
+script 995 enter {
+   Acs_ExecuteAlways( 996, 0 );
+}
+
+script 996 respawn {
+   // Small delay to make sure the clearInventory() script has finished
+   // executing. I don't like this solution but it will do for now.
+   Delay( 2 );
+   Client.Execute( PlayerNumber(), 997 );
+}
+
+script 997 {
+   if ( GetCvar( "jm_auto_fist" ) ) {
+      ConsoleCommand( "use fist" );
+   }
+}
+
+}
+
+#endif

@@ -1,0 +1,24 @@
+#ifndef TEST_JMHEADER_MAPMESSAGE_H
+#define TEST_JMHEADER_MAPMESSAGE_H
+
+#linklibrary "mapmsg"
+
+// ==========================================================================
+namespace Jm.MapMsg {
+// ==========================================================================
+
+enum Skill {
+   SKILL_VARIED,
+   SKILL_VERYEASY,
+   SKILL_EASY,
+   SKILL_MODERATE,
+   SKILL_HARD,
+   SKILL_VERYHARD,
+   SKILL_TOTAL
+};
+
+function void Set( str name, str author, enum Skill skill, str par );
+
+}
+
+#endif

@@ -1,0 +1,54 @@
+#if 1
+
+#library "client"
+
+#include "zcommon.h"
+#include "client.h"
+
+// ==========================================================================
+namespace Jm.Client {
+// ==========================================================================
+
+// Player number retrival.
+// Thanks to Euranna for the solution and helping me understand it.
+// Source: http://www.skulltag.com/forum/viewtopic.php?p=310483#p310483
+
+// -2 indicates the library has not been initialized.
+private int gNumber = -2;
+
+script 940 open clientside {
+   // Force player to execute a script upon connecting to the server. Offline,
+   // this script takes more than one tic to execute, so any ENTER scripts
+   // should be aware of this behavior.
+   ConsoleCommand( "puke 941" );
+}
+
+script 941 net clientside {
+   // Player should be the activator of this script. We can now save their
+   // player number for later comparisons.
+   gNumber = PlayerNumber();
+}
+
+function int GetNumber() {
+   return gNumber;
+}
+
+function void Execute( int player, int number ) {
+   ExecuteArg( player, number, 0 );
+}
+
+function void ExecuteArg( int player, int number, int arg1 ) {
+   Acs_Execute( 943, 0, player, number, arg1 );
+}
+
+// NOTE: It's possible to combine the player and scriptNum variables into
+// a single variable so we can allow for an extra script argument.
+script 943 ( int player, int number, int arg1 ) clientside {
+   if ( player == gNumber ) {
+      Acs_Execute( number, 0, arg1 );
+   }
+}
+
+}
+
+#endif

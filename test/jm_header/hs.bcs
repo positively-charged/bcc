@@ -1,0 +1,112 @@
+#if 1
+
+#library "hs"
+
+#include "zcommon.h"
+#include "config.h"
+#include "utility.h"
+#include "luk.h"
+#include "hs.h"
+
+// ==========================================================================
+namespace Jm.Hs {
+// ==========================================================================
+
+private enum : fixed { LINE_NOTICE_Y = 0.55 };
+private enum : fixed { TBL_SHOW_TIME = 8.0 };
+
+int gLoadStatus = STATUS_NONE;
+// Stores a ranker's high score load script number so other files can wait
+// for the ranker to complete loading the high score.
+str gLoadScript = "";
+// Script of the ranker that shows the high score details table.
+str gDetailsScript = "";
+private bool gCheated[ Cfg.MAX_PLAYERS ];
+private bool gManualDisable = false;
+// High score finish time. We put some of the finish time handling here
+// because both rankers use the same code.
+private int gTics = Cfg.VALUE_NONE;
+
+function bool IsAutoShowDetailsTable() {
+   return ( GetCvar( "jm_show_rdetails" ) == 1 );
+}
+
+function bool IsCheater( int player ) {
+   return ( gCheated[ player ] || IsCheatsEnabled() );
+}
+
+function bool IsCheatsEnabled() {
+   return ( GetCvar( "sv_cheats" ) == 1 );
+}
+
+function bool IsEnabled() {
+   return ( Utility.IsOnline() && Luk.IsEnabled() && ! gManualDisable );
+}
+
+function void Disable() {
+   gManualDisable = true;
+}
+
+function int GetFinishTime() {
+   return gTics;
+}
+
+function void SetFinishTime( int tics ) {
+   gTics = tics;
+}
+
+function bool IsSet() {
+   return ( gTics != Cfg.VALUE_NONE );
+}
+
+function bool IsNew( int time ) {
+   return ( gTics == Cfg.VALUE_NONE || time < gTics );
+}
+
+function void Disallow( int player ) {
+   gCheated[ player ] = true;
+}
+
+script 999 net {
+   ShowDetails( ( int ) TBL_SHOW_TIME );
+}
+
+// Shows high score details table.
+function void ShowDetails( int showTime ) {
+   SetFont( "SMALLFONT" );
+   // High score disabled.
+   if ( ! IsEnabled() ) {
+      HudMessage(
+         s: "\ciThe high score is disabled";
+         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+   }
+   // High score loading.
+   else if ( gLoadStatus != STATUS_LOADED ) {
+      // High score is loading.
+      if ( gLoadStatus == STATUS_WORKING ) {
+         HudMessage( 
+            s: "\ciThe high score is loading. Please retry in a bit";
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+      // Error.
+      else {
+         HudMessage( 
+            s: "\ciThe high score failed to load";
+            HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+      }
+   }
+   // No high score set.
+   else if ( ! IsSet() ) {
+      HudMessage( 
+         s: "\ciNo high score is set for the map";
+         HUDMSG_PLAIN, LINE_NOTICE, 0, 1.5, LINE_NOTICE_Y, 3.0 );
+   }
+   // Show.
+   else {
+      Acs_NamedExecuteAlways( gDetailsScript, 0, showTime );
+   }
+}
+
+}
+
+#endif

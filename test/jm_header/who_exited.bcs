@@ -1,0 +1,34 @@
+#if 1
+
+#library "whoexit"
+
+#include "zcommon.h"
+#include "utility.h"
+#include "who_exited.h"
+
+// ==========================================================================
+namespace Jm.WhoExited {
+// ==========================================================================
+
+function void Show() {
+   HudMessageBold( 
+      s: "\cc",
+      n: PlayerNumber() + 1,
+      s: "\cg exited the level";
+      HUDMSG_FADEINOUT | HUDMSG_LOG,
+      // Avoid displaying the message on screen by setting a long fade-in time.
+      0, 0, 0.0, 0.0, 1.0, 1000.0, 0.0 );
+}
+
+function void ShowAndExit() {
+   // Only show message in multi-player because it's already shown in
+   // single-player.
+   if ( Utility.IsOnline() ) {
+      Show();
+   }
+   Exit_Normal( 0 );
+}
+
+}
+
+#endif

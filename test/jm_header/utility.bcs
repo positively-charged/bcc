@@ -1,0 +1,105 @@
+#if 1
+
+#library "utility"
+
+#include "zcommon.h"
+#include "config.h"
+#include "utility.h"
+
+// ==========================================================================
+namespace Jm.Utility {
+// ==========================================================================
+
+function void Init() {
+   if ( GetCvar( "util_ishosted" ) == 0 ) {
+      if ( GameType() != GAME_SINGLE_PLAYER ) {
+         ConsoleCommand( "set util_ishosted 1" );
+      }
+      else {
+         ConsoleCommand( "set util_ishosted 2" );
+      }
+   }
+}
+
+function bool IsOnline() {
+   return ( GetCvar( "util_ishosted" ) == 1 );
+}
+
+// Convert a par time string into seconds.
+function int ParToSeconds( str par ) {
+   auto pos = par.length() - 1;
+   // Seconds:
+   auto base = 1;
+   auto seconds = 0;
+   while ( pos >= 0 && par[ pos ] != ':' ) {
+      if ( par[ pos ] >= '0' && par[ pos ] <= '9' ) {
+         seconds += ( par[ pos ] - '0' ) * base;
+         base *= 10;
+      }
+      --pos;
+   }
+   // Minutes:
+   base = 1;
+   auto minutes = 0;
+   while ( pos >= 0 ) {
+      if ( par[ pos ] >= '0' && par[ pos ] <= '9' ) {
+         minutes += ( par[ pos ] - '0' ) * base;
+         base *= 10;
+      }
+      --pos;
+   }
+   return ( minutes * 60 ) + seconds;
+}
+
+function str ZeroPad( int number ) {
+   return ( number >= 0 && number <= 9 ? "0" : "" );
+}
+
+function str OrdinalSuffix( int value ) {
+   switch ( value ) {
+   case 11:
+   case 12:
+   case 13:
+      return "th";
+   default:
+      switch ( value % 10 ) {
+      case 1: return "st";
+      case 2: return "nd";
+      case 3: return "rd";
+      case 4: return "th";
+      default:
+         return "th";
+      }
+   }
+}
+
+function void ClearMessage( int id ) {
+   HudMessage( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
+}
+
+function void ClearMessageBold( int id ) {
+   HudMessageBold( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
+}
+
+// Function to calculate the centiseconds from any remaining tics after
+// subtracting full seconds from the total tics.
+function int CalCseconds( int tics ) {
+   auto centiseconds = 0;
+   if ( tics > 0 ) {
+      // TODO: Explain this algorithm better than this comment!
+      auto percent = 10000 / ( ( Jm.Cfg.TICS_IN_SECOND * 100 ) / tics );
+      centiseconds = ( 1000 * percent ) / 1000;
+   }
+   return centiseconds;
+}
+
+function str GetMonthName( int month ) {
+   static str names[] = {
+      "January", "February", "March", "April", "May", "June", 
+      "July", "August", "September", "October", "November", "December" };
+   return ( month >= 1 && month <= names.length() ? names[ month - 1 ] : "" );
+}
+
+}
+
+#endif

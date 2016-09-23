@@ -1,0 +1,111 @@
+#if 1
+
+#linklibrary "mapmsg"
+
+#include "zcommon.h"
+#include "config.h"
+#include "utility.h"
+#include "jm.h"
+#include "hs.h"
+#include "solo_ranker.h"
+#include "map_message.h"
+
+// ==========================================================================
+namespace Jm.MapMsg {
+// ==========================================================================
+
+// Seconds to wait for the record holder name to load before proceeding
+// further.
+private enum { TIMEOUT = 2 };
+// How long to display the map startup message on screen.
+private enum : fixed { DISPLAY_TIME = 3.0 };
+
+// String versions with appropriate colors of the map skills available.
+private str gNames[] = {
+   "\ccVaried\c-",
+   "\cqVery Easy\c-",
+   "\cdEasy\c-",
+   "\chModerate\c-",
+   "\cgHard\c-",
+   "\cmVery Hard\c-" };
+private str gAuthor = "";
+private str gName = "";
+private str gSkill = "";
+private int gNumber = Cfg.VALUE_NONE;
+private str gPar = "";
+private bool gIsSet = false;
+
+function void Set( str name, str author, enum Skill skill, str par ) {
+   gAuthor = author;
+   gName = name;
+   gNumber = GetLevelInfo( LEVELINFO_LEVELNUM );
+   if ( skill < 0 || skill >= SKILL_TOTAL ) {
+      skill = SKILL_VARIED;
+   }
+   gSkill = gNames[ skill ];
+   SetPar( par );
+   gIsSet = true;
+}
+
+script "MapMsg.Show" enter {
+   Delay( 66 );
+   if ( ! gIsSet ) {
+      terminate;
+   }
+   // High score.
+   if ( Hs.IsEnabled() ) {
+      // Wait for the ranker to complete loading the high score.
+      if ( Hs.gLoadStatus == Hs.STATUS_WORKING ) {
+         NamedScriptWait( Hs.gLoadScript );
+      }
+      // Auto show high score details table if enabled. We put this code
+      // here so we can show the details table at the same time as the
+      // map message appears.
+      if ( Hs.IsSet() && Hs.IsAutoShowDetailsTable() ) {
+         Hs.ShowDetails( ( raw ) DISPLAY_TIME );
+      }
+   }
+   Show();
+}
+
+private function void Show() {
+   SetFont( "SMALLFONT" );
+   HudMessage( msgbuild: {
+      append(
+         s: "\cf", s: gName, s: " - ",
+         s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
+         i: gNumber, s: " - ",
+         s: "Author: ", s: gAuthor, s: "\n\n",
+         s: "\ciLevel of Difficulty\n", s: gSkill, s: "\n\n",
+         s: "\ciPar Time\n", s: "\cn", s: gPar
+      );
+      // We don't need to display the record holder's name in the map
+      // message if the record details auto show feature is enabled. This
+      // only applies to the solo ranker.
+      if ( Jm.gMapType == Jm.MAP_SOLO && Hs.IsSet() &&
+         ! Hs.IsAutoShowDetailsTable() ) {
+         append(
+            s: "\n\n",
+            s: "\ciMap record set by:", s: "\n",
+            s: SoloRanker.GetHsAuthorName()
+         );
+      }
+   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME,
+      1.0 );
+}
+
+// Removes the whitespace found in the par time, so it looks nicer when shown
+// in the map message.
+private function void SetPar( str par ) {
+   gPar = StrParam( msgbuild: {
+      foreach ( int ch; par ) {
+         if ( ch != ' ' ) {
+            append( c: ch );
+         }
+      }
+   } );
+}
+
+}
+
+#endif

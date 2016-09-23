@@ -1,0 +1,13 @@
+#ifndef TEST_JMHEADER_WHOEXITED_H
+#define TEST_JMHEADER_WHOEXITED_H
+
+#linklibrary "whoexit"
+
+namespace Jm.WhoExited {
+
+function void Show();
+function void ShowAndExit();
+
+}
+
+#endif

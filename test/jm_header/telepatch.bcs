@@ -1,0 +1,51 @@
+#if 1
+
+#library "telpatch"
+
+#include "zcommon.h"
+#include "config.h"
+#include "telepatch.h"
+
+// ==========================================================================
+namespace Jm.Telepatch {
+// ==========================================================================
+
+using Cfg;
+
+// Holds TIDs of temporary teleport destinations.
+private int gDest[ MAX_PLAYERS ];
+
+function void OnDeath( int player ) {
+   // Change the activator of the script to the killer of the dead player to
+   // determine if the player got telefragged.
+   SetActivatorToTarget( 0 );
+   if ( PlayerNumber() >= 0 && PlayerNumber() != player ) {
+      // Create a TID for a temporary teleport destination.
+      enum { TID_OFFSET = 28100 };
+      gDest[ player ] = TID_OFFSET + player;
+      // Spawn the teleport destination at killer's coordinates.
+      Spawn( "TeleportDest2", GetActorX( 0 ),
+         GetActorY( 0 ), GetActorZ( 0 ), gDest[ player ], 
+         ( int ) GetActorAngle( 0 ) >> 8 );
+   }
+}
+
+function void OnRespawn( int player ) {
+   if ( gDest[ player ] != 0 ) {
+      Teleport( gDest[ player ], 0, 0 );
+      OnDisconnect( player );
+   }
+}
+
+// Remove any temporary destinations that might have been left behind if a
+// player disconnected while being dead.
+function void OnDisconnect( int player ) {
+   if ( gDest[ player ] != 0 ) {
+      Thing_Remove( gDest[ player ] );
+      gDest[ player ] = 0;
+   }
+}
+
+}
+
+#endif

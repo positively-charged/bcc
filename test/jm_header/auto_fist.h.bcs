@@ -1,0 +1,6 @@
+#ifndef TEST_JMHEADER_AUTOFIST_H
+#define TEST_JMHEADER_AUTOFIST_H
+
+#linklibrary "autofist"
+
+#endif

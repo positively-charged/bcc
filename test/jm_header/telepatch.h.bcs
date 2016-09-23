@@ -1,0 +1,14 @@
+#ifndef TEST_JMHEADER_TELEPATCH_H
+#define TEST_JMHEADER_TELEPATCH_H
+
+#linklibrary "telpatch"
+
+namespace Jm.Telepatch {
+
+function void OnDeath( int player );
+function void OnRespawn( int player );
+function void OnDisconnect( int player );
+
+}
+
+#endif

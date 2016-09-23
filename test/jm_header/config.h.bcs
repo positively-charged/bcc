@@ -1,0 +1,25 @@
+#ifndef TEST_JMHEADER_CONFIG_H
+#define TEST_JMHEADER_CONFIG_H
+
+// ==========================================================================
+namespace Jm.Cfg {
+// ==========================================================================
+
+enum { TICS_IN_SECOND = 35 };
+enum { MAX_PLAYERS = 32 };
+enum { VALUE_NONE = -1 };
+// Looking at the screen, in Doom Builder 2, left is West and right is East.
+enum {
+   ANGLE_EAST = 0,
+   ANGLE_NORTHEAST = 32,
+   ANGLE_NORTH = 64,
+   ANGLE_NORTHWEST = 96,
+   ANGLE_WEST = 128,
+   ANGLE_SOUTHWEST = 160,
+   ANGLE_SOUTH = 192,
+   ANGLE_SOUTHEAST = 224,
+};
+
+}
+
+#endif
