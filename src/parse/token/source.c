@@ -2059,7 +2059,9 @@ void p_increment_pos( struct pos* pos, enum tk tk ) {
 }
 
 void p_deinit_tk( struct parse* parse ) {
-   while ( parse->source_entry->source ) {
-      p_pop_source( parse );
+   if ( parse->source_entry ) {
+      while ( parse->source_entry->source ) {
+         p_pop_source( parse );
+      }
    }
 }
