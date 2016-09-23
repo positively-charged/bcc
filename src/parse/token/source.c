@@ -225,7 +225,8 @@ void p_load_source( struct parse* parse, struct request* request ) {
 
 bool source_loading( struct parse* parse, struct request* request ) {
    struct source_entry* entry = parse->source_entry;
-   while ( entry && request->file != entry->source->file ) {
+   while ( entry && ( ! entry->source ||
+      request->file != entry->source->file ) ) {
       entry = entry->prev;
    }
    return ( entry != NULL );

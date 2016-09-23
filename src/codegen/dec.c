@@ -42,8 +42,7 @@ static void patch_nestedfunc_addresses( struct codegen* codegen,
    struct func* func );
 
 void c_write_user_code( struct codegen* codegen ) {
-   if ( codegen->lang == LANG_BCS &&
-      codegen->task->library_main->uses_nullable_refs ) {
+   if ( codegen->null_handler ) {
       write_null_handler( codegen );
    }
    // Scripts.
@@ -90,7 +89,8 @@ void write_null_handler( struct codegen* codegen ) {
       NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
    string->used = true;
    c_append_string( codegen, string );
-   codegen->null_handler = c_tell( codegen );
+   struct func_user* impl = codegen->null_handler->impl;
+   impl->obj_pos = c_tell( codegen );
    c_add_opc( codegen, PCD_BEGINPRINT );
    c_add_opc( codegen, PCD_PUSHNUMBER );
    c_add_arg( codegen, string->index_runtime );

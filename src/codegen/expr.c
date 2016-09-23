@@ -5,8 +5,7 @@
 #include "pcode.h"
 
 enum { FIXEDNUMBER_WHOLE = 1 << 16 };
-enum { NULLVALUE_ARRAYSTRUCT = SHAREDARRAYFIELD_NULL };
-enum { NULLVALUE_FUNC = USHRT_MAX };
+enum { NULLVALUE = 0 };
 enum { EXTENDEDASPEC_STARTID = 256 };
 
 struct result {
@@ -25,7 +24,6 @@ struct result {
    int ref_dim;
    int diminfo_start;
    bool push;
-   bool push_func;
    bool skip_negate;
    bool null;
    bool safe;
@@ -174,7 +172,7 @@ static void call_array_length( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_sure( struct codegen* codegen, struct result* result,
    struct sure* sure );
-static void write_null_check( struct codegen* codegen, struct result* result );
+static void write_null_check( struct codegen* codegen );
 static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
 static void visit_literal( struct codegen* codegen, struct result* result,
@@ -282,7 +280,6 @@ void init_result( struct result* result, bool push ) {
    result->ref_dim = 0;
    result->diminfo_start = 0;
    result->push = push;
-   result->push_func = false;
    result->skip_negate = false;
    result->null = false;
    result->safe = false;
@@ -307,7 +304,6 @@ void push_initz( struct codegen* codegen, struct ref* ref,
    struct node* initz ) {
    struct result rside;
    init_result( &rside, true );
-   rside.push_func = ( ref && ref->type == REF_FUNCTION );
    push_operand_result( codegen, &rside, initz );
 }
 
@@ -524,7 +520,7 @@ void eq_ref( struct codegen* codegen, struct result* result,
       // remain on the stack. Since failing the if-statement indicates a false
       // result, and the null value for array and structure references is 0, we
       // leave the null value pushed and use it as the result value.
-      STATIC_ASSERT( NULLVALUE_ARRAYSTRUCT == 0 );
+      STATIC_ASSERT( NULLVALUE == 0 );
       if ( ( lside.null && rside.null ) ||
          ( lside.null && rside.status == R_ARRAYINDEX ) ||
          ( rside.null && lside.status == R_ARRAYINDEX ) ) {
@@ -573,11 +569,9 @@ void eq_func( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    struct result lside;
    init_result( &lside, true );
-   lside.push_func = true;
    visit_operand( codegen, &lside, binary->lside );
    struct result rside;
    init_result( &rside, true );
-   rside.push_func = true;
    visit_operand( codegen, &rside, binary->rside );
    c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
    result->status = R_VALUE;
@@ -645,15 +639,10 @@ void push_logical_operand( struct codegen* codegen,
    convert_to_boolean( codegen, &result, spec );
 }
 
+// NOTE: Doesn't actually convert a value to 0 or 1. Should rename.
 void convert_to_boolean( struct codegen* codegen, struct result* result,
    int spec ) {
-   if ( result->ref ) {
-      if ( result->ref->type == REF_FUNCTION ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
-         c_pcd( codegen, PCD_NE );
-      }
-   }
-   else {
+   if ( ! result->ref ) {
       if ( spec == SPEC_STR ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
@@ -894,7 +883,6 @@ void write_conditional( struct codegen* codegen, struct result* result,
    // When condition is true.
    struct result middle;
    init_result( &middle, true );
-   middle.push_func = ( cond->ref && cond->ref->type == REF_FUNCTION );
    push_operand_result( codegen, &middle, cond->middle );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
@@ -1254,7 +1242,7 @@ void subscript_array_reference( struct codegen* codegen,
       struct ref_array* array = ( struct ref_array* ) lside->ref;
       lside->ref_dim = array->dim_count;
       if ( array->ref.nullable && ! lside->safe ) {
-         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+         write_null_check( codegen ); 
       }
    }
    // Calculate offset to element.
@@ -1341,7 +1329,7 @@ void visit_access( struct codegen* codegen, struct result* result,
       init_result( &lside, true );
       visit_suffix( codegen, &lside, access->lside );
       if ( lside.ref && lside.ref->nullable && ! lside.safe ) {
-         c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+         write_null_check( codegen );
       }
       switch ( access->rside->type ) {
       case NODE_STRUCTURE_MEMBER:
@@ -1643,7 +1631,6 @@ void push_arg( struct codegen* codegen, struct param* param,
    struct expr* expr ) {
    struct result arg;
    init_result( &arg, true );
-   arg.push_func = ( param->ref && param->ref->type == REF_FUNCTION );
    visit_operand( codegen, &arg, expr->root );
    if ( arg.dim ) {
       c_pcd( codegen, PCD_PUSHNUMBER, arg.diminfo_start );
@@ -1935,7 +1922,7 @@ void visit_sure( struct codegen* codegen, struct result* result,
    init_result( &operand, true );
    visit_suffix( codegen, &operand, sure->operand );
    if ( ! sure->already_safe ) {
-      write_null_check( codegen, &operand );
+      write_null_check( codegen );
    }
    result->ref = operand.ref;
    result->structure = operand.structure;
@@ -1945,10 +1932,9 @@ void visit_sure( struct codegen* codegen, struct result* result,
    result->safe = true;
 }
 
-void write_null_check( struct codegen* codegen, struct result* result ) {
-   c_pcd( codegen, PCD_CASEGOTO, ( result->ref &&
-      result->ref->type == REF_FUNCTION ) ? NULLVALUE_FUNC :
-      NULLVALUE_ARRAYSTRUCT, codegen->null_handler );
+void write_null_check( struct codegen* codegen ) {
+   struct func_user* impl = codegen->null_handler->impl;
+   c_pcd( codegen, PCD_CASEGOTO, NULLVALUE, impl->obj_pos );
 }
 
 void visit_primary( struct codegen* codegen, struct result* result,
@@ -2335,7 +2321,6 @@ void copy_array( struct codegen* codegen, struct result* result,
    struct c_jump* jump = NULL;
    int size = c_alloc_script_var( codegen );
    // Evaluate destination.
-( int( * )[] ) 0;
    int destination_offset = 0;
    bool destination_offset_allocated = false;
    struct result destination;
@@ -2344,7 +2329,7 @@ void copy_array( struct codegen* codegen, struct result* result,
    // Null check.
    if ( destination.ref && destination.ref->type == REF_ARRAY &&
       destination.ref->nullable && ! destination.safe ) {
-      c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+      write_null_check( codegen );
    }
    if ( destination.status == R_ARRAYINDEX || call->destination_offset ) {
       destination_offset = c_alloc_script_var( codegen );
@@ -2421,7 +2406,7 @@ void copy_array( struct codegen* codegen, struct result* result,
    // Null check.
    if ( source.ref && source.ref->type == REF_ARRAY && source.ref->nullable &&
       ! source.safe ) {
-      c_pcd( codegen, PCD_CASEGOTO, 0, codegen->null_handler );
+      write_null_check( codegen );
    }
    if ( source.status == R_ARRAYINDEX || call->source_offset ) {
       source_offset = c_alloc_script_var( codegen );
@@ -2813,14 +2798,8 @@ void visit_conversion( struct codegen* codegen, struct result* result,
          struct result arg;
          init_result( &arg, true );
          push_operand_result( codegen, &arg, conv->expr->root );
-         if ( arg.ref && arg.ref->type == REF_FUNCTION ) {
-            c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE_FUNC );
-            c_pcd( codegen, PCD_NE );
-         }
-         else {
-            c_pcd( codegen, PCD_NEGATELOGICAL );
-            c_pcd( codegen, PCD_NEGATELOGICAL );
-         }
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         c_pcd( codegen, PCD_NEGATELOGICAL );
          result->status = R_VALUE;
       }
       else {
@@ -2895,8 +2874,7 @@ void visit_conversion( struct codegen* codegen, struct result* result,
 }
 
 void visit_null( struct codegen* codegen, struct result* result ) {
-   c_pcd( codegen, PCD_PUSHNUMBER, result->push_func ? NULLVALUE_FUNC :
-      NULLVALUE_ARRAYSTRUCT );
+   c_pcd( codegen, PCD_PUSHNUMBER, NULLVALUE );
    result->null = true;
    result->status = R_VALUE;
 }

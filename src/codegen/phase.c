@@ -61,7 +61,7 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->shary.data_offset = 0;
    codegen->shary.dim_counter_var = false;
    codegen->shary.used = false;
-   codegen->null_handler = 0;
+   codegen->null_handler = NULL;
    codegen->object_size = 0;
    codegen->lang = task->library_main->lang;
    codegen->dummy_script_offset = 0;
@@ -138,7 +138,6 @@ void publish( struct codegen* codegen ) {
    switch ( codegen->lang ) {
    case LANG_BCS:
       setup_shary( codegen );
-      patch_initz( codegen );
       break;
    default:
       break;
@@ -147,6 +146,7 @@ void publish( struct codegen* codegen ) {
    assign_indexes( codegen );
    switch ( codegen->lang ) {
    case LANG_BCS:
+      patch_initz( codegen );
       if ( codegen->task->options->write_asserts &&
          list_size( &codegen->task->runtime_asserts ) > 0 ) {
          create_assert_strings( codegen );
@@ -268,10 +268,20 @@ void alloc_dim_counter_var( struct codegen* codegen ) {
 }
 
 // Order of functions:
+// - null handler
 // - imported functions
 // - functions
 // - hidden functions
 void clarify_funcs( struct codegen* codegen ) {
+   // Null handler.
+   if ( codegen->lang == LANG_BCS &&
+      codegen->task->library_main->uses_nullable_refs ) {
+      struct func* func = t_alloc_func();
+      func->impl = t_alloc_func_user();
+      func->name = t_extend_name( codegen->task->root_name, "." );
+      codegen->null_handler = func;
+      list_append( &codegen->funcs, func );
+   }
    // Imported functions.
    list_iter_t i;
    list_iter_init( &i, &codegen->task->library_main->dynamic );

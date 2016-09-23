@@ -102,7 +102,7 @@ struct codegen {
       bool dim_counter_var;
       bool used;
    } shary;
-   int null_handler;
+   struct func* null_handler;
    int object_size;
    int lang;
    int dummy_script_offset;
