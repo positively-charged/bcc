@@ -1062,6 +1062,7 @@ struct library {
 
 struct library_link {
    const char* name;
+   struct pos pos;
 };
 
 struct lang_limits {

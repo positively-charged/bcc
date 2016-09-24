@@ -639,9 +639,28 @@ void read_linklibrary( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
    p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
-   struct library_link* link = mem_alloc( sizeof( *link ) );
-   link->name = parse->tk_text;
-   list_append( &parse->lib->dynamic_links, link );
+   struct library_link* link = NULL;
+   list_iter_t i;
+   list_iter_init( &i, &parse->lib->dynamic_links );
+   while ( ! list_end( &i ) ) {
+      link = list_data( &i );
+      if ( strcmp( parse->tk_text, link->name ) == 0 ) {
+         break;
+      }
+      list_next( &i );
+   }
+   if ( link ) {
+      p_diag( parse, DIAG_POS | DIAG_WARN, &parse->tk_pos,
+         "duplicate library link" );
+      p_diag( parse, DIAG_POS, &link->pos,
+         "library link previously found here" );
+   }
+   else {
+      link = mem_alloc( sizeof( *link ) );
+      link->name = parse->tk_text;
+      link->pos = parse->tk_pos;
+      list_append( &parse->lib->dynamic_links, link );
+   }
    p_read_tk( parse );
 }
 
