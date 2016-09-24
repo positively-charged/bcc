@@ -1837,6 +1837,13 @@ char read_ch( struct parse* parse ) {
       size_t count = fread( source->buffer + unread,
          sizeof( source->buffer[ 0 ] ), SOURCE_BUFFER_SIZE - unread,
          source->fh );
+      if ( count != SOURCE_BUFFER_SIZE - unread &&
+         ferror( source->fh ) != 0 ) {
+         p_diag( parse, DIAG_ERR,
+            "failed to read file: %s (%s)",
+            parse->source->file->full_path.value, strerror( errno ) );
+         p_bail( parse );
+      }
       source->buffer[ unread + count ] = '\n';
       source->buffer[ unread + count + 1 ] = '\0';
       source->buffer_pos = 0;
