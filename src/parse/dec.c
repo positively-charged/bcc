@@ -274,6 +274,7 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
          }
          else {
             dec->external = true;
+            dec->storage.type = STORAGE_MAP;
             p_read_tk( parse );
          }
       }
@@ -1337,7 +1338,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
       list_append( &parse->lib->objects, var );
       list_append( &parse->ns_fragment->objects, var );
       if ( dec->external ) {
-         list_append( &parse->lib->incomplete_vars, var );
+         list_append( &parse->lib->external_vars, var );
       }
       else {
          list_append( &parse->lib->vars, var );
@@ -1381,7 +1382,7 @@ struct var* alloc_var( struct dec* dec ) {
 }
 
 void test_storage( struct parse* parse, struct dec* dec ) {
-   if ( ! dec->storage.specified ) {
+   if ( ! dec->storage.specified && ! dec->external ) {
       // Variable found at namespace scope, or a static local variable, has map
       // storage.
       if ( dec->area == DEC_TOP || ( ( dec->area == DEC_LOCAL ||
@@ -1444,6 +1445,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->hidden = dec->private_visibility;
    func->msgbuild = dec->msgbuild;
    func->imported = parse->lib->imported;
+   func->external = dec->external;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    read_func_param_list( parse, func );
@@ -1454,7 +1456,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    else if ( parse->tk == TK_SEMICOLON ) {
       func->impl = t_alloc_func_user();
-      func->prototype = true;
       p_read_tk( parse );
    }
    else {
@@ -1468,8 +1469,8 @@ void read_func( struct parse* parse, struct dec* dec ) {
          list_append( &parse->lib->private_objects, func );
       }
       if ( func->type == FUNC_USER ) {
-         if ( func->prototype ) {
-            list_append( &parse->lib->incomplete_funcs, func );
+         if ( func->external ) {
+            list_append( &parse->lib->external_funcs, func );
          }
          else {
             list_append( &parse->lib->funcs, func );

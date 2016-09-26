@@ -140,6 +140,7 @@ static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
+static bool test_external_var( struct semantic* semantic, struct var* var );
 static void describe_var( struct var* var );
 static bool is_auto_var( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
@@ -210,8 +211,7 @@ static void default_value_mismatch( struct semantic* semantic,
    struct func* func, struct param* param, struct type_info* param_type,
    struct type_info* type, struct pos* pos );
 static int get_param_number( struct func* func, struct param* target );
-static bool test_func_prototype( struct semantic* semantic,
-   struct func* func );
+static bool test_external_func( struct semantic* semantic, struct func* func );
 static void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases );
 static void bind_builtin_aliases( struct semantic* semantic,
@@ -995,11 +995,6 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    var->initial_has_str = test.has_str;
-   if ( var->external ) {
-      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "external variable initialized" );
-      s_bail( semantic );
-   }
    return true;
 }
 
@@ -1447,30 +1442,54 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
       break;
    }
    if ( var->external ) {
-      struct var* other_var = ( struct var* ) var->name->object;
-      if ( ! other_var->external && ! other_var->object.resolved ) {
+      if ( ! test_external_var( semantic, var ) ) {
          return false;
       }
-      var->imported = ( other_var->external == true );
-      struct var* var_def = ( struct var* ) var->name->object;
-      struct type_info type;
-      struct type_info other_type;
-      s_init_type_info( &type, var->ref, var->structure, var->enumeration,
-         var->dim, var->spec, var->storage );
-      s_init_type_info( &other_type, var_def->ref,
-         var_def->structure,
-         var_def->enumeration,
-         var_def->dim,
-         var_def->spec, var_def->storage );
-      if ( ! s_same_type( &type, &other_type ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-            "variable declaration different from %s", var_def->external ?
-            "previous declaration" : "variable definition" );
-         s_diag( semantic, DIAG_POS, &var_def->object.pos,
-            "%s is here", var_def->external ? "previous declaration" :
-            "variable definition" );
-         s_bail( semantic );
-      }
+   }
+   return true;
+}
+
+bool test_external_var( struct semantic* semantic, struct var* var ) {
+   if ( semantic->in_localscope ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "external variable declaration in local scope" );
+      s_bail( semantic );
+   }
+   if ( var->initial ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "external variable declaration has an initializer" );
+      s_bail( semantic );
+   }
+   struct var* other_var = ( struct var* ) var->name->object;
+   if ( ! other_var->external && ! other_var->object.resolved ) {
+      return false;
+   }
+   var->imported = ( other_var->external == true );
+   struct var* var_def = ( struct var* ) var->name->object;
+   struct type_info type;
+   struct type_info other_type;
+   s_init_type_info( &type, var->ref, var->structure, var->enumeration,
+      var->dim, var->spec, var->storage );
+   s_init_type_info( &other_type, var_def->ref,
+      var_def->structure,
+      var_def->enumeration,
+      var_def->dim,
+      var_def->spec, var_def->storage );
+   if ( ! s_same_type( &type, &other_type ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "external variable declaration different from %s",
+         var_def->external ? "previous declaration" : "actual variable" );
+      s_diag( semantic, DIAG_POS, &var_def->object.pos,
+         "%s found here", var_def->external ? "previous declaration" :
+         "actual variable" );
+      s_bail( semantic );
+   }
+   if ( ! other_var->external && other_var->hidden ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "external variable declaration for a private variable" );
+      s_diag( semantic, DIAG_POS, &other_var->object.pos,
+         "private variable found here" );
+      s_bail( semantic );
    }
    return true;
 }
@@ -1648,10 +1667,10 @@ bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    struct param_list_test param_test;
    init_param_list_test( &param_test, func, NULL );
    bool resolved = test_param_list( semantic, &param_test );
-   if ( resolved && func->prototype ) {
-      resolved = test_func_prototype( semantic, func );
-   }
    s_pop_scope( semantic );
+   if ( resolved && func->external ) {
+      resolved = test_external_func( semantic, func );
+   }
    return resolved;
 }
 
@@ -1847,7 +1866,12 @@ int get_param_number( struct func* func, struct param* target ) {
    return number;
 }
 
-bool test_func_prototype( struct semantic* semantic, struct func* func ) {
+bool test_external_func( struct semantic* semantic, struct func* func ) {
+   if ( semantic->in_localscope ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "external function declaration in local scope" );
+      s_bail( semantic );
+   }
    bool resolved = false;
    struct func* other_func = ( struct func* ) func->name->object;
    if ( func == other_func ) {
@@ -1867,25 +1891,43 @@ bool test_func_prototype( struct semantic* semantic, struct func* func ) {
             other_func->max_param, other_func->msgbuild );
          if ( ! s_same_type( &type, &other_type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
-               "function declaration different from %s",
-               other_func->prototype ? "previous declaration" :
-               "function definition" );
+               "external function declaration different from %s",
+               other_func->external ? "previous declaration" :
+               "actual function" );
             s_diag( semantic, DIAG_POS, &other_func->object.pos,
-               "%s found here", other_func->prototype ?
-               "previous declaration" : "function definition" );
+               "%s found here", other_func->external ?
+               "previous declaration" : "actual function" );
             s_bail( semantic );
          }
          resolved = true;
       }
    }
-   func->imported = other_func->prototype;
+   struct func_user* impl = func->impl;
+   if ( impl->body ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "external function declaration has a body" );
+      s_bail( semantic );
+   }
+   if ( ! other_func->external && other_func->hidden ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "external function declaration for a private function" );
+      s_diag( semantic, DIAG_POS, &other_func->object.pos,
+         "private function found here" );
+      s_bail( semantic );
+   }
+   func->imported = other_func->external;
    return resolved;
 }
 
 void s_test_func_body( struct semantic* semantic, struct func* func ) {
+   struct func_user* impl = func->impl;
+   if ( ! impl->body ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "function missing body" );
+      s_bail( semantic );
+   }
    struct builtin_aliases builtin_aliases;
    init_builtin_aliases( semantic, func, &builtin_aliases );
-   struct func_user* impl = func->impl;
    s_add_scope( semantic, true );
    struct param* param = func->params;
    while ( param ) {

@@ -702,7 +702,7 @@ struct func {
    bool hidden;
    bool msgbuild;
    bool imported;
-   bool prototype;
+   bool external;
 };
 
 struct func_aspec {
@@ -1035,8 +1035,8 @@ struct library {
    struct list dynamic;
    struct list dynamic_links;
    struct list files;
-   struct list incomplete_vars;
-   struct list incomplete_funcs;
+   struct list external_vars;
+   struct list external_funcs;
    struct ns_fragment* upmost_ns_fragment;
    struct file_entry* file;
    struct pos file_pos;

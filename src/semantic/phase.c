@@ -396,9 +396,9 @@ void bind_func( struct semantic* semantic, struct func* func ) {
    // is found, bind the initial declaration.
    if ( func->name->object && func->name->object->node.type == NODE_FUNC ) {
       struct func* binded_func = ( struct func* ) func->name->object;
-      if ( binded_func->prototype ) {
+      if ( binded_func->external ) {
          // Keep initial declaration.
-         if ( func->prototype ) {
+         if ( func->external ) {
             return;
          }
          // Replace declaration with definition.
@@ -407,7 +407,7 @@ void bind_func( struct semantic* semantic, struct func* func ) {
          }
       }
       else {
-         if ( func->prototype ) {
+         if ( func->external ) {
             return;
          }
       }
@@ -1097,8 +1097,8 @@ void calc_map_var_size( struct semantic* semantic ) {
       }
       list_next( &i );
    }
-   // Imported variables. (External)
-   list_iter_init( &i, &semantic->main_lib->incomplete_vars );
+   // External variables.
+   list_iter_init( &i, &semantic->main_lib->external_vars );
    while ( ! list_end( &i ) ) {
       s_calc_var_size( list_data( &i ) );
       list_next( &i );

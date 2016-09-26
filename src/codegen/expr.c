@@ -238,13 +238,15 @@ void c_visit_expr( struct codegen* codegen, struct expr* expr ) {
    init_result( &result, false );
    visit_operand( codegen, &result, expr->root );
    switch ( result.status ) {
-   case R_NONE:
-      break;
    case R_VALUE:
    case R_ARRAYINDEX:
       c_pcd( codegen, PCD_DROP );
       break;
+   case R_NONE:
+   case R_VAR:
+      break;
    default:
+printf( "%d\n", result.status );
       UNREACHABLE()
    }
 }

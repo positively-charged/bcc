@@ -187,8 +187,8 @@ void clarify_vars( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   // Imported variables (marked `extern`).
-   list_iter_init( &i, &codegen->task->library_main->incomplete_vars );
+   // External variables.
+   list_iter_init( &i, &codegen->task->library_main->external_vars );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->imported && var->used ) {
@@ -299,8 +299,8 @@ void clarify_funcs( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   // Incomplete functions.
-   list_iter_init( &i, &codegen->task->library_main->incomplete_funcs );
+   // External functions.
+   list_iter_init( &i, &codegen->task->library_main->external_funcs );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;

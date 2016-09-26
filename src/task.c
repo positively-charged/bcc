@@ -583,8 +583,8 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
    list_init( &lib->dynamic_links );
-   list_init( &lib->incomplete_vars );
-   list_init( &lib->incomplete_funcs );
+   list_init( &lib->external_vars );
+   list_init( &lib->external_funcs );
    lib->upmost_ns_fragment = t_alloc_ns_fragment();
    lib->upmost_ns_fragment->ns = task->upmost_ns;
    // root_name->object = &lib->upmost_ns->object;
@@ -846,7 +846,7 @@ struct func* t_alloc_func( void ) {
    func->hidden = false;
    func->msgbuild = false;
    func->imported = false;
-   func->prototype = false;
+   func->external = false;
    return func;
 }
 
