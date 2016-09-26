@@ -57,6 +57,7 @@ void p_run( struct parse* parse ) {
    parse->ns = parse->ns_fragment->ns;
    p_define_predef_macros( parse );
    p_define_cmdline_macros( parse );
+   p_create_cmdline_library_links( parse );
    p_load_main_source( parse );
    if ( parse->task->options->preprocess ) {
       p_preprocess( parse );

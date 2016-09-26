@@ -405,7 +405,10 @@ void decode_pos( struct task* task, struct pos* pos, const char** file,
       switch ( pos->id ) {
          int id;
       case ALTERN_FILENAME_COMPILER:
-         filename = "compiler";
+         filename = "<compiler>";
+         break;
+      case ALTERN_FILENAME_COMMANDLINE:
+         filename = "<command-line>";
          break;
       default:
          id = ALTERN_FILENAME_INITIAL_ID;

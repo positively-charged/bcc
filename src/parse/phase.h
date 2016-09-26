@@ -511,5 +511,6 @@ char* p_intern_text( struct parse* parse, const char* value, int length );
 bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
 void p_pop_source( struct parse* parse );
+void p_create_cmdline_library_links( struct parse* parse );
 
 #endif

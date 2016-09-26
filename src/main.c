@@ -104,6 +104,7 @@ int main( int argc, char* argv[] ) {
 void init_options( struct options* options ) {
    list_init( &options->includes );
    list_init( &options->defines );
+   list_init( &options->library_links );
    options->source_file = NULL;
    options->object_file = NULL;
    // Default tab size for now is 4, since it's a common indentation size.
@@ -264,6 +265,17 @@ bool read_options( struct options* options, char** argv ) {
             return false;
          }
       }
+      else if ( strcmp( option, "l" ) == 0 ) {
+         if ( *args ) {
+            list_append( &options->library_links, *args );
+            ++args;
+         }
+         else {
+            printf( "error: missing library link argument for %s option\n",
+               option );
+            return false;
+         }
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -323,9 +335,10 @@ void print_usage( char* path ) {
       "                       macro will have a value of 1\n"
       "  -x <language>        Specify the language of the source file. The\n"
       "                       language must be one of the following:\n"
-      "                         acs (default)\n"
+      "                         acs\n"
       "                         acs95\n"
       "                         bcs\n"
+      "  -l <library>         Creates a link to the specified library\n"
       "Cache options:\n"
       "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"

@@ -30,7 +30,8 @@ struct file_query {
 
 enum {
    ALTERN_FILENAME_COMPILER = -1,
-   ALTERN_FILENAME_INITIAL_ID = -2,
+   ALTERN_FILENAME_COMMANDLINE = -2,
+   ALTERN_FILENAME_INITIAL_ID = -3,
 };
 
 struct pos {
@@ -1063,6 +1064,7 @@ struct library {
 struct library_link {
    const char* name;
    struct pos pos;
+   bool needed;
 };
 
 struct lang_limits {

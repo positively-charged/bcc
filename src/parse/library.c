@@ -37,7 +37,11 @@ static void read_import( struct parse* parse, struct pos* pos );
 static void read_library( struct parse* parse, struct pos* pos,
    bool first_object );
 static void read_library_name( struct parse* parse, struct pos* pos );
+static void test_library_name( struct parse* parse, struct pos* pos,
+   const char* name, int length );
 static void read_linklibrary( struct parse* parse, struct pos* pos );
+static void add_library_link( struct parse* parse, const char* name,
+   struct pos* pos );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
@@ -45,6 +49,7 @@ static struct library* get_previously_processed_lib( struct parse* parse,
 static struct library* find_lib( struct parse* parse,
    struct file_entry* file );
 static void append_imported_lib( struct parse* parse, struct library* lib );
+static void determine_needed_library_links( struct parse* parse );
 
 void p_read_target_lib( struct parse* parse ) {
    read_module( parse );
@@ -64,6 +69,7 @@ void p_read_target_lib( struct parse* parse ) {
       }
       list_next( &i );
    }
+   determine_needed_library_links( parse );
 }
 
 void read_module( struct parse* parse ) {
@@ -589,31 +595,16 @@ void read_library( struct parse* parse, struct pos* pos, bool first_object ) {
 
 void read_library_name( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_LIT_STRING );
-   if ( ! parse->tk_length ) {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "library name is blank" );
-      p_bail( parse );
-   }
-   int length = parse->tk_length;
-   if ( length > MAX_LIB_NAME_LENGTH ) {
-      p_diag( parse, DIAG_WARN | DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &parse->tk_pos, "library name too long" );
-      p_diag( parse, DIAG_FILE, &parse->tk_pos,
-         "library name can be up to %d characters long",
-         MAX_LIB_NAME_LENGTH );
-      length = MAX_LIB_NAME_LENGTH;
-   }
-   char name[ MAX_LIB_NAME_LENGTH + 1 ];
-   memcpy( name, parse->tk_text, length );
-   name[ length ] = 0;
-   p_read_tk( parse );
+   test_library_name( parse, &parse->tk_pos, parse->tk_text,
+      parse->tk_length );
    // Different #library directives in the same library must have the same
    // name.
-   if ( parse->lib->name.length &&
-      strcmp( parse->lib->name.value, name ) != 0 ) {
-      p_diag( parse, DIAG_POS_ERR, pos, "library has multiple names" );
-      p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN,
-         &parse->lib->name_pos, "first name given here" );
+   if ( parse->lib->name.length != 0 &&
+      strcmp( parse->lib->name.value, parse->tk_text ) != 0 ) {
+      p_diag( parse, DIAG_POS_ERR, pos,
+         "library has multiple names" );
+      p_diag( parse, DIAG_POS, &parse->lib->name_pos,
+         "first name found here" );
       p_bail( parse );
    }
    // Each library must have a unique name.
@@ -621,47 +612,84 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
    list_iter_init( &i, &parse->task->libraries );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      if ( lib != parse->lib && strcmp( name, lib->name.value ) == 0 ) {
+      if ( lib != parse->lib &&
+         strcmp( parse->tk_text, lib->name.value ) == 0 ) {
          p_diag( parse, DIAG_POS_ERR, pos,
             "duplicate library name" );
-         p_diag( parse, DIAG_FILE | DIAG_LINE | DIAG_COLUMN, &lib->name_pos,
+         p_diag( parse, DIAG_POS, &lib->name_pos,
             "library name previously found here" );
          p_bail( parse );
       }
       list_next( &i );
    }
-   str_copy( &parse->lib->name, name, length );
+   str_append( &parse->lib->name, parse->tk_text );
    parse->lib->importable = true;
    parse->lib->name_pos = *pos;
+   p_read_tk( parse );
+}
+
+void test_library_name( struct parse* parse, struct pos* pos,
+   const char* name, int length ) {
+   if ( length == 0 ) {
+      p_diag( parse, DIAG_POS_ERR, pos,
+         "library name is blank" );
+      p_bail( parse );
+   }
+   if ( length > MAX_LIB_NAME_LENGTH ) {
+      p_diag( parse, DIAG_WARN | DIAG_POS, pos,
+         "library name too long" );
+      p_diag( parse, DIAG_FILE, pos,
+         "library name can be up to %d characters long",
+         MAX_LIB_NAME_LENGTH );
+   }
 }
 
 void read_linklibrary( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
    p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
+   add_library_link( parse, parse->tk_text, pos );
+   p_read_tk( parse );
+}
+
+void add_library_link( struct parse* parse, const char* name,
+   struct pos* pos ) {
+   test_library_name( parse, pos, name, strlen( name ) );
    struct library_link* link = NULL;
    list_iter_t i;
    list_iter_init( &i, &parse->lib->dynamic_links );
    while ( ! list_end( &i ) ) {
-      link = list_data( &i );
-      if ( strcmp( parse->tk_text, link->name ) == 0 ) {
+      struct library_link* other_link = list_data( &i );
+      if ( strcmp( other_link->name, name ) == 0 ) {
+         link = other_link;
          break;
       }
       list_next( &i );
    }
    if ( link ) {
-      p_diag( parse, DIAG_POS | DIAG_WARN, &parse->tk_pos,
+      p_diag( parse, DIAG_POS | DIAG_WARN, pos,
          "duplicate library link" );
       p_diag( parse, DIAG_POS, &link->pos,
          "library link previously found here" );
    }
    else {
       link = mem_alloc( sizeof( *link ) );
-      link->name = parse->tk_text;
-      link->pos = parse->tk_pos;
+      link->name = name;
+      link->needed = false;
+      memcpy( &link->pos, pos, sizeof( *pos ) );
       list_append( &parse->lib->dynamic_links, link );
    }
-   p_read_tk( parse );
+}
+
+void p_create_cmdline_library_links( struct parse* parse ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->options->library_links );
+   while ( ! list_end( &i ) ) {
+      struct pos pos;
+      t_init_pos_id( &pos, ALTERN_FILENAME_COMMANDLINE );
+      add_library_link( parse, list_data( &i ), &pos );
+      list_next( &i );
+   }
 }
 
 void p_add_unresolved( struct parse* parse, struct object* object ) {
@@ -749,4 +777,32 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
       list_next( &i );
    }
    list_append( &parse->task->library_main->dynamic, lib );
+}
+
+void determine_needed_library_links( struct parse* parse ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->library_main->dynamic_links );
+   while ( ! list_end( &i ) ) {
+      struct library_link* link = list_data( &i );
+      // A link must not refer to the library it is in.
+      if ( strcmp( link->name, parse->task->library_main->name.value ) == 0 ) {
+         p_diag( parse, DIAG_POS_ERR, &link->pos,
+            "library makes a link to itself" );
+         p_bail( parse );
+      }
+      // If a library is #imported, a link for it is not necessary.
+      list_iter_t k;
+      list_iter_init( &k, &parse->task->library_main->dynamic );
+      while ( ! list_end( &k ) ) {
+         struct library* lib = list_data( &k );
+         if ( strcmp( link->name, lib->name.value ) == 0 ) {
+            break;
+         }
+         list_next( &k );
+      }
+      if ( list_end( &k ) ) {
+         link->needed = true;
+      }
+      list_next( &i );
+   }
 }

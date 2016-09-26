@@ -909,6 +909,7 @@ void p_define_cmdline_macros( struct parse* parse ) {
          token->length = strlen( CMDLINEMACRO_TEXT );
          macro = alloc_macro( parse );
          macro->name = name;
+         macro->pos.id = ALTERN_FILENAME_COMMANDLINE;
          append_token( macro, token );
          append_macro( parse, macro );
       }

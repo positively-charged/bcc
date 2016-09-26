@@ -709,8 +709,7 @@ void do_load( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->dynamic_links );
    while ( ! list_end( &i ) ) {
       struct library_link* link = list_data( &i );
-      if ( strcmp( link->name,
-         codegen->task->library_main->name.value ) != 0 ) {
+      if ( link->needed ) {
          size += strlen( link->name ) + 1;
       }
       list_next( &i );
@@ -730,8 +729,7 @@ void do_load( struct codegen* codegen ) {
       list_iter_init( &i, &codegen->task->library_main->dynamic_links );
       while ( ! list_end( &i ) ) {
          struct library_link* link = list_data( &i );
-         if ( strcmp( link->name,
-            codegen->task->library_main->name.value ) != 0 ) {
+         if ( link->needed ) {
             c_add_sized( codegen, link->name, strlen( link->name ) + 1 );
          }
          list_next( &i );

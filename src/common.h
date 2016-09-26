@@ -69,6 +69,7 @@ void list_deinit( struct list* );
 struct options {
    struct list includes;
    struct list defines;
+   struct list library_links;
    const char* source_file;
    const char* object_file;
    int tab_size;
