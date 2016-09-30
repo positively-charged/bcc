@@ -153,7 +153,7 @@ void test_acs( struct semantic* semantic ) {
    semantic->trigger_err = true;
    // Test imported modules.
    list_iter_t i;
-   list_iter_init( &i, &semantic->main_lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic_acs );
    while ( ! list_end( &i ) ) {
       test_module_acs( semantic, list_data( &i ) );
       list_next( &i );
@@ -270,7 +270,7 @@ void test_bcs( struct semantic* semantic ) {
 void test_imported_acs_libs( struct semantic* semantic ) {
    semantic->trigger_err = true;
    list_iter_t i;
-   list_iter_init( &i, &semantic->main_lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic_acs );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       if ( lib->lang == LANG_ACS ) {
@@ -283,7 +283,7 @@ void test_imported_acs_libs( struct semantic* semantic ) {
 
 void bind_names( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->main_lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic_bcs );
    while ( ! list_end( &i ) ) {
       semantic->lib = list_data( &i );
       bind_namespace( semantic, semantic->lib->upmost_ns_fragment );
@@ -504,7 +504,7 @@ void hide_enumeration( struct semantic* semantic,
 void perform_usings( struct semantic* semantic ) {
    // Execute using directives in imported libraries.
    list_iter_t i;
-   list_iter_init( &i, &semantic->main_lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic_bcs );
    while ( ! list_end( &i ) ) {
       semantic->lib = list_data( &i );
       perform_namespace_usings( semantic, semantic->lib->upmost_ns_fragment );
@@ -894,7 +894,7 @@ void test_objects( struct semantic* semantic ) {
 
 void test_all( struct semantic* semantic ) {
    list_iter_t i;
-   list_iter_init( &i, &semantic->main_lib->dynamic );
+   list_iter_init( &i, &semantic->main_lib->dynamic_bcs );
    while ( ! list_end( &i ) ) {
       semantic->lib = list_data( &i );
       show_private_objects( semantic );

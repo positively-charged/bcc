@@ -74,6 +74,8 @@ void cache_init( struct cache* cache, struct task* task ) {
    }
 }
 
+// NOTE: The ID is only regenerated when this file is compiled. Compiling the
+// other source files of the cache will not cause the ID to be regenerated.
 void generate_header_id( struct str* id ) {
    char text[] = __DATE__ " " __TIME__;
    int i = 0;
@@ -223,6 +225,24 @@ void cache_add( struct cache* cache, struct library* lib ) {
       struct file_entry* file = list_data( &i );
       struct cache_dependency* dep = cache_alloc_dependency( cache,
          file->full_path.value );
+      cache_append_dependency( entry, dep );
+      list_next( &i );
+   }
+   list_iter_init( &i, &lib->import_dircs );
+   while ( ! list_end( &i ) ) {
+      struct import_dirc* dirc = list_data( &i );
+      struct file_query query;
+      t_init_file_query( &query, cache->task->library_main->file,
+         dirc->file_path );
+      t_find_file( cache->task, &query );
+      if ( ! query.file ) {
+         t_diag( cache->task, DIAG_POS_ERR, &dirc->pos,
+            "failed to generate cache dependency because library file could "
+            "not be found" );
+         t_bail( cache->task );
+      }
+      struct cache_dependency* dep = cache_alloc_dependency( cache,
+         query.file->full_path.value );
       cache_append_dependency( entry, dep );
       list_next( &i );
    }

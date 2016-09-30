@@ -203,7 +203,8 @@ void read_token_bcs( struct parse* parse ) {
             }
          }
          parse->token->pos = pos;
-         parse->token->modifiable_text = p_copy_text( parse, &text );
+         parse->token->modifiable_text = t_intern_text( parse->task,
+            text.value, text.length );
          parse->token->type = TK_LIT_STRING;
          parse->token->text = parse->token->modifiable_text;
          parse->token->length = text.length;

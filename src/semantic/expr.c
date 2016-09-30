@@ -1368,7 +1368,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    if ( is_struct( lside ) ) {
       struct name* name = t_extend_name( lside->structure->body,
          access->name );
-      if ( lside->ref->nullable ) {
+      if ( lside->ref && lside->ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
       return name->object;
@@ -1382,7 +1382,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       access->type = ACCESS_ARRAY;
       struct name* name = t_extend_name( semantic->task->array_name, "." );
       name = t_extend_name( name, access->name );
-      if ( lside->ref->nullable ) {
+      if ( lside->ref && lside->ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
       return name->object;
@@ -2237,7 +2237,9 @@ void select_constant( struct semantic* semantic, struct expr_test* test,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   test->has_str = constant->value_node->has_str;
+   if ( constant->has_str ) {
+      test->has_str = true;
+   }
 }
 
 void select_enumerator( struct semantic* semantic, struct expr_test* test,
@@ -2248,8 +2250,8 @@ void select_enumerator( struct semantic* semantic, struct expr_test* test,
    result->folded = true;
    result->complete = true;
    result->usable = true;
-   if ( enumerator->initz ) {
-      test->has_str = enumerator->initz->has_str;
+   if ( enumerator->has_str ) {
+      test->has_str = true;
    }
 }
 

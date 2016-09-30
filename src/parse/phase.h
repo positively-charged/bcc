@@ -320,6 +320,9 @@ struct dec {
    struct name* name_offset;
    struct dim* dim;
    struct list* vars;
+   struct var* var;
+   struct structure_member* member;
+   struct type_alias* type_alias_object;
    struct {
       struct pos pos;
       int type;
@@ -415,7 +418,6 @@ struct parse {
    int included_lines;
    int lang;
    const struct lang_limits* lang_limits;
-   struct text_buffer* text_buffer;
    bool main_source_deinited;
    bool variadic_macro_context;
 };
@@ -506,8 +508,6 @@ void p_define_imported_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
-char* p_copy_text( struct parse* parse, struct str* text );
-char* p_intern_text( struct parse* parse, const char* value, int length );
 bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
 void p_pop_source( struct parse* parse );

@@ -37,7 +37,6 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->main_lib_lines = 0;
    parse->included_lines = 0;
    parse->lang = LANG_BCS;
-   parse->text_buffer = NULL;
    parse->main_source_deinited = false;
    parse->variadic_macro_context = false;
 }

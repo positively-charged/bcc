@@ -34,6 +34,13 @@ enum {
    ALTERN_FILENAME_INITIAL_ID = -3,
 };
 
+struct text_buffer {
+   struct text_buffer* prev;
+   char* start;
+   char* end;
+   char* left;
+};
+
 struct pos {
    int line;
    int column;
@@ -162,15 +169,19 @@ struct enumeration {
    struct name* body;
    int base_type;
    bool hidden;
+   bool semicolon;
 };
 
 struct enumerator {
    struct object object;
    struct name* name;
    struct enumerator* next;
+   // NOTE: The following field is not cached. It will be NULL for an
+   // enumerator that is retrieved from a cached library.
    struct expr* initz;
    struct enumeration* enumeration;
    int value;
+   bool has_str;
 };
 
 struct structure {
@@ -182,6 +193,7 @@ struct structure {
    int size;
    bool anon;
    bool has_ref_member;
+   bool semicolon;
 };
 
 struct structure_member {
@@ -193,10 +205,13 @@ struct structure_member {
    struct path* path;
    struct dim* dim;
    struct structure_member* next;
+   struct structure_member* next_instance;
    int spec;
+   int original_spec;
    int offset;
    int size;
    int diminfo_start;
+   bool head_instance;
 };
 
 struct ref {
@@ -240,7 +255,10 @@ struct type_alias {
    struct path* path;
    struct dim* dim;
    struct name* name;
+   struct type_alias* next_instance;
    int spec;
+   int original_spec;
+   bool head_instance;
 };
 
 struct paren {
@@ -584,6 +602,8 @@ struct expr_stmt {
 
 struct dim {
    struct dim* next;
+   // NOTE: The following field is not cached. It will be NULL for a dimension
+   // that is retrieved from a cached library.
    struct expr* length_node;
    int length;
    int element_size;
@@ -636,8 +656,9 @@ struct var {
    struct dim* dim;
    struct initial* initial;
    struct value* value;
-   struct var* next;
+   struct var* next_instance;
    int spec;
+   int original_spec;
    int storage;
    int index;
    int size;
@@ -660,6 +681,7 @@ struct var {
    bool func_scope;
    bool constant;
    bool external;
+   bool head_instance;
 };
 
 struct param {
@@ -672,10 +694,12 @@ struct param {
    struct name* name;
    struct expr* default_value;
    int spec;
+   int original_spec;
    int index;
    int size;
    int obj_pos;
    bool used;
+   bool default_value_tested;
 };
 
 struct func {
@@ -698,6 +722,7 @@ struct func {
    struct param* params;
    void* impl;
    int return_spec;
+   int original_return_spec;
    int min_param;
    int max_param;
    bool hidden;
@@ -892,10 +917,13 @@ struct alias {
 struct constant {
    struct object object;
    struct name* name;
+   // NOTE: The following field is not cached. It will be NULL for a constant
+   // that is retrieved from a cached library.
    struct expr* value_node;
    int spec;
    int value;
    bool hidden;
+   bool has_str;
 };
 
 struct indexed_string {
@@ -986,6 +1014,7 @@ struct ns_link {
 struct ns_fragment {
    struct object object;
    struct ns* ns;
+   struct ns_path* path;
    struct object* unresolved;
    struct object* unresolved_tail;
    struct list objects;
@@ -993,6 +1022,12 @@ struct ns_fragment {
    struct list scripts;
    struct list fragments;
    struct list usings;
+};
+
+struct ns_path {
+   struct ns_path* next;
+   const char* text;
+   struct pos pos;
 };
 
 struct using_dirc {
@@ -1034,7 +1069,9 @@ struct library {
    // #included/#imported libraries.
    struct list import_dircs;
    struct list dynamic;
-   struct list dynamic_links;
+   struct list dynamic_acs;
+   struct list dynamic_bcs;
+   struct list links;
    struct list files;
    struct list external_vars;
    struct list external_funcs;
@@ -1081,6 +1118,7 @@ struct task {
    struct options* options;
    FILE* err_file;
    jmp_buf* bail;
+   struct text_buffer* text_buffer;
    struct file_entry* file_entries;
    struct str_table str_table;
    struct str_table script_name_table;
@@ -1172,5 +1210,8 @@ struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length );
 struct ref_func* t_alloc_ref_func( void );
 struct ns_fragment* t_alloc_ns_fragment( void );
+struct type_alias* t_alloc_type_alias( void );
+char* t_intern_text( struct task* task, const char* value, int length );
+struct text_buffer* t_get_text_buffer( struct task* task, int min_free_size );
 
 #endif

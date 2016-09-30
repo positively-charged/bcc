@@ -23,6 +23,7 @@ static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
 static void read_namespace( struct parse* parse );
 static void read_namespace_name( struct parse* parse );
+static void read_namespace_path( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
 static struct using_dirc* alloc_using( struct pos* pos );
@@ -143,10 +144,9 @@ void read_namespace( struct parse* parse ) {
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
    list_append( &parent_fragment->fragments, fragment );
+   parse->ns_fragment = fragment;
    p_read_tk( parse );
    read_namespace_name( parse );
-   fragment->ns = parse->ns;
-   parse->ns_fragment = fragment;
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    read_namespace_member_list( parse );
@@ -157,30 +157,53 @@ void read_namespace( struct parse* parse ) {
 }
 
 void read_namespace_name( struct parse* parse ) {
-   if ( parse->tk == TK_UPMOST ) {
-      parse->ns = parse->task->upmost_ns;
-      p_read_tk( parse );
-   }
-   else {
-      while ( true ) {
-         p_test_tk( parse, TK_ID );
-         struct name* name = t_extend_name( parse->ns->body, parse->tk_text );
+   read_namespace_path( parse );
+   if ( parse->ns_fragment->path ) {
+      struct ns_path* path = parse->ns_fragment->path;
+      while ( path ) {
+         struct name* name = t_extend_name( parse->ns->body, path->text );
          if ( ! name->object ) {
             struct ns* ns = t_alloc_ns( name );
-            ns->object.pos = parse->tk_pos;
+            ns->object.pos = path->pos;
             ns->parent = parse->ns;
             list_append( &parse->lib->namespaces, ns );
             name->object = &ns->object;
          }
          parse->ns = ( struct ns* ) name->object;
-         p_read_tk( parse );
-         if ( parse->tk == TK_DOT ) {
-            p_read_tk( parse );
-         }
-         else {
-            break;
-         }
+         parse->ns_fragment->ns = parse->ns;
+         path = path->next;
       }
+   }
+   else {
+      parse->ns = parse->task->upmost_ns;
+      parse->ns_fragment->ns = parse->ns;
+   }
+}
+
+void read_namespace_path( struct parse* parse ) {
+   if ( parse->tk == TK_UPMOST ) {
+      p_read_tk( parse );
+   }
+   else {
+      p_test_tk( parse, TK_ID );
+      struct ns_path* head = mem_alloc( sizeof( *head ) );
+      struct ns_path* tail = head;
+      head->next = NULL;
+      head->text = parse->tk_text;
+      head->pos = parse->tk_pos;
+      p_read_tk( parse );
+      while ( parse->tk == TK_DOT ) {
+         p_read_tk( parse );
+         p_test_tk( parse, TK_ID );
+         struct ns_path* path = mem_alloc( sizeof( *head ) );
+         path->next = NULL;
+         path->text = parse->tk_text;
+         path->pos = parse->tk_pos;
+         tail->next = path;
+         tail = path;
+         p_read_tk( parse );
+      }
+      parse->ns_fragment->path = head;
    }
 }
 
@@ -324,7 +347,7 @@ struct path* p_read_path( struct parse* parse ) {
 struct path* alloc_path( struct pos pos ) {
    struct path* path = mem_alloc( sizeof( *path ) );
    path->next = NULL;
-   path->text = NULL;
+   path->text = "";
    path->pos = pos;
    path->upmost = false;
    return path;
@@ -582,6 +605,7 @@ void read_library( struct parse* parse, struct pos* pos, bool first_object ) {
       read_library_name( parse, pos );
    }
    else {
+      parse->lib->name_pos = *pos;
       parse->lib->compiletime = true;
    }
    // In ACS, the #library header must be the first object in the module. In
@@ -657,7 +681,7 @@ void add_library_link( struct parse* parse, const char* name,
    test_library_name( parse, pos, name, strlen( name ) );
    struct library_link* link = NULL;
    list_iter_t i;
-   list_iter_init( &i, &parse->lib->dynamic_links );
+   list_iter_init( &i, &parse->lib->links );
    while ( ! list_end( &i ) ) {
       struct library_link* other_link = list_data( &i );
       if ( strcmp( other_link->name, name ) == 0 ) {
@@ -677,7 +701,7 @@ void add_library_link( struct parse* parse, const char* name,
       link->name = name;
       link->needed = false;
       memcpy( &link->pos, pos, sizeof( *pos ) );
-      list_append( &parse->lib->dynamic_links, link );
+      list_append( &parse->lib->links, link );
    }
 }
 
@@ -751,7 +775,6 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    parse->ns = parse->ns_fragment->ns;
    p_clear_macros( parse );
    p_define_imported_macro( parse );
-   p_define_cmdline_macros( parse );
    p_read_tk( parse );
    read_module( parse );
    parse->lib = parse->task->library_main;
@@ -777,11 +800,17 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
       list_next( &i );
    }
    list_append( &parse->task->library_main->dynamic, lib );
+   if ( lib->lang == LANG_ACS ) {
+      list_append( &parse->task->library_main->dynamic_acs, lib );
+   }
+   else {
+      list_append( &parse->task->library_main->dynamic_bcs, lib );
+   }
 }
 
 void determine_needed_library_links( struct parse* parse ) {
    list_iter_t i;
-   list_iter_init( &i, &parse->task->library_main->dynamic_links );
+   list_iter_init( &i, &parse->task->library_main->links );
    while ( ! list_end( &i ) ) {
       struct library_link* link = list_data( &i );
       // A link must not refer to the library it is in.

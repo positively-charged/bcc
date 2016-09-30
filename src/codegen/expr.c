@@ -2050,8 +2050,8 @@ void visit_name_usage( struct codegen* codegen, struct result* result,
 
 void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant ) {
-   struct indexed_string* string = constant->value_node->has_str ?
-      t_lookup_string( codegen->task, constant->value_node->value ) : NULL;
+   struct indexed_string* string = constant->has_str ?
+      t_lookup_string( codegen->task, constant->value ) : NULL;
    if ( string ) {
       c_push_string( codegen, string );
    }
@@ -2063,9 +2063,10 @@ void visit_constant( struct codegen* codegen, struct result* result,
 
 void visit_enumerator( struct codegen* codegen, struct result* result,
    struct enumerator* enumerator ) {
-   struct indexed_string* string = enumerator->initz &&
-      enumerator->initz->has_str ? t_lookup_string( codegen->task,
-      enumerator->initz->value ) : NULL;
+   struct indexed_string* string = NULL;
+   if ( enumerator->has_str ) {
+      string = t_lookup_string( codegen->task, enumerator->value );
+   }
    if ( string ) {
       c_push_string( codegen, string );
    }

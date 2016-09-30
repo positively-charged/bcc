@@ -30,6 +30,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->options = options;
    task->err_file = NULL;
    task->bail = bail;
+   task->text_buffer = NULL;
    task->file_entries = NULL;
    init_str_table( &task->str_table );
    init_str_table( &task->script_name_table );
@@ -108,6 +109,7 @@ struct ns_fragment* t_alloc_ns_fragment( void ) {
    struct ns_fragment* fragment = mem_alloc( sizeof( *fragment ) );
    t_init_object( &fragment->object, NODE_NAMESPACEFRAGMENT );
    fragment->ns = NULL;
+   fragment->path = NULL;
    fragment->unresolved = NULL;
    fragment->unresolved_tail = NULL;
    list_init( &fragment->objects );
@@ -585,7 +587,9 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->files );
    list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
-   list_init( &lib->dynamic_links );
+   list_init( &lib->dynamic_acs );
+   list_init( &lib->dynamic_bcs );
+   list_init( &lib->links );
    list_init( &lib->external_vars );
    list_init( &lib->external_funcs );
    lib->upmost_ns_fragment = t_alloc_ns_fragment();
@@ -607,6 +611,33 @@ struct library* t_add_library( struct task* task ) {
    lib->wadauthor = false;
    lib->uses_nullable_refs = false;
    return lib;
+}
+
+char* t_intern_text( struct task* task, const char* value, int length ) {
+   struct text_buffer* buffer = t_get_text_buffer( task, length + 1 );
+   memcpy( buffer->left, value, length + 1 );
+   char* text = buffer->left;
+   buffer->left += length + 1;
+   return text;
+}
+
+struct text_buffer* t_get_text_buffer( struct task* task,
+   int min_free_size ) {
+   struct text_buffer* buffer = task->text_buffer;
+   if ( ! buffer || buffer->end - buffer->left < min_free_size ) {
+      buffer = mem_alloc( sizeof( *buffer ) );
+      buffer->prev = task->text_buffer;
+      enum { INITIAL_SIZE = 1 << 15 };
+      unsigned int size = INITIAL_SIZE;
+      while ( size < min_free_size ) {
+         size <<= 1;
+      }
+      buffer->start = mem_alloc( sizeof( char ) * size );
+      buffer->end = buffer->start + size;
+      buffer->left = buffer->start;
+      task->text_buffer = buffer;
+   }
+   return buffer;
 }
 
 struct indexed_string* t_intern_string( struct task* task,
@@ -714,6 +745,7 @@ struct constant* t_alloc_constant( void ) {
    constant->spec = SPEC_NONE;
    constant->value = 0;
    constant->hidden = false;
+   constant->has_str = false;
    return constant;
 }
 
@@ -726,6 +758,7 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->body = NULL;
    enumeration->base_type = SPEC_INT;
    enumeration->hidden = false;
+   enumeration->semicolon = false;
    return enumeration;
 }
 
@@ -737,6 +770,7 @@ struct enumerator* t_alloc_enumerator( void ) {
    enumerator->initz = NULL;
    enumerator->enumeration = NULL;
    enumerator->value = 0;
+   enumerator->has_str = false;
    return enumerator;
 }
 
@@ -761,6 +795,7 @@ struct structure* t_alloc_structure( void ) {
    structure->size = 0;
    structure->anon = false;
    structure->has_ref_member = false;
+   structure->semicolon = false;
    return structure;
 }
 
@@ -774,10 +809,13 @@ struct structure_member* t_alloc_structure_member( void ) {
    member->path = NULL;
    member->dim = NULL;
    member->next = NULL;
+   member->next_instance = NULL;
    member->spec = SPEC_NONE;
+   member->original_spec = SPEC_NONE;
    member->offset = 0;
    member->size = 0;
    member->diminfo_start = 0;
+   member->head_instance = false;
    return member;
 }
 
@@ -812,8 +850,9 @@ struct var* t_alloc_var( void ) {
    var->dim = NULL;
    var->initial = NULL;
    var->value = NULL;
-   var->next = NULL;
+   var->next_instance = NULL;
    var->spec = SPEC_NONE;
+   var->original_spec = SPEC_NONE;
    var->storage = STORAGE_LOCAL;
    var->index = 0;
    var->size = 0;
@@ -829,6 +868,7 @@ struct var* t_alloc_var( void ) {
    var->func_scope = false;
    var->constant = false;
    var->external = false;
+   var->head_instance = false;
    return var;
 }
 
@@ -844,6 +884,7 @@ struct func* t_alloc_func( void ) {
    func->params = NULL;
    func->impl = NULL;
    func->return_spec = SPEC_VOID;
+   func->original_return_spec = SPEC_VOID;
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;
@@ -884,10 +925,12 @@ struct param* t_alloc_param( void ) {
    param->name = NULL;
    param->default_value = NULL;
    param->spec = SPEC_NONE;
+   param->original_spec = SPEC_NONE;
    param->index = 0;
    param->size = 0;
    param->obj_pos = 0;
    param->used = false;
+   param->default_value_tested = false;
    return param;
 }
 
@@ -992,4 +1035,21 @@ struct ref_func* t_alloc_ref_func( void ) {
    func->max_param = 0;
    func->msgbuild = false;
    return func;
+}
+
+struct type_alias* t_alloc_type_alias( void ) {
+   struct type_alias* alias = mem_alloc( sizeof( *alias ) );
+   t_init_object( &alias->object, NODE_TYPE_ALIAS );
+   t_init_pos_id( &alias->object.pos, ALTERN_FILENAME_COMPILER );
+   alias->ref = NULL;
+   alias->structure = NULL;
+   alias->enumeration = NULL;
+   alias->path = NULL;
+   alias->dim = NULL;
+   alias->name = NULL;
+   alias->next_instance = NULL;
+   alias->spec = SPEC_NONE;
+   alias->original_spec = SPEC_NONE;
+   alias->head_instance = false;
+   return alias;
 }

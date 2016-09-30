@@ -472,7 +472,7 @@ void expand_predef_line( struct parse* parse, struct macro_expan* expan ) {
    struct token token;
    p_init_token( &token );
    token.type = TK_LIT_DECIMAL;
-   token.text = p_intern_text( parse, value, length );
+   token.text = t_intern_text( parse->task, value, length );
    token.length = length;
    token.pos = expan->pos;
    output( parse, expan, &token );
@@ -487,7 +487,7 @@ void expand_predef_file( struct parse* parse, struct macro_expan* expan ) {
    p_init_token( &token );
    token.type = TK_LIT_STRING;
    token.length = strlen( file );
-   token.text = p_intern_text( parse, file, token.length );
+   token.text = t_intern_text( parse->task, file, token.length );
    token.pos = expan->pos;
    output( parse, expan, &token );
 }
@@ -502,7 +502,7 @@ void expand_predef_time( struct parse* parse, struct macro_expan* expan ) {
    struct token token;
    p_init_token( &token );
    token.type = TK_LIT_STRING;
-   token.text = p_intern_text( parse, value, length );
+   token.text = t_intern_text( parse->task, value, length );
    token.length = length;
    token.pos = expan->pos;
    output( parse, expan, &token );
@@ -517,7 +517,7 @@ void expand_predef_date( struct parse* parse, struct macro_expan* expan ) {
    struct token token;
    p_init_token( &token );
    token.type = TK_LIT_STRING;
-   token.text = p_intern_text( parse, value, length );
+   token.text = t_intern_text( parse->task, value, length );
    token.length = length;
    token.pos = expan->pos;
    output( parse, expan, &token );
@@ -710,7 +710,7 @@ void stringize( struct parse* parse, struct macro_expan* expan ) {
    struct token result;
    p_init_token( &result );
    result.type = TK_LIT_STRING;
-   result.text = p_intern_text( parse, parse->temp_text.value,
+   result.text = t_intern_text( parse->task, parse->temp_text.value,
       parse->temp_text.length );
    result.length = parse->temp_text.length;
    result.pos = expan->pos;

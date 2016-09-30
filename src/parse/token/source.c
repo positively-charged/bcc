@@ -7,13 +7,6 @@
 
 enum { LINE_OFFSET = 1 };
 
-struct text_buffer {
-   struct text_buffer* prev;
-   char* start;
-   char* end;
-   char* left;
-};
-
 static void append_file( struct library* lib, struct file_entry* file );
 static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
@@ -21,8 +14,6 @@ static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
 static void create_entry( struct parse* parse, struct request* request );
 static void read_token_acs( struct parse* parse, struct token* token );
-static struct text_buffer* get_text_buffer( struct parse* parse,
-   int min_free_size );
 static void read_token( struct parse* parse, struct token* token );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
@@ -726,7 +717,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          { "world", TK_WORLD }
       };
       enum { MAX_IDENTIFIER_LENGTH = 31 };
-      struct text_buffer* text_buffer = get_text_buffer( parse,
+      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
          MAX_IDENTIFIER_LENGTH + 1 );
       text = text_buffer->left;
       char* copied_text = text;
@@ -936,7 +927,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       enum { SEGMENTLENGTH = 255 };
       enum { CUSHIONLENGTH = 1 };
       enum { SAFELENGTH = SEGMENTLENGTH - CUSHIONLENGTH };
-      struct text_buffer* text_buffer = get_text_buffer( parse,
+      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
          SEGMENTLENGTH + 1 );
       text = text_buffer->left;
       char* copied_text = text;
@@ -970,7 +961,8 @@ void read_token_acs( struct parse* parse, struct token* token ) {
             *copied_text = '\0';
             if ( temp_text ) {
                temp_text->length = copied_text - temp_text->value;
-               text = p_copy_text( parse, temp_text );
+               text = t_intern_text( parse->task, temp_text->value,
+                  temp_text->length );
                length = temp_text->length;
             }
             else {
@@ -1081,25 +1073,6 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    token->pos.column = column;
    token->pos.id = id;
    token->next = NULL;
-}
-
-inline struct text_buffer* get_text_buffer( struct parse* parse,
-   int min_free_size ) {
-   struct text_buffer* buffer = parse->text_buffer;
-   if ( ! buffer || buffer->end - buffer->left < min_free_size ) {
-      buffer = mem_alloc( sizeof( *buffer ) );
-      buffer->prev = parse->text_buffer;
-      enum { INITIAL_SIZE = 1 << 15 };
-      unsigned int size = INITIAL_SIZE;
-      while ( size < min_free_size ) {
-         size <<= 1;
-      }
-      buffer->start = mem_alloc( sizeof( char ) * size );
-      buffer->end = buffer->start + size;
-      buffer->left = buffer->start;
-      parse->text_buffer = buffer;
-   }
-   return buffer;
 }
 
 void read_token( struct parse* parse, struct token* token ) {
@@ -1793,7 +1766,8 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    token->type = tk;
    if ( text != NULL ) {
-      token->modifiable_text = p_copy_text( parse, text );
+      token->modifiable_text = t_intern_text( parse->task, text->value,
+         text->length );
       token->text = token->modifiable_text;
       token->length = text->length;
    }
@@ -2033,22 +2007,6 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
 struct str* temp_text( struct parse* parse ) {
    str_clear( &parse->temp_text );
    return &parse->temp_text;
-}
-
-char* p_copy_text( struct parse* parse, struct str* str ) {
-   struct text_buffer* buffer = get_text_buffer( parse, str->length + 1 );
-   memcpy( buffer->left, str->value, str->length + 1 );
-   char* text = buffer->left;
-   buffer->left += str->length + 1;
-   return text;
-}
-
-char* p_intern_text( struct parse* parse, const char* value, int length ) {
-   struct text_buffer* buffer = get_text_buffer( parse, length + 1 );
-   memcpy( buffer->left, value, length + 1 );
-   char* text = buffer->left;
-   buffer->left += length + 1;
-   return text;
 }
 
 void append_ch( struct str* str, char ch ) {

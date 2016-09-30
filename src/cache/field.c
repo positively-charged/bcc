@@ -44,7 +44,7 @@ void f_rf( struct field_reader* reader, char expected_field ) {
    if ( field != expected_field ) {
       reader->err = FIELDRERR_UNEXPECTEDFIELD;
       reader->field = field;
-      reader->expected_field = field;
+      reader->expected_field = expected_field;
       longjmp( *reader->bail, 1 );
    }
 }

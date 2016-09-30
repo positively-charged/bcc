@@ -147,7 +147,7 @@ static void test_auto_var( struct semantic* semantic, struct var* var );
 static void assign_inferred_type( struct semantic* semantic, struct var* var,
    struct type_info* type );
 static void init_initz_test( struct initz_test* test,
-   struct initz_test* parent, int spec, struct dim* dim,
+   struct initz_test* parent, struct var* var, int spec, struct dim* dim,
    struct structure* structure, struct enumeration* enumeration,
    struct ref* ref, bool constant );
 static void init_root_initz_test( struct initz_test* test, struct var* var );
@@ -241,6 +241,7 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
       if ( constant->value_node->folded ) {
          constant->spec = constant->value_node->spec;
          constant->value = constant->value_node->value;
+         constant->has_str = constant->value_node->has_str;
          constant->object.resolved = true;
       }
       else {
@@ -309,6 +310,7 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
          s_bail( semantic );
       }
       test->value = enumerator->initz->value;
+      enumerator->has_str = enumerator->initz->has_str;
    }
    else {
       // Non-integer base types require an explicit initializer.
@@ -999,9 +1001,9 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
 }
 
 void init_initz_test( struct initz_test* test, struct initz_test* parent,
-   int spec, struct dim* dim, struct structure* structure,
+   struct var* var, int spec, struct dim* dim, struct structure* structure,
    struct enumeration* enumeration, struct ref* ref, bool constant ) {
-   test->var = NULL;
+   test->var = var;
    test->ref = ref;
    test->structure = structure;
    test->member = NULL;
@@ -1015,9 +1017,8 @@ void init_initz_test( struct initz_test* test, struct initz_test* parent,
 }
 
 void init_root_initz_test( struct initz_test* test, struct var* var ) {
-   init_initz_test( test, NULL, var->spec, var->dim, var->structure,
+   init_initz_test( test, NULL, var, var->spec, var->dim, var->structure,
       var->enumeration, var->ref, var->is_constant_init );
-   test->var = var;
 }
 
 bool test_multi_value( struct semantic* semantic, struct initz_test* test,
@@ -1078,8 +1079,9 @@ bool test_multi_value_array_child( struct semantic* semantic,
    }
    if ( initial->multi ) {
       struct initz_test nested_test;
-      init_initz_test( &nested_test, test, test->spec, test->dim->next,
-         test->structure, test->enumeration, test->ref, test->constant );
+      init_initz_test( &nested_test, test, test->var, test->spec,
+         test->dim->next, test->structure, test->enumeration, test->ref,
+         test->constant );
       bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
       if ( nested_test.has_str ) {
@@ -1146,8 +1148,9 @@ bool test_multi_value_struct_child( struct semantic* semantic,
    }
    if ( initial->multi ) {
       struct initz_test nested_test;
-      init_initz_test( &nested_test, test, member->spec, member->dim,
-         member->structure, member->enumeration, member->ref, test->constant );
+      init_initz_test( &nested_test, test, test->var, member->spec,
+         member->dim, member->structure, member->enumeration, member->ref,
+         test->constant );
       bool resolved = test_multi_value( semantic, &nested_test,
          ( struct multi_value* ) initial );
       if ( nested_test.has_str ) {
@@ -1782,7 +1785,10 @@ bool test_param_after_name( struct semantic* semantic,
       }
    }
    if ( param->default_value ) {
-      return test_param_default_value( semantic, test, param );
+      if ( ! param->default_value_tested &&
+         ! test_param_default_value( semantic, test, param ) ) {
+         return false;
+      }
    }
    else {
       if ( test->prev_param && test->prev_param->default_value ) {
@@ -1790,8 +1796,8 @@ bool test_param_after_name( struct semantic* semantic,
             "parameter missing default value" );
          s_bail( semantic );
       }
-      return true;
    }
+   return true;
 }
 
 bool test_param_default_value( struct semantic* semantic,
@@ -1835,6 +1841,7 @@ bool test_param_default_value( struct semantic* semantic,
          s_bail( semantic );
       }
    }
+   param->default_value_tested = true;
    return true;
 }
 

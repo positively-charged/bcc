@@ -227,6 +227,9 @@ void p_init_dec( struct dec* dec ) {
    dec->name_offset = NULL;
    dec->dim = NULL;
    dec->vars = NULL;
+   dec->var = NULL;
+   dec->member = NULL;
+   dec->type_alias_object = NULL;
    dec->storage.type = STORAGE_LOCAL;
    dec->storage.specified = false;
    dec->storage_index.value = 0;
@@ -288,13 +291,17 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_ENUM && p_peek( parse ) == TK_ID &&
-      ( p_peek_2nd( parse ) == TK_ID || p_peek_2nd( parse ) == TK_UPMOST ) ) {
+   if ( parse->tk == TK_ENUM && (
+      p_peek( parse ) == TK_ID ||
+      p_peek( parse ) == TK_UPMOST ) && (
+      p_peek_2nd( parse ) == TK_ID ||
+      p_peek_2nd( parse ) == TK_DOT ) ) {
       read_var( parse, dec );
    }
    else {
       read_enum_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
+         dec->enumeration->semicolon = true;
          p_read_tk( parse );
       }
       else {
@@ -446,6 +453,7 @@ void read_struct( struct parse* parse, struct dec* dec ) {
             p_bail( parse );
          }
          p_read_tk( parse );
+         dec->structure->semicolon = true;
       }
       else {
          dec->semicolon_absent = true;
@@ -554,6 +562,14 @@ struct structure_member* create_structure_member( struct dec* dec ) {
    member->path = dec->path;
    member->dim = dec->dim;
    member->spec = dec->spec;
+   member->original_spec = dec->spec;
+   if ( dec->member ) {
+      dec->member->next_instance = member;
+   }
+   else {
+      member->head_instance = true;
+   }
+   dec->member = member;
    return member;
 }
 
@@ -590,7 +606,7 @@ void read_synon( struct parse* parse, struct dec* dec ) {
 }
 
 void finish_synon( struct parse* parse, struct dec* dec ) {
-   struct type_alias* alias = mem_alloc( sizeof( *alias ) );
+   struct type_alias* alias = t_alloc_type_alias();
    t_init_object( &alias->object, NODE_TYPE_ALIAS );
    alias->object.pos = dec->name_pos;
    alias->name = dec->name;
@@ -600,6 +616,7 @@ void finish_synon( struct parse* parse, struct dec* dec ) {
    alias->path = dec->path;
    alias->dim = dec->dim;
    alias->spec = dec->spec;
+   alias->original_spec = dec->spec;
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &alias->object );
       list_append( &parse->ns_fragment->objects, alias );
@@ -607,6 +624,13 @@ void finish_synon( struct parse* parse, struct dec* dec ) {
    else {
       list_append( dec->vars, alias );
    }
+   if ( dec->type_alias_object ) {
+      dec->type_alias_object->next_instance = alias;
+   }
+   else {
+      alias->head_instance = true;
+   }
+   dec->type_alias_object = alias;
 }
 
 void read_var( struct parse* parse, struct dec* dec ) {
@@ -1083,7 +1107,8 @@ void read_var_init( struct parse* parse, struct dec* dec ) {
 
 void read_imported_init( struct parse* parse, struct dec* dec ) {
    if ( dec->dim ) {
-      if ( parse->tk == TK_ASSIGN || has_implicit_length_dim( dec ) ) {
+      if ( parse->tk == TK_ASSIGN || ( has_implicit_length_dim( dec ) &&
+         ! dec->storage.specified ) ) {
          p_test_tk( parse, TK_ASSIGN );
          p_read_tk( parse );
          read_imported_multi_init( parse, dec->dim );
@@ -1360,6 +1385,13 @@ void add_var( struct parse* parse, struct dec* dec ) {
    else {
       UNREACHABLE();
    }
+   if ( dec->var ) {
+      dec->var->next_instance = var;
+   }
+   else {
+      var->head_instance = true;
+   }
+   dec->var = var;
 }
 
 struct var* alloc_var( struct dec* dec ) {
@@ -1373,6 +1405,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->dim = dec->dim;
    var->initial = dec->initz.initial;
    var->spec = dec->spec;
+   var->original_spec = dec->spec;
    var->storage = dec->storage.type;
    var->index = dec->storage_index.value;
    var->is_constant_init =
@@ -1442,6 +1475,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->path = dec->path;
    func->name = dec->name;
    func->return_spec = dec->spec;
+   func->original_return_spec = dec->spec;
    func->hidden = dec->private_visibility;
    func->msgbuild = dec->msgbuild;
    func->imported = parse->lib->imported;
@@ -1585,6 +1619,7 @@ void read_param_spec( struct parse* parse, struct params* params,
       case TK_BOOL:
       case TK_STR:
          param->spec = SPEC_RAW;
+         param->original_spec = SPEC_RAW;
          p_read_tk( parse );
          break;
       default:
@@ -1604,6 +1639,7 @@ void read_param_spec( struct parse* parse, struct params* params,
       read_spec( parse, &spec );
       param->path = spec.path;
       param->spec = spec.type;
+      param->original_spec = spec.type;
    }
 }
 
