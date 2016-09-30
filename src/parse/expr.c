@@ -834,8 +834,8 @@ int extract_radix_literal( struct parse* parse ) {
       }
       if ( digit_value == base ) {
          p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "invalid digit in position %d of radix-%d literal",
-            i - first_digit_pos + 1, base );
+            "invalid digit (`%c`) in position %d of radix-%d literal",
+            parse->tk_text[ i ], i - first_digit_pos + 1, base );
          p_bail( parse );
       }
       // TODO: Check for overflow.

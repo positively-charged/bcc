@@ -1615,6 +1615,13 @@ void read_token( struct parse* parse, struct token* token ) {
       ch = read_ch( parse );
       goto fraction;
    }
+   else if ( ch == 'r' || ch == 'R' ) {
+      text = temp_text( parse );
+      append_ch( text, '0' );
+      append_ch( text, '_' );
+      ch = read_ch( parse );
+      goto radix;
+   }
    else {
       text = temp_text( parse );
       str_append( text, "0" );
@@ -1646,6 +1653,11 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
          goto fraction;
+      }
+      else if ( ch == 'r' || ch == 'R' ) {
+         append_ch( text, '_' );
+         ch = read_ch( parse );
+         goto radix;
       }
       else if ( isalpha( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
@@ -1686,6 +1698,30 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else {
          tk = TK_LIT_FIXED;
+         goto state_finish;
+      }
+   }
+
+   radix:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isalnum( ch ) ) {
+         append_ch( &parse->temp_text, tolower( ch ) );
+         ch = read_ch( parse );
+      }
+      else if ( ch == '_' ) {
+         ch = read_ch( parse );
+         if ( ! isalnum( ch ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing digit after digit separator" );
+            p_bail( parse );
+         }
+      }
+      else {
+         tk = TK_LIT_RADIX;
          goto state_finish;
       }
    }
