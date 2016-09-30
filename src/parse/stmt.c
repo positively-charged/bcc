@@ -125,13 +125,13 @@ void read_block_item( struct parse* parse, struct stmt_reading* reading,
 void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
    // Declaration.
-   if ( p_is_dec( parse ) ) {
+   if ( p_is_local_dec( parse ) ) {
       struct dec dec;
       p_init_dec( &dec );
       dec.area = DEC_LOCAL;
       dec.name_offset = parse->ns->body;
       dec.vars = &block->stmts;
-      p_read_dec( parse, &dec );
+      p_read_local_dec( parse, &dec );
       return;
    }
    // goto label.
@@ -325,7 +325,7 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_cond( struct parse* parse, struct cond* cond ) {
-   if ( parse->lang == LANG_BCS && p_is_dec( parse ) ) {
+   if ( parse->lang == LANG_BCS && p_is_local_dec( parse ) ) {
       cond->u.var = p_read_cond_var( parse );
    }
    else {
@@ -456,13 +456,13 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
-   if ( p_is_dec( parse ) ) {
+   if ( p_is_local_dec( parse ) ) {
       struct dec dec;
       p_init_dec( &dec );
       dec.area = DEC_FOR;
       dec.name_offset = parse->ns->body;
       dec.vars = &stmt->init;
-      p_read_dec( parse, &dec );
+      p_read_local_dec( parse, &dec );
    }
    else {
       while ( true ) {

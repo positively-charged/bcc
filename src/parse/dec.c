@@ -52,6 +52,7 @@ struct special_reading {
 };
 
 static bool is_dec_bcs( struct parse* parse );
+static void read_let( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
@@ -245,6 +246,7 @@ void p_init_dec( struct dec* dec ) {
    dec->type_alias = false;
    dec->semicolon_absent = false;
    dec->external = false;
+   dec->force_local_scope = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -290,6 +292,27 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    }
 }
 
+bool p_is_local_dec( struct parse* parse ) {
+   return ( p_is_dec( parse ) || parse->tk == TK_LET );
+}
+
+void p_read_local_dec( struct parse* parse, struct dec* dec ) {
+   read_let( parse, dec );
+   p_read_dec( parse, dec );
+}
+
+void read_let( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_LET ) {
+      dec->force_local_scope = true;
+      p_read_tk( parse );
+   }
+   else {
+      if ( p_in_explicit_namespace_fragment( parse ) ) {
+         dec->force_local_scope = true;
+      }
+   }
+}
+
 void read_enum( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_ENUM && (
       p_peek( parse ) == TK_ID ||
@@ -327,6 +350,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    struct enumeration* enumeration = t_alloc_enumeration();
    enumeration->object.pos = dec->type_pos;
    enumeration->hidden = dec->private_visibility;
+   enumeration->force_local_scope = dec->force_local_scope;
    read_enum_name( parse, enumeration );
    read_enum_base_type( parse, enumeration );
    read_enum_body( parse, dec, enumeration );
@@ -473,6 +497,7 @@ inline bool is_struct_def( struct parse* parse ) {
 void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct structure* structure = t_alloc_structure();
    structure->object.pos = parse->tk_pos;
+   structure->force_local_scope = dec->force_local_scope;
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
    read_struct_name( parse, structure );
@@ -617,6 +642,7 @@ void finish_synon( struct parse* parse, struct dec* dec ) {
    alias->dim = dec->dim;
    alias->spec = dec->spec;
    alias->original_spec = dec->spec;
+   alias->force_local_scope = dec->force_local_scope;
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &alias->object );
       list_append( &parse->ns_fragment->objects, alias );
@@ -1410,6 +1436,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->index = dec->storage_index.value;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
+   var->force_local_scope = dec->force_local_scope;
    var->external = dec->external;
    return var;
 }
@@ -1480,6 +1507,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    func->msgbuild = dec->msgbuild;
    func->imported = parse->lib->imported;
    func->external = dec->external;
+   func->force_local_scope = dec->force_local_scope;
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    read_func_param_list( parse, func );
@@ -1739,6 +1767,7 @@ struct var* p_read_cond_var( struct parse* parse ) {
    p_init_dec( &dec );
    dec.area = DEC_LOCAL;
    dec.name_offset = parse->ns->body;
+   read_let( parse, &dec );
    if ( parse->tk == TK_AUTO ) {
       dec.spec = SPEC_AUTO;
       p_read_tk( parse );
@@ -1783,7 +1812,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
    else {
       p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
-      if ( parse->tk == TK_AUTO || is_spec( parse ) ) {
+      if ( parse->tk == TK_AUTO || is_spec( parse ) || parse->tk == TK_LET ) {
          stmt->key = stmt->value;
          p_init_dec( &dec );
          dec.name_offset = parse->ns->body;
@@ -1796,6 +1825,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
 }
 
 void read_foreach_var( struct parse* parse, struct dec* dec ) {
+   read_let( parse, dec );
    if ( parse->tk == TK_AUTO ) {
       dec->spec = SPEC_AUTO;
       p_read_tk( parse );

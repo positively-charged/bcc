@@ -247,6 +247,10 @@ void read_namespace_member( struct parse* parse ) {
    }
 }
 
+bool p_in_explicit_namespace_fragment( struct parse* parse ) {
+   return ( parse->ns_fragment != parse->lib->upmost_ns_fragment );
+}
+
 void p_read_using( struct parse* parse, struct list* output ) {
    struct using_dirc* dirc = alloc_using( &parse->tk_pos );
    p_test_tk( parse, TK_USING );

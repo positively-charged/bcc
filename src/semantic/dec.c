@@ -93,7 +93,7 @@ static bool test_member_spec( struct semantic* semantic,
 static bool test_member_ref( struct semantic* semantic,
    struct structure_member* member );
 static bool test_member_name( struct semantic* semantic,
-   struct structure_member* member );
+   struct structure* structure, struct structure_member* member );
 static bool test_member_dim( struct semantic* semantic,
    struct structure_member* member );
 static bool test_typedef_spec( struct semantic* semantic,
@@ -256,7 +256,8 @@ void s_test_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
    if ( enumeration->name ) {
       if ( semantic->in_localscope ) {
-         s_bind_name( semantic, enumeration->name, &enumeration->object );
+         s_bind_local_name( semantic, enumeration->name, &enumeration->object,
+            &enumeration->force_local_scope );
       }
    }
    struct enumeration_test test = { -1 };
@@ -286,7 +287,8 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
    struct enumeration* enumeration, struct enumerator* enumerator ) {
    // Test name.
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, enumerator->name, &enumerator->object );
+      s_bind_local_name( semantic, enumerator->name, &enumerator->object,
+         enumeration->force_local_scope );
    }
    // Test initializer.
    if ( enumerator->initz ) {
@@ -345,7 +347,8 @@ void s_test_struct( struct semantic* semantic, struct structure* structure ) {
 bool test_struct_name( struct semantic* semantic,
    struct structure* structure ) {
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, structure->name, &structure->object );
+      s_bind_local_name( semantic, structure->name, &structure->object,
+         structure->force_local_scope );
    }
    return true;
 }
@@ -370,7 +373,7 @@ void test_member( struct semantic* semantic, struct structure* structure,
    member->object.resolved =
       test_member_spec( semantic, structure, member ) &&
       test_member_ref( semantic, member ) &&
-      test_member_name( semantic, member ) &&
+      test_member_name( semantic, structure, member ) &&
       test_member_dim( semantic, member );
    if ( member->object.resolved ) {
       if ( member->structure && member->structure->has_ref_member ) {
@@ -417,10 +420,11 @@ bool test_member_ref( struct semantic* semantic,
    return test_ref( semantic, &test );
 }
 
-bool test_member_name( struct semantic* semantic,
+bool test_member_name( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, member->name, &member->object );
+      s_bind_local_name( semantic, member->name, &member->object,
+         structure->force_local_scope );
    }
    return true;
 }
@@ -483,7 +487,8 @@ bool test_typedef_ref( struct semantic* semantic, struct type_alias* alias ) {
 
 bool test_typedef_name( struct semantic* semantic, struct type_alias* alias ) {
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, alias->name, &alias->object );
+      s_bind_local_name( semantic, alias->name, &alias->object,
+         alias->force_local_scope );
    }
    return true;
 }
@@ -535,7 +540,6 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
       s_bail( semantic );
    }
    var->spec = s_spec( semantic, var->spec );
-   var->func_scope = s_func_scope_forced( semantic );
    if ( var->spec == SPEC_STRUCT ) {
       return var->structure->object.resolved;
    }
@@ -829,7 +833,8 @@ bool test_ref_func( struct semantic* semantic, struct ref_test* test,
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
-      s_bind_name( semantic, var->name, &var->object );
+      s_bind_local_name( semantic, var->name, &var->object,
+         var->force_local_scope );
    }
    return true;
 }
@@ -1531,7 +1536,6 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    init_scalar_initz_test_auto( &initz_test, var->is_constant_init );
    test_scalar_initz( semantic, &initz_test, ( struct value* ) var->initial );
    assign_inferred_type( semantic, var, &initz_test.initz_type );
-   var->func_scope = s_func_scope_forced( semantic );
    var->initial_has_str = initz_test.has_str;
    // For now, keep an auto-declaration in local scope.
    if ( ! semantic->in_localscope ) {
@@ -1539,7 +1543,8 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
          "auto-declaration in non-local scope" );
       s_bail( semantic );
    }
-   s_bind_name( semantic, var->name, &var->object );
+   s_bind_local_name( semantic, var->name, &var->object,
+      var->force_local_scope );
    var->object.resolved = true;
    describe_var( var );
 }
@@ -1576,7 +1581,7 @@ void s_test_local_var( struct semantic* semantic, struct var* var ) {
    if ( var->initial ) {
       s_calc_var_value_index( var );
    }
-   if ( var->func_scope ) {
+   if ( ! var->force_local_scope ) {
       list_append( semantic->func_test->funcscope_vars, var );
    }
 }
@@ -1598,7 +1603,13 @@ void s_test_foreach_var( struct semantic* semantic,
    // We don't want the user to access iterator information after the foreach
    // loop has ended, so make the iterator variables accessible only in the
    // body of the loop.
-   s_bind_block_name( semantic, var->name, &var->object );
+   if ( ! var->force_local_scope ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "non-local foreach variable (to make the variable local, add the "
+         "`let` keyword before the variable type)" );
+      s_bail( semantic );
+   }
+   s_bind_local_name( semantic, var->name, &var->object, true );
    var->constant = true;
    var->object.resolved = resolved;
    s_calc_var_size( var );
@@ -1660,7 +1671,8 @@ bool test_func_ref( struct semantic* semantic, struct func* func ) {
 
 bool test_func_name( struct semantic* semantic, struct func* func ) {
    if ( func->name && semantic->in_localscope ) {
-      s_bind_name( semantic, func->name, &func->object );
+      s_bind_local_name( semantic, func->name, &func->object,
+         func->force_local_scope );
    }
    return true;
 }
@@ -1696,7 +1708,7 @@ bool test_param_list( struct semantic* semantic,
    while ( param ) {
       if ( param->object.resolved ) {
          if ( param->name ) {
-            s_bind_name( semantic, param->name, &param->object );
+            s_bind_local_name( semantic, param->name, &param->object, true );
          }
       }
       else {
@@ -1766,7 +1778,7 @@ bool test_param_ref( struct semantic* semantic, struct param* param ) {
 
 bool test_param_name( struct semantic* semantic, struct param* param ) {
    if ( param->name ) {
-      s_bind_name( semantic, param->name, &param->object );
+      s_bind_local_name( semantic, param->name, &param->object, true );
    }
    return true;
 }
@@ -1939,7 +1951,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
-         s_bind_name( semantic, param->name, &param->object );
+         s_bind_local_name( semantic, param->name, &param->object, true );
       }
       param = param->next;
    }
@@ -1996,7 +2008,7 @@ void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases ) {
    if ( aliases->append ) {
       struct name* name = t_extend_name( semantic->ns->body, "append" );
-      s_bind_name( semantic, name, &aliases->append->object );
+      s_bind_local_name( semantic, name, &aliases->append->object, true );
    }
 }
 
@@ -2091,7 +2103,7 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
-         s_bind_name( semantic, param->name, &param->object );
+         s_bind_local_name( semantic, param->name, &param->object, true );
       }
       param->object.resolved = true;
       param = param->next;

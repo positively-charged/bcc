@@ -71,6 +71,8 @@ static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
 static void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object );
+static void bind_block_name( struct semantic* semantic, struct name* name,
+   struct object* object );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static bool implicitly_imported( struct object* object );
@@ -654,7 +656,7 @@ void import_item( struct semantic* semantic, struct ns* ns,
    alias->object.pos = item->pos;
    alias->object.resolved = true;
    alias->target = object;
-   s_bind_name( semantic, name, &alias->object );
+   s_bind_local_name( semantic, name, &alias->object, true );
    item->alias = alias;
 }
 
@@ -1167,33 +1169,28 @@ void s_pop_scope( struct semantic* semantic ) {
    semantic->in_localscope = ( semantic->depth > 0 ); 
 }
 
+// Namespace scope.
 void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   // Namespace scope.
-   if ( semantic->depth == 0 ) {
-      if ( ! name->object || name->object->depth < semantic->depth ) {
-         name->object = object;
-      }
-      else {
-         dupname_err( semantic, name, object );
-      }
+   if ( name->object ) {
+      dupname_err( semantic, name, object );
    }
-   // Function scope.
-   else if ( s_func_scope_forced( semantic ) ) {
+   name->object = object;
+}
+
+// Local scope.
+void s_bind_local_name( struct semantic* semantic, struct name* name,
+   struct object* object, bool block_scope ) {
+   if ( block_scope ) {
+      bind_block_name( semantic, name, object );
+   }
+   else {
       if ( semantic->lang == LANG_ACS && name->object &&
          name->object->depth == 0 ) {
          dupnameglobal_err( semantic, name, object );
       }
       bind_func_name( semantic, name, object );
    }
-   // Block scope.
-   else {
-      s_bind_block_name( semantic, name, object );
-   }
-}
-
-bool s_func_scope_forced( struct semantic* semantic ) {
-   return ( ! semantic->strong_type );
 }
 
 void bind_func_name( struct semantic* semantic, struct name* name,
@@ -1212,7 +1209,7 @@ void bind_func_name( struct semantic* semantic, struct name* name,
    }
 }
 
-void s_bind_block_name( struct semantic* semantic, struct name* name,
+void bind_block_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    if ( ! name->object || name->object->depth < semantic->depth ) {
       add_sweep_name( semantic, semantic->scope, name, object );

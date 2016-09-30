@@ -759,6 +759,7 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->base_type = SPEC_INT;
    enumeration->hidden = false;
    enumeration->semicolon = false;
+   enumeration->force_local_scope = false;
    return enumeration;
 }
 
@@ -796,6 +797,7 @@ struct structure* t_alloc_structure( void ) {
    structure->anon = false;
    structure->has_ref_member = false;
    structure->semicolon = false;
+   structure->force_local_scope = false;
    return structure;
 }
 
@@ -865,7 +867,7 @@ struct var* t_alloc_var( void ) {
    var->is_constant_init = false;
    var->addr_taken = false;
    var->in_shared_array = false;
-   var->func_scope = false;
+   var->force_local_scope = false;
    var->constant = false;
    var->external = false;
    var->head_instance = false;
@@ -891,6 +893,7 @@ struct func* t_alloc_func( void ) {
    func->msgbuild = false;
    func->imported = false;
    func->external = false;
+   func->force_local_scope = false;
    return func;
 }
 
@@ -1051,5 +1054,6 @@ struct type_alias* t_alloc_type_alias( void ) {
    alias->spec = SPEC_NONE;
    alias->original_spec = SPEC_NONE;
    alias->head_instance = false;
+   alias->force_local_scope = false;
    return alias;
 }

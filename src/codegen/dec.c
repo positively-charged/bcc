@@ -238,7 +238,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
    switch ( var->desc ) {
    case DESC_ARRAY:
    case DESC_STRUCTVAR:
-      if ( ! var->func_scope ) {
+      if ( var->force_local_scope ) {
          var->index = codegen->func->array_index;
          ++codegen->func->array_index;
       }
@@ -258,7 +258,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
       break;
    case DESC_REFVAR:
    case DESC_PRIMITIVEVAR:
-      if ( ! var->func_scope ) {
+      if ( var->force_local_scope ) {
          var->index = c_alloc_script_var( codegen );
          if ( var->ref && var->ref->type == REF_ARRAY ) {
             c_alloc_script_var( codegen );

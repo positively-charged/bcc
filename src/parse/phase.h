@@ -170,6 +170,7 @@ enum tk {
    TK_KILL,
    TK_BACKSLASH,
    TK_REOPEN,
+   TK_LET,
 
    TK_TOTAL,
 
@@ -347,6 +348,7 @@ struct dec {
    bool type_alias;
    bool semicolon_absent;
    bool external;
+   bool force_local_scope;
 };
 
 struct stmt_reading {
@@ -446,8 +448,10 @@ void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );
 void p_read_expr( struct parse* parse, struct expr_reading* reading );
 bool p_is_dec( struct parse* parse );
+bool p_is_local_dec( struct parse* parse );
 void p_init_dec( struct dec* dec );
 void p_read_dec( struct parse* parse, struct dec* dec );
+void p_read_local_dec( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
 enum tk p_peek_2nd( struct parse* parse );
@@ -512,5 +516,6 @@ bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
 void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
+bool p_in_explicit_namespace_fragment( struct parse* parse );
 
 #endif

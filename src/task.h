@@ -170,6 +170,7 @@ struct enumeration {
    int base_type;
    bool hidden;
    bool semicolon;
+   bool force_local_scope;
 };
 
 struct enumerator {
@@ -194,6 +195,7 @@ struct structure {
    bool anon;
    bool has_ref_member;
    bool semicolon;
+   bool force_local_scope;
 };
 
 struct structure_member {
@@ -259,6 +261,7 @@ struct type_alias {
    int spec;
    int original_spec;
    bool head_instance;
+   bool force_local_scope;
 };
 
 struct paren {
@@ -678,7 +681,7 @@ struct var {
    bool is_constant_init;
    bool addr_taken;
    bool in_shared_array;
-   bool func_scope;
+   bool force_local_scope;
    bool constant;
    bool external;
    bool head_instance;
@@ -729,6 +732,7 @@ struct func {
    bool msgbuild;
    bool imported;
    bool external;
+   bool force_local_scope;
 };
 
 struct func_aspec {

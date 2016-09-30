@@ -141,8 +141,8 @@ void s_calc_var_size( struct var* var );
 void s_calc_var_value_index( struct var* var );
 void s_bind_name( struct semantic* semantic, struct name* name,
    struct object* object );
-void s_bind_block_name( struct semantic* semantic, struct name* name,
-   struct object* object );
+void s_bind_local_name( struct semantic* semantic, struct name* name,
+   struct object* object, bool block_scope );
 void s_diag( struct semantic* semantic, int flags, ... );
 void s_bail( struct semantic* semantic );
 void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
@@ -195,7 +195,6 @@ void s_test_nested_func( struct semantic* semantic, struct func* func );
 int s_spec( struct semantic* semantic, int spec );
 struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node );
-bool s_func_scope_forced( struct semantic* semantic );
 bool s_is_enumerator( struct type_info* type );
 bool s_is_null( struct type_info* type );
 
