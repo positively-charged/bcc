@@ -441,6 +441,7 @@ void perform_expan( struct parse* parse, struct macro_expan* expan ) {
    else {
       expand_macro( parse, expan );
    }
+   expan->output = expan->output_head;
 }
 
 void expand_predef_macro( struct parse* parse, struct macro_expan* expan ) {
@@ -563,7 +564,6 @@ void expand_macro( struct parse* parse, struct macro_expan* expan ) {
          token = token->next;
       }
    }
-   expan->output = expan->output_head;
 }
 
 void expand_id( struct parse* parse, struct macro_expan* expan ) {
