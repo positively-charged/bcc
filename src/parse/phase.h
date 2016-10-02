@@ -504,7 +504,6 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt );
 void p_read_special_list( struct parse* parse );
 void p_skip_semicolon( struct parse* parse );
 bool p_peek_type_path( struct parse* parse );
-void p_read_using( struct parse* parse, struct list* output );
 void p_read_target_lib( struct parse* parse );
 void p_clear_macros( struct parse* parse );
 void p_define_predef_macros( struct parse* parse );
@@ -517,5 +516,7 @@ void p_init_token( struct token* token );
 void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
 bool p_in_explicit_namespace_fragment( struct parse* parse );
+void p_read_local_using( struct parse* parse, struct list* output );
+bool p_read_let( struct parse* parse );
 
 #endif

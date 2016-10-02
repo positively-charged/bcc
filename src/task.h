@@ -1043,6 +1043,7 @@ struct using_dirc {
       USING_ALL,
       USING_SELECTION
    } type;
+   bool force_local_scope;
 };
 
 struct using_item {

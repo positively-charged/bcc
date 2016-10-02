@@ -52,7 +52,6 @@ struct special_reading {
 };
 
 static bool is_dec_bcs( struct parse* parse );
-static void read_let( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
@@ -297,20 +296,23 @@ bool p_is_local_dec( struct parse* parse ) {
 }
 
 void p_read_local_dec( struct parse* parse, struct dec* dec ) {
-   read_let( parse, dec );
+   dec->force_local_scope = p_read_let( parse );
    p_read_dec( parse, dec );
 }
 
-void read_let( struct parse* parse, struct dec* dec ) {
+// Returns whether `let` is specified.
+bool p_read_let( struct parse* parse ) {
    if ( parse->tk == TK_LET ) {
-      dec->force_local_scope = true;
       p_read_tk( parse );
+      return true;
    }
    else {
+      // In namespace blocks, `let` is implied.
       if ( p_in_explicit_namespace_fragment( parse ) ) {
-         dec->force_local_scope = true;
+         return true;
       }
    }
+   return false;
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
@@ -1767,7 +1769,7 @@ struct var* p_read_cond_var( struct parse* parse ) {
    p_init_dec( &dec );
    dec.area = DEC_LOCAL;
    dec.name_offset = parse->ns->body;
-   read_let( parse, &dec );
+   dec.force_local_scope = p_read_let( parse );
    if ( parse->tk == TK_AUTO ) {
       dec.spec = SPEC_AUTO;
       p_read_tk( parse );
@@ -1825,7 +1827,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
 }
 
 void read_foreach_var( struct parse* parse, struct dec* dec ) {
-   read_let( parse, dec );
+   dec->force_local_scope = p_read_let( parse );
    if ( parse->tk == TK_AUTO ) {
       dec->spec = SPEC_AUTO;
       p_read_tk( parse );

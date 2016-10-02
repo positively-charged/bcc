@@ -124,6 +124,12 @@ void read_block_item( struct parse* parse, struct stmt_reading* reading,
 // For the sake of being compatible with ACS, we do the same in BCS.
 void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
+   // using directive.
+   if ( parse->tk == TK_USING ||
+      ( parse->tk == TK_LET && p_peek( parse ) == TK_USING ) ) {
+      p_read_local_using( parse, &block->stmts );
+      return;
+   }
    // Declaration.
    if ( p_is_local_dec( parse ) ) {
       struct dec dec;
@@ -228,9 +234,6 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading,
       break;
    case TK_GOTO:
       read_goto( parse, reading );
-      break;
-   case TK_USING:
-      p_read_using( parse, &block->stmts );
       break;
    case TK_PALTRANS:
       read_paltrans( parse, reading );

@@ -26,6 +26,8 @@ static void read_namespace_name( struct parse* parse );
 static void read_namespace_path( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
+static void read_using( struct parse* parse, struct list* output,
+   bool block_scope );
 static struct using_dirc* alloc_using( struct pos* pos );
 static void read_using_item( struct parse* parse, struct using_dirc* dirc );
 static struct using_item* alloc_using_item( void );
@@ -232,7 +234,7 @@ void read_namespace_member( struct parse* parse ) {
       read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
-      p_read_using( parse, &parse->ns_fragment->usings );
+      read_using( parse, &parse->ns_fragment->usings, false );
    }
    else if ( parse->tk == TK_SPECIAL ) {
       p_read_special_list( parse );
@@ -251,8 +253,10 @@ bool p_in_explicit_namespace_fragment( struct parse* parse ) {
    return ( parse->ns_fragment != parse->lib->upmost_ns_fragment );
 }
 
-void p_read_using( struct parse* parse, struct list* output ) {
+void read_using( struct parse* parse, struct list* output,
+   bool block_scope ) {
    struct using_dirc* dirc = alloc_using( &parse->tk_pos );
+   dirc->force_local_scope = block_scope;
    p_test_tk( parse, TK_USING );
    p_read_tk( parse );
    dirc->path = p_read_path( parse );
@@ -274,6 +278,10 @@ void p_read_using( struct parse* parse, struct list* output ) {
    list_append( output, dirc );
 }
 
+void p_read_local_using( struct parse* parse, struct list* output ) {
+   read_using( parse, output, p_read_let( parse ) );
+}
+
 struct using_dirc* alloc_using( struct pos* pos ) {
    struct using_dirc* dirc = mem_alloc( sizeof( *dirc ) );
    dirc->node.type = NODE_USING;
@@ -281,6 +289,7 @@ struct using_dirc* alloc_using( struct pos* pos ) {
    list_init( &dirc->items );
    dirc->pos = *pos;
    dirc->type = USING_ALL;
+   dirc->force_local_scope = false;
    return dirc;
 }
 

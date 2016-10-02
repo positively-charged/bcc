@@ -12,10 +12,17 @@ struct sweep {
 
 struct scope {
    struct scope* prev;
+   struct scope* prev_func_scope;
    struct sweep* sweep;
    struct ns_link* ns_link;
    short depth;
-   bool func_scope;
+};
+
+struct ns_link_retriever {
+   struct scope* scope;
+   struct ns_link* outer_link;
+   struct ns_link* inner_link;
+   struct ns_link* link;
 };
 
 static void test_acs( struct semantic* semantic );
@@ -49,7 +56,7 @@ static void import_all( struct semantic* semantic, struct ns* ns,
 static void import_selection( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc );
 static void import_item( struct semantic* semantic, struct ns* ns,
-   struct using_item* item );
+   struct using_dirc* dirc, struct using_item* item );
 static void search_linked_object( struct semantic* semantic,
    struct object_search* search );
 static void test_objects( struct semantic* semantic );
@@ -75,6 +82,11 @@ static void bind_block_name( struct semantic* semantic, struct name* name,
    struct object* object );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
+static void insert_namespace_link( struct semantic* semantic,
+   struct ns_link* link, bool block_scope );
+static void init_ns_link_retriever( struct semantic* semantic,
+   struct ns_link_retriever* retriever, struct ns* ns );
+static void next_ns_link( struct ns_link_retriever* retriever );
 static bool implicitly_imported( struct object* object );
 static void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object );
@@ -90,6 +102,7 @@ void s_init( struct semantic* semantic, struct task* task ) {
    semantic->ns = NULL;
    semantic->ns_fragment = NULL;
    semantic->scope = NULL;
+   semantic->func_scope = NULL;
    semantic->free_scope = NULL;
    semantic->free_sweep = NULL;
    semantic->topfunc_test = NULL;
@@ -561,23 +574,25 @@ void import_all( struct semantic* semantic, struct ns* ns,
          "namespace importing itself" );
       s_bail( semantic );
    }
-   struct ns_link* link = semantic->ns->links;
-   while ( link && link->ns != ns ) {
-      link = link->next;
+   struct ns_link_retriever links;
+   init_ns_link_retriever( semantic, &links, semantic->ns );
+   next_ns_link( &links );
+   while ( links.link && links.link->ns != ns ) {
+      next_ns_link( &links );
    }
    // Duplicate links are allowed, but warn the user about them.
-   if ( link ) {
+   if ( links.link ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &dirc->pos,
          "duplicate namespace import" );
-      s_diag( semantic, DIAG_POS, &link->pos,
+      s_diag( semantic, DIAG_POS, &links.link->pos,
          "namespace already imported here" );
    }
    else {
-      link = mem_alloc( sizeof( *link ) );
-      link->next = semantic->ns->links;
+      struct ns_link* link = mem_alloc( sizeof( *link ) );
+      link->next = NULL;
       link->ns = ns;
       link->pos = dirc->pos;
-      semantic->ns->links = link;
+      insert_namespace_link( semantic, link, dirc->force_local_scope );
    }
 }
 
@@ -586,13 +601,13 @@ void import_selection( struct semantic* semantic, struct ns* ns,
    list_iter_t i;
    list_iter_init( &i, &dirc->items );
    while ( ! list_end( &i ) ) {
-      import_item( semantic, ns, list_data( &i ) );
+      import_item( semantic, ns, dirc, list_data( &i ) );
       list_next( &i );
    }
 }
 
 void import_item( struct semantic* semantic, struct ns* ns,
-   struct using_item* item ) {
+   struct using_dirc* dirc, struct using_item* item ) {
    // Locate object.
    struct object* object;
    switch ( item->type ) {
@@ -656,7 +671,13 @@ void import_item( struct semantic* semantic, struct ns* ns,
    alias->object.pos = item->pos;
    alias->object.resolved = true;
    alias->target = object;
-   s_bind_local_name( semantic, name, &alias->object, true );
+   if ( semantic->in_localscope ) {
+      s_bind_local_name( semantic, name, &alias->object,
+         dirc->force_local_scope );
+   }
+   else {
+      s_bind_name( semantic, name, &alias->object );
+   }
    item->alias = alias;
 }
 
@@ -790,11 +811,9 @@ void s_search_object( struct semantic* semantic,
          break;
       }
       // Search in any of the linked namespaces.
-      if ( search->ns->links ) {
-         search_linked_object( semantic, search );
-         if ( search->object ) {
-            break;
-         }
+      search_linked_object( semantic, search );
+      if ( search->object ) {
+         break;
       }
       // Search in the parent namespace.
       search->ns = search->ns->parent;
@@ -807,18 +826,20 @@ void s_search_object( struct semantic* semantic,
 
 void search_linked_object( struct semantic* semantic,
    struct object_search* search ) {
-   struct ns_link* link = search->ns->links;
-   while ( link && ! search->object ) {
-      search->object = s_get_ns_object( link->ns, search->name,
+   struct ns_link_retriever links;
+   init_ns_link_retriever( semantic, &links, search->ns );
+   next_ns_link( &links );
+   while ( links.link && ! search->object ) {
+      search->object = s_get_ns_object( links.link->ns, search->name,
          search->requested_node );
-      link = link->next;
+      next_ns_link( &links );
    }
    // Make sure no other object with the same name can be found.
-   while ( link && ! s_get_ns_object( link->ns, search->name,
+   while ( links.link && ! s_get_ns_object( links.link->ns, search->name,
       search->requested_node ) ) {
-      link = link->next;
+      next_ns_link( &links );
    }
-   if ( link ) {
+   if ( links.link ) {
       const char* prefix;
       switch ( search->requested_node ) {
       case NODE_STRUCTURE:
@@ -835,14 +856,14 @@ void search_linked_object( struct semantic* semantic,
          prefix, search->name );
       s_diag( semantic, DIAG_POS, &search->object->pos,
          "%s`%s` found here", prefix, search->name );
-      while ( link ) {
-         struct object* object = s_get_ns_object( link->ns, search->name,
+      while ( links.link ) {
+         struct object* object = s_get_ns_object( links.link->ns, search->name,
             search->requested_node );
          if ( object ) {
             s_diag( semantic, DIAG_POS, &object->pos,
                "another %s`%s` found here", prefix, search->name );
          }
-         link = link->next;
+         next_ns_link( &links );
       }
       s_bail( semantic );
    }
@@ -1137,11 +1158,14 @@ void s_add_scope( struct semantic* semantic, bool func_scope ) {
    ++semantic->depth;
    scope->prev = semantic->scope;
    scope->sweep = NULL;
-   scope->ns_link = semantic->ns->links;
+   scope->ns_link = NULL;
    scope->depth = semantic->depth;
-   scope->func_scope = func_scope;
    semantic->scope = scope;
    semantic->in_localscope = ( semantic->depth > 0 );
+   if ( func_scope ) {
+      scope->prev_func_scope = semantic->func_scope;
+      semantic->func_scope = scope;
+   }
 }
 
 void s_pop_scope( struct semantic* semantic ) {
@@ -1160,13 +1184,15 @@ void s_pop_scope( struct semantic* semantic ) {
          sweep = prev;
       }
    }
-   struct scope* prev = semantic->scope->prev;
-   semantic->ns->links = semantic->scope->ns_link;
-   semantic->scope->prev = semantic->free_scope;
-   semantic->free_scope = semantic->scope;
-   semantic->scope = prev;
+   struct scope* scope = semantic->scope;
+   semantic->scope = scope->prev;
+   if ( scope == semantic->func_scope ) {
+      semantic->func_scope = scope->prev_func_scope;
+   }
+   scope->prev = semantic->free_scope;
+   semantic->free_scope = scope;
    --semantic->depth;
-   semantic->in_localscope = ( semantic->depth > 0 ); 
+   semantic->in_localscope = ( semantic->depth > 0 );
 }
 
 // Namespace scope.
@@ -1195,14 +1221,8 @@ void s_bind_local_name( struct semantic* semantic, struct name* name,
 
 void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   int func_depth = semantic->depth;
-   struct scope* scope = semantic->scope;
-   while ( ! scope->func_scope ) {
-      --func_depth;
-      scope = scope->prev;
-   }
-   if ( ! name->object || name->object->depth < func_depth ) {
-      add_sweep_name( semantic, scope, name, object );
+   if ( ! name->object || name->object->depth < semantic->func_scope->depth ) {
+      add_sweep_name( semantic, semantic->func_scope, name, object );
    }
    else {
       dupname_err( semantic, name, object );
@@ -1241,6 +1261,61 @@ void dupname_err( struct semantic* semantic, struct name* name,
             " (implicitly imported)" : "" );
    }
    s_bail( semantic );
+}
+
+void insert_namespace_link( struct semantic* semantic, struct ns_link* link,
+   bool block_scope ) {
+   if ( semantic->in_localscope ) {
+      struct scope* target_scope = ( block_scope ) ?
+         semantic->scope :
+         semantic->func_scope;
+      link->next = target_scope->ns_link;
+      target_scope->ns_link = link;
+   }
+   else {
+      link->next = semantic->ns->links;
+      semantic->ns->links = link;
+   }
+}
+
+void init_ns_link_retriever( struct semantic* semantic,
+   struct ns_link_retriever* retriever, struct ns* ns ) {
+   retriever->scope = NULL;
+   retriever->outer_link = ns->links;
+   retriever->inner_link = NULL;
+   retriever->link = NULL;
+   // Only go over the local namespace links when examining the current
+   // namespace. 
+   if ( ns == semantic->ns && semantic->scope ) {
+      retriever->scope = semantic->scope;
+      retriever->inner_link = retriever->scope->ns_link;
+   }
+}
+
+void next_ns_link( struct ns_link_retriever* retriever ) {
+   // Look for namespace link in local scopes.
+   while ( retriever->scope ) {
+      if ( retriever->inner_link ) {
+         retriever->link = retriever->inner_link;
+         retriever->inner_link = retriever->inner_link->next;
+         return;
+      }
+      if ( retriever->scope->prev ) {
+         retriever->scope = retriever->scope->prev;
+         retriever->inner_link = retriever->scope->ns_link;
+      }
+      else {
+         retriever->scope = NULL;
+      }
+   }
+   // Look for namespace link in namespaces.
+   if ( retriever->outer_link ) {
+      retriever->link = retriever->outer_link;
+      retriever->outer_link = retriever->outer_link->next;
+      return;
+   }
+   // Nothing more.
+   retriever->link = NULL;
 }
 
 bool implicitly_imported( struct object* object ) {

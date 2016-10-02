@@ -98,6 +98,7 @@ struct semantic {
    struct ns* ns;
    struct ns_fragment* ns_fragment;
    struct scope* scope;
+   struct scope* func_scope;
    struct scope* free_scope;
    struct sweep* free_sweep;
    struct func_test* topfunc_test;
