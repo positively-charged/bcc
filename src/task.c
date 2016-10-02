@@ -22,8 +22,8 @@ static struct file_entry* add_file( struct task* task,
 static struct file_entry* create_file_entry( struct task* task,
    struct file_query* query );
 static void link_file_entry( struct task* task, struct file_entry* entry );
-static struct indexed_string* intern_string( struct str_table* table,
-   const char* value, int length );
+static struct indexed_string* intern_string( struct task* task,
+   struct str_table* table, const char* value, int length, bool copy_value );
 static void init_ref( struct ref* ref, int type );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
@@ -642,11 +642,16 @@ struct text_buffer* t_get_text_buffer( struct task* task,
 
 struct indexed_string* t_intern_string( struct task* task,
    const char* value, int length ) {
-   return intern_string( &task->str_table, value, length );
+   return intern_string( task, &task->str_table, value, length, false );
 }
 
-struct indexed_string* intern_string( struct str_table* table,
+struct indexed_string* t_intern_string_copy( struct task* task,
    const char* value, int length ) {
+   return intern_string( task, &task->str_table, value, length, true );
+}
+
+struct indexed_string* intern_string( struct task* task,
+   struct str_table* table, const char* value, int length, bool copy_value ) {
    // Indexed strings are stored in a binary search tree.
    struct indexed_string* parent_lchild = NULL;
    struct indexed_string* parent_rchild = NULL;
@@ -669,7 +674,12 @@ struct indexed_string* intern_string( struct str_table* table,
    }
    // Allocate a new indexed-string when one isn't interned.
    string = mem_alloc( sizeof( *string ) );
-   string->value = value;
+   if ( copy_value ) {
+      string->value = t_intern_text( task, value, length );
+   }
+   else {
+      string->value = value;
+   }
    string->length = length;
    string->index = table->size;
    string->index_runtime = -1;
@@ -699,8 +709,8 @@ struct indexed_string* intern_string( struct str_table* table,
 
 struct indexed_string* t_intern_script_name( struct task* task,
    const char* value, int length ) {
-   struct indexed_string* string = intern_string( &task->script_name_table,
-      value, length );
+   struct indexed_string* string = intern_string( task,
+      &task->script_name_table, value, length, false );
    // Encode number of string table in index.
    if ( string->index < STRTABLE_MAXSIZE ) {
       string->index += STRTABLE_SCRIPTNAME * STRTABLE_MAXSIZE;

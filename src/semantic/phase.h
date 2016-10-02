@@ -187,6 +187,7 @@ void s_take_type_snapshot( struct type_info* type,
 bool s_is_onedim_int_array( struct type_info* type );
 bool s_is_int_value( struct type_info* type );
 struct alias* s_alloc_alias( void );
+void s_init_alias( struct alias* alias );
 void s_test_type_alias( struct semantic* semantic, struct type_alias* alias );
 void s_decay( struct type_info* type );
 void s_type_mismatch( struct semantic* semantic, const char* label_a,

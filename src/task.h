@@ -109,7 +109,8 @@ struct node {
       NODE_USING,
       NODE_MEMCPY,
       NODE_CONVERSION,
-      NODE_SURE
+      NODE_SURE,
+      NODE_FUNCNAME
    } type;
 };
 
@@ -1180,6 +1181,8 @@ struct library* t_add_library( struct task* task );
 struct name* t_create_name( void );
 struct name* t_extend_name( struct name* parent, const char* extension );
 struct indexed_string* t_intern_string( struct task* task,
+   const char* value, int length );
+struct indexed_string* t_intern_string_copy( struct task* task,
    const char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
 int t_add_altern_filename( struct task* task, const char* filename );

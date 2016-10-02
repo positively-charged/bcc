@@ -87,7 +87,7 @@ static void insert_namespace_link( struct semantic* semantic,
 static void init_ns_link_retriever( struct semantic* semantic,
    struct ns_link_retriever* retriever, struct ns* ns );
 static void next_ns_link( struct ns_link_retriever* retriever );
-static bool implicitly_imported( struct object* object );
+static bool implicitly_declared( struct object* object );
 static void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct scope* scope,
@@ -1252,13 +1252,15 @@ void dupname_err( struct semantic* semantic, struct name* name,
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &object->pos,
-         "duplicate name `%s`%s", str.value,
-         implicitly_imported( object ) ?
-            " (implicitly imported)" : ""  );
-      s_diag( semantic, DIAG_POS,
-         &name->object->pos, "name already used here%s",
-         implicitly_imported( name->object ) ?
-            " (implicitly imported)" : "" );
+         "duplicate name `%s`", str.value );
+      if ( implicitly_declared( name->object ) ) {
+         s_diag( semantic, DIAG_POS, &object->pos,
+            "name already used implicitly by the compiler" );
+      }
+      else {
+         s_diag( semantic, DIAG_POS, &name->object->pos,
+            "name already used here" );
+      }
    }
    s_bail( semantic );
 }
@@ -1318,7 +1320,7 @@ void next_ns_link( struct ns_link_retriever* retriever ) {
    retriever->link = NULL;
 }
 
-bool implicitly_imported( struct object* object ) {
+bool implicitly_declared( struct object* object ) {
    if ( object->node.type == NODE_ALIAS ) {
       struct alias* alias = ( struct alias* ) object;
       return alias->implicit;
@@ -1408,10 +1410,15 @@ bool is_compiletime_object( struct object* object ) {
 
 struct alias* s_alloc_alias( void ) {
    struct alias* alias = mem_alloc( sizeof( *alias ) );
+   s_init_alias( alias );
+   return alias;
+}
+
+void s_init_alias( struct alias* alias ) {
    t_init_object( &alias->object, NODE_ALIAS );
+   t_init_pos_id( &alias->object.pos, ALTERN_FILENAME_COMPILER );
    alias->target = NULL;
    alias->implicit = false;
-   return alias;
 }
 
 void s_type_mismatch( struct semantic* semantic, const char* label_a,

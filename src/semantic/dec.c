@@ -66,7 +66,14 @@ struct param_list_test {
 };
 
 struct builtin_aliases {
-   struct alias* append;
+   struct {
+      struct alias alias;
+      bool used;
+   } append;
+   struct {
+      struct alias alias;
+      struct object object;
+   } funcname;
 };
 
 struct value_list {
@@ -215,8 +222,6 @@ static bool test_external_func( struct semantic* semantic, struct func* func );
 static void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases );
 static void bind_builtin_aliases( struct semantic* semantic,
-   struct builtin_aliases* aliases );
-static void deinit_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars );
@@ -1971,7 +1976,6 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       semantic->topfunc_test = NULL;
    }
    s_pop_scope( semantic );
-   deinit_builtin_aliases( semantic, &builtin_aliases );
    if ( semantic->lang == LANG_ACS ) {
       bool return_stmt_at_end = false;
       if ( list_size( &impl->body->stmts ) > 0 ) {
@@ -1990,32 +1994,38 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
 // a link to a builtin namespace would be better.
 void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases ) {
+   struct func_user* impl = func->impl;
+   // __FUNCTION__ is a string that is the name of the current function.
+   t_init_object( &aliases->funcname.object, NODE_FUNCNAME );
+   aliases->funcname.object.resolved = true;
+   struct alias* alias = &aliases->funcname.alias;
+   s_init_alias( alias );
+   alias->object.pos = impl->body->pos;
+   alias->object.resolved = true;
+   alias->target = &aliases->funcname.object;
+   alias->implicit = true;
+   // append().
    if ( func->msgbuild ) {
-      struct func_user* impl = func->impl;
-      struct alias* alias = s_alloc_alias();
+      alias = &aliases->append.alias;
+      s_init_alias( alias );
       alias->object.pos = impl->body->pos;
       alias->object.resolved = true;
       alias->target = &semantic->task->append_func->object;
       alias->implicit = true;
-      aliases->append = alias;
+      aliases->append.used = true;
    }
    else {
-      aliases->append = NULL;
+      aliases->append.used = false;
    }
 }
 
 void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases ) {
-   if ( aliases->append ) {
-      struct name* name = t_extend_name( semantic->ns->body, "append" );
-      s_bind_local_name( semantic, name, &aliases->append->object, true );
-   }
-}
-
-void deinit_builtin_aliases( struct semantic* semantic,
-   struct builtin_aliases* aliases ) {
-   if ( aliases->append ) {
-      mem_free( aliases->append );
+   struct name* name = t_extend_name( semantic->ns->body, "__function__" );
+   s_bind_local_name( semantic, name, &aliases->funcname.alias.object, true );
+   if ( aliases->append.used ) {
+      name = t_extend_name( semantic->ns->body, "append" );
+      s_bind_local_name( semantic, name, &aliases->append.alias.object, true );
    }
 }
 

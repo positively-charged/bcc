@@ -157,6 +157,8 @@ static void test_found_object( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct name_usage* usage,
    struct object* object );
 static struct ref* find_map_ref( struct ref* ref );
+static void test_funcname( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct name_usage* usage );
 static void select_object( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct object* object );
 static void select_constant( struct semantic* semantic, struct expr_test* test,
@@ -2162,8 +2164,13 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
          param = param->next;
       }
    }
-   select_object( semantic, test, result, object );
-   usage->object = &object->node;
+   if ( object->node.type == NODE_FUNCNAME ) {
+      test_funcname( semantic, test, result, usage );
+   }
+   else {
+      select_object( semantic, test, result, object );
+      usage->object = &object->node;
+   }
 }
 
 struct ref* find_map_ref( struct ref* ref ) {
@@ -2185,6 +2192,19 @@ struct ref* find_map_ref( struct ref* ref ) {
       ref = ref->next;
    }
    return NULL;
+}
+
+void test_funcname( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct name_usage* usage ) {
+   struct str name;
+   str_init( &name );
+   t_copy_name( semantic->func_test->func->name, false, &name );
+   struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
+   string_usage->string = t_intern_string_copy( semantic->task,
+      name.value, name.length );
+   usage->object = &string_usage->node;
+   test_string_usage( semantic, test, result, string_usage );
+   str_deinit( &name );
 }
 
 void select_object( struct semantic* semantic, struct expr_test* test,

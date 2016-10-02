@@ -2043,8 +2043,12 @@ void visit_name_usage( struct codegen* codegen, struct result* result,
       visit_func( codegen, result,
          ( struct func* ) usage->object );
       break;
-   default:
+   case NODE_INDEXED_STRING_USAGE:
+      visit_indexed_string_usage( codegen, result,
+         ( struct indexed_string_usage* ) usage->object );
       break;
+   default:
+      UNREACHABLE();
    }
 }
 
