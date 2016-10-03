@@ -1134,22 +1134,24 @@ void read_var_init( struct parse* parse, struct dec* dec ) {
 }
 
 void read_imported_init( struct parse* parse, struct dec* dec ) {
-   if ( dec->dim ) {
-      if ( parse->tk == TK_ASSIGN || ( has_implicit_length_dim( dec ) &&
-         ! dec->storage.specified ) ) {
-         p_test_tk( parse, TK_ASSIGN );
-         p_read_tk( parse );
-         read_imported_multi_init( parse, dec->dim );
-      }
-   }
-   else {
-      if ( parse->tk == TK_ASSIGN ) {
-         // The initializer of an imported variable is not needed.
-         while ( ! (
-            parse->tk == TK_SEMICOLON ||
-            parse->tk == TK_COMMA ||
-            parse->tk == TK_END ) ) {
+   // Assume global and world variables cannot be initialized.
+   if ( ! dec->storage.specified ) {
+      if ( dec->dim ) {
+         if ( parse->tk == TK_ASSIGN || has_implicit_length_dim( dec ) ) {
+            p_test_tk( parse, TK_ASSIGN );
             p_read_tk( parse );
+            read_imported_multi_init( parse, dec->dim );
+         }
+      }
+      else {
+         if ( parse->tk == TK_ASSIGN ) {
+            // The initializer of an imported variable is not needed.
+            while ( ! (
+               parse->tk == TK_SEMICOLON ||
+               parse->tk == TK_COMMA ||
+               parse->tk == TK_END ) ) {
+               p_read_tk( parse );
+            }
          }
       }
    }

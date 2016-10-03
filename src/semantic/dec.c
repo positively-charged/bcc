@@ -950,10 +950,10 @@ bool test_var_initz( struct semantic* semantic, struct var* var ) {
             s_bail( semantic );
          }
       }
-      // All dimensions of implicit length need to have a length.
-      if ( var->dim ) {
-         confirm_dim_length( semantic, var );
-      }
+   }
+   // All dimensions of implicit length need to have a length.
+   if ( var->dim ) {
+      confirm_dim_length( semantic, var );
    }
    return true;
 }
