@@ -1532,7 +1532,8 @@ void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
       test->max_param = operand->func->max_param;
       test->format_param = ( operand->func->type == FUNC_FORMAT );
    }
-   else if ( operand->ref && operand->ref->type == REF_FUNCTION ) {
+   else if ( ! operand->dim && operand->ref &&
+      operand->ref->type == REF_FUNCTION ) {
       struct ref_func* func = ( struct ref_func* ) operand->ref;
       test->params = func->params;
       test->min_param = func->min_param;
