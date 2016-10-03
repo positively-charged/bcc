@@ -82,7 +82,7 @@ void gbuf_reset( struct gbuf* buffer ) {
 }
 
 bool gbuf_save( struct gbuf* buffer, const char* file_path ) {
-   FILE* fh = fopen( file_path, "w" );
+   FILE* fh = fopen( file_path, "wb" );
    if ( ! fh ) {
       return false;
    }

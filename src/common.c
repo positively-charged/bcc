@@ -584,7 +584,7 @@ void c_extract_dirname( struct str* path ) {
 }
 
 void fs_get_file_contents( const char* path, struct file_contents* contents ) {
-   FILE* fh = fopen( path, "r" );
+   FILE* fh = fopen( path, "rb" );
    if ( ! fh ) {
       contents->obtained = false;
       contents->err = errno;
