@@ -156,7 +156,9 @@ static void test_name_usage( struct semantic* semantic, struct expr_test* test,
 static void test_found_object( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct name_usage* usage,
    struct object* object );
-static struct ref* find_map_ref( struct ref* ref );
+static struct ref* find_map_ref( struct ref* ref,
+   struct structure* structure );
+static struct ref* find_map_ref_struct( struct structure* structure );
 static void test_funcname( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
 static void select_object( struct semantic* semantic, struct expr_test* test,
@@ -2127,12 +2129,17 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
    if ( object->node.type == NODE_VAR &&
       ( ( struct var* ) object )->imported ) {
       struct var* var = ( struct var* ) object;
-      struct ref* ref = find_map_ref( var->ref );
+      struct ref* ref = find_map_ref( var->ref, ( var->spec == SPEC_STRUCT ) ?
+         var->structure : NULL );
       if ( ref ) {
          s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-            "imported variable's type includes reference-to-%s (%s references "
-            "from another library cannot be used)",
-            ref->type == REF_STRUCTURE ? "struct" : "array",
+            "imported variable's type includes a reference-to-%s type",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_diag( semantic, DIAG_POS, &ref->pos,
+            "this reference-to-%s type is found here",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_diag( semantic, DIAG_POS, &ref->pos,
+            "%s references do not work between libraries",
             ref->type == REF_STRUCTURE ? "struct" : "array" );
          s_bail( semantic );
       }
@@ -2141,24 +2148,32 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
       ( ( struct func* ) object )->type == FUNC_USER &&
       ( ( struct func* ) object )->imported ) {
       struct func* func = ( struct func* ) object;
-      struct ref* ref = find_map_ref( func->ref );
+      struct ref* ref = find_map_ref( func->ref, NULL );
       if ( ref ) {
          s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-            "imported function's return type includes reference-to-%s (%s "
-            "references returned from another library cannot be used)",
-            ref->type == REF_STRUCTURE ? "struct" : "array",
+            "imported function's return type includes a reference-to-%s type",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_diag( semantic, DIAG_POS, &ref->pos,
+            "this reference-to-%s type is found here",
+            ref->type == REF_STRUCTURE ? "struct" : "array" );
+         s_diag( semantic, DIAG_POS, &ref->pos,
+            "%s references do not work between libraries",
             ref->type == REF_STRUCTURE ? "struct" : "array" );
          s_bail( semantic );
       }
       struct param* param = func->params;
       while ( param ) {
-         struct ref* ref = find_map_ref( param->ref );
+         struct ref* ref = find_map_ref( param->ref, NULL );
          if ( ref ) {
             s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-               "imported function has parameter whose type includes "
-               "reference-to-%s (%s references cannot be passed to another "
-               "library)",
-               ref->type == REF_STRUCTURE ? "struct" : "array",
+               "imported function has parameter whose type includes a "
+               "reference-to-%s type",
+               ref->type == REF_STRUCTURE ? "struct" : "array" );
+            s_diag( semantic, DIAG_POS, &ref->pos,
+               "this reference-to-%s type is found here",
+               ref->type == REF_STRUCTURE ? "struct" : "array" );
+            s_diag( semantic, DIAG_POS, &ref->pos,
+               "%s references do not work between libraries",
                ref->type == REF_STRUCTURE ? "struct" : "array" );
             s_bail( semantic );
          }
@@ -2174,25 +2189,43 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-struct ref* find_map_ref( struct ref* ref ) {
-   while ( ref ) {
-      if ( ref->type == REF_FUNCTION ) {
-         struct ref_func* func = ( struct ref_func* ) ref;
-         struct param* param = func->params;
-         while ( param ) {
-            struct ref* nested_ref = find_map_ref( param->ref );
-            if ( nested_ref ) {
-               return nested_ref;
+struct ref* find_map_ref( struct ref* ref, struct structure* structure ) {
+   if ( ref ) {
+      while ( ref ) {
+         if ( ref->type == REF_FUNCTION ) {
+            struct ref_func* func = ( struct ref_func* ) ref;
+            struct param* param = func->params;
+            while ( param ) {
+               struct ref* nested_ref = find_map_ref( param->ref, NULL );
+               if ( nested_ref ) {
+                  return nested_ref;
+               }
+               param = param->next;
             }
-            param = param->next;
          }
+         else {
+            return ref;
+         }
+         ref = ref->next;
       }
-      else {
-         return ref;
+   }
+   else {
+      if ( structure && structure->has_ref_member ) {
+         return find_map_ref_struct( structure );
       }
-      ref = ref->next;
    }
    return NULL;
+}
+
+struct ref* find_map_ref_struct( struct structure* structure ) {
+   struct ref* ref = NULL;
+   struct structure_member* member = structure->member;
+   while ( member && ! ref ) {
+      ref = find_map_ref( member->ref, ( member->spec == SPEC_STRUCT ) ?
+         member->structure : NULL );
+      member = member->next;
+   }
+   return ref;
 }
 
 void test_funcname( struct semantic* semantic, struct expr_test* test,

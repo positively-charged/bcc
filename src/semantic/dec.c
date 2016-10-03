@@ -944,8 +944,8 @@ bool test_var_initz( struct semantic* semantic, struct var* var ) {
       }
       else {
          // References must always have a valid value.
-         if ( var->ref || ( var->structure &&
-            var->structure->has_ref_member ) ) {
+         if ( ( var->ref || ( var->structure &&
+            var->structure->has_ref_member ) ) && ! var->external ) {
             refnotinit_var( semantic, var );
             s_bail( semantic );
          }
