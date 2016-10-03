@@ -2266,17 +2266,19 @@ void read_special( struct parse* parse ) {
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    // Return type.
-   func->return_spec = SPEC_RAW;
+   int return_spec = SPEC_RAW;
    switch ( parse->lang ) {
    case LANG_BCS:
       if ( parse->tk == TK_COLON ) {
          read_special_return_type( parse, &reading );
-         func->return_spec = reading.return_spec;
+         return_spec = reading.return_spec;
       }
       break;
    default:
       break;
    }
+   func->return_spec = return_spec;
+   func->original_return_spec = return_spec;
    // Done.
    if ( minus ) {
       struct func_ext* impl = mem_alloc( sizeof( *impl ) );
@@ -2383,17 +2385,20 @@ void read_special_param( struct parse* parse,
    struct special_reading* reading ) {
    struct param* param = t_alloc_param();
    param->object.pos = parse->tk_pos;
+   int spec = SPEC_RAW;
    switch ( parse->tk ) {
-   case TK_RAW: param->spec = SPEC_RAW; break;
-   case TK_INT: param->spec = SPEC_INT; break;
-   case TK_FIXED: param->spec = SPEC_FIXED; break;
-   case TK_BOOL: param->spec = SPEC_BOOL; break;
-   case TK_STR: param->spec = SPEC_STR; break;
+   case TK_RAW: break;
+   case TK_INT: spec = SPEC_INT; break;
+   case TK_FIXED: spec = SPEC_FIXED; break;
+   case TK_BOOL: spec = SPEC_BOOL; break;
+   case TK_STR: spec = SPEC_STR; break;
    default:
       p_unexpect_diag( parse );
       p_unexpect_last_name( parse, NULL, "parameter type" );
       p_bail( parse );
    }
+   param->spec = spec;
+   param->original_spec = spec;
    p_read_tk( parse );
    if ( reading->param ) {
       reading->param_tail->next = param;
