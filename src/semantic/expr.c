@@ -1896,8 +1896,8 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
       }
    }
    // Message-building function can only be called when building a message.
-   if ( test->func->msgbuild && semantic->func_test->func &&
-      ! semantic->func_test->func->msgbuild ) {
+   if ( test->func->msgbuild && ! ( semantic->func_test->func &&
+      semantic->func_test->func->msgbuild ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->pos,
          "calling message-building function where no message is being built" );
       s_bail( semantic );
