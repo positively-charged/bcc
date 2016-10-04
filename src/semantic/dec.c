@@ -96,7 +96,7 @@ static bool test_struct_body( struct semantic* semantic,
 static void test_member( struct semantic* semantic,
    struct structure* structure, struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
-   struct structure* structure, struct structure_member* member );
+   struct structure_member* member );
 static bool test_member_ref( struct semantic* semantic,
    struct structure_member* member );
 static bool test_member_name( struct semantic* semantic,
@@ -376,7 +376,7 @@ bool test_struct_body( struct semantic* semantic,
 void test_member( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    member->object.resolved =
-      test_member_spec( semantic, structure, member ) &&
+      test_member_spec( semantic, member ) &&
       test_member_ref( semantic, member ) &&
       test_member_name( semantic, structure, member ) &&
       test_member_dim( semantic, member );
@@ -387,7 +387,7 @@ void test_member( struct semantic* semantic, struct structure* structure,
    }
 }
 
-bool test_member_spec( struct semantic* semantic, struct structure* structure,
+bool test_member_spec( struct semantic* semantic,
    struct structure_member* member ) {
    if ( member->spec >= SPEC_NAME ) {
       struct name_spec_test test;
@@ -407,8 +407,17 @@ bool test_member_spec( struct semantic* semantic, struct structure* structure,
       s_bail( semantic );
    }
    if ( member->spec == SPEC_STRUCT ) {
-      return member->structure->object.resolved ||
-         ( member->structure == structure && member->ref );
+      if ( member->structure->object.resolved || member->ref ) {
+         return true;
+      }
+      else {
+         if ( semantic->trigger_err ) {
+            s_diag( semantic, DIAG_POS_ERR, &member->object.pos,
+               "struct member has type that is unresolvable" );
+            s_bail( semantic );
+         }
+         return false;
+      }
    }
    else if ( member->spec == SPEC_ENUM ) {
       return member->enumeration->object.resolved;
