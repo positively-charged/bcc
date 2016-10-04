@@ -231,6 +231,7 @@ struct macro {
       PREDEFMACRO_FILE,
       PREDEFMACRO_TIME,
       PREDEFMACRO_DATE,
+      PREDEFMACRO_IMPORTED,
    } predef;
    bool func_like;
    bool variadic;

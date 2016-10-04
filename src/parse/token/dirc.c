@@ -869,6 +869,7 @@ void p_confirm_ifdircs_closed( struct parse* parse ) {
 void p_define_imported_macro( struct parse* parse ) {
    struct macro* macro = alloc_macro( parse );
    macro->name = "__IMPORTED__";
+   macro->predef = PREDEFMACRO_IMPORTED;
    append_macro( parse, macro );
 }
 

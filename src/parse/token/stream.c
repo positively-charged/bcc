@@ -60,6 +60,8 @@ static void expand_predef_time( struct parse* parse,
    struct macro_expan* expan );
 static void expand_predef_date( struct parse* parse,
    struct macro_expan* expan );
+static void expand_predef_imported( struct parse* parse,
+   struct macro_expan* expan );
 static void expand_macro( struct parse* parse,
    struct macro_expan* expan );
 static void expand_id( struct parse* parse, struct macro_expan* expan );
@@ -458,6 +460,9 @@ void expand_predef_macro( struct parse* parse, struct macro_expan* expan ) {
    case PREDEFMACRO_DATE:
       expand_predef_date( parse, expan );
       break;
+   case PREDEFMACRO_IMPORTED:
+      expand_predef_imported( parse, expan );
+      break;
    default:
       UNREACHABLE();
    }
@@ -520,6 +525,16 @@ void expand_predef_date( struct parse* parse, struct macro_expan* expan ) {
    token.type = TK_LIT_STRING;
    token.text = t_intern_text( parse->task, value, length );
    token.length = length;
+   token.pos = expan->pos;
+   output( parse, expan, &token );
+}
+
+void expand_predef_imported( struct parse* parse, struct macro_expan* expan ) {
+   struct token token;
+   p_init_token( &token );
+   token.type = TK_LIT_DECIMAL;
+   token.text = "1";
+   token.length = strlen( token.text );
    token.pos = expan->pos;
    output( parse, expan, &token );
 }
