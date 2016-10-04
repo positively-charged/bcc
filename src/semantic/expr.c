@@ -239,7 +239,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
       init_result( &result );
       test_root( semantic, test, &result, expr );
       init_type_info( semantic, result_type, &result );
-      s_decay( result_type );
+      s_decay( semantic, result_type );
    }
    else {
       test->undef_erred = true;
@@ -366,8 +366,8 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    struct type_info rside_type;
    init_type_info( semantic, &lside_type, &lside );
    init_type_info( semantic, &rside_type, &rside );
-   s_decay( &lside_type );
-   s_decay( &rside_type );
+   s_decay( semantic, &lside_type );
+   s_decay( semantic, &rside_type );
    if ( ! s_same_type( &lside_type, &rside_type ) ) {
       s_type_mismatch( semantic, "left-operand", &lside_type,
          "right-operand", &rside_type, &binary->pos );
@@ -658,7 +658,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    struct type_info rside_type;
    init_type_info( semantic, &lside_type, &lside );
    init_type_info( semantic, &rside_type, &rside );
-   s_decay( &rside_type );
+   s_decay( semantic, &rside_type );
    if ( ! s_instance_of( &lside_type, &rside_type ) ) {
       s_type_mismatch( semantic, "left-operand", &lside_type,
          "right-operand", &rside_type, &assign->pos );
@@ -828,10 +828,10 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    struct type_info middle_type;
    init_type_info( semantic, &middle_type, &middle );
-   s_decay( &middle_type );
+   s_decay( semantic, &middle_type );
    struct type_info right_type;
    init_type_info( semantic, &right_type, &right );
-   s_decay( &right_type );
+   s_decay( semantic, &right_type );
    if ( ! s_same_type( &middle_type, &right_type ) ) {
       s_type_mismatch( semantic, cond->middle ?
          "middle-operand" : "left-operand", &middle_type, "right-operand",
@@ -1229,7 +1229,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    // Index must be of integer type.
    struct type_info type;
    init_type_info( semantic, &type, &index );
-   s_decay( &type );
+   s_decay( semantic, &type );
    if ( ! s_same_type( &type, &semantic->type_int ) ) {
       s_type_mismatch( semantic, "index", &type,
          "required", &semantic->type_int, &subscript->index->pos );
@@ -1319,7 +1319,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    // Index must be of integer type.
    struct type_info type;
    init_type_info( semantic, &type, &index );
-   s_decay( &type );
+   s_decay( semantic, &type );
    if ( ! s_same_type( &type, &semantic->type_int ) ) {
       s_type_mismatch( semantic, "index", &type,
          "required", &semantic->type_int, &subscript->index->pos );
@@ -1617,7 +1617,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    }
    struct type_info type;
    init_type_info( semantic, &type, &result );
-   s_decay( &type );
+   s_decay( semantic, &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, spec );
    if ( ! s_instance_of( &required_type, &type ) ) {
@@ -1636,7 +1636,7 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    test_nested_root( semantic, test, &nested, &root, item->value );
    struct type_info type;
    init_type_info( semantic, &type, &root );
-   s_decay( &type );
+   s_decay( semantic, &type );
    static struct ref_array array = {
       { NULL, { 0, 0, 0 }, REF_ARRAY, true }, 1, STORAGE_MAP, 0 };
    struct type_info required_type;
@@ -1665,7 +1665,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    test_nested_root( semantic, expr_test, &nested_expr_test, &root, arg );
    struct type_info type;
    init_type_info( semantic, &type, &root );
-   s_decay( &type );
+   s_decay( semantic, &type );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, s_spec( semantic, SPEC_INT ) );
    if ( ! s_instance_of( &required_type, &type ) ) {
@@ -1707,7 +1707,7 @@ void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
    test_nested_root( semantic, expr_test, &nested, &root, item->value );
    struct type_info type;
    init_type_info( semantic, &type, &root );
-   s_decay( &type );
+   s_decay( semantic, &type );
    struct type_info required_type;
    s_init_type_info_func( &required_type,
       NULL, NULL, NULL, NULL, SPEC_VOID, 0, 0, true );
@@ -1794,7 +1794,7 @@ void test_remaining_arg( struct semantic* semantic,
       s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, s_spec( semantic, param->spec ),
          STORAGE_LOCAL );
-      s_decay( &type );
+      s_decay( semantic, &type );
       if ( ! s_instance_of( &param_type, &type ) ) {
          arg_mismatch( semantic, &expr->pos, &type,
             "parameter", &param_type, "argument", test->num_args + 1 );
@@ -1942,7 +1942,7 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
    test_suffix( semantic, test, &operand, sure->operand );
    struct type_info type;
    init_type_info( semantic, &type, &operand );
-   s_decay( &type );
+   s_decay( semantic, &type );
    if ( ! s_is_ref_type( &type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &sure->pos,
          "operand not a reference" );
@@ -2534,8 +2534,8 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct type_info src_type;
    init_type_info( semantic, &dst_type, &dst );
    init_type_info( semantic, &src_type, &src );
-   s_decay( &dst_type );
-   s_decay( &src_type );
+   s_decay( semantic, &dst_type );
+   s_decay( semantic, &src_type );
    if ( ! s_same_type( &src_type, &dst_type ) ) {
       s_type_mismatch( semantic, "source", &src_type,
          "destination", &dst_type, &call->source->pos );

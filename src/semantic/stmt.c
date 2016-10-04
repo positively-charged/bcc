@@ -339,7 +339,7 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
          stmt->cond.u.var->structure, stmt->cond.u.var->enumeration,
          stmt->cond.u.var->dim, stmt->cond.u.var->spec,
          stmt->cond.u.var->storage );
-      s_decay( &test->cond_type );
+      s_decay( semantic, &test->cond_type );
    }
    else {
       struct expr_test expr;

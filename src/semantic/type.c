@@ -17,8 +17,8 @@ static void present_ref( struct ref* ref, struct str* string,
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
 static bool is_array_ref_type( struct type_info* type );
-static void subscript_array_type( struct type_info* type,
-   struct type_info* element_type );
+static void subscript_array_type( struct semantic* semantic,
+   struct type_info* type, struct type_info* element_type );
 static struct ref* dup_ref( struct ref* ref );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
@@ -89,7 +89,7 @@ void s_init_type_info_null( struct type_info* type ) {
    type->implicit_ref = true;
 }
 
-void s_decay( struct type_info* type ) {
+void s_decay( struct semantic* semantic, struct type_info* type ) {
    // Array type.
    if ( type->dim ) {
       struct ref_array* array = &type->implicit_ref_part.array;
@@ -119,7 +119,7 @@ void s_decay( struct type_info* type ) {
    }
    // Enumeration type.
    else if ( ! type->ref && type->enumeration ) {
-      type->spec = type->enumeration->base_type;
+      type->spec = s_spec( semantic, type->enumeration->base_type );
    }
 }
 
@@ -240,6 +240,10 @@ bool s_instance_of( struct type_info* type, struct type_info* instance ) {
       else {
          return s_same_type( type, instance );
       }
+   }
+   // Enumeration.
+   else if ( type->spec == SPEC_ENUM ) {
+      return ( instance->enumeration == type->enumeration );
    }
    else {
       return s_same_type( type, instance );
@@ -436,7 +440,7 @@ void s_iterate_type( struct semantic* semantic, struct type_info* type,
    }
    else if ( is_array_ref_type( type ) ) {
       s_init_type_info_scalar( &iter->key, s_spec( semantic, SPEC_INT ) );
-      subscript_array_type( type, &iter->value );
+      subscript_array_type( semantic, type, &iter->value );
       iter->available = true;
    }
    else {
@@ -452,12 +456,12 @@ inline bool is_array_ref_type( struct type_info* type ) {
    return ( type->dim || ( type->ref && type->ref->type == REF_ARRAY ) );
 }
 
-void subscript_array_type( struct type_info* type,
+void subscript_array_type( struct semantic* semantic, struct type_info* type,
    struct type_info* element_type ) {
    if ( type->dim ) {
       s_init_type_info( element_type, type->ref, type->structure,
          type->enumeration, type->dim->next, type->spec, type->storage );
-      s_decay( element_type );
+      s_decay( semantic, element_type );
    }
    else if ( type->ref && type->ref->type == REF_ARRAY ) {
       s_init_type_info( element_type, type->ref, type->structure,

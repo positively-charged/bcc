@@ -316,14 +316,7 @@ bool p_read_let( struct parse* parse ) {
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_ENUM && (
-      p_peek( parse ) == TK_ID ||
-      p_peek( parse ) == TK_UPMOST ) && (
-      p_peek_2nd( parse ) == TK_ID ||
-      p_peek_2nd( parse ) == TK_DOT ) ) {
-      read_var( parse, dec );
-   }
-   else {
+   if ( is_enum_def( parse ) ) {
       read_enum_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
          dec->enumeration->semicolon = true;
@@ -333,6 +326,9 @@ void read_enum( struct parse* parse, struct dec* dec ) {
          dec->semicolon_absent = true;
          read_after_spec( parse, dec );
       }
+   }
+   else {
+      read_var( parse, dec );
    }
 }
 
