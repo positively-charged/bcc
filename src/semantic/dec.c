@@ -1474,7 +1474,12 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
 bool test_external_var( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "external variable declaration in local scope" );
+         "external variable declared in local scope" );
+      s_bail( semantic );
+   }
+   if ( var->storage != STORAGE_MAP ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "non-map variable declared external" );
       s_bail( semantic );
    }
    if ( var->initial ) {
