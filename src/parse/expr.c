@@ -419,8 +419,9 @@ void read_prefix( struct parse* parse, struct expr_reading* reading ) {
          prefix = parse->tk;
          break;
       case TK_BIT_NOT:
+      case TK_PLUS:
          if ( parse->lang == LANG_ACS ) {
-            prefix = TK_BIT_NOT;
+            prefix = parse->tk;
          }
          break;
       default:

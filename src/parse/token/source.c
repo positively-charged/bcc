@@ -14,6 +14,7 @@ static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
 static void create_entry( struct parse* parse, struct request* request );
 static void read_token_acs( struct parse* parse, struct token* token );
+static void read_token_acs95( struct parse* parse, struct token* token );
 static void read_token( struct parse* parse, struct token* token );
 static void escape_ch( struct parse* parse, char*, struct str* text, bool );
 static char read_ch( struct parse* parse );
@@ -21,62 +22,6 @@ static char peek_ch( struct parse* parse );
 static void read_initial_ch( struct parse* parse );
 static struct str* temp_text( struct parse* parse );
 static void append_ch( struct str* str, char ch );
-
-struct keyword_entry {
-   const char* name;
-   enum tk tk;
-};
-
-struct keyword_table {
-   const struct keyword_entry* entries;
-   int max;
-   int mid;
-};
-
-// NOTE: Reserved identifiers must be listed in ascending order.
-
-static const struct keyword_entry g_keywords_acs95[] = {
-   { "break", TK_BREAK },
-   { "case", TK_CASE },
-   { "const", TK_CONST },
-   { "continue", TK_CONTINUE },
-   { "default", TK_DEFAULT },
-   { "define", TK_DEFINE },
-   { "do", TK_DO },
-   { "else", TK_ELSE },
-   { "for", TK_FOR },
-   { "goto", TK_GOTO },
-   { "if", TK_IF },
-   { "include", TK_INCLUDE },
-   { "int", TK_INT },
-   { "open", TK_OPEN },
-   { "print", TK_PRINT },
-   { "printbold", TK_PRINTBOLD },
-   { "restart", TK_RESTART },
-   { "script", TK_SCRIPT },
-   { "special", TK_SPECIAL },
-   { "str", TK_STR },
-   { "suspend", TK_SUSPEND },
-   { "switch", TK_SWITCH },
-   { "terminate", TK_TERMINATE },
-   { "until", TK_UNTIL },
-   { "void", TK_VOID },
-   { "while", TK_WHILE },
-   { "world", TK_WORLD },
-   // Terminator.
-   { "\x7F", TK_END }
-};
-
-#define KEYWORDTABLE_ENTRY( keywords ) \
-   keywords, \
-   ARRAY_SIZE( keywords ), \
-   ARRAY_SIZE( keywords ) / 2
-
-static struct {
-   const struct keyword_table acs95;
-} g_keyword_tables = {
-   { KEYWORDTABLE_ENTRY( g_keywords_acs95 ) },
-};
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
@@ -313,8 +258,10 @@ void p_pop_source( struct parse* parse ) {
 void p_read_source( struct parse* parse, struct token* token ) {
    switch ( parse->lang ) {
    case LANG_ACS:
-   case LANG_ACS95:
       read_token_acs( parse, token );
+      break;
+   case LANG_ACS95:
+      read_token_acs95( parse, token );
       break;
    default:
       read_token( parse, token );
@@ -941,7 +888,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
                str_append_sub( temp_text, text, copied_text - text );
             }
             else {
-               temp_text->length += copied_text - text;
+               temp_text->length = copied_text - temp_text->value;
                str_grow( temp_text, temp_text->buffer_length * 2 );
             }
             copied_text = temp_text->value + temp_text->length;
@@ -1026,6 +973,646 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    text = parse->temp_text.value;
    length = parse->temp_text.length;
    goto finish;
+
+   comment:
+   // -----------------------------------------------------------------------
+   while ( ch != '\n' ) {
+      ch = read_ch( parse );
+   }
+   goto whitespace;
+
+   multiline_comment:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( ! ch ) {
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file->id, line, column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "unterminated comment" );
+         p_bail( parse );
+      }
+      else if ( ch == '*' ) {
+         ch = read_ch( parse );
+         if ( ch == '/' ) {
+            ch = read_ch( parse );
+            goto whitespace;
+         }
+      }
+      else {
+         ch = read_ch( parse );
+      }
+   }
+
+   finish:
+   // -----------------------------------------------------------------------
+   token->type = tk;
+   if ( text ) {
+      token->text = text;
+      token->length = length;
+   }
+   else {
+      const struct token_info* info = p_get_token_info( tk );
+      token->text = info->shared_text;
+      token->length = ( length > 0 ) ?
+         length : info->length;
+   }
+   token->pos.line = line;
+   token->pos.column = column;
+   token->pos.id = id;
+   token->next = NULL;
+}
+
+void read_token_acs95( struct parse* parse, struct token* token ) {
+   char ch = parse->source->ch;
+   int id = 0;
+   int line = 0;
+   int column = 0;
+   enum tk tk = TK_END;
+   char* text = NULL;
+   int length = 0;
+
+   whitespace:
+   // -----------------------------------------------------------------------
+   while ( isspace( ch ) ) {
+      ch = read_ch( parse );
+   }
+
+   // The chain of if-statements is ordered based on a likelihood of a token
+   // being used. Identifier tokens are one of the most common, so look for
+   // them first.
+   // -----------------------------------------------------------------------
+   id = parse->source->file_entry_id;
+   line = parse->source->line;
+   column = parse->source->column;
+   if ( isalpha( ch ) || ch == '_' ) {
+      goto identifier;
+   }
+   else if ( ch == '(' ) {
+      tk = TK_PAREN_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ')' ) {
+      tk = TK_PAREN_R;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( isdigit( ch ) ) {
+      goto number;
+   }
+   else if ( ch == ',' ) {
+      tk = TK_COMMA;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ';' ) {
+      tk = TK_SEMICOLON;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '"' ) {
+      ch = read_ch( parse );
+      goto string;
+   }
+   else if ( ch == ':' ) {
+      tk = TK_COLON;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '#' ) {
+      tk = TK_HASH;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '{' ) {
+      tk = TK_BRACE_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '}' ) {
+      tk = TK_BRACE_R;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '=' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_EQ;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_ASSIGN;
+         goto finish;
+      }
+   }
+   else if ( ch == '[' ) {
+      tk = TK_BRACKET_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ']' ) {
+      tk = TK_BRACKET_R;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '+' ) {
+      ch = read_ch( parse );
+      if ( ch == '+' ) {
+         tk = TK_INC;
+         read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '=' ) {
+         tk = TK_ASSIGN_ADD;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_PLUS;
+         goto finish;
+      }
+   }
+   else if ( ch == '-' ) {
+      ch = read_ch( parse );
+      if ( ch == '-' ) {
+         tk = TK_DEC;
+         read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '=' ) {
+         tk = TK_ASSIGN_SUB;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_MINUS;
+         goto finish;
+      }
+   }
+   else if ( ch == '!' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_NEQ;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_LOG_NOT;
+         goto finish;
+      }
+   }
+   else if ( ch == '&' ) {
+      ch = read_ch( parse );
+      if ( ch == '&' ) {
+         tk = TK_LOG_AND;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_BIT_AND;
+         goto finish;
+      }
+   }
+   else if ( ch == '<' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_LTE;
+         read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '<' ) {
+         ch = read_ch( parse );
+         tk = TK_SHIFT_L;
+         goto finish;
+      }
+      else {
+         tk = TK_LT;
+         goto finish;
+      }
+   }
+   else if ( ch == '>' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_GTE;
+         read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '>' ) {
+         ch = read_ch( parse );
+         tk = TK_SHIFT_R;
+         goto finish;
+      }
+      else {
+         tk = TK_GT;
+         goto finish;
+      }
+   }
+   else if ( ch == '|' ) {
+      ch = read_ch( parse );
+      if ( ch == '|' ) {
+         tk = TK_LOG_OR;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_BIT_OR;
+         goto finish;
+      }
+   }
+   else if ( ch == '*' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_ASSIGN_MUL;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_STAR;
+         goto finish;
+      }
+   }
+   else if ( ch == '/' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_ASSIGN_DIV;
+         read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '/' ) {
+         goto comment;
+      }
+      else if ( ch == '*' ) {
+         ch = read_ch( parse );
+         goto multiline_comment;
+      }
+      else {
+         tk = TK_SLASH;
+         goto finish;
+      }
+   }
+   else if ( ch == '%' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_ASSIGN_MOD;
+         read_ch( parse );
+         goto finish;
+      }
+      else {
+         tk = TK_MOD;
+         goto finish;
+      }
+   }
+   else if ( ch == '^' ) {
+      ch = read_ch( parse );
+      tk = TK_BIT_XOR;
+      goto finish;
+   }
+   else if ( ch == '~' ) {
+      tk = TK_BIT_NOT;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '\0' ) {
+      tk = TK_END;
+      goto finish;
+   }
+   // Generated by acc, but not actually used.
+   else if ( ch == '.' ) {
+      tk = TK_DOT;
+      read_ch( parse );
+      goto finish;
+   }
+   else {
+      struct pos pos;
+      t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         column );
+      p_diag( parse, DIAG_POS_ERR, &pos,
+         "invalid character" );
+      p_bail( parse );
+   }
+
+   identifier:
+   // -----------------------------------------------------------------------
+   {
+      // NOTE: Reserved identifiers must be listed in ascending order.
+      static const struct entry {
+         const char* name;
+         enum tk tk;
+      } table[] = {
+         { "break", TK_BREAK },
+         { "case", TK_CASE },
+         { "const", TK_CONST },
+         { "continue", TK_CONTINUE },
+         { "default", TK_DEFAULT },
+         { "define", TK_DEFINE },
+         { "do", TK_DO },
+         { "else", TK_ELSE },
+         { "for", TK_FOR },
+         { "goto", TK_GOTO },
+         { "if", TK_IF },
+         { "include", TK_INCLUDE },
+         { "int", TK_INT },
+         { "open", TK_OPEN },
+         { "print", TK_PRINT },
+         { "printbold", TK_PRINTBOLD },
+         { "restart", TK_RESTART },
+         { "script", TK_SCRIPT },
+         { "special", TK_SPECIAL },
+         { "str", TK_STR },
+         { "suspend", TK_SUSPEND },
+         { "switch", TK_SWITCH },
+         { "terminate", TK_TERMINATE },
+         { "until", TK_UNTIL },
+         { "void", TK_VOID },
+         { "while", TK_WHILE },
+         { "world", TK_WORLD },
+      };
+      enum { MAX_IDENTIFIER_LENGTH = 31 };
+      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
+         MAX_IDENTIFIER_LENGTH + 1 );
+      text = text_buffer->left;
+      char* copied_text = text;
+      char* end = copied_text + MAX_IDENTIFIER_LENGTH;
+      char* source_text = parse->source->buffer +
+         parse->source->buffer_pos - 1;
+      while ( true ) {
+         if ( isalnum( *source_text ) || *source_text == '_' ) {
+            if ( copied_text == end ) {
+               struct pos pos;
+               t_init_pos( &pos, parse->source->file->id, line, column );
+               p_diag( parse, DIAG_POS_ERR, &pos,
+                  "identifier too long (maximum length is %d)",
+                  MAX_IDENTIFIER_LENGTH );
+               p_bail( parse );
+            }
+            *copied_text = tolower( *source_text );
+            ++copied_text;
+            ++source_text;
+         }
+         // Read new data from the source file.
+         else if ( *source_text == '\n' && source_text[ 1 ] == '\0' ) {
+            size_t count = fread( parse->source->buffer,
+               sizeof( parse->source->buffer[ 0 ] ), SOURCE_BUFFER_SIZE,
+               parse->source->fh );
+            parse->source->buffer[ count ] = '\n';
+            parse->source->buffer[ count + 1 ] = '\0';
+            parse->source->buffer_pos = 0;
+            source_text = parse->source->buffer;
+            if ( count == 0 ) {
+               break;
+            }
+         }
+         else {
+            break;
+         }
+      }
+      *copied_text = '\0';
+      length = copied_text - text;
+      // Update source buffer. The 1 added to `buffer_pos` is for the character
+      // after the identifier, since we assume it is now read.
+      parse->source->buffer_pos = source_text - parse->source->buffer + 1;
+      parse->source->ch = *source_text;
+      parse->source->column += length;
+      // Update text buffer.
+      text_buffer->left = copied_text + 1;
+      // Reserved identifier. Uses binary search.
+      int left = 0;
+      int right = ARRAY_SIZE( table ) - 1;
+      while ( left <= right ) {
+         int middle = ( left + right ) / 2;
+         int result = strcmp( text, table[ middle ].name );
+         if ( result > 0 ) {
+            left = middle + 1;
+         }
+         else if ( result < 0 ) {
+            right = middle - 1;
+         }
+         else {
+            tk = table[ middle ].tk;
+            goto finish;
+         }
+      }
+      // Identifer.
+      tk = TK_ID;
+      goto finish;
+   }
+
+   number:
+   // -----------------------------------------------------------------------
+   if ( ch == '0' ) {
+      ch = read_ch( parse );
+      if ( ch == 'x' || ch == 'X' ) {
+         ch = read_ch( parse );
+         goto hexadecimal;
+      }
+      else if ( ch == '.' ) {
+         str_clear( &parse->temp_text );
+         append_ch( &parse->temp_text, '0' );
+         append_ch( &parse->temp_text, '.' );
+         ch = read_ch( parse );
+         goto fixedpoint;
+      }
+      else {
+         goto zero;
+      }
+   }
+   else {
+      goto decimal;
+   }
+
+   hexadecimal:
+   // -----------------------------------------------------------------------
+   str_clear( &parse->temp_text );
+   while ( true ) {
+      if ( isxdigit( ch ) ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+      }
+      else if ( isalpha( ch ) ) {
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid digit in hexadecimal literal" );
+         p_bail( parse );
+      }
+      else {
+         if ( parse->temp_text.length == 0 ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, parse->source->line,
+               column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "no digits found in hexadecimal literal" );
+            p_bail( parse );
+         }
+         tk = TK_LIT_HEX;
+         text = parse->temp_text.value;
+         length = parse->temp_text.length;
+         goto finish;
+      }
+   }
+
+   zero:
+   // -----------------------------------------------------------------------
+   while ( ch == '0' ) {
+      ch = read_ch( parse );
+   }
+   if ( isdigit( ch ) ) {
+      goto decimal;
+   }
+   else if ( ch == '.' ) {
+      str_clear( &parse->temp_text );
+      append_ch( &parse->temp_text, '0' );
+      append_ch( &parse->temp_text, '.' );
+      ch = read_ch( parse );
+      goto fixedpoint;
+   }
+   else if ( ch == '_' ) {
+      str_clear( &parse->temp_text );
+      append_ch( &parse->temp_text, '0' );
+      append_ch( &parse->temp_text, ch );
+      ch = read_ch( parse );
+      goto radix;
+   }
+   else {
+      text = "0";
+      length = 1;
+      tk = TK_LIT_DECIMAL;
+      goto finish;
+   }
+
+   decimal:
+   // -----------------------------------------------------------------------
+   str_clear( &parse->temp_text );
+   while ( true ) {
+      if ( isdigit( ch ) ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+      }
+      else if ( ch == '.' ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+         goto fixedpoint;
+      }
+      else if ( ch == '_' ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+         goto radix;
+      }
+      else if ( isalpha( ch ) ) {
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid digit in decimal literal" );
+         p_bail( parse );
+      }
+      else {
+         tk = TK_LIT_DECIMAL;
+         text = parse->temp_text.value;
+         length = parse->temp_text.length;
+         goto finish;
+      }
+   }
+
+   fixedpoint:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isdigit( ch ) ) {
+         append_ch( &parse->temp_text, ch );
+         ch = read_ch( parse );
+      }
+      else if ( isalpha( ch ) ) {
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid digit in fractional part of fixed-point literal" );
+         p_bail( parse );
+      }
+      else {
+         tk = TK_LIT_FIXED;
+         text = parse->temp_text.value;
+         length = parse->temp_text.length;
+         goto finish;
+      }
+   }
+
+   radix:
+   // -----------------------------------------------------------------------
+   while ( true ) {
+      if ( isalnum( ch ) ) {
+         append_ch( &parse->temp_text, tolower( ch ) );
+         ch = read_ch( parse );
+      }
+      else {
+         text = parse->temp_text.value;
+         length = parse->temp_text.length;
+         tk = TK_LIT_RADIX;
+         goto finish;
+      }
+   }
+
+   string:
+   // -----------------------------------------------------------------------
+   {
+      // Most strings will be small, so copy the characters directly into the
+      // text buffer. For long strings, use an intermediate buffer.
+      enum { SEGMENTLENGTH = 255 };
+      enum { CUSHIONLENGTH = 1 };
+      enum { SAFELENGTH = SEGMENTLENGTH - CUSHIONLENGTH };
+      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
+         SEGMENTLENGTH + 1 );
+      text = text_buffer->left;
+      char* copied_text = text;
+      char* end = copied_text + SAFELENGTH;
+      struct str* temp_text = NULL;
+      while ( true ) {
+         if ( copied_text >= end ) {
+            if ( ! temp_text ) {
+               temp_text = &parse->temp_text;
+               str_clear( temp_text );
+               str_append_sub( temp_text, text, copied_text - text );
+            }
+            else {
+               temp_text->length = copied_text - temp_text->value;
+               str_grow( temp_text, temp_text->buffer_length * 2 );
+            }
+            copied_text = temp_text->value + temp_text->length;
+            end = temp_text->value + temp_text->buffer_length -
+               ( CUSHIONLENGTH + 1 );
+         }
+         else if ( ! ch ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file->id, line, column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "unterminated string" );
+            p_bail( parse );
+         }
+         else if ( ch == '"' ) {
+            read_ch( parse );
+            tk = TK_LIT_STRING;
+            *copied_text = '\0';
+            if ( temp_text ) {
+               temp_text->length = copied_text - temp_text->value;
+               text = t_intern_text( parse->task, temp_text->value,
+                  temp_text->length );
+               length = temp_text->length;
+            }
+            else {
+               length = copied_text - text;
+               text_buffer->left = copied_text + 1;
+            }
+            goto finish;
+         }
+         else {
+            *copied_text = ch;
+            ++copied_text;
+            ch = read_ch( parse );
+         }
+      }
+   }
 
    comment:
    // -----------------------------------------------------------------------
@@ -1466,13 +2053,6 @@ void read_token( struct parse* parse, struct token* token ) {
          t_init_pos( &pos, parse->source->file->id, line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "`__VA_ARGS__` can only appear in the body of a variadic macro" );
-         p_bail( parse );
-      }
-      if ( parse->lang == LANG_ACS95 &&
-         length > parse->lang_limits->max_id_length ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "identifier too long (its length is %d, but maximum length is %d)",
-            length, parse->lang_limits->max_id_length );
          p_bail( parse );
       }
       tk = TK_ID;

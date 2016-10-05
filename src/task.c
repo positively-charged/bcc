@@ -975,11 +975,11 @@ int t_dim_size( struct dim* dim ) {
 
 const struct lang_limits* t_get_lang_limits( int lang ) {
    static const struct lang_limits acs =
-      { 256, 64, 1000, 4, 32768, 32768, 32 };
+      { 256, 64, 1000, 4, 32768, 32767, 31 };
    static const struct lang_limits acs95 =
-      { 64, 0, 64, 3, 128, 256, 32 };
+      { 64, 0, 64, 3, 128, 255, 31 };
    static const struct lang_limits bcs =
-      { 256, 64, 1000, 4, 32768, 32768, 32768 };
+      { 256, 64, 1000, 4, 32768, 32767, 32768 };
    switch ( lang ) {
    case LANG_ACS:
       return &acs;
