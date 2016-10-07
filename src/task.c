@@ -771,6 +771,7 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->hidden = false;
    enumeration->semicolon = false;
    enumeration->force_local_scope = false;
+   enumeration->default_initz = false;
    return enumeration;
 }
 

@@ -145,6 +145,13 @@ static bool test_dim_length( struct semantic* semantic, struct dim_test* test,
 static bool test_var_initz( struct semantic* semantic, struct var* var );
 static void refnotinit_var( struct semantic* semantic, struct var* var );
 static bool test_object_initz( struct semantic* semantic, struct var* var );
+static void confirm_enum_default_initz( struct semantic* semantic,
+   struct enumeration* enumeration, struct structure_member* member,
+   int spec, struct pos* pos );
+static struct enumeration* find_nondefaultinitz_enum(
+   struct enumeration* enumeration, struct structure_member* member );
+static const char* get_enum_default_initz_text(
+   struct enumeration* enumeration );
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
 static bool test_external_var( struct semantic* semantic, struct var* var );
@@ -338,6 +345,9 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
    }
    enumerator->value = test->value;
    enumerator->object.resolved = true;
+   if ( enumerator->value == 0 ) {
+      enumeration->default_initz = true;
+   }
 }
 
 void s_test_struct( struct semantic* semantic, struct structure* structure ) {
@@ -958,6 +968,12 @@ bool test_var_initz( struct semantic* semantic, struct var* var ) {
             refnotinit_var( semantic, var );
             s_bail( semantic );
          }
+         if ( ! var->ref && ( var->spec == SPEC_ENUM ||
+            var->spec == SPEC_STRUCT ) ) {
+            confirm_enum_default_initz( semantic, var->enumeration,
+               var->spec == SPEC_STRUCT ? var->structure->member : NULL,
+               var->spec, &var->object.pos );
+         }
       }
    }
    // All dimensions of implicit length need to have a length.
@@ -1045,7 +1061,7 @@ bool test_multi_value( struct semantic* semantic, struct initz_test* test,
    if ( test->dim ) {
       return test_multi_value_array( semantic, test, multi_value );
    }
-   else if ( test->structure ) {
+   else if ( test->structure && ! test->ref ) {
       return test_multi_value_struct( semantic, test, multi_value );
    }
    else {
@@ -1075,12 +1091,19 @@ bool test_multi_value_array( struct semantic* semantic,
    if ( ! test->dim->length_node && test->count > test->dim->length ) {
       test->dim->length = test->count;
    }
-   // All reference-type elements must be initialized.
    if ( test->count < test->dim->length ) {
+      // Every reference-type element must be initialized.
       if ( test->ref || ( test->structure &&
          test->structure->has_ref_member ) ) {
          refnotinit_array( semantic, test, multi_value );
          s_bail( semantic );
+      }
+      // Every enum element must be initialized with a valid enumerator.
+      if ( ! test->ref && ( test->spec == SPEC_ENUM ||
+         test->spec == SPEC_STRUCT ) ) {
+         confirm_enum_default_initz( semantic, test->enumeration,
+            test->spec == SPEC_STRUCT ? test->structure->member : NULL,
+            test->spec, &test->var->object.pos );
       }
    }
    return true;
@@ -1144,12 +1167,18 @@ bool test_multi_value_struct( struct semantic* semantic,
       test->member = test->member->next;
       initial = initial->next;
    }
-   // Every reference-type member must be initialized.
    while ( test->member ) {
+      // Every reference-type member must be initialized.
       if ( test->member->ref || ( test->member->structure &&
          test->member->structure->has_ref_member ) ) {
          refnotinit_struct( semantic, test, multi_value );
          s_bail( semantic );
+      }
+      // Every enum member must be initialized with a valid enumerator.
+      if ( ! test->member->ref && ( test->member->spec == SPEC_ENUM ||
+         test->member->spec == SPEC_STRUCT ) ) {
+         confirm_enum_default_initz( semantic, test->member->enumeration,
+            test->member, test->member->spec, &test->var->object.pos );
       }
       test->member = test->member->next;
    }
@@ -1408,6 +1437,69 @@ void refnotinit( struct semantic* semantic, struct initz_pres* pres,
       "a reference-type %s must be initialized with a valid reference value",
       pres->member_last ? "member" : "element" );
    str_deinit( &pres->output );
+}
+
+// Enumeration variables must contain valid enumerators. The engine implicitly
+// initializes non-initialized variables with a 0. Non-zero initializers
+// consume more space in the object file. For efficiency purposes, leverage the
+// memset() performed by the engine by requiring the enumeration to have an
+// enumerator with value 0.
+void confirm_enum_default_initz( struct semantic* semantic,
+   struct enumeration* enumeration, struct structure_member* member,
+   int spec, struct pos* pos ) {
+   enumeration = find_nondefaultinitz_enum( enumeration, member );
+   if ( enumeration ) {
+      // TODO: Show which structure member or array element is affected. Show
+      // the full member path like is done for references.
+      s_diag( semantic, DIAG_POS_ERR, pos,
+         "enum variable implicitly initialized, but the enum lacks "
+         "a default initializer (an enumerator with value %s)",
+         get_enum_default_initz_text( enumeration ) );
+      s_bail( semantic );
+   }
+}
+
+struct enumeration* find_nondefaultinitz_enum( struct enumeration* enumeration,
+   struct structure_member* member ) {
+   if ( enumeration ) {
+      if ( ! enumeration->default_initz ) {
+         return enumeration;
+      }
+      return NULL;
+   }
+   else if ( member ) {
+      while ( member ) {
+         if ( member->spec == SPEC_ENUM ) {
+            if ( ! member->enumeration->default_initz ) {
+               return member->enumeration;
+            }
+         }
+         else if ( member->spec == SPEC_STRUCT && ! member->ref ) {
+            enumeration = find_nondefaultinitz_enum( NULL,
+               member->structure->member );
+            if ( enumeration ) {
+               return enumeration;
+            }
+         }
+         member = member->next;
+      }
+      return NULL;
+   }
+   else {
+      return NULL;
+   }
+}
+
+const char* get_enum_default_initz_text( struct enumeration* enumeration ) {
+   STATIC_ASSERT( SPEC_TOTAL == 11 );
+   switch ( enumeration->base_type ) {
+   case SPEC_FIXED: return "0.0";
+   case SPEC_BOOL: return "`false`";
+   case SPEC_STR: return "\"\"";
+   default:
+      break;
+   }
+   return "0";
 }
 
 void confirm_dim_length( struct semantic* semantic, struct var* var ) {

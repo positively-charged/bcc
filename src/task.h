@@ -172,6 +172,7 @@ struct enumeration {
    bool hidden;
    bool semicolon;
    bool force_local_scope;
+   bool default_initz;
 };
 
 struct enumerator {
