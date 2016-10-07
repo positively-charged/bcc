@@ -180,9 +180,6 @@ void open_source_file( struct parse* parse, struct request* request ) {
    source->file_entry_id = source->file->id;
    source->fh = fh;
    source->prev = NULL;
-   parse->source = source;
-   parse->tk = TK_END;
-   read_initial_ch( parse );
    request->source = source;
 }
 
@@ -226,8 +223,11 @@ void create_entry( struct parse* parse, struct request* request ) {
    p_init_token_queue( &entry->peeked, false );
    entry->main = ( entry->prev == NULL );
    parse->source_entry = entry;
+   parse->source = entry->source;
    parse->macro_expan = NULL;
    parse->tkque = &entry->peeked;
+   parse->tk = TK_END;
+   read_initial_ch( parse );
 }
 
 void p_pop_source( struct parse* parse ) {
