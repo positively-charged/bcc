@@ -808,6 +808,7 @@ struct structure* t_alloc_structure( void ) {
    structure->size = 0;
    structure->anon = false;
    structure->has_ref_member = false;
+   structure->has_mandatory_ref_member = false;
    structure->semicolon = false;
    structure->force_local_scope = false;
    return structure;

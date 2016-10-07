@@ -572,6 +572,9 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    p_read_tk( parse );
    if ( dec.ref ) {
       structure->has_ref_member = true;
+      if ( ! dec.ref->nullable ) {
+         structure->has_mandatory_ref_member = true;
+      }
    }
 }
 

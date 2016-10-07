@@ -393,6 +393,9 @@ void test_member( struct semantic* semantic, struct structure* structure,
    if ( member->object.resolved ) {
       if ( member->structure && member->structure->has_ref_member ) {
          structure->has_ref_member = true;
+         if ( member->structure->has_mandatory_ref_member ) {
+            structure->has_mandatory_ref_member = true;
+         }
       }
    }
 }
@@ -963,8 +966,8 @@ bool test_var_initz( struct semantic* semantic, struct var* var ) {
       }
       else {
          // References must always have a valid value.
-         if ( ( var->ref || ( var->structure &&
-            var->structure->has_ref_member ) ) && ! var->external ) {
+         if ( ( ( var->ref && ! var->ref->nullable ) || ( var->structure &&
+            var->structure->has_mandatory_ref_member ) ) && ! var->external ) {
             refnotinit_var( semantic, var );
             s_bail( semantic );
          }
@@ -1092,9 +1095,9 @@ bool test_multi_value_array( struct semantic* semantic,
       test->dim->length = test->count;
    }
    if ( test->count < test->dim->length ) {
-      // Every reference-type element must be initialized.
-      if ( test->ref || ( test->structure &&
-         test->structure->has_ref_member ) ) {
+      // Every non-nullable reference element must be initialized.
+      if ( ( test->ref && ! test->ref->nullable ) || ( test->structure &&
+         test->structure->has_mandatory_ref_member ) ) {
          refnotinit_array( semantic, test, multi_value );
          s_bail( semantic );
       }
@@ -1168,9 +1171,10 @@ bool test_multi_value_struct( struct semantic* semantic,
       initial = initial->next;
    }
    while ( test->member ) {
-      // Every reference-type member must be initialized.
-      if ( test->member->ref || ( test->member->structure &&
-         test->member->structure->has_ref_member ) ) {
+      // Every non-nullable reference member must be initialized.
+      if ( ( test->member->ref && ! test->member->ref->nullable ) || (
+         test->member->structure &&
+         test->member->structure->has_mandatory_ref_member ) ) {
          refnotinit_struct( semantic, test, multi_value );
          s_bail( semantic );
       }
@@ -1407,8 +1411,8 @@ void present_ref_element( struct initz_pres* pres, struct dim* dim,
       }
       pres->member_last = false;
    }
-   while ( member && ! ( member->ref || ( member->structure &&
-      member->structure->has_ref_member ) ) ) {
+   while ( member && ! ( member->ref && ! member->ref->nullable ) && ! (
+      member->structure && member->structure->has_mandatory_ref_member ) ) {
       member = member->next;
    }
    if ( member ) {

@@ -196,6 +196,7 @@ struct structure {
    int size;
    bool anon;
    bool has_ref_member;
+   bool has_mandatory_ref_member;
    bool semicolon;
    bool force_local_scope;
 };
