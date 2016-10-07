@@ -1679,6 +1679,11 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
    struct result operand;
    init_result( &operand, true );
    visit_suffix( codegen, &operand, call->operand );
+   // Null check.
+   if ( codegen->task->library_main->header && operand.ref->nullable &&
+      ! operand.safe ) {
+      write_null_check( codegen );
+   }
    list_iter_t i;
    list_iter_init( &i, &call->args );
    // TODO: Use common code to push arguments for function and function
