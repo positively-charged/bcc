@@ -34,6 +34,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->file_entries = NULL;
    init_str_table( &task->str_table );
    init_str_table( &task->script_name_table );
+   task->empty_string = t_intern_string( task, "", 0 );
    task->library_main = NULL;
    list_init( &task->libraries );
    list_init( &task->altern_filenames );

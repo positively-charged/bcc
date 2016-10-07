@@ -131,6 +131,8 @@ void publish( struct codegen* codegen ) {
       append_all_strings( codegen );
       break;
    default:
+      // Reserve index 0 for the empty string.
+      c_append_string( codegen, codegen->task->empty_string );
       break;
    }
    clarify_vars( codegen );

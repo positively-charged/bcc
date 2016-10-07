@@ -1128,6 +1128,7 @@ struct task {
    struct file_entry* file_entries;
    struct str_table str_table;
    struct str_table script_name_table;
+   struct indexed_string* empty_string;
    struct library* library_main;
    // Imported libraries come first, followed by the main library.
    struct list libraries;
