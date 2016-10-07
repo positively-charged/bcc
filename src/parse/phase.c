@@ -14,7 +14,6 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->last_id = 0;
    str_init( &parse->temp_text );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
-   parse->line_beginning = true;
    parse->concat_strings = false;
    parse->macro_head = NULL;
    parse->macro_free = NULL;

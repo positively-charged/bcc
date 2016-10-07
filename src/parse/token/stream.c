@@ -83,7 +83,6 @@ static void free_token_list( struct parse* parse, struct token* head,
 
 void p_init_stream( struct parse* parse ) {
    parse->tk = TK_END;
-   parse->prev_tk = TK_NL;
    parse->tk_text = "";
    parse->tk_length = 0;
    parse->token_free = NULL;
@@ -101,9 +100,11 @@ void p_read_stream( struct parse* parse ) {
       }
       p_pop_source( parse );
    }
-   parse->line_beginning = ( parse->prev_tk == TK_NL ) ||
-      ( parse->prev_tk == TK_HORZSPACE && parse->line_beginning );
-   parse->prev_tk = parse->token->type;
+   parse->source_entry->line_beginning =
+      ( parse->source_entry->prev_tk == TK_NL ) ||
+      ( parse->source_entry->prev_tk == TK_HORZSPACE &&
+         parse->source_entry->line_beginning );
+   parse->source_entry->prev_tk = parse->token->type;
 }
 
 void read_peeked_token( struct parse* parse ) {

@@ -91,7 +91,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
          p_bail( parse );
       }
    }
-   parse->prev_tk = TK_NL;
+   parse->source_entry->prev_tk = TK_NL;
 }
 
 void append_file( struct library* lib, struct file_entry* file ) {
@@ -222,6 +222,8 @@ void create_entry( struct parse* parse, struct request* request ) {
    entry->macro_expan = NULL;
    p_init_token_queue( &entry->peeked, false );
    entry->main = ( entry->prev == NULL );
+   entry->prev_tk = TK_NL;
+   entry->line_beginning = true;
    parse->source_entry = entry;
    parse->source = entry->source;
    parse->macro_expan = NULL;

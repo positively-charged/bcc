@@ -287,7 +287,9 @@ struct source_entry {
    struct source* source;
    struct macro_expan* macro_expan;
    struct token_queue peeked;
+   enum tk prev_tk;
    bool main;
+   bool line_beginning;
 };
 
 struct request {
@@ -376,7 +378,6 @@ struct parse {
    struct token token_peeked;
    struct token token_expan;
    enum tk tk;
-   enum tk prev_tk;
    struct pos tk_pos;
    const char* tk_text;
    int tk_length;
@@ -393,7 +394,6 @@ struct parse {
       READF_NL = 0x4,
       READF_SPACETAB = 0x8,
    } read_flags;
-   bool line_beginning;
    bool concat_strings;
    struct macro* macro_head;
    struct macro* macro_free;
