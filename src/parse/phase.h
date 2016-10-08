@@ -483,7 +483,6 @@ bool p_read_dirc( struct parse* parse );
 void p_confirm_ifdircs_closed( struct parse* parse );
 struct macro* p_find_macro( struct parse* parse, const char* name );
 bool p_read_dirc( struct parse* parse );
-enum tk p_identify_token_type( const char* text );
 int p_eval_prep_expr( struct parse* parse );
 const struct token_info* p_get_token_info( enum tk tk );
 struct token* p_alloc_token( struct parse* parse );
@@ -519,5 +518,6 @@ void p_create_cmdline_library_links( struct parse* parse );
 bool p_in_explicit_namespace_fragment( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
+const struct token_info* p_find_keyword( const char* text );
 
 #endif

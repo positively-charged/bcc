@@ -77,6 +77,9 @@ static void output( struct parse* parse, struct macro_expan* expan,
    struct token* token );
 static void concat( struct parse* parse, struct macro_expan* expan,
    struct token* lside );
+static void concat_tangible( struct parse* parse, struct macro_expan* expan,
+   struct token* lside, struct token* rside );
+static enum tk concat_result( enum tk lside, enum tk rside );
 static struct token* push_token( struct parse* parse );
 static void free_token_list( struct parse* parse, struct token* head,
    struct token* tail );
@@ -750,24 +753,221 @@ void concat( struct parse* parse, struct macro_expan* expan,
       p_free_token( parse, token );
    }
    else {
-      struct str text;
-      str_init( &text );
-      str_append( &text, lside->text );
-      str_append( &text, rside->text );
-      enum tk type = p_identify_token_type( text.value );
-      if ( type == TK_NONE ) {
-         p_diag( parse, DIAG_POS_ERR, &expan->pos,
-            "concatenating `%s` and `%s` produces an invalid token",
-            lside->text, rside->text );
-         p_bail( parse );
-      }
-      struct token* token = lside->next;
-      memcpy( lside, rside, sizeof( *lside ) );
-      lside->type = type;
-      lside->text = text.value;
-      p_free_token( parse, token->next );
-      p_free_token( parse, token );
+      concat_tangible( parse, expan, lside, rside );
    }
+}
+
+void concat_tangible( struct parse* parse, struct macro_expan* expan,
+   struct token* lside, struct token* rside ) {
+   enum tk type = concat_result( lside->type, rside->type );
+   if ( type == TK_NONE ) {
+      p_diag( parse, DIAG_POS_ERR, &expan->pos,
+         "concatenating `%s` and `%s` produces an invalid token",
+         lside->text, rside->text );
+      p_bail( parse );
+   }
+   struct token token;
+   p_init_token( &token );
+   token.type = type;
+   token.next = rside->next;
+   token.pos = expan->pos;
+   const struct token_info* info = p_get_token_info( type );
+   if ( info->length > 0 ) {
+      token.text = info->shared_text;
+      token.length = info->length;
+   }
+   else {
+      str_clear( &parse->temp_text );
+      str_append( &parse->temp_text, lside->text );
+      str_append( &parse->temp_text, rside->text );
+      info = p_find_keyword( parse->temp_text.value );
+      if ( info ) {
+         token.text = info->shared_text;
+         token.length = info->length;
+      }
+      else {
+         token.modifiable_text = t_intern_text( parse->task,
+            parse->temp_text.value, parse->temp_text.length );
+         token.text = token.modifiable_text;
+         token.length = parse->temp_text.length;
+      }
+   }
+   p_free_token( parse, rside );
+   p_free_token( parse, lside->next );
+   memcpy( lside, &token, sizeof( token ) );
+}
+
+enum tk concat_result( enum tk lside, enum tk rside ) {
+   switch ( lside ) {
+   case TK_ID:
+      switch ( rside ) {
+      case TK_ID:
+      case TK_LIT_DECIMAL:
+         return TK_ID;
+      default:
+         break;
+      }
+      break;
+   case TK_PLUS:
+      switch ( rside ) {
+      case TK_PLUS:
+         return TK_INC;
+      case TK_ASSIGN:
+         return TK_ASSIGN_ADD;
+      default:
+         break;
+      }
+      break;
+   case TK_MINUS:
+      switch ( rside ) {
+      case TK_MINUS:
+         return TK_DEC;
+      case TK_ASSIGN:
+         return TK_ASSIGN_SUB;
+      default:
+         break;
+      }
+      break;
+   case TK_STAR:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_MUL;
+      default:
+         break;
+      }
+      break;
+   case TK_SLASH:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_DIV;
+      default:
+         break;
+      }
+      break;
+   case TK_MOD:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_MOD;
+      default:
+         break;
+      }
+      break;
+   case TK_SHIFT_L:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_SHIFT_L;
+      default:
+         break;
+      }
+      break;
+   case TK_SHIFT_R:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_SHIFT_R;
+      default:
+         break;
+      }
+      break;
+   case TK_BIT_AND:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_BIT_AND;
+      case TK_BIT_AND:
+         return TK_LOG_AND;
+      default:
+         break;
+      }
+      break;
+   case TK_BIT_XOR:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_BIT_XOR;
+      default:
+         break;
+      }
+      break;
+   case TK_BIT_OR:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_ASSIGN_BIT_OR;
+      case TK_BIT_OR:
+         return TK_LOG_OR;
+      default:
+         break;
+      }
+      break;
+   case TK_ASSIGN:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_EQ;
+      default:
+         break;
+      }
+      break;
+   case TK_LOG_NOT:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_NEQ;
+      default:
+         break;
+      }
+      break;
+   case TK_LT:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_LTE;
+      case TK_LT:
+         return TK_SHIFT_L;
+      default:
+         break;
+      }
+      break;
+   case TK_GT:
+      switch ( rside ) {
+      case TK_ASSIGN:
+         return TK_GTE;
+      case TK_GT:
+         return TK_SHIFT_R;
+      default:
+         break;
+      }
+      break;
+   case TK_LIT_DECIMAL:
+      switch ( rside ) {
+      case TK_LIT_DECIMAL:
+         return TK_LIT_DECIMAL;
+      default:
+         break;
+      }
+      break;
+   case TK_LIT_FIXED:
+      switch ( rside ) {
+      case TK_LIT_DECIMAL:
+         return TK_LIT_FIXED;
+      default:
+         break;
+      }
+      break;
+   case TK_PROCESSEDHASH:
+      switch ( rside ) {
+      case TK_PROCESSEDHASH:
+         return TK_HASHHASH;
+      default:
+         break;
+      }
+      break;
+   case TK_LIT_RADIX:
+      switch ( rside ) {
+      case TK_LIT_DECIMAL:
+         return TK_LIT_RADIX;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   return TK_NONE;
 }
 
 void p_init_streamtk_iter( struct parse* parse, struct streamtk_iter* iter ) {

@@ -470,6 +470,8 @@ void lt_str( struct codegen* codegen, struct result* result,
    c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    int code = PCD_LT;
    switch ( binary->op ) {
+   case BOP_LT:
+      break;
    case BOP_LTE:
       code = PCD_LE;
       break;
@@ -480,7 +482,7 @@ void lt_str( struct codegen* codegen, struct result* result,
       code = PCD_GT;
       break;
    default:
-      UNREACHABLE()
+      UNREACHABLE();
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
