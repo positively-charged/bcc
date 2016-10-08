@@ -1,0 +1,312 @@
+ACS95 Grammar
+===============================================================================
+
+Special terminals:
+   E (Empty): Indicates the rule is optional
+
+-------------------------------------------------------------------------------
+
+module:
+   <module-item-list>
+   E
+
+module-item-list:
+   <module-item>
+   <module-item-list> <module-item>
+
+module-item:
+   <special>
+   <directive>
+   <declaration>
+   <script>
+
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <decimal-number> : <identifier> ( <decimal-number> )
+
+directive:
+   # define <string> <expression>
+   # include <string>
+
+declaration:
+   <variable>
+
+variable:
+   <storage> <specifier> <instance-list> ;
+
+storage:
+   world
+   E
+
+storage-index:
+   <decimal-number> :
+   E
+
+specifier:
+   int
+   str
+
+instance-list:
+   <instance>
+   <instance-list> , <instance>
+
+instance:
+   <instance-name>
+   <instance-name> = <initializer>
+
+instance-name:
+   <storage-index> <identifier>
+
+initializer:
+   <expression>
+
+script:
+   script <script-tag> open <statement>
+   script <script-tag> <script-parameter-parentheses> <statement>
+
+script-tag:
+   // Function calls are skipped because they conflict with the start of the
+   // parameter list.
+   <expression>
+
+script-parameter-parentheses:
+   ( void )
+   ( <script-parameter-list> )
+
+script-parameter-list:
+   <script-parameter>
+   <script-parameter-list> , <script-parameter>
+
+script-parameter:
+   int <identifier>
+
+statement:
+   <declaration>
+   <case-label>
+   <block-statement>
+   <if-statement>
+   <switch-statement>
+   <while-statement>
+   <do-statement>
+   <jump-statement>
+   <script-jump-statement>
+   <expression-statement>
+   ;
+
+statement-list:
+   <statement>
+   <statement-list> <statement>
+
+block-statement:
+   { <statement-list> }
+   { }
+
+if-statement:
+   if ( <expression> ) <statement>
+   if ( <expression> ) <statement> else <statement>
+
+switch-statement:
+   switch ( <expression> ) <statement>
+
+case-label:
+   case <expression> :
+   default :
+
+while-statement:
+   while ( <expression> ) <statement>
+   until ( <expression> ) <statement>
+
+do-statement:
+   do <statement> while ( <expression> ) ;
+   do <statement> until ( <expression> ) ;
+
+jump-statement:
+   break ;
+   continue ;
+
+script-jump-statement:
+   terminate ;
+   suspend ;
+   restart ;
+
+expression-statement:
+   <expression-list> ;
+
+expression-list:
+   <expression>
+   <expression-list> , <expression>
+
+expression:
+   <assignment>
+
+assignment:
+   <prefix>
+   <prefix>  = <logical-or>
+   <prefix> += <logical-or>
+   <prefix> -= <logical-or>
+   <prefix> *= <logical-or>
+   <prefix> /= <logical-or>
+   <prefix> %= <logical-or>
+
+logical-or:
+   <logical-and>
+   <logical-or> || <logical-and>
+
+logical-and:
+   <bitwise-or>
+   <logical-and> &&  <bitwise-or>
+
+bitwise-or:
+   <bitwise-xor>
+   <bitwise-or> | <bitwise-xor>
+
+bitwise-xor:
+   <bitwise-and>
+   <bitwise-xor> ^ <bitwise-and>
+
+bitwise-and:
+   <equal>
+   <bitwise-and> & <equal>
+
+equal:
+   <less-than>
+   <equal> == <less-than>
+   <equal> != <less-than>
+
+less-than:
+   <bitwise-shift>
+   <less-than> <  <bitwise-shift>
+   <less-than> <= <bitwise-shift>
+   <less-than> >  <bitwise-shift>
+   <less-than> >= <bitwise-shift>
+ 
+bitwise-shift:
+   <addition>
+   <bitwise-shift> << <addition>
+   <bitwise-shift> >> <addition>
+
+addition:
+   <multiplication>
+   <addition> + <multiplication>
+   <addition> - <multiplication>
+
+multiplication:
+   <prefix>
+   <multiplication> * <prefix>
+   <multiplication> / <prefix>
+   <multiplication> % <prefix>
+
+prefix:
+   <suffix>
+   ++ <prefix>
+   -- <prefix>
+   -  <prefix>
+   !  <prefix>
+
+suffix:
+   <primary>
+   <prefix> ++
+   <prefix> --
+   <prefix> ( <expression-list> )
+   <prefix> ( const : <expression-list> )
+   <prefix> ( <format-item-list> )
+   <prefix> ( )
+
+format-item-list:
+   <format-item>
+   <format-item-list> , <format-item>
+
+format-item:
+   <format-cast> : <expression>
+
+format-cast:
+   <identifier> // Valid values: c, d, i, s
+
+primary:
+   <identifier>
+   <number>
+   <string>
+   ( <expression> )
+   print
+   printbold
+
+identifier:
+   [a-zA-Z_]
+   <identifier> [a-zA-Z0-9_]
+
+number:
+   <decimal-number>
+   <hexadecimal-number>
+   <fixed-point-number>
+   <radix-number>
+
+decimal-number:
+   [0-9]+
+
+hexadecimal-number:
+   (0x|0X) [0-9a-fA-F]
+   <hexadecimal-number> [0-9a-fA-F]
+
+fixed-point-number:
+   <decimal-number> . <decimal-number>
+
+radix-number:
+   <decimal-number> _ <decimal-number>
+
+string:
+   " "
+   " <string-content> "
+
+string-content:
+   <nondoublequote-symbol>
+   <string-content> <nondoublequote-symbol>
+
+symbol:
+   // A unit of text such as the letter 'a', the number '0', or the punctuation
+   // mark '!'.
+
+nondoublequote-symbol:
+   // Any <symbol> except '"'.
+
+comment:
+   / / <comment-body> \n
+   / * <comment-body> * /
+
+comment-body:
+   <comment-body> <symbol>
+   E
+
+keyword:
+   break
+   case
+   const
+   continue
+   default
+   define
+   do
+   else
+   for
+   goto
+   if
+   include
+   int
+   open
+   print
+   printbold
+   restart
+   script
+   special
+   str
+   suspend
+   switch
+   terminate
+   until
+   void
+   while
+   world
