@@ -291,10 +291,9 @@ void p_test_tk( struct parse* parse, enum tk expected ) {
       }
       else {
          p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos, 
-            "unexpected %s", p_get_token_name( parse->tk ) );
+            "unexpected %s", p_present_token_temp( parse, parse->tk ) );
          p_diag( parse, DIAG_POS, &parse->tk_pos,
-            "expecting %s here", p_get_token_name( expected ),
-            p_get_token_name( parse->tk ) );
+            "expecting %s here", p_present_token_temp( parse, expected ) );
       }
       p_bail( parse );
    }
@@ -394,10 +393,9 @@ void p_read_eoptiontk( struct parse* parse ) {
 void p_test_preptk( struct parse* parse, enum tk expected ) {
    if ( parse->token->type != expected ) {
       p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos, 
-         "unexpected %s", p_get_token_name( parse->token->type ) );
+         "unexpected %s", p_present_token_temp( parse, parse->token->type ) );
       p_diag( parse, DIAG_POS, &parse->token->pos,
-         "expecting %s here", p_get_token_name( expected ),
-         p_get_token_name( parse->token->type ) );
+         "expecting %s here", p_present_token_temp( parse, expected ) );
       p_bail( parse );
    }
 }

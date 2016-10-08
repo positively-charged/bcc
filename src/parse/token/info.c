@@ -1,10 +1,7 @@
-#include <string.h>
-#include <ctype.h>
-
 #include "phase.h"
 
-// The table below contains information about the available tokens. The
-// order of the table corresponds to the order of the token enumeration.
+// The table below contains information about the available tokens. The order
+// of the table corresponds to the order of the token enumeration.
 #define ENTRY( text, flags ) \
    { text, ARRAY_SIZE( text ) - 1, flags }
 #define BLANK ""
@@ -181,177 +178,82 @@ const struct token_info* p_get_token_info( enum tk tk ) {
    return &g_table[ tk ];
 }
 
-const struct token_info* p_find_keyword( const char* text ) {
-   for ( int i = 0; i < ARRAY_SIZE( g_table ); ++i ) {
-      if ( g_table[ i ].flags & TKF_KEYWORD &&
-         strcmp( g_table[ i ].shared_text, text ) == 0 ) {
-         return &g_table[ i ];
-      }
-   }
-   return NULL;
-}
-
-const char* p_get_token_name( enum tk tk ) {
-   static const struct { enum tk tk; const char* name; } names[] = {
-      { TK_BRACKET_L, "`[`" },
-      { TK_BRACKET_R, "`]`" },
-      { TK_PAREN_L, "`(`" },
-      { TK_PAREN_R, "`)`" },
-      { TK_BRACE_L, "`{`" },
-      { TK_BRACE_R, "`}`" },
-      { TK_DOT, "`.`" },
-      { TK_INC, "`++`" },
-      { TK_DEC, "`--`" },
-      { TK_COMMA, "`,`" },
-      { TK_COLON, "`:`" },
-      { TK_SEMICOLON, "`;`" },
-      { TK_ASSIGN, "`=`" },
-      { TK_ASSIGN_ADD, "`+=`" },
-      { TK_ASSIGN_SUB, "`-=`" },
-      { TK_ASSIGN_MUL, "`*=`" },
-      { TK_ASSIGN_DIV, "`/=`" },
-      { TK_ASSIGN_MOD, "`%=`" },
-      { TK_ASSIGN_SHIFT_L, "`<<=`" },
-      { TK_ASSIGN_SHIFT_R, "`>>=`" },
-      { TK_ASSIGN_BIT_AND, "`&=`" },
-      { TK_ASSIGN_BIT_XOR, "`^=`" },
-      { TK_ASSIGN_BIT_OR, "`|=`" },
-      { TK_EQ, "`==`" },
-      { TK_NEQ, "`!=`" },
-      { TK_LOG_NOT, "`!`" },
-      { TK_LOG_AND, "`&&`" },
-      { TK_LOG_OR, "`||`" },
-      { TK_BIT_AND, "`&`" },
-      { TK_BIT_OR, "`|`" },
-      { TK_BIT_XOR, "`^`" },
-      { TK_BIT_NOT, "`~`" },
-      { TK_LT, "`<`" },
-      { TK_LTE, "`<=`" },
-      { TK_GT, "`>`" },
-      { TK_GTE, "`>=`" },
-      { TK_PLUS, "`+`" },
-      { TK_MINUS, "`-`" },
-      { TK_SLASH, "`/`" },
-      { TK_STAR, "`*`" },
-      { TK_MOD, "`%`" },
-      { TK_SHIFT_L, "`<<`" },
-      { TK_SHIFT_R, "`>>`" },
-      { TK_HASH, "`#`" },
-      { TK_BREAK, "`break`" },
-      { TK_CASE, "`case`" },
-      { TK_CONST, "`const`" },
-      { TK_CONTINUE, "`continue`" },
-      { TK_DEFAULT, "`default`" },
-      { TK_DO, "`do`" },
-      { TK_ELSE, "`else`" },
-      { TK_ENUM, "`enum`" },
-      { TK_FOR, "`for`" },
-      { TK_IF, "`if`" },
-      { TK_INT, "`int`" },
-      { TK_RETURN, "`return`" },
-      { TK_STATIC, "`static`" },
-      { TK_STR, "`str`" },
-      { TK_STRUCT, "`struct`" },
-      { TK_SWITCH, "`switch`" },
-      { TK_VOID, "`void`" },
-      { TK_WHILE, "`while`" },
-      { TK_BOOL, "`bool`" },
-      { TK_PALTRANS, "`createtranslation`" },
-      { TK_GLOBAL, "`global`" },
-      { TK_SCRIPT, "`script`" },
-      { TK_UNTIL, "`until`" },
-      { TK_WORLD, "`world`" },
-      { TK_OPEN, "`open`" },
-      { TK_RESPAWN, "`respawn`" },
-      { TK_DEATH, "`death`" },
-      { TK_ENTER, "`enter`" },
-      { TK_PICKUP, "`pickup`" },
-      { TK_BLUE_RETURN, "`bluereturn`" },
-      { TK_RED_RETURN, "`redreturn`" },
-      { TK_WHITE_RETURN, "`whitereturn`" },
-      { TK_LIGHTNING, "`lightning`" },
-      { TK_DISCONNECT, "`disconnect`" },
-      { TK_UNLOADING, "`unloading`" },
-      { TK_CLIENTSIDE, "`clientside`" },
-      { TK_NET, "`net`" },
-      { TK_RESTART, "`restart`" },
-      { TK_SUSPEND, "`suspend`" },
-      { TK_TERMINATE, "`terminate`" },
-      { TK_FUNCTION, "`function`" },
-      { TK_IMPORT, "`import`" },
-      { TK_GOTO, "`goto`" },
-      { TK_TRUE, "`true`" },
-      { TK_FALSE, "`false`" },
-      { TK_IMPORT, "`import`" },
-      { TK_EVENT, "`event`" },
-      { TK_LIT_OCTAL, "octal number" },
-      { TK_LIT_DECIMAL, "decimal number" },
-      { TK_LIT_HEX, "hexadecimal number" },
-      { TK_LIT_BINARY, "binary number" },
-      { TK_LIT_FIXED, "fixed-point number" },
-      { TK_NL, "end-of-line" },
-      { TK_END, "end-of-input" },
-      { TK_LIB, "start-of-library" },
-      { TK_LIB_END, "end-of-library" },
-      { TK_QUESTION_MARK, "`?`" },
-      { TK_ELLIPSIS, "`...`" },
-      { TK_HORZSPACE, "horizontal space" },
-      { TK_HASHHASH, "`##`" },
-      { TK_STRCPY, "`strcpy`" },
-      { TK_RAW, "`raw`" },
-      { TK_FIXED, "`fixed`" },
-      { TK_ASSERT, "`assert`" },
-      { TK_AUTO, "`auto`" },
-      { TK_TYPEDEF, "`typedef`" },
-      { TK_FOREACH, "`foreach`" },
-      { TK_PRIVATE, "`private`" },
-      { TK_MEMCPY, "`memcpy`" },
-      { TK_MSGBUILD, "`msgbuild`" },
-      { TK_NULL, "`null`" },
-      { TK_SPECIAL, "`special`" },
-      { TK_NAMESPACE, "`namespace`" },
-      { TK_UPMOST, "`upmost`" },
-      { TK_USING, "`using`" },
-      { TK_INCLUDE, "`include`" },
-      { TK_DEFINE, "`define`" },
-      { TK_LIBDEFINE, "`libdefine`" },
-      { TK_PRINT, "`print`" },
-      { TK_PRINTBOLD, "`printbold`" },
-      { TK_WADAUTHOR, "`wadauthor`" },
-      { TK_NOWADAUTHOR, "`nowadauthor`" },
-      { TK_NOCOMPACT, "`nocompact`" },
-      { TK_LIBRARY, "`library`" },
-      { TK_ENCRYPTSTRINGS, "`encryptstrings`" },
-      { TK_REGION, "`region`" },
-      { TK_ENDREGION, "`endregion`" },
-      { TK_LOG, "`log`" },
-      { TK_HUDMESSAGE, "`hudmessage`" },
-      { TK_HUDMESSAGEBOLD, "`hudmessagebold`" },
-      { TK_STRPARAM, "`strparam`" },
-      { TK_EXTERN, "`extern`" },
-      { TK_ACSEXECUTEWAIT, "`acs_executewait`" },
-      { TK_ACSNAMEDEXECUTEWAIT, "`acs_namedexecutewait`" },
-      { TK_LIT_RADIX, "radix number" },
-      { TK_KILL, "`kill`" },
-      { TK_BACKSLASH, "`\\`" },
-      { TK_REOPEN, "`reopen`" },
-      { TK_LET, "`let`" } };
+void p_present_token( struct str* str, enum tk tk ) {
    STATIC_ASSERT( TK_TOTAL == 149 );
    switch ( tk ) {
-   case TK_LIT_STRING:
-      return "string literal";
-   case TK_LIT_CHAR:
-      return "character literal";
    case TK_ID:
-      return "identifier";
+      str_append( str,
+         "identifier" );
+      break;
+   case TK_LIT_DECIMAL:
+      str_append( str,
+         "decimal number" );
+      break;
+   case TK_LIT_OCTAL:
+      str_append( str,
+         "octal number" );
+      break;
+   case TK_LIT_HEX:
+      str_append( str,
+         "hexadecimal number" );
+      break;
+   case TK_LIT_FIXED:
+      str_append( str,
+         "fixed-point number" );
+      break;
+   case TK_LIT_STRING:
+      str_append( str,
+         "string literal" );
+      break;
+   case TK_LIT_CHAR:
+      str_append( str,
+         "character literal" );
+      break;
+   case TK_NL:
+      str_append( str,
+         "end-of-line" );
+      break;
+   case TK_END:
+      str_append( str,
+         "end-of-input" );
+      break;
+   case TK_LIB:
+      str_append( str,
+         "start-of-library" );
+      break;
+   case TK_LIB_END:
+      str_append( str,
+         "end-of-library" );
+      break;
+   case TK_LIT_BINARY:
+      str_append( str,
+         "binary number" );
+      break;
+   case TK_HORZSPACE:
+      str_append( str,
+         "horizontal space" );
+      break;
+   case TK_LIT_RADIX:
+      str_append( str,
+         "radix number" );
+      break;
    case TK_TYPENAME:
-      return "type name (identifier that ends with \"_T\")";
+      str_append( str,
+         "type name (identifier that ends with \"_T\")" );
+      break;
    default:
-      for ( size_t i = 0; i < ARRAY_SIZE( names ); ++i ) {
-         if ( names[ i ].tk == tk ) {
-            return names[ i ].name;
-         }
+      str_append( str, "`" );
+      str_append( str, g_table[ tk ].shared_text );
+      str_append( str, "`" );
+      if ( g_table[ tk ].flags & TKF_KEYWORD ) {
+         str_append( str, " " );
+         str_append( str, "keyword" );
       }
-      return "";
    }
+}
+
+const char* p_present_token_temp( struct parse* parse, enum tk tk ) {
+   str_clear( &parse->token_presentation );
+   p_present_token( &parse->token_presentation, tk );
+   return parse->token_presentation.value;
 }

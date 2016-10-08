@@ -387,6 +387,7 @@ struct parse {
    struct source_entry* source_entry_free;
    int last_id;
    struct str temp_text;
+   struct str token_presentation;
    enum {
       READF_NONE = 0x0,
       READF_CONCATSTRINGS = 0x1,
@@ -457,7 +458,8 @@ void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
 enum tk p_peek_2nd( struct parse* parse );
 struct token* p_peek_tk( struct parse* parse );
-const char* p_get_token_name( enum tk type );
+void p_present_token( struct str* str, enum tk tk );
+const char* p_present_token_temp( struct parse* parse, enum tk tk );
 int p_extract_literal_value( struct parse* parse );
 void p_load_included_source( struct parse* parse, const char* file_path,
    struct pos* pos );
@@ -518,6 +520,5 @@ void p_create_cmdline_library_links( struct parse* parse );
 bool p_in_explicit_namespace_fragment( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
-const struct token_info* p_find_keyword( const char* text );
 
 #endif

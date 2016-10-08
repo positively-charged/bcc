@@ -132,7 +132,7 @@ void read_module_item_acs( struct parse* parse ) {
          break;
       default:
          p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "unexpected %s", p_get_token_name( parse->tk ) );
+            "unexpected %s", p_present_token_temp( parse, parse->tk ) );
          p_bail( parse );
       }
    }
@@ -244,7 +244,7 @@ void read_namespace_member( struct parse* parse ) {
    }
    else {
       p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-         "unexpected %s", p_get_token_name( parse->tk ) );
+         "unexpected %s", p_present_token_temp( parse, parse->tk ) );
       p_bail( parse );
    }
 }

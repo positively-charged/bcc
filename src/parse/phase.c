@@ -13,6 +13,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->source_entry_free = NULL;
    parse->last_id = 0;
    str_init( &parse->temp_text );
+   str_init( &parse->token_presentation );
    parse->read_flags = READF_CONCATSTRINGS | READF_ESCAPESEQ;
    parse->concat_strings = false;
    parse->macro_head = NULL;
@@ -118,11 +119,11 @@ void p_diag( struct parse* parse, int flags, ... ) {
 
 void p_unexpect_diag( struct parse* parse ) {
    p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos,
-      "unexpected %s", p_get_token_name( parse->token->type ) );
+      "unexpected %s", p_present_token_temp( parse, parse->token->type ) );
 }
 
 void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
-   p_unexpect_name( parse, pos, p_get_token_name( tk ) );
+   p_unexpect_name( parse, pos, p_present_token_temp( parse, tk ) );
 }
 
 void p_unexpect_name( struct parse* parse, struct pos* pos,
@@ -132,7 +133,7 @@ void p_unexpect_name( struct parse* parse, struct pos* pos,
 }
 
 void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk ) {
-   p_unexpect_last_name( parse, pos, p_get_token_name( tk ) );
+   p_unexpect_last_name( parse, pos, p_present_token_temp( parse, tk ) );
 }
 
 void p_unexpect_last_name( struct parse* parse, struct pos* pos,
