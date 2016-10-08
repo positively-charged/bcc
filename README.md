@@ -1,17 +1,22 @@
-__bcc__ is an ACS compiler.
+__bcc__ is an ACS/ACS95/BCS compiler.
 
-The [Zandronum](http://zandronum.com/) engine is used when developing the compiler, so the addition of a feature depends on the capabilities of the latest production release of said engine.
+BCS is mostly compatible with ACS, and provides many extra features, including the following:
 
-New features include:
-
-* <code>enum</code> declarations
-* <code>struct</code> declarations
-* <code>region</code> declarations
-* Proper scoping
+* Enumerations
+* Structures
+* Namespaces
+* Preprocessor
+* Strong types
+* References (limited)
+* Block scoping
 * Optional function parameters
 * <code>&&</code> and <code>||</code> operators use short-circuit evaluation
+* <code>foreach</code> loop
 * <code>goto</code> statement
-* Format blocks
+* Nested functions
+* Message-building functions
+* <code>?:</code> operator
+* Inline assembly
 
 __Note:__ New features and their characteristics are subject to change until further notice.
 
