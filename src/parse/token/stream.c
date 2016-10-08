@@ -780,17 +780,10 @@ void concat_tangible( struct parse* parse, struct macro_expan* expan,
       str_clear( &parse->temp_text );
       str_append( &parse->temp_text, lside->text );
       str_append( &parse->temp_text, rside->text );
-      info = p_find_keyword( parse->temp_text.value );
-      if ( info ) {
-         token.text = info->shared_text;
-         token.length = info->length;
-      }
-      else {
-         token.modifiable_text = t_intern_text( parse->task,
-            parse->temp_text.value, parse->temp_text.length );
-         token.text = token.modifiable_text;
-         token.length = parse->temp_text.length;
-      }
+      token.modifiable_text = t_intern_text( parse->task,
+         parse->temp_text.value, parse->temp_text.length );
+      token.text = token.modifiable_text;
+      token.length = parse->temp_text.length;
    }
    p_free_token( parse, rside );
    p_free_token( parse, lside->next );
