@@ -4,20 +4,6 @@ static void output_source( struct parse* parse, struct str* output );
 static void output_token( struct parse* parse, struct str* output );
 
 void p_preprocess( struct parse* parse ) {
-
-
-/*
-   while ( true ) {
-      //printf( "peeked %d %s\n", p_peek_stream( parse )->type, p_peek_stream( parse )->text );
-      //printf( "peeked 2nd %d %s\n", p_peek_stream_2nd( parse )->type, p_peek_stream_2nd( parse )->text );
-      p_read_tk( parse );
-      if ( parse->token->type == TK_END ) {
-         break;
-      }
-      printf( "%d %d %s\n", parse->token->type, parse->token->length, parse->token->text );
-   }
-   p_bail( parse ); */
-
    parse->read_flags = READF_NL | READF_SPACETAB;
    struct str output;
    str_init( &output );
@@ -42,46 +28,8 @@ void output_source( struct parse* parse, struct str* output ) {
    p_confirm_ifdircs_closed( parse );
 }
 
-int line = 1;
-int column = 0;
-
+// TODO: Get the original text of the token.
 void output_token( struct parse* parse, struct str* output ) {
-/*
-   switch ( parse->token->type ) {
-   case TK_NL:
-   case TK_HORZSPACE:
-      return;
-   default:
-      break;
-   }
-   if ( line > parse->token->pos.line ) {
-         str_append( output, " " );
-         ++column;
-   }
-   else {
-      while ( line < parse->token->pos.line ) {
-         str_append( output, NEWLINE_CHAR );
-         column = 0;
-         ++line;
-      }
-      while ( column < parse->token->pos.column ) {
-         str_append( output, " " );
-         ++column;
-      }
-   column += parse->token->length;
-   } */
-/*
-   if ( ! parse->macro_expan ) {
-      while ( parse->line ) {
-         str_append( output, NEWLINE_CHAR );
-         --parse->line;
-      }
-      while ( parse->column ) {
-         str_append( output, " " );
-         --parse->column;
-      }
-   }
-*/
    switch ( parse->token->type ) {
    case TK_NL:
       str_append( output, NEWLINE_CHAR );
@@ -100,7 +48,6 @@ void output_token( struct parse* parse, struct str* output ) {
          char ch[] = { parse->token->text[ i ], 0 };
          str_append( output, ch );
       }
-      //str_append( output, parse->token->text );
       str_append( output, "\"" );
       break;
    case TK_LIT_CHAR:
@@ -108,9 +55,29 @@ void output_token( struct parse* parse, struct str* output ) {
       str_append( output, parse->token->text );
       str_append( output, "'" );
       break;
-   //case TK_NL:
-   //case TK_HORZSPACE:
-   //   break;
+   case TK_LIT_OCTAL:
+      str_append( output, "0o" );
+      str_append( output, parse->token->text );
+      break;
+   case TK_LIT_HEX:
+      str_append( output, "0x" );
+      str_append( output, parse->token->text );
+      break;
+   case TK_LIT_BINARY:
+      str_append( output, "0b" );
+      str_append( output, parse->token->text );
+      break;
+   case TK_LIT_RADIX:
+      for ( int i = 0; i < parse->token->length; ++i ) {
+         if ( parse->token->text[ i ] == '_' ) {
+            str_append( output, "r" );
+         }
+         else {
+            char ch[] = { parse->token->text[ i ], 0 };
+            str_append( output, ch );
+         }
+      }
+      break;
    default:
       str_append( output, parse->token->text );
       break;
