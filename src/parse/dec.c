@@ -98,6 +98,7 @@ static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
 static void read_storage_index( struct parse* parse, struct dec* dec );
 static void read_name( struct parse* parse, struct dec* dec );
+static bool is_name( struct parse* parse, struct dec* dec );
 static void missing_name( struct parse* parse, struct dec* dec );
 static void read_dim( struct parse* parse, struct dec* dec );
 static void read_var_init( struct parse* parse, struct dec* dec );
@@ -320,7 +321,6 @@ void read_object( struct parse* parse, struct dec* dec ) {
       switch ( parse->lang ) {
       case LANG_ACS:
       case LANG_ACS95:
-      case LANG_BCS:
          dec->object = DECOBJ_VAR;
          break;
       default:
@@ -804,7 +804,7 @@ void read_after_spec( struct parse* parse, struct dec* dec ) {
    read_ref( parse, &ref );
    dec->ref = ref.head;
    if ( dec->object == DECOBJ_UNDECIDED ) {
-      if ( parse->tk == TK_ID && p_peek( parse ) == TK_PAREN_L ) {
+      if ( is_name( parse, dec ) && p_peek( parse ) == TK_PAREN_L ) {
          dec->object = DECOBJ_FUNC;
       }
       else {
@@ -1000,8 +1000,7 @@ void read_storage_index( struct parse* parse, struct dec* dec ) {
 }
 
 void read_name( struct parse* parse, struct dec* dec ) {
-   if ( ( dec->type_alias && parse->tk == TK_TYPENAME ) ||
-      ( ! dec->type_alias && parse->tk == TK_ID ) ) {
+   if ( is_name( parse, dec ) ) {
       dec->name = t_extend_name( dec->name_offset, parse->tk_text );
       dec->name_pos = parse->tk_pos;
       p_read_tk( parse );
@@ -1009,6 +1008,11 @@ void read_name( struct parse* parse, struct dec* dec ) {
    else {
       missing_name( parse, dec );
    }
+}
+
+inline bool is_name( struct parse* parse, struct dec* dec ) {
+   return ( ( dec->type_alias && parse->tk == TK_TYPENAME ) ||
+      ( ! dec->type_alias && parse->tk == TK_ID ) );
 }
 
 void missing_name( struct parse* parse, struct dec* dec ) {
