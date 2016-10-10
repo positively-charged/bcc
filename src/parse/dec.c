@@ -60,7 +60,7 @@ static void read_extended_spec( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* dec );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
-static void read_enum_name( struct parse* parse,
+static void read_enum_name( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration );
 static void read_enum_base_type( struct parse* parse,
    struct enumeration* enumeration );
@@ -71,7 +71,7 @@ static void read_enumerator( struct parse* parse,
 static void read_struct( struct parse* parse, struct dec* dec );
 static bool is_struct_def( struct parse* parse );
 static void read_struct_def( struct parse* parse, struct dec* dec );
-static void read_struct_name( struct parse* parse,
+static void read_struct_name( struct parse* parse, struct dec* dec,
    struct structure* structure );
 static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
@@ -236,6 +236,8 @@ void p_init_dec( struct dec* dec ) {
    dec->initz.specified = false;
    dec->spec = SPEC_NONE;
    dec->object = DECOBJ_UNDECIDED;
+   dec->implicit_type_alias.name = NULL;
+   dec->implicit_type_alias.specified = false;
    dec->private_visibility = false;
    dec->static_qual = false;
    dec->msgbuild = false;
@@ -424,8 +426,8 @@ void read_enum( struct parse* parse, struct dec* dec ) {
 inline bool is_enum_def( struct parse* parse ) {
    return parse->tk == TK_ENUM && (
       p_peek( parse ) == TK_BRACE_L ||
-      p_peek( parse ) == TK_COLON || (
-      p_peek( parse ) == TK_ID && (
+      p_peek( parse ) == TK_COLON || ( ( p_peek( parse ) == TK_ID ||
+         p_peek( parse ) == TK_TYPENAME ) && (
          p_peek_2nd( parse ) == TK_BRACE_L ||
          p_peek_2nd( parse ) == TK_COLON ) ) );
 }
@@ -438,7 +440,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    enumeration->object.pos = dec->type_pos;
    enumeration->hidden = dec->private_visibility;
    enumeration->force_local_scope = dec->force_local_scope;
-   read_enum_name( parse, enumeration );
+   read_enum_name( parse, dec, enumeration );
    read_enum_base_type( parse, enumeration );
    read_enum_body( parse, dec, enumeration );
    dec->enumeration = enumeration;
@@ -454,6 +456,23 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
          list_append( &parse->lib->private_objects, enumeration );
       }
    }
+   if ( dec->implicit_type_alias.specified ) {
+      struct dec implicit_dec;
+      p_init_dec( &implicit_dec );
+      if ( dec->vars ) {
+         implicit_dec.area = DEC_LOCAL;
+         implicit_dec.vars = dec->vars;
+      }
+      else {
+         implicit_dec.area = DEC_TOP;
+      }
+      implicit_dec.type_alias = true;
+      implicit_dec.name = dec->implicit_type_alias.name;
+      implicit_dec.name_pos = enumeration->object.pos;
+      implicit_dec.enumeration = enumeration;
+      implicit_dec.spec = SPEC_ENUM;
+      finish_type_alias( parse, &implicit_dec );
+   }
    STATIC_ASSERT( DEC_TOTAL == 4 );
    if ( dec->area == DEC_FOR ) {
       p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
@@ -462,12 +481,18 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_enum_name( struct parse* parse, struct enumeration* enumeration ) {
-   if ( parse->tk == TK_ID ) {
+void read_enum_name( struct parse* parse, struct dec* dec,
+   struct enumeration* enumeration ) {
+   if ( parse->tk == TK_ID || parse->tk == TK_TYPENAME ) {
       enumeration->name = t_extend_name( parse->ns->body_enums,
          parse->tk_text );
       enumeration->body = t_extend_name( enumeration->name, "." );
       enumeration->object.pos = parse->tk_pos;
+      if ( parse->tk == TK_TYPENAME ) {
+         dec->implicit_type_alias.name =
+            t_extend_name( parse->ns->body, parse->tk_text );
+         dec->implicit_type_alias.specified = true;
+      }
       p_read_tk( parse );
    }
    else {
@@ -552,8 +577,7 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
 }
 
 void read_struct( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_STRUCT && p_peek( parse ) == TK_ID &&
-      p_peek_2nd( parse ) == TK_BRACE_L ) {
+   if ( is_struct_def( parse ) ) {
       read_struct_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
          if ( dec->structure->anon ) {
@@ -577,8 +601,9 @@ void read_struct( struct parse* parse, struct dec* dec ) {
 }
 
 inline bool is_struct_def( struct parse* parse ) {
-   return parse->tk == TK_STRUCT && ( p_peek( parse ) == TK_BRACE_L ||
-      ( p_peek( parse ) == TK_ID && p_peek_2nd( parse ) == TK_BRACE_L ) );
+   return ( parse->tk == TK_STRUCT && ( p_peek( parse ) == TK_BRACE_L ||
+      ( ( p_peek( parse ) == TK_ID || p_peek( parse ) == TK_TYPENAME ) &&
+         p_peek_2nd( parse ) == TK_BRACE_L ) ) );
 }
 
 void read_struct_def( struct parse* parse, struct dec* dec ) {
@@ -587,7 +612,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    structure->force_local_scope = dec->force_local_scope;
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
-   read_struct_name( parse, structure );
+   read_struct_name( parse, dec, structure );
    read_struct_body( parse, dec, structure );
    dec->structure = structure;
    dec->spec = SPEC_STRUCT;
@@ -600,13 +625,36 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns_fragment->objects, structure );
       list_append( &parse->lib->objects, structure );
    }
+   if ( dec->implicit_type_alias.specified ) {
+      struct dec implicit_dec;
+      p_init_dec( &implicit_dec );
+      if ( dec->vars ) {
+         implicit_dec.area = DEC_LOCAL;
+         implicit_dec.vars = dec->vars;
+      }
+      else {
+         implicit_dec.area = DEC_TOP;
+      }
+      implicit_dec.type_alias = true;
+      implicit_dec.name = dec->implicit_type_alias.name;
+      implicit_dec.name_pos = structure->object.pos;
+      implicit_dec.structure = structure;
+      implicit_dec.spec = SPEC_STRUCT;
+      finish_type_alias( parse, &implicit_dec );
+   }
 }
 
-void read_struct_name( struct parse* parse, struct structure* structure ) {
-   if ( parse->tk == TK_ID ) {
+void read_struct_name( struct parse* parse, struct dec* dec,
+   struct structure* structure ) {
+   if ( parse->tk == TK_ID || parse->tk == TK_TYPENAME ) {
       structure->name = t_extend_name( parse->ns->body_structs,
          parse->tk_text );
       structure->object.pos = parse->tk_pos;
+      if ( parse->tk == TK_TYPENAME ) {
+         dec->implicit_type_alias.name =
+            t_extend_name( parse->ns->body, parse->tk_text );
+         dec->implicit_type_alias.specified = true;
+      }
       p_read_tk( parse );
    }
    // When no name is specified, make random name.
@@ -761,12 +809,22 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
       case TK_ENUM:
          p_read_tk( parse );
          spec->type = SPEC_NAME + SPEC_ENUM;
-         spec->path = p_read_path( parse );
+         if ( p_peek_type_path( parse ) ) {
+            spec->path = p_read_type_path( parse );
+         }
+         else {
+            spec->path = p_read_path( parse );
+         }
          break;
       case TK_STRUCT:
          p_read_tk( parse );
          spec->type = SPEC_NAME + SPEC_STRUCT;
-         spec->path = p_read_path( parse );
+         if ( p_peek_type_path( parse ) ) {
+            spec->path = p_read_type_path( parse );
+         }
+         else {
+            spec->path = p_read_path( parse );
+         }
          break;
       case TK_ID:
       case TK_UPMOST:

@@ -348,6 +348,10 @@ struct dec {
       DECOBJ_FUNC,
       DECOBJ_VAR
    } object;
+   struct {
+      struct name* name;
+      bool specified;
+   } implicit_type_alias;
    bool private_visibility;
    bool static_qual;
    bool msgbuild;
