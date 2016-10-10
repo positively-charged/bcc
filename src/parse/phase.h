@@ -343,10 +343,13 @@ struct dec {
       bool specified;
    } initz;
    int spec;
+   enum {
+      DECOBJ_UNDECIDED,
+      DECOBJ_FUNC,
+      DECOBJ_VAR
+   } object;
    bool private_visibility;
    bool static_qual;
-   bool leave;
-   bool read_func;
    bool msgbuild;
    bool type_alias;
    bool semicolon_absent;
