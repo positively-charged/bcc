@@ -82,8 +82,6 @@ static bool is_spec( struct parse* parse );
 static void init_spec_reading( struct spec_reading* spec, int area );
 static void read_spec( struct parse* parse, struct spec_reading* spec );
 static void missing_spec( struct parse* parse, struct spec_reading* spec );
-static void read_synon( struct parse* parse, struct dec* dec );
-static void finish_synon( struct parse* parse, struct dec* dec );
 static void read_after_spec( struct parse* parse, struct dec* dec );
 static void init_ref( struct ref* ref, int type, struct pos* pos );
 static void prepend_ref( struct ref_reading* reading, struct ref* part );
@@ -116,6 +114,7 @@ static void test_var( struct parse* parse, struct dec* dec );
 static void test_storage( struct parse* parse, struct dec* dec );
 static void add_var( struct parse* parse, struct dec* dec );
 static struct var* alloc_var( struct dec* dec );
+static void finish_type_alias( struct parse* parse, struct dec* dec );
 static void read_auto_var( struct parse* parse, struct dec* dec );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
 static void read_func( struct parse* parse, struct dec* dec );
@@ -254,9 +253,6 @@ void p_read_dec( struct parse* parse, struct dec* dec ) {
    case TK_STRUCT:
       read_struct( parse, dec );
       break;
-   case TK_TYPEDEF:
-      read_synon( parse, dec );
-      break;
    default:
       read_visibility( parse, dec );
    }
@@ -297,6 +293,10 @@ void read_visibility( struct parse* parse, struct dec* dec ) {
          return;
       }
    }
+   else if ( parse->tk == TK_TYPEDEF ) {
+      dec->type_alias = true;
+      p_read_tk( parse );
+   }
    else if ( parse->tk == TK_EXTERN ) {
       if ( parse->lib->imported ) {
          p_skip_semicolon( parse );
@@ -327,15 +327,17 @@ void read_object( struct parse* parse, struct dec* dec ) {
          break;
       }
    }
-   read_qual( parse, dec );
-   if (
-      dec->object == DECOBJ_UNDECIDED ||
-      dec->object == DECOBJ_VAR ) {
-      if ( parse->tk == TK_AUTO ) {
-         read_auto_var( parse, dec );
-         return;
+   if ( ! dec->type_alias ) {
+      read_qual( parse, dec );
+      if (
+         dec->object == DECOBJ_UNDECIDED ||
+         dec->object == DECOBJ_VAR ) {
+         if ( parse->tk == TK_AUTO ) {
+            read_auto_var( parse, dec );
+            return;
+         }
+         read_storage( parse, dec );
       }
-      read_storage( parse, dec );
    }
    read_extended_spec( parse, dec );
    read_after_spec( parse, dec );
@@ -796,67 +798,6 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
    p_unexpect_last_name( parse, NULL, subject );
 }
 
-void read_synon( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_TYPEDEF );
-   p_read_tk( parse );
-   dec->type_alias = true;
-   if ( parse->tk == TK_FUNCTION ) {
-      read_object( parse, dec );
-   }
-   else {
-      read_extended_spec( parse, dec );
-      struct ref_reading ref;
-      init_ref_reading( &ref );
-      read_ref( parse, &ref );
-      dec->ref = ref.head;
-      while ( true ) {
-         p_test_tk( parse, TK_TYPENAME );
-         dec->name = t_extend_name( parse->ns->body, parse->tk_text );
-         dec->name_pos = parse->tk_pos;
-         p_read_tk( parse );
-         read_dim( parse, dec );
-         finish_synon( parse, dec );
-         if ( parse->tk == TK_COMMA ) {
-            p_read_tk( parse );
-         }
-         else {
-            break;
-         }
-      }
-   }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
-}
-
-void finish_synon( struct parse* parse, struct dec* dec ) {
-   struct type_alias* alias = t_alloc_type_alias();
-   t_init_object( &alias->object, NODE_TYPE_ALIAS );
-   alias->object.pos = dec->name_pos;
-   alias->name = dec->name;
-   alias->ref = dec->ref;
-   alias->structure = dec->structure;
-   alias->enumeration = dec->enumeration;
-   alias->path = dec->path;
-   alias->dim = dec->dim;
-   alias->spec = dec->spec;
-   alias->original_spec = dec->spec;
-   alias->force_local_scope = dec->force_local_scope;
-   if ( dec->area == DEC_TOP ) {
-      p_add_unresolved( parse, &alias->object );
-      list_append( &parse->ns_fragment->objects, alias );
-   }
-   else {
-      list_append( dec->vars, alias );
-   }
-   if ( dec->type_alias_object ) {
-      dec->type_alias_object->next_instance = alias;
-   }
-   else {
-      alias->head_instance = true;
-   }
-   dec->type_alias_object = alias;
-}
-
 void read_after_spec( struct parse* parse, struct dec* dec ) {
    struct ref_reading ref;
    init_ref_reading( &ref );
@@ -1023,16 +964,23 @@ void read_instance_list( struct parse* parse, struct dec* dec ) {
 }
 
 void read_instance( struct parse* parse, struct dec* dec ) {
-   read_storage_index( parse, dec );
-   read_name( parse, dec );
-   if (
-      parse->lang == LANG_ACS ||
-      parse->lang == LANG_BCS ) {
+   if ( dec->type_alias ) {
+      read_name( parse, dec );
       read_dim( parse, dec );
+      finish_type_alias( parse, dec );
    }
-   read_var_init( parse, dec );
-   test_var( parse, dec );
-   add_var( parse, dec );
+   else {
+      read_storage_index( parse, dec );
+      read_name( parse, dec );
+      if (
+         parse->lang == LANG_ACS ||
+         parse->lang == LANG_BCS ) {
+         read_dim( parse, dec );
+      }
+      read_var_init( parse, dec );
+      test_var( parse, dec );
+      add_var( parse, dec );
+   }
 }
 
 void read_storage_index( struct parse* parse, struct dec* dec ) {
@@ -1464,6 +1412,35 @@ struct var* alloc_var( struct dec* dec ) {
    var->force_local_scope = dec->force_local_scope;
    var->external = dec->external;
    return var;
+}
+
+void finish_type_alias( struct parse* parse, struct dec* dec ) {
+   struct type_alias* alias = t_alloc_type_alias();
+   t_init_object( &alias->object, NODE_TYPE_ALIAS );
+   alias->object.pos = dec->name_pos;
+   alias->name = dec->name;
+   alias->ref = dec->ref;
+   alias->structure = dec->structure;
+   alias->enumeration = dec->enumeration;
+   alias->path = dec->path;
+   alias->dim = dec->dim;
+   alias->spec = dec->spec;
+   alias->original_spec = dec->spec;
+   alias->force_local_scope = dec->force_local_scope;
+   if ( dec->area == DEC_TOP ) {
+      p_add_unresolved( parse, &alias->object );
+      list_append( &parse->ns_fragment->objects, alias );
+   }
+   else {
+      list_append( dec->vars, alias );
+   }
+   if ( dec->type_alias_object ) {
+      dec->type_alias_object->next_instance = alias;
+   }
+   else {
+      alias->head_instance = true;
+   }
+   dec->type_alias_object = alias;
 }
 
 void read_auto_var( struct parse* parse, struct dec* dec ) {
