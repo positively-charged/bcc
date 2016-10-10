@@ -239,7 +239,8 @@ void p_present_token( struct str* str, enum tk tk ) {
       break;
    case TK_TYPENAME:
       str_append( str,
-         "type name (identifier that ends with \"_T\")" );
+         "type name (an identifier that ends with either "
+         "\"<lowercase-letter>T\" or \"_T\")" );
       break;
    default:
       str_append( str, "`" );

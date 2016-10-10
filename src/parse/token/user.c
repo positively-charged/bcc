@@ -83,16 +83,19 @@ void read_token_bcs( struct parse* parse ) {
    // -----------------------------------------------------------------------
    {
       char* text = parse->token->modifiable_text;
-      char last_ch = text[ parse->token->length - 1 ];
+      if ( ( parse->token->length >= 2 &&
+         ( islower( parse->token->text[ parse->token->length - 2 ] ) ||
+            parse->token->text[ parse->token->length - 2 ] == '_' ) &&
+         text[ parse->token->length - 1 ] == 'T' ) ||
+         ( parse->token->length == 1 && parse->token->text[ 0 ] == 'T' ) ) {
+         parse->token->type = TK_TYPENAME;
+      }
       while ( *text ) {
          *text = tolower( *text );
          ++text;
       }
       // Type name.
-      if ( parse->token->length >= 2 &&
-         parse->token->text[ parse->token->length - 2 ] == '_' &&
-         last_ch == 'T' ) {
-         parse->token->type = TK_TYPENAME;
+      if ( parse->token->type == TK_TYPENAME ) {
          return;
       }
       // Reserved identifier.
