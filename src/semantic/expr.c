@@ -47,14 +47,22 @@ static bool perform_bop( struct semantic* semantic, struct binary* binary,
    struct type_info* lside, struct type_info* rside, struct result* result );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
+static void fold_bop_int( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside );
+static void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside );
+static void fold_bop_bool( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside );
+static void fold_bop_str( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct logical* logical );
 static bool perform_logical( struct semantic* semantic,
    struct logical* logical, struct result* lside, struct result* rside,
    struct result* result );
 static bool can_convert_to_boolean( struct result* operand );
-static void fold_logical( struct logical* logical, struct result* lside,
-   struct result* rside, struct result* result );
+static void fold_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
 static bool perform_assign( struct assign* assign, struct result* lside,
@@ -495,6 +503,31 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
 
 void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result ) {
+   if ( is_value_type( semantic, lside ) ) {
+      switch ( lside->spec ) {
+      case SPEC_INT:
+      case SPEC_RAW:
+         fold_bop_int( semantic, binary, lside, rside );
+         break;
+      case SPEC_FIXED:
+         fold_bop_fixed( semantic, binary, lside, rside );
+         break;
+      case SPEC_BOOL:
+         fold_bop_bool( semantic, binary, lside, rside );
+         break;
+      case SPEC_STR:
+         fold_bop_str( semantic, binary, lside, rside );
+         break;
+      default:
+         break;
+      }
+      result->value = binary->value;
+      result->folded = binary->folded;
+   }
+}
+
+void fold_bop_int( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside ) {
    int l = lside->value;
    int r = rside->value;
    // Division and modulo get special treatment because of the possibility
@@ -523,10 +556,93 @@ void fold_bop( struct semantic* semantic, struct binary* binary,
    case BOP_BIT_OR: l = l | r; break;
    default: break;
    }
-   binary->folded = true;
    binary->value = l;
-   result->folded = true;
-   result->value = l;
+   binary->folded = true;
+}
+
+void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+   case BOP_LT:
+   case BOP_LTE:
+   case BOP_GT:
+   case BOP_GTE:
+   case BOP_ADD:
+   case BOP_SUB:
+      break;
+   case BOP_DIV:
+   case BOP_MUL:
+      // TODO.
+      return;
+   default:
+      return;
+   }
+   int l = lside->value;
+   int r = rside->value;
+   switch ( binary->op ) {
+   case BOP_EQ: l = ( l == r ); break;
+   case BOP_NEQ: l = ( l != r ); break;
+   case BOP_LT: l = ( l < r ); break;
+   case BOP_LTE: l = ( l <= r ); break;
+   case BOP_GT: l = ( l > r ); break;
+   case BOP_GTE: l = ( l >= r ); break;
+   case BOP_ADD: l += r; break;
+   case BOP_SUB: l -= r; break;
+   default:
+      break;
+   }
+   binary->value = l;
+   binary->folded = true;
+}
+
+void fold_bop_bool( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      break;
+   default:
+      return;
+   }
+   int l = lside->value;
+   int r = rside->value;
+   switch ( binary->op ) {
+   case BOP_EQ: l = ( l == r ); break;
+   case BOP_NEQ: l = ( l != r ); break;
+   default:
+      break;
+   }
+   binary->value = l;
+   binary->folded = true;
+}
+
+void fold_bop_str( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      break;
+   case BOP_LT:
+   case BOP_LTE:
+   case BOP_GT:
+   case BOP_GTE:
+      // TODO.
+      return;
+   default:
+      return;
+   }
+   int l = lside->value;
+   int r = rside->value;
+   switch ( binary->op ) {
+   case BOP_EQ: l = ( l == r ); break;
+   case BOP_NEQ: l = ( l != r ); break;
+   default:
+      break;
+   }
+   binary->value = l;
+   binary->folded = true;
 }
 
 void test_logical( struct semantic* semantic, struct expr_test* test,
@@ -554,7 +670,7 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
    }
    // Compile-time evaluation.
    if ( lside.folded && rside.folded ) {
-      fold_logical( logical, &lside, &rside, result );
+      fold_logical( semantic, logical, &lside, &rside, result );
    }
 }
 
@@ -591,49 +707,44 @@ bool can_convert_to_boolean( struct result* operand ) {
    }
 }
 
-void fold_logical( struct logical* logical, struct result* lside,
-   struct result* rside, struct result* result ) {
-   // Get value of left side.
-   int l = 0;
-   switch ( lside->spec ) {
-   case SPEC_RAW:
-   case SPEC_INT:
-   case SPEC_FIXED:
-   case SPEC_BOOL:
-      l = lside->value;
-      break;
-   case SPEC_STR:
-      // TODO: Implement.
-      return;
-   default:
-      UNREACHABLE()
+void fold_logical( struct semantic* semantic, struct logical* logical,
+   struct result* lside, struct result* rside, struct result* result ) {
+   if ( is_value_type( semantic, lside ) ) {
+      int l = 0;
+      switch ( lside->spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         l = lside->value;
+         break;
+      default:
+         UNREACHABLE();
+      }
+      int r = 0;
+      switch ( rside->spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         r = rside->value;
+         break;
+      default:
+         UNREACHABLE();
+      }
+      switch ( logical->op ) {
+      case LOP_OR: l = ( l || r ); break;
+      case LOP_AND: l = ( l && r ); break;
+      default:
+         UNREACHABLE();
+      }
+      logical->value = l;
+      logical->folded = true;
    }
-   // Get value of right side.
-   int r = 0;
-   switch ( lside->spec ) {
-   case SPEC_RAW:
-   case SPEC_INT:
-   case SPEC_FIXED:
-   case SPEC_BOOL:
-      r = lside->value;
-      break;
-   case SPEC_STR:
-      // TODO: Implement.
-      return;
-   default:
-      UNREACHABLE()
-   }
-   int value = 0;
-   switch ( logical->op ) {
-   case LOP_OR: value = ( l || r ); break;
-   case LOP_AND: value = ( l && r ); break;
-   default:
-      UNREACHABLE()
-   }
-   result->folded = true;
-   result->value = value;
-   logical->folded = true;
-   logical->value = value;
+   result->value = logical->value;
+   result->folded = logical->folded;
 }
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
@@ -876,10 +987,13 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
-      result->value = left.value ? middle.value : right.value;
-      result->folded = true;
-      cond->left_value = left.value;
-      cond->folded = true;
+      if ( is_value_type( semantic, &left ) &&
+         is_value_type( semantic, &right ) ) {
+         result->value = ( left.value != 0 ) ? middle.value : right.value;
+         result->folded = true;
+         cond->left_value = left.value;
+         cond->folded = true;
+      }
    }
 }
 
@@ -1023,17 +1137,12 @@ void fold_unary_minus( struct result* operand, struct result* result ) {
 void fold_logical_not( struct semantic* semantic, struct result* operand,
    struct result* result ) {
    switch ( operand->spec ) {
-      struct indexed_string* string;
    case SPEC_RAW:
    case SPEC_INT:
    case SPEC_FIXED:
    case SPEC_BOOL:
-      result->value = ( ! operand->value );
-      result->folded = true;
-      break;
    case SPEC_STR:
-      string = t_lookup_string( semantic->task, operand->value );
-      result->value = ( string->length == 0 );
+      result->value = ( ! operand->value );
       result->folded = true;
       break;
    default:
