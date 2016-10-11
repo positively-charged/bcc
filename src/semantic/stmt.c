@@ -84,11 +84,7 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
    while ( ! list_end( &i ) ) {
       struct stmt_test nested;
       s_init_stmt_test( &nested, test );
-      struct node* node = list_data( &i );
-      if ( node->type != NODE_BLOCK ) {
-         nested.case_allowed = test->case_allowed;
-      }
-      test_block_item( semantic, &nested, node );
+      test_block_item( semantic, &nested, list_data( &i ) );
       list_next( &i );
    }
    if ( ! test->manual_scope ) {
@@ -104,20 +100,24 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
          ( struct enumeration* ) node );
       break;
    case NODE_VAR:
-      s_test_local_var( semantic, ( struct var* ) node );
+      s_test_local_var( semantic,
+         ( struct var* ) node );
       break;
    case NODE_STRUCTURE:
-      s_test_struct( semantic, ( struct structure* ) node );
+      s_test_struct( semantic,
+         ( struct structure* ) node );
       break;
    case NODE_FUNC:
       s_test_nested_func( semantic,
          ( struct func* ) node );
       break;
    case NODE_CASE:
-      test_case( semantic, test, ( struct case_label* ) node );
+      test_case( semantic, test,
+         ( struct case_label* ) node );
       break;
    case NODE_CASE_DEFAULT:
-      test_default_case( semantic, test, ( struct case_label* ) node );
+      test_default_case( semantic, test,
+         ( struct case_label* ) node );
       break;
    case NODE_ASSERT:
       test_assert( semantic,
@@ -147,7 +147,7 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
          "case outside switch statement" );
       s_bail( semantic );
    }
-   if ( ! test->case_allowed ) {
+   if ( ! test->parent->case_allowed ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "case nested inside another statement" );
       s_bail( semantic );
@@ -204,7 +204,7 @@ void test_default_case( struct semantic* semantic, struct stmt_test* test,
          "default outside switch statement" );
       s_bail( semantic );
    }
-   if ( ! test->case_allowed ) {
+   if ( ! test->parent->case_allowed ) {
       s_diag( semantic, DIAG_POS_ERR, &label->pos,
          "default case nested inside another statement" );
       s_bail( semantic );
@@ -242,38 +242,48 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
-      test_block( semantic, test, ( struct block* ) node );
+      test_block( semantic, test,
+         ( struct block* ) node );
       break;
    case NODE_IF:
-      test_if( semantic, test, ( struct if_stmt* ) node );
+      test_if( semantic, test,
+         ( struct if_stmt* ) node );
       break;
    case NODE_SWITCH:
-      test_switch( semantic, test, ( struct switch_stmt* ) node );
+      test_switch( semantic, test,
+         ( struct switch_stmt* ) node );
       break;
    case NODE_WHILE:
-      test_while( semantic, test, ( struct while_stmt* ) node );
+      test_while( semantic, test,
+         ( struct while_stmt* ) node );
       break;
    case NODE_FOR:
-      test_for( semantic, test, ( struct for_stmt* ) node );
+      test_for( semantic, test,
+         ( struct for_stmt* ) node );
       break;
    case NODE_FOREACH:
       test_foreach( semantic, test,
          ( struct foreach_stmt* ) node );
       break;
    case NODE_JUMP:
-      test_jump( semantic, test, ( struct jump* ) node );
+      test_jump( semantic, test,
+         ( struct jump* ) node );
       break;
    case NODE_SCRIPT_JUMP:
-      test_script_jump( semantic, test, ( struct script_jump* ) node );
+      test_script_jump( semantic, test,
+         ( struct script_jump* ) node );
       break;
    case NODE_RETURN:
-      test_return( semantic, test, ( struct return_stmt* ) node );
+      test_return( semantic, test,
+         ( struct return_stmt* ) node );
       break;
    case NODE_GOTO:
-      test_goto( semantic, test, ( struct goto_stmt* ) node );
+      test_goto( semantic, test,
+         ( struct goto_stmt* ) node );
       break;
    case NODE_PALTRANS:
-      test_paltrans( semantic, test, ( struct paltrans* ) node );
+      test_paltrans( semantic, test,
+         ( struct paltrans* ) node );
       break;
    case NODE_EXPR_STMT:
       test_expr_stmt( semantic,
@@ -283,9 +293,10 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
       p_test_inline_asm( semantic, test,
          ( struct inline_asm* ) node );
       break;
-   default:
-      // TODO: Internal compiler error.
+   case NODE_GOTO_LABEL:
       break;
+   default:
+      UNREACHABLE();
    }
 }
 
@@ -379,8 +390,8 @@ void warn_switch_skipped_init( struct semantic* semantic,
    }
    if ( last_var ) {
       s_diag( semantic, DIAG_POS, &last_var->object.pos,
-         "the switch statement jumps directly to a case without "
-         "executing any prior code" );
+         "the switch statement jumps directly to a case without executing any "
+         "prior code" );
    }
 }
 
