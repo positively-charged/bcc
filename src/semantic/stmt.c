@@ -10,8 +10,6 @@ static void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label );
 static void test_default_case( struct semantic* semantic,
    struct stmt_test* test, struct case_label* label );
-static void test_label( struct semantic* semantic, struct stmt_test* test,
-   struct label* label );
 static void test_assert( struct semantic* semantic, struct assert* assert );
 static void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node );
@@ -22,6 +20,8 @@ static void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt );
 static void test_switch_cond( struct semantic* semantic,
    struct stmt_test* test, struct switch_stmt* stmt );
+static void warn_switch_skipped_init( struct semantic* semantic,
+   struct block* block );
 static void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
@@ -84,8 +84,11 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
    while ( ! list_end( &i ) ) {
       struct stmt_test nested;
       s_init_stmt_test( &nested, test );
-      nested.case_allowed = test->case_allowed;
-      test_block_item( semantic, &nested, list_data( &i ) );
+      struct node* node = list_data( &i );
+      if ( node->type != NODE_BLOCK ) {
+         nested.case_allowed = test->case_allowed;
+      }
+      test_block_item( semantic, &nested, node );
       list_next( &i );
    }
    if ( ! test->manual_scope ) {
@@ -115,9 +118,6 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
       break;
    case NODE_CASE_DEFAULT:
       test_default_case( semantic, test, ( struct case_label* ) node );
-      break;
-   case NODE_GOTO_LABEL:
-      test_label( semantic, test, ( struct label* ) node );
       break;
    case NODE_ASSERT:
       test_assert( semantic,
@@ -218,10 +218,6 @@ void test_default_case( struct semantic* semantic, struct stmt_test* test,
       s_bail( semantic );
    }
    switch_test->switch_stmt->case_default = label;
-}
-
-void test_label( struct semantic* semantic, struct stmt_test* test,
-   struct label* label ) {
 }
 
 void test_assert( struct semantic* semantic, struct assert* assert ) {
@@ -328,6 +324,9 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    body.case_allowed = true;
    test_stmt( semantic, &body, stmt->body );
    stmt->jump_break = test->jump_break;
+   if ( stmt->case_head || stmt->case_default ) {
+      warn_switch_skipped_init( semantic, ( struct block* ) stmt->body );
+   }
    s_pop_scope( semantic );
 }
 
@@ -352,6 +351,36 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
          &stmt->cond.u.var->object.pos : &stmt->cond.u.expr->pos,
          "condition of switch statement not of primitive type" );
       s_bail( semantic );
+   }
+}
+
+// Just check any of the variables appearing before the first case for now.
+void warn_switch_skipped_init( struct semantic* semantic,
+   struct block* block ) {
+   struct var* last_var = NULL;
+   list_iter_t i;
+   list_iter_init( &i, &block->stmts );
+   while ( ! list_end( &i ) ) {
+      struct node* node = list_data( &i );
+      if ( node->type == NODE_VAR ) {
+         struct var* var = ( struct var* ) node;
+         if ( var->initial ) {
+            s_diag( semantic, DIAG_POS | DIAG_WARN, &var->object.pos,
+               "initialization of this variable will be skipped" );
+            last_var = var;
+         }
+      }
+      else if (
+         node->type == NODE_CASE ||
+         node->type == NODE_CASE_DEFAULT ) {
+         break;
+      }
+      list_next( &i );
+   }
+   if ( last_var ) {
+      s_diag( semantic, DIAG_POS, &last_var->object.pos,
+         "the switch statement jumps directly to a case without "
+         "executing any prior code" );
    }
 }
 
