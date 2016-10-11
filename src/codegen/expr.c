@@ -2765,7 +2765,6 @@ void copy_struct( struct codegen* codegen, struct result* result,
 void visit_conversion( struct codegen* codegen, struct result* result,
    struct conversion* conv ) {
    switch ( conv->spec ) {
-   case SPEC_RAW:
    case SPEC_INT:
       switch ( conv->spec_from ) {
       case SPEC_RAW:

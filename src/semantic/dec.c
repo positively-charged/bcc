@@ -566,7 +566,6 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
          "array has void element type" : "variable has void type" );
       s_bail( semantic );
    }
-   var->spec = s_spec( semantic, var->spec );
    if ( var->spec == SPEC_STRUCT ) {
       return var->structure->object.resolved;
    }
@@ -634,7 +633,7 @@ struct path* s_last_path_part( struct path* path ) {
 
 void merge_type( struct semantic* semantic, struct name_spec_test* test,
    struct type_alias* alias ) {
-   test->spec = s_spec( semantic, alias->spec );
+   test->spec = alias->spec;
    test->structure = alias->structure;
    test->enumeration = alias->enumeration;
    if ( test->ref ) {
@@ -2015,13 +2014,12 @@ bool test_external_func( struct semantic* semantic, struct func* func ) {
       if ( other_func->object.resolved ) {
          struct type_info type;
          s_init_type_info_func( &type, func->ref, func->structure,
-            func->enumeration, func->params,
-            s_spec( semantic, func->return_spec ), func->min_param,
-            func->max_param, func->msgbuild );
+            func->enumeration, func->params, func->return_spec,
+            func->min_param, func->max_param, func->msgbuild );
          struct type_info other_type;
          s_init_type_info_func( &other_type, other_func->ref,
             other_func->structure, other_func->enumeration, other_func->params,
-            s_spec( semantic, other_func->return_spec ), other_func->min_param,
+            other_func->return_spec, other_func->min_param,
             other_func->max_param, other_func->msgbuild );
          if ( ! s_same_type( &type, &other_type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &func->object.pos,

@@ -1290,7 +1290,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    // Primitive element.
    else {
       result->enumeration = lside->enumeration;
-      result->spec = lside->spec;
+      result->spec = s_spec( semantic, lside->spec );
       result->modifiable = true;
    }
    result->storage = lside->storage;
@@ -1479,13 +1479,20 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    }
    // Return-value from function.
    if ( operand.func ) {
-      result->ref = operand.func->ref;
-      result->structure = operand.func->structure;
-      result->enumeration = operand.func->enumeration;
-      result->spec = s_spec( semantic, operand.func->return_spec );
+      // Reference return-value.
+      if ( operand.func->ref ) {
+         result->ref = operand.func->ref;
+         result->structure = operand.func->structure;
+         result->spec = operand.func->return_spec;
+         result->usable = true;
+      }
+      // Primitive return-value.
+      else {
+         result->enumeration = operand.func->enumeration;
+         result->spec = s_spec( semantic, operand.func->return_spec );
+         result->usable = ( operand.func->return_spec != SPEC_VOID );
+      }
       result->complete = true;
-      result->usable = ( operand.func->return_spec != SPEC_VOID ||
-         operand.func->ref != NULL );
       call->func = operand.func;
       if ( operand.func->type == FUNC_USER ) {
          struct func_user* impl = operand.func->impl;
@@ -1497,12 +1504,20 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    // Return-value from function reference.
    else if ( operand.ref && operand.ref->type == REF_FUNCTION ) {
       struct ref_func* func = ( struct ref_func* ) operand.ref;
-      result->ref = operand.ref->next;
-      result->structure = operand.structure;
-      result->enumeration = operand.enumeration;
-      result->spec = s_spec( semantic, operand.spec );
+      // Reference return-value.
+      if ( operand.ref->next ) {
+         result->ref = operand.ref->next;
+         result->structure = operand.structure;
+         result->spec = operand.spec;
+         result->usable = true;
+      }
+      // Primitive return-value.
+      else {
+         result->enumeration = operand.enumeration;
+         result->spec = s_spec( semantic, operand.spec );
+         result->usable = ( operand.spec != SPEC_VOID );
+      }
       result->complete = true;
-      result->usable = ( operand.spec != SPEC_VOID );
       static struct func dummy_func;
       dummy_func.type = FUNC_SAMPLE;
       call->func = &dummy_func;
@@ -1593,7 +1608,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct expr_test nested_test;
    s_init_expr_test( &nested_test, true, false );
    test_nested_root( semantic, test, &nested_test, &result, item->value );
-   int spec = s_spec( semantic, SPEC_INT );
+   int spec = SPEC_INT;
    switch ( item->cast ) {
    case FCAST_BINARY:
    case FCAST_CHAR:
@@ -1602,7 +1617,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    case FCAST_HEX:
       break;
    case FCAST_FIXED:
-      spec = s_spec( semantic, SPEC_FIXED );
+      spec = SPEC_FIXED;
       break;
    case FCAST_RAW:
       spec = SPEC_RAW;
@@ -1610,7 +1625,7 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    case FCAST_KEY:
    case FCAST_LOCAL_STRING:
    case FCAST_STRING:
-      spec = s_spec( semantic, SPEC_STR );
+      spec = SPEC_STR;
       break;
    default:
       UNREACHABLE();
@@ -1667,7 +1682,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    init_type_info( semantic, &type, &root );
    s_decay( semantic, &type );
    struct type_info required_type;
-   s_init_type_info_scalar( &required_type, s_spec( semantic, SPEC_INT ) );
+   s_init_type_info_scalar( &required_type, SPEC_INT );
    if ( ! s_instance_of( &required_type, &type ) ) {
       s_type_mismatch( semantic, "argument", &type,
          "required", &required_type, &arg->pos );
@@ -1792,8 +1807,7 @@ void test_remaining_arg( struct semantic* semantic,
       struct type_info param_type;
       init_type_info( semantic, &type, &result );
       s_init_type_info( &param_type, param->ref, param->structure,
-         param->enumeration, NULL, s_spec( semantic, param->spec ),
-         STORAGE_LOCAL );
+         param->enumeration, NULL, param->spec, STORAGE_LOCAL );
       s_decay( semantic, &type );
       if ( ! s_instance_of( &param_type, &type ) ) {
          arg_mismatch( semantic, &expr->pos, &type,
@@ -2318,7 +2332,7 @@ void select_var( struct semantic* semantic, struct result* result,
       result->structure = var->structure;
       result->enumeration = var->enumeration;
       result->dim = var->dim;
-      result->spec = s_spec( semantic, var->spec );
+      result->spec = var->spec;
       result->storage = var->storage;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
@@ -2329,14 +2343,14 @@ void select_var( struct semantic* semantic, struct result* result,
       result->ref = var->ref;
       result->structure = var->structure;
       result->enumeration = var->enumeration;
-      result->spec = s_spec( semantic, var->spec );
+      result->spec = var->spec;
       result->modifiable = ( ! var->constant );
    }
    // Structure variable.
    else if ( var->structure ) {
       result->data_origin = var;
       result->structure = var->structure;
-      result->spec = s_spec( semantic, var->spec );
+      result->spec = var->spec;
       result->storage = var->storage;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
@@ -2355,10 +2369,17 @@ void select_var( struct semantic* semantic, struct result* result,
 
 void select_param( struct semantic* semantic, struct result* result,
    struct param* param ) {
-   result->ref = param->ref;
-   result->structure = param->structure;
-   result->enumeration = param->enumeration;
-   result->spec = s_spec( semantic, param->spec );
+   // Reference parameter.
+   if ( param->ref ) {
+      result->ref = param->ref;
+      result->structure = param->structure;
+      result->spec = param->spec;
+   }
+   // Primitive parameter.
+   else {
+      result->enumeration = param->enumeration;
+      result->spec = s_spec( semantic, param->spec );
+   }
    result->complete = true;
    result->usable = true;
    result->modifiable = true;
@@ -2373,20 +2394,20 @@ void select_member( struct semantic* semantic, struct result* result,
       result->structure = member->structure;
       result->enumeration = member->enumeration;
       result->dim = member->dim;
-      result->spec = s_spec( semantic, member->spec );
+      result->spec = member->spec;
    }
    // Reference member.
    else if ( member->ref ) {
       result->ref = member->ref;
       result->structure = member->structure;
       result->enumeration = member->enumeration;
-      result->spec = s_spec( semantic, member->spec );
+      result->spec = member->spec;
       result->modifiable = true;
    }
    // Structure member.
    else if ( member->structure ) {
       result->structure = member->structure;
-      result->spec = s_spec( semantic, member->spec );
+      result->spec = member->spec;
    }
    // Primitive member.
    else {

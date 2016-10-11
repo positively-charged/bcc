@@ -494,6 +494,7 @@ void subscript_array_type( struct semantic* semantic, struct type_info* type,
       }
       else {
          element_type->ref = NULL;
+         element_type->spec = s_spec( semantic, type->spec );
       }
    }
    else {
