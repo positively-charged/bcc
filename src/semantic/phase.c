@@ -651,7 +651,7 @@ void import_item( struct semantic* semantic, struct ns* ns,
    default:
       body = semantic->ns->body;
    }
-   struct name* name = t_extend_name( body, item->name );
+   struct name* name = t_extend_name( body, item->usage_name );
    // Duplicate imports are allowed as long as both names refer to the same
    // object.
    if ( name->object && name->object->node.type == NODE_ALIAS ) {

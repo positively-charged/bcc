@@ -296,29 +296,52 @@ struct using_dirc* alloc_using( struct pos* pos ) {
 void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
    struct using_item* item = alloc_using_item();
    item->name = parse->tk_text;
-   item->alias = NULL;
    item->pos = parse->tk_pos;
-   item->type = USINGITEM_OBJECT;
+   bool type_alias = false;
    switch ( parse->tk ) {
    case TK_STRUCT:
       p_read_tk( parse );
-      p_test_tk( parse, TK_ID );
+      if ( parse->tk != TK_TYPENAME ) {
+         p_test_tk( parse, TK_ID );
+      }
       item->name = parse->tk_text;
       item->type = USINGITEM_STRUCT;
       p_read_tk( parse );
       break;
    case TK_ENUM:
       p_read_tk( parse );
-      p_test_tk( parse, TK_ID );
+      if ( parse->tk != TK_TYPENAME ) {
+         p_test_tk( parse, TK_ID );
+      }
       item->name = parse->tk_text;
       item->type = USINGITEM_ENUM;
       p_read_tk( parse );
       break;
    case TK_TYPENAME:
+      type_alias = true;
       p_read_tk( parse );
       break;
    default:
       p_test_tk( parse, TK_ID );
+      p_read_tk( parse );
+   }
+   item->usage_name = item->name;
+   if ( parse->tk == TK_ASSIGN ) {
+      p_read_tk( parse );
+      if ( type_alias ) {
+         p_test_tk( parse, TK_TYPENAME );
+      }
+      else if (
+         item->type == USINGITEM_ENUM ||
+         item->type == USINGITEM_STRUCT ) {
+         if ( parse->tk != TK_TYPENAME ) {
+            p_test_tk( parse, TK_ID );
+         }
+      }
+      else {
+         p_test_tk( parse, TK_ID );
+      }
+      item->name = parse->tk_text;
       p_read_tk( parse );
    }
    list_append( &dirc->items, item );
@@ -327,6 +350,10 @@ void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
 struct using_item* alloc_using_item( void ) {
    struct using_item* item = mem_alloc( sizeof( *item ) );
    item->name = NULL;
+   item->usage_name = NULL;
+   item->alias = NULL;
+   t_init_pos_id( &item->pos, ALTERN_FILENAME_COMPILER );
+   item->type = USINGITEM_OBJECT;
    return item;
 }
 

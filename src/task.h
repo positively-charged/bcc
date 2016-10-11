@@ -1051,6 +1051,7 @@ struct using_dirc {
 
 struct using_item {
    const char* name;
+   const char* usage_name;
    struct alias* alias;
    struct pos pos;
    enum {
