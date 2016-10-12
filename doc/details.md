@@ -1,4 +1,60 @@
-__Note:__ A feature described below might have influence from another language, but the characteristics of the feature, and the terminology used here, is not meant to follow the other language.
+<h2>BCS</h2>
+
+<ul>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#incompatibilities-with-acs">Incompatibilities with ACS</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#libraries">Libraries</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#preprocessor">Preprocessor</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#namespaces">Namespaces</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#enumerations">Enumerations</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#structures">Structures</a></li>
+<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#functions">Functions</a></li>
+<li>
+   <a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#statements">Statements</a>
+   <ul>
+   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#foreach">foreach</a></li>
+   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#goto">goto</a></li>
+   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#assert-static-assert">assert / static assert</a></li>
+   </ul>
+   </li>
+</ul>
+
+<h3>Incompatibilities with ACS</h3>
+
+* Logical-AND (`&&`) and Logical-OR (`||`) use short-circuit evaluation
+* In radix constants, an `r` is used to separate the base from the number
+
+<h3>Libraries</h3>
+
+<h3>Preprocessor</h3>
+
+The BCS preprocessor replicates much of the behavior of the C99 preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` only get executed if they appear in an `#if/#ifdef/#ifndef` block.
+
+```
+#if 1
+   #define MAKE_STR( arg ) #arg
+#endif
+
+script MAKE_STR( 1 2 3 ) open {
+   Print( s: MAKE_STR( Hello World! ) );
+}
+```
+
+<h3>Namespaces</h3>
+
+Namespaces in BCS work similar to namespaces in other languages like C++ and C#.
+
+```
+namespace Test {
+   str message = "Hello, World!";
+   void Print( str message ) {
+      upmost.Print( s: message );
+   }
+}
+
+script 1 open {
+   Test.Print( Test.message );
+}
+```
 
 <h3>enums</h3>
 
@@ -54,7 +110,7 @@ script 1 open {
 // ...but not here.
 ```
 
-<h3>structs</h3>
+<h3>Structures</h3>
 
 A structure is a group of data. It has a name and a list of members. The members are the actual data. In code, the <code>struct</code> keyword is used to represent a structure:
 
@@ -144,188 +200,6 @@ In the example above, we create a structure named <code>boss_list</code>. This s
 
 We create a variable named <code>list</code> using this new structure. The outermost braces initialize the <code>list</code> variable. Th middle braces initialize the <code>bosses</code> member, an array. The innermost braces initialize the first element of the array, a <code>boss</code> structure.
 
-<h3>regions</h3>
-
-A region is a group of functions, scripts, variables, constants, and other code. Regions are similar to namespaces, found in other programming languages.
-
-```
-script 1 open {
-   stuff::v = stuff::c;
-   stuff::f();
-}
-
-region stuff {
-   int v = 0;
-   enum c = 123;
-   void f() {}
-}
-```
-
-A region is created by using the <code>region</code> keyword, followed by the name and body of the region. The body is delimited by braces and contains code like functions, scripts, and variables. In the above example, we have a region called <code>stuff</code>. It contains a variable, a constant, and a function.
-
-To use an item of a region, we specify the region name, followed by the item we want to use. In script 1, we first select the constant from the region, then assign it to the variable found in the same region. Finally, we call the function.
-
----
-
-You can have as many regions as you want.
-
-Items of one region don't conflict with the items of another region. This means you can have a function called <code>f()</code> in one region and a function called <code>f()</code> in another region. They are different functions with the same name, but can exist because they are in different regions.
-
-```
-script 1 open {
-   stuff::f();
-   other_stuff::f();
-}
-
-region stuff {
-   void f() {}
-}
-
-region other_stuff {
-   void f() {}
-}
-```
-
----
-
-A region can contain other regions. The region that contains the other region is called the parent region, and the region being contained is called the child region, or a nested region.
-
-```
-script 1 open {
-   parent::f();
-   parent::child::f();
-}
-
-region parent {
-   void f() {}
-   region child {
-      void f() {}
-   }
-}
-```
-
-We access the item of a child region like any other item. In the above example, from the <code>parent</code> region we select the <code>child</code>, then from the <code>child</code> region we select the <code>f()</code> function.
-
----
-
-Code found outside a region you create is part of the __upmost__ region. The upmost region is an implicitly-created region that contains all other regions, and other code.
-
-```
-// HERE: In upmost region.
-
-region a {
-   // HERE: In region `a`
-}
-
-region b {
-   // HERE: In region `b`
-}
-
-// HERE: In upmost region.
-```
-
-The upmost region doesn't have a name. You can refer to the upmost region using the `upmost` keyword.
-
-```
-int a = 123;
-
-script 1 open {
-   int a = 321;
-   Print( i: a );         // Output: 321
-   Print( i: upmost::a ); // Output: 123
-}
-```
-
-In the above example, the inner `a` variable hides the outer `a` variable. To access the outer variable, we first select the upmost region, then from the upmost region, we select the variable.
-
----
-
-Inside a region, only the items of the region are visible. To use an item found outside the region, there are multiple ways.
-
-```
-region a {
-   void f() {}
-}
-
-region b {
-   script 1 open {
-      upmost::a::f();
-   }
-}
-```
-
-In the above example, we access `f()` by first going into the upmost region, then into the `a` region where we find the function. Accessing items through the upmost region can get cumbersome. Instead, we can import items from a region.
-
----
-
-```
-region b {
-   import upmost: a;
-   script 1 open {
-      a::f();
-   }
-}
-```
-
-When making an `import`, we first select what region we want to import from. Then we select which items we want to import. In the above example, we select the upmost region, and from the upmost region, we select the `a` region to be imported.
-
----
-
-```
-region b {
-   import upmost: a_alias = a;
-   script 1 open {
-      a_alias::f();
-   }
-}
-```
-
-We can create an alias to an imported item.
-
----
-
-```
-region b {
-   import upmost: top = region;
-   script 1 open {
-      top::a::f();  
-   }
-}
-```
-
-We can also create an alias to the selected region. In the above example, we select the upmost region, then use the `region` keyword to refer to the selected region as the item to import. At the same time, we create an alias to it.
-
----
-
-```
-region b {
-   import upmost: region = a;
-   script 1 open {
-      f();
-   }
-}
-```
-
-We can establish a relationship with another region. This is like importing every item from a region. The item selected during the `import` must be a region for this to work.
-
----
-
-You can import multiple items by separating them with a comma.
-
-```
-region a {
-   import std: Print, Delay;
-   script 1 open {
-      Delay( 35 * 3 );
-      Print( s: "Hello, World!" );
-   }
-}
-```
-
-_Sidenote:_ The standard functions `Print()` and `Delay()` are found in the `std` region. The `std` region is found in the upmost region. The `std.acs` file creates the `std` region.
-
-Note how we don't need to specify the upmost region in the `import`; using just `std` is enough. It is assumed that the first region specified is found in the upmost region.
-
 <h3>Proper Scoping</h3>
 In bcc, names of objects follow scoping rules.
 
@@ -405,7 +279,11 @@ Notice in the first expression, when the left side is 0, get_1() is not called. 
 
 In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
 
-<h3>goto statement</h3>
+<h3>Statements</h3>
+
+<h4>foreach</h4>
+
+<h4>goto</h4>
 
 A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
 
@@ -424,6 +302,10 @@ script 1 open {
    // top
 }
 ```
+
+<h4>assert / static assert</h4>
+
+<h3>Functions<h3>
 
 <h3>Format Blocks</h3>
 
@@ -725,3 +607,9 @@ nice\
 intro );
 }
 ```
+
+<h2>bcc (Compiler)</h2>
+
+<h3>Command-line Options</h3>
+
+<h3>Cache</h3>
