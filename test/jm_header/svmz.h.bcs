@@ -3,12 +3,14 @@
 
 #linklibrary "svmz"
 
+// ==========================================================================
 namespace Jm.Svmz {
+// ==========================================================================
 
-function bool Is();
-function bool Init();
-function void MakeEscapee();
-function bool ValidateExit();
+extern bool Is();
+extern bool Init();
+extern void MakeEscapee();
+extern bool ValidateExit();
 
 }
 

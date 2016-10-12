@@ -1,12 +1,13 @@
-#include "zcommon.acs"
-#include "zstrong.acs"
+#include "zcommon.h"
 
-namespace ListTest {
+// ==========================================================================
+namespace upmost {
 // ==========================================================================
 
-script "ListTest" open {
+script "Main" open {
+   using ListTest;
    auto list = ListCreate();
-   foreach ( auto ch in "abcde" ) {
+   foreach ( auto ch; "abcde" ) {
       auto node = ListCreateNode( ch );
       ListAppend( list, node );
    }
@@ -20,26 +21,29 @@ script "ListTest" open {
    }
 }
 
-struct NodeT {
-   NodeT? next;
-   int value;
 }
+
+// ==========================================================================
+namespace ListTest {
+// ==========================================================================
 
 struct ListT {
-   NodeT? head;
-   NodeT? tail;
+   struct NodeT {
+      NodeT? next;
+      int value;
+   }? head, tail;
    int size;
-}
+};
 
-function ListT& ListCreate() {
+ListT& ListCreate() {
    static auto allocated = false;
-   static ListT list = { null, null };
+   static ListT list;
    assert ( ! allocated, "List already allocated" );
    allocated = true;
    return list;
 }
 
-function void ListAppend( ListT& list, NodeT& node ) {
+void ListAppend( ListT& list, NodeT& node ) {
    if ( list.head ) {
       list.tail.next = node;
    }
@@ -50,15 +54,9 @@ function void ListAppend( ListT& list, NodeT& node ) {
    ++list.size;
 }
 
-function NodeT& ListCreateNode( int value ) {
+NodeT& ListCreateNode( int value ) {
    static auto numAllocated = 0;
-   static NodeT availableNodes[] = {
-      { null },
-      { null },
-      { null },
-      { null },
-      { null },
-   };
+   static NodeT availableNodes[ 10 ];
    assert ( numAllocated < availableNodes.length(),
       "No more free nodes available" );
    auto node = availableNodes[ numAllocated ];
@@ -67,7 +65,7 @@ function NodeT& ListCreateNode( int value ) {
    return node;
 }
 
-function void ListDetach( ListT& list, NodeT? targetNode ) {
+void ListDetach( ListT& list, NodeT? targetNode ) {
    if ( targetNode == list.head ) {
       list.head = list.head.next;
       if ( targetNode == list.tail ) {

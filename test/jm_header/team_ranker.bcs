@@ -28,7 +28,7 @@ enum { TBL_LINEID_OFFSET = 960 };
 enum { HS_LINE = ( TBL_LINEID_OFFSET + 2 + MAX_POINTS ) };
 
 private struct {
-   struct Spot {
+   struct SpotT {
       int player;
       int points;
    } spots[ MAX_POINTS ];
@@ -89,7 +89,7 @@ script "TeamRanker.AddPoint" {
    }
 }
 
-private function void AddPointToPlayer( int player ) {
+private void AddPointToPlayer( int player ) {
    auto spot = FindSpot( player );
    if ( ! spot ) {
       spot = gTable.spots[ gTable.size ];
@@ -100,7 +100,7 @@ private function void AddPointToPlayer( int player ) {
    --gPointsLeft;
 }
 
-private function struct Spot? FindSpot( int player ) {
+private SpotT? FindSpot( int player ) {
    for ( auto i = 0; i < gTable.size; ++i ) {
       if ( gTable.spots[ i ].player == player ) {
          return gTable.spots[ i ];
@@ -109,13 +109,13 @@ private function struct Spot? FindSpot( int player ) {
    return null;
 }
 
-private function void SetFinishTime( int tics ) {
+private void SetFinishTime( int tics ) {
    gMinutes = tics / TICS_IN_SECOND / 60;
    gSeconds = tics / TICS_IN_SECOND % 60;
    gCentiseconds = Utility.CalCseconds( tics % TICS_IN_SECOND );
 }
 
-private function bool IsSpotActive( int spot ) {
+private bool IsSpotActive( int spot ) {
    return ( gTable.spots[ spot ].player != Cfg.VALUE_NONE );
 }
 
@@ -127,7 +127,7 @@ script "TeamRanker.ClientQuit" ( int player ) disconnect {
    }
 }
 
-private function void ShowTable() {
+private void ShowTable() {
    SetFont( "SMALLFONT" );
    HudMessageBold( msgbuild: {
       if ( Hs.IsSet() ) {
@@ -152,7 +152,7 @@ private function void ShowTable() {
    }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
-private function msgbuild void DrawTime() {
+private msgbuild void DrawTime() {
    // Custom end message.
    if ( gEndMessage ) {
       append( s: "\ci", s: gEndMessage );
@@ -165,7 +165,7 @@ private function msgbuild void DrawTime() {
    }
 }
 
-private function void ShowGoals() {
+private void ShowGoals() {
    SetFont( "SMALLFONT" );
    HudMessage( msgbuild: {
       if ( gPointsLeft == 0 ) {
@@ -187,7 +187,7 @@ private function void ShowGoals() {
    }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
-function void ClearPointsTable() {
+void ClearPointsTable() {
    // Clear all posssible player places and the table header with the finish
    // time.
    auto linesToClear = MAX_POINTS + 2;
@@ -275,7 +275,7 @@ script "TeamRanker.LoadHs" {
    Hs.gLoadStatus = Hs.STATUS_LOADED;
 }
 
-private function void SetHsFinishTime( int tics ) {
+private void SetHsFinishTime( int tics ) {
    if ( tics > 0 ) {
       gHsMinutes = tics / Cfg.TICS_IN_SECOND / 60;
       gHsSeconds = tics / Cfg.TICS_IN_SECOND % 60;
@@ -285,7 +285,7 @@ private function void SetHsFinishTime( int tics ) {
 }
 
 // Saves map run information as high score in permanent storage.
-private function void SaveHs( int finishTime ) {
+private void SaveHs( int finishTime ) {
    Luk.StoreInt( HS_RTIME, finishTime );
    Luk.StoreDate( HS_RDATE );
    auto numConnected = 0;
@@ -302,21 +302,21 @@ private function void SaveHs( int finishTime ) {
    Luk.StoreInt( HS_RTOTAL_PLAYERS, numConnected );
 }
 
-private function msgbuild void DrawHsTime() {
+private msgbuild void DrawHsTime() {
    append( s: "\cnRecord: \cb",
       s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
       s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
       s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
 }
 
-private function void AnnounceHs() {
+private void AnnounceHs() {
    SetFont( "SMALLFONT" );
    HudMessageBold( s: "\cdA new map record has been set!"; HUDMSG_FADEOUT |
       HUDMSG_LOG, 1900, 0, 1.5, 0.14, 5.0, 1.0 );
    AmbientSound( "JM2HSWIN", 127 );
 }
 
-private function void AnnounceCheat() {
+private void AnnounceCheat() {
    SetFont( "SMALLFONT" );
    HudMessageBold( s: "\ccThis team of super marines is beyond the high "
       "score"; HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
@@ -344,7 +344,7 @@ script "TeamRanker.ShowHs" ( raw showTime ) {
    }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
 }
 
-function void PrepareForSvmz() {
+void PrepareForSvmz() {
    gEndMessage = "Maze Complete";
 }
 

@@ -34,11 +34,11 @@ extern int gMonth;
 extern int gDay;
 extern int gQueryResult;
 
-function bool IsEnabled();
-function int StoreInt( str key, int value );
-function int StoreStr( str key, str value );
-function int StoreName( str key, int playerNum );
-function int StoreDate( str key );
+extern bool IsEnabled();
+extern int StoreInt( str key, int value );
+extern int StoreStr( str key, str value );
+extern int StoreName( str key, int playerNum );
+extern int StoreDate( str key );
 
 }
 

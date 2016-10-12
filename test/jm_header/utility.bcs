@@ -10,7 +10,7 @@
 namespace Jm.Utility {
 // ==========================================================================
 
-function void Init() {
+void Init() {
    if ( GetCvar( "util_ishosted" ) == 0 ) {
       if ( GameType() != GAME_SINGLE_PLAYER ) {
          ConsoleCommand( "set util_ishosted 1" );
@@ -21,12 +21,12 @@ function void Init() {
    }
 }
 
-function bool IsOnline() {
+bool IsOnline() {
    return ( GetCvar( "util_ishosted" ) == 1 );
 }
 
 // Convert a par time string into seconds.
-function int ParToSeconds( str par ) {
+int ParToSeconds( str par ) {
    auto pos = par.length() - 1;
    // Seconds:
    auto base = 1;
@@ -51,11 +51,11 @@ function int ParToSeconds( str par ) {
    return ( minutes * 60 ) + seconds;
 }
 
-function str ZeroPad( int number ) {
+str ZeroPad( int number ) {
    return ( number >= 0 && number <= 9 ? "0" : "" );
 }
 
-function str OrdinalSuffix( int value ) {
+str OrdinalSuffix( int value ) {
    switch ( value ) {
    case 11:
    case 12:
@@ -73,17 +73,17 @@ function str OrdinalSuffix( int value ) {
    }
 }
 
-function void ClearMessage( int id ) {
+void ClearMessage( int id ) {
    HudMessage( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
 }
 
-function void ClearMessageBold( int id ) {
+void ClearMessageBold( int id ) {
    HudMessageBold( s: ""; HUDMSG_PLAIN, id, 0, 0.0, 0.0, 1.0 );
 }
 
 // Function to calculate the centiseconds from any remaining tics after
 // subtracting full seconds from the total tics.
-function int CalCseconds( int tics ) {
+int CalCseconds( int tics ) {
    auto centiseconds = 0;
    if ( tics > 0 ) {
       // TODO: Explain this algorithm better than this comment!
@@ -93,7 +93,7 @@ function int CalCseconds( int tics ) {
    return centiseconds;
 }
 
-function str GetMonthName( int month ) {
+str GetMonthName( int month ) {
    static str names[] = {
       "January", "February", "March", "April", "May", "June", 
       "July", "August", "September", "October", "November", "December" };

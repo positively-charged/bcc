@@ -7,18 +7,18 @@
 namespace Jm.Utility {
 // ==========================================================================
 
-function void Init();
-function bool IsOnline();
+extern void Init();
+extern bool IsOnline();
 // Convert a par time string into seconds.
-function int ParToSeconds( str par );
-function str ZeroPad( int number );
-function str OrdinalSuffix( int value );
-function void ClearMessage( int id );
-function void ClearMessageBold( int id );
+extern int ParToSeconds( str par );
+extern str ZeroPad( int number );
+extern str OrdinalSuffix( int value );
+extern void ClearMessage( int id );
+extern void ClearMessageBold( int id );
 // Function to calculate the centiseconds from any remaining tics after
 // subtracting full seconds from the total tics.
-function int CalCseconds( int tics );
-function str GetMonthName( int month );
+extern int CalCseconds( int tics );
+extern str GetMonthName( int month );
 
 }
 

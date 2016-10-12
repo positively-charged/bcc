@@ -15,7 +15,7 @@ using Cfg;
 // Holds TIDs of temporary teleport destinations.
 private int gDest[ MAX_PLAYERS ];
 
-function void OnDeath( int player ) {
+void OnDeath( int player ) {
    // Change the activator of the script to the killer of the dead player to
    // determine if the player got telefragged.
    SetActivatorToTarget( 0 );
@@ -30,7 +30,7 @@ function void OnDeath( int player ) {
    }
 }
 
-function void OnRespawn( int player ) {
+void OnRespawn( int player ) {
    if ( gDest[ player ] != 0 ) {
       Teleport( gDest[ player ], 0, 0 );
       OnDisconnect( player );
@@ -39,7 +39,7 @@ function void OnRespawn( int player ) {
 
 // Remove any temporary destinations that might have been left behind if a
 // player disconnected while being dead.
-function void OnDisconnect( int player ) {
+void OnDisconnect( int player ) {
    if ( gDest[ player ] != 0 ) {
       Thing_Remove( gDest[ player ] );
       gDest[ player ] = 0;

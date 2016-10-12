@@ -10,7 +10,7 @@
 namespace Jm.WhoExited {
 // ==========================================================================
 
-function void Show() {
+void Show() {
    HudMessageBold( 
       s: "\cc",
       n: PlayerNumber() + 1,
@@ -20,7 +20,7 @@ function void Show() {
       0, 0, 0.0, 0.0, 1.0, 1000.0, 0.0 );
 }
 
-function void ShowAndExit() {
+void ShowAndExit() {
    // Only show message in multi-player because it's already shown in
    // single-player.
    if ( Utility.IsOnline() ) {

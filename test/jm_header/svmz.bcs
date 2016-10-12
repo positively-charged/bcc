@@ -42,12 +42,12 @@ private int gResult = RESULT_NONE;
 private int gMinEscapees = ESCAPEE_MIN;
 private bool gIsAlive[ Cfg.MAX_PLAYERS ];
 
-function bool Is() {
+bool Is() {
    return ( GetCvar( "survival" ) == 1 );
 }
 
 // Initializes the server to play Survival Maze.
-function bool Init() {
+bool Init() {
    auto doRestart = false;
    if ( ! GetCvar( "survival" ) ) {
       ConsoleCommand( "survival true" );
@@ -145,7 +145,7 @@ script "Svmz.Start" ( raw par ) {
 }
 
 // Calculates initial time.
-private function int CalcStartTime( str par, int totalPlayers ) {
+private int CalcStartTime( str par, int totalPlayers ) {
    // The starting time is based on the par time of the map.
    auto parInSeconds = Utility.ParToSeconds( par );
    // To increase the challenge, we reduce the starting time by the total
@@ -170,7 +170,7 @@ private function int CalcStartTime( str par, int totalPlayers ) {
 }
 
 // Selects and sets the minimum escapee requirement.
-private function void ChooseMinEscapees() {
+private void ChooseMinEscapees() {
    auto numEscapees = 0;
    auto numPlayers = PlayerCount();
    switch ( numPlayers ) {
@@ -186,14 +186,14 @@ private function void ChooseMinEscapees() {
    SetMinEscapees( numEscapees );
 }
 
-function void SetMinEscapees( int numEscapees ) {
+void SetMinEscapees( int numEscapees ) {
    if ( numEscapees >= ESCAPEE_MIN ) {
       gMinEscapees = numEscapees;
    }
 }
 
 // Returns minimum escapee requirement.
-function int GetMinEscapees() {
+int GetMinEscapees() {
    return gMinEscapees;
 }
 
@@ -250,16 +250,16 @@ script 905 ( int player ) disconnect {
    DisplayEscapeeStats();
 }
 
-function void SetResult( int result ) {
+void SetResult( int result ) {
    gResult = result;
 }
 
-function int GetResult() {
+int GetResult() {
    return gResult;
 }
 
 // Escape line function, where a player is registered as escaped.
-function void MakeEscapee() {
+void MakeEscapee() {
    auto player = PlayerNumber();
    if ( ! Escapee.Is( player ) ) {
       Escapee.Make( player );
@@ -268,7 +268,7 @@ function void MakeEscapee() {
 }
 
 // Exit validation.
-function bool ValidateExit() {
+bool ValidateExit() {
    auto toExit = true;
    if ( GetResult() != RESULT_WIN ) {
       toExit = false;
@@ -280,14 +280,14 @@ function bool ValidateExit() {
    return toExit;
 }
 
-function void DisplayMinEscapeesFail() {
+void DisplayMinEscapeesFail() {
    SetFont( "SMALLFONT" );
    HudMessageBold(
       s: "\cgMinimum players failed to escape the maze";
       HUDMSG_FADEOUT | HUDMSG_LOG, LINE_NOTICE, 0, 1.5, 0.15, 5.0, 0.6 );
 }
 
-function void DisplayEscapeeStats() {
+void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
    HudMessageBold( msgbuild: {
       auto minEscapees = GetMinEscapees();
@@ -304,7 +304,7 @@ function void DisplayEscapeeStats() {
    }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
 }
 
-private function int GetNumAlive() {
+private int GetNumAlive() {
    auto numAlive = 0;
    foreach ( auto isAlive; gIsAlive ) {
       numAlive += int( isAlive );
@@ -324,7 +324,7 @@ using Jm: Cfg, Svmz;
 private bool gEscaped[ Cfg.MAX_PLAYERS ];
 private int gCount = 0;
 
-function void Make( int player ) {
+void Make( int player ) {
    gEscaped[ player ] = true;
    ++gCount;
    SetFont( "SMALLFONT" );
@@ -334,16 +334,16 @@ function void Make( int player ) {
       0, 1.5, 0.15, 3.0, 0.6 );
 }
 
-function bool Is( int player ) {
+bool Is( int player ) {
    return gEscaped[ player ];
 }
 
-function void Remove( int number ) {
+void Remove( int number ) {
    gEscaped[ number ] = false;
    --gCount;
 }
 
-function int GetCount() {
+int GetCount() {
    return gCount;
 }
 
@@ -361,19 +361,19 @@ enum { FINISH_TIME_REFRESH_TIME = 8 }; // In seconds.
 
 private int gTimeLeft = 0;
 
-function void Init( int time ) {
+void Init( int time ) {
    gTimeLeft = time;
 }
 
-function int GetTimeLeft() {
+int GetTimeLeft() {
    return gTimeLeft;
 }
 
-function void Decrease() {
+void Decrease() {
    --gTimeLeft;
 }
 
-function void Extend( int seconds ) {
+void Extend( int seconds ) {
    gTimeLeft += seconds;
    // We cannot go below zero seconds. We need this check in case a Raging Bomb
    // item lowers the time below zero.
@@ -383,14 +383,14 @@ function void Extend( int seconds ) {
 }
 
 // Displays current time.
-function void Display() {
+void Display() {
    // If time is near expiration, change the color of the time to warn the
    // players.
    DisplayTime( gTimeLeft, ( gTimeLeft <= WARNING_TIME ) ? "\cg" : "\ch" );
 }
 
 // Displays customizable time.
-private function void DisplayTime( int time, str color ) {
+private void DisplayTime( int time, str color ) {
    SetFont( "BIGFONT" );
    HudMessageBold(
       s: color,
@@ -465,7 +465,7 @@ script 912 ( int extraTime ) {
    DisplayBoostTime( gTeAccumulatedTime );
 }
 
-private function void DisplayBoostTime( int time ) {
+private void DisplayBoostTime( int time ) {
    auto sign = "+";
    auto color = "\ck";
    if ( time < 0 ) {
@@ -520,7 +520,7 @@ script 916 {
    ++gImNumPicked;
 }
 
-function int GetNumImpunityPicked() {
+int GetNumImpunityPicked() {
    return gImNumPicked;
 }
 

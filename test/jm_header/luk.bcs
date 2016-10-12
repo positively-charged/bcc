@@ -144,7 +144,7 @@ script 975 ( int type, raw keyName, raw keyNum ) {
    }
 }
 
-function int UnpackAscii( int packed, int length ) {
+int UnpackAscii( int packed, int length ) {
    auto sep = 1000;
    auto ch = 0;
    // First, decode the luk-encoded ASCII package into real ASCII.
@@ -166,7 +166,7 @@ function int UnpackAscii( int packed, int length ) {
    return numRead;
 }
 
-function bool IsEnabled() {
+bool IsEnabled() {
    return ( GetCvar( "luk_system" ) == 1 );
 }
 
@@ -174,7 +174,7 @@ function bool IsEnabled() {
 // compare the current query ID with the last query ID it processed. If the
 // current query ID is the same as or below the last query ID, it will ignore
 // the current query.
-function int GenerateQueryId() {
+int GenerateQueryId() {
    static auto id = 0;
    return ++id;
 }
@@ -185,7 +185,7 @@ function int GenerateQueryId() {
 // further handling. 
 
 // This function is used for simple, numeric value retrievals.
-function int Retrieve( str key ) {
+int Retrieve( str key ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -197,7 +197,7 @@ function int Retrieve( str key ) {
    return queryId;
 }
 
-function int RetrieveDate( str key ) {
+int RetrieveDate( str key ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -208,7 +208,7 @@ function int RetrieveDate( str key ) {
    return queryId;
 }
 
-function int InitStringTransmission( str key ) {
+int InitStringTransmission( str key ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -220,7 +220,7 @@ function int InitStringTransmission( str key ) {
    return queryId;
 }
 
-function int RetrieveStringSegment() {
+int RetrieveStringSegment() {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -231,7 +231,7 @@ function int RetrieveStringSegment() {
    return queryId;
 }
 
-function int StoreInt( str key, int value ) {
+int StoreInt( str key, int value ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -242,7 +242,7 @@ function int StoreInt( str key, int value ) {
    return queryId;
 }
 
-function int StoreStr( str key, str value ) {
+int StoreStr( str key, str value ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -253,7 +253,7 @@ function int StoreStr( str key, str value ) {
    return queryId;
 }
 
-function int StoreName( str key, int playerNum ) {
+int StoreName( str key, int playerNum ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -264,7 +264,7 @@ function int StoreName( str key, int playerNum ) {
    return queryId;
 }
 
-function int StoreDate( str key ) {
+int StoreDate( str key ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -279,7 +279,7 @@ function int StoreDate( str key ) {
 // allow the query key to be concatenated with a number. These
 // functions are useful for making a list of values by using
 // a single key name.
-function int StoreNameL( str key, int keyNum, int playerNum ) {
+int StoreNameL( str key, int keyNum, int playerNum ) {
    auto queryId = GenerateQueryId();
    Log(
       s: QEURY_DELIM,
@@ -291,7 +291,7 @@ function int StoreNameL( str key, int keyNum, int playerNum ) {
    return queryId;
 }
 
-function int StoreIntL( str key, int keyNum, int value ) {
+int StoreIntL( str key, int keyNum, int value ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -303,7 +303,7 @@ function int StoreIntL( str key, int keyNum, int value ) {
    return queryId;
 }
 
-function int RetrieveL( str key, int keyNum ) {
+int RetrieveL( str key, int keyNum ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,
@@ -315,7 +315,7 @@ function int RetrieveL( str key, int keyNum ) {
    return queryId;
 }
 
-function int InitStringTransmissionL( str key, int num ) {
+int InitStringTransmissionL( str key, int num ) {
    auto queryId = GenerateQueryId();
    Log( 
       s: QEURY_DELIM,

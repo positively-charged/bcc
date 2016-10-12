@@ -23,19 +23,18 @@ extern str gLoadScript;
 // Script of the ranker that shows the high score details table.
 extern str gDetailsScript;
 
-function bool IsAutoShowDetailsTable();
-function bool IsCheater( int player );
-function bool IsCheatsEnabled();
-function bool IsEnabled();
-function void Disable();
-function int GetFinishTime();
-function void SetFinishTime( int tics );
-function bool IsSet();
-function bool IsNew( int time );
-function void Disallow( int player );
-
+extern bool IsAutoShowDetailsTable();
+extern bool IsCheater( int player );
+extern bool IsCheatsEnabled();
+extern bool IsEnabled();
+extern void Disable();
+extern int GetFinishTime();
+extern void SetFinishTime( int tics );
+extern bool IsSet();
+extern bool IsNew( int time );
+extern void Disallow( int player );
 // Shows high score details table.
-function void ShowDetails( int showTime );
+extern void ShowDetails( int showTime );
 
 }
 

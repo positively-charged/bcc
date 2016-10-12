@@ -11,12 +11,12 @@ namespace Jm.Rsd {
 
 enum { RSD_START_SCRIPT = 945 };
 
-function void RsdSetPadding( int padding );
+extern void RsdSetPadding( int padding );
 // Set to 0 to remove maximum restriction.
-function void RsdSetMaxLineSize( int size );
+extern void RsdSetMaxLineSize( int size );
 // Adds a number onto the arguments queue.
-function void RsdAddNumArg( int num );
-function void RsdAddStrArg( str value );
+extern void RsdAddNumArg( int num );
+extern void RsdAddStrArg( str value );
 
 }
 

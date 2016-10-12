@@ -29,15 +29,15 @@ script 941 net clientside {
    gNumber = PlayerNumber();
 }
 
-function int GetNumber() {
+int GetNumber() {
    return gNumber;
 }
 
-function void Execute( int player, int number ) {
+void Execute( int player, int number ) {
    ExecuteArg( player, number, 0 );
 }
 
-function void ExecuteArg( int player, int number, int arg1 ) {
+void ExecuteArg( int player, int number, int arg1 ) {
    Acs_Execute( 943, 0, player, number, arg1 );
 }
 

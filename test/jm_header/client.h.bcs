@@ -7,12 +7,12 @@
 namespace Jm.Client {
 // ==========================================================================
 
-function int GetNumber();
+extern int GetNumber();
 // Executes client-side script for player with given player number.
-function void Execute( int player, int number );
+extern void Execute( int player, int number );
 // Same as ClientExecute(), but allows including script arguments. Currently,
 // only one script argument is supported.
-function void ExecuteArg( int player, int number, int arg1 );
+extern void ExecuteArg( int player, int number, int arg1 );
 
 }
 

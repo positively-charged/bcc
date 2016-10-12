@@ -27,43 +27,43 @@ private bool gManualDisable = false;
 // because both rankers use the same code.
 private int gTics = Cfg.VALUE_NONE;
 
-function bool IsAutoShowDetailsTable() {
+bool IsAutoShowDetailsTable() {
    return ( GetCvar( "jm_show_rdetails" ) == 1 );
 }
 
-function bool IsCheater( int player ) {
+bool IsCheater( int player ) {
    return ( gCheated[ player ] || IsCheatsEnabled() );
 }
 
-function bool IsCheatsEnabled() {
+bool IsCheatsEnabled() {
    return ( GetCvar( "sv_cheats" ) == 1 );
 }
 
-function bool IsEnabled() {
+bool IsEnabled() {
    return ( Utility.IsOnline() && Luk.IsEnabled() && ! gManualDisable );
 }
 
-function void Disable() {
+void Disable() {
    gManualDisable = true;
 }
 
-function int GetFinishTime() {
+int GetFinishTime() {
    return gTics;
 }
 
-function void SetFinishTime( int tics ) {
+void SetFinishTime( int tics ) {
    gTics = tics;
 }
 
-function bool IsSet() {
+bool IsSet() {
    return ( gTics != Cfg.VALUE_NONE );
 }
 
-function bool IsNew( int time ) {
+bool IsNew( int time ) {
    return ( gTics == Cfg.VALUE_NONE || time < gTics );
 }
 
-function void Disallow( int player ) {
+void Disallow( int player ) {
    gCheated[ player ] = true;
 }
 
@@ -72,7 +72,7 @@ script 999 net {
 }
 
 // Shows high score details table.
-function void ShowDetails( int showTime ) {
+void ShowDetails( int showTime ) {
    SetFont( "SMALLFONT" );
    // High score disabled.
    if ( ! IsEnabled() ) {

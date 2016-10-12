@@ -17,20 +17,20 @@ extern enum MapType {
    MAP_TEAM,
 } gMapType;
 
-function void InitSolo( str par );
-function void InitTeam( str par, int points );
-function void EnableFlag( int flag );
-function void DisableFlags( int flag );
-function void Run();
-function void RunSvmz( str mapRestartCommand );
-function void StartTimer();
-function void SetMapMessage( str name, str author,
+extern void InitSolo( str par );
+extern void InitTeam( str par, int points );
+extern void EnableFlag( int flag );
+extern void DisableFlags( int flag );
+extern void Run();
+extern void RunSvmz( str mapRestartCommand );
+extern void StartTimer();
+extern void SetMapMessage( str name, str author,
    enum Jm.MapMsg.Skill skill );
-function void AddPoint();
-function void FinishLine();
-function void DisallowHs( int player );
-function void Exit();
-function bool IsValidExit();
+extern void AddPoint();
+extern void FinishLine();
+extern void DisallowHs( int player );
+extern void Exit();
+extern bool IsValidExit();
 
 }
 

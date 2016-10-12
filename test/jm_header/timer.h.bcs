@@ -3,12 +3,14 @@
 
 #linklibrary "timer"
 
+// ==========================================================================
 namespace Jm.Timer {
+// ==========================================================================
 
-function void Run();
-function void SetPar( str par );
-function void ShowTime( int time );
-function int GetTics();
+extern void Run();
+extern void SetPar( str par );
+extern void ShowTime( int time );
+extern int GetTics();
 
 }
 

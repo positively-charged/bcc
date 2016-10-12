@@ -17,7 +17,7 @@ enum Skill {
    SKILL_TOTAL
 };
 
-function void Set( str name, str author, enum Skill skill, str par );
+extern void Set( str name, str author, enum Skill skill, str par );
 
 }
 

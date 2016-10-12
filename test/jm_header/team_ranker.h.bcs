@@ -3,10 +3,12 @@
 
 #linklibrary "teamrank"
 
+// ==========================================================================
 namespace Jm.TeamRanker {
+// ==========================================================================
 
-function void ClearPointsTable();
-function void PrepareForSvmz();
+extern void ClearPointsTable();
+extern void PrepareForSvmz();
 
 }
 

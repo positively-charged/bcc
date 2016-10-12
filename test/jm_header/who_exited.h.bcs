@@ -3,10 +3,12 @@
 
 #linklibrary "whoexit"
 
+// ==========================================================================
 namespace Jm.WhoExited {
+// ==========================================================================
 
-function void Show();
-function void ShowAndExit();
+extern void Show();
+extern void ShowAndExit();
 
 }
 

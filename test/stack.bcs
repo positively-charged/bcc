@@ -1,10 +1,11 @@
-#include "zcommon.acs"
-#include "zstrong.acs"
+#include "zcommon.h"
 
-namespace StackTest {
+// ==========================================================================
+namespace upmost {
 // ==========================================================================
 
-script "StackTest" open {
+script "Main" open {
+   using StackTest;
    auto stack = StackCreate();
    StackPush( stack, "123" );
    StackPush( stack, "321" );
@@ -16,44 +17,44 @@ script "StackTest" open {
    Print( s: StackPop( stack ) );
 }
 
+}
+
+// ==========================================================================
+namespace StackTest {
+// ==========================================================================
+
 struct NodeT {
    NodeT? next;
    str value;
-}
+};
 
 struct StackT {
    NodeT? top;
-}
+};
 
-function StackT& StackCreate() {
+StackT& StackCreate() {
    static auto allocated = false;
-   static StackT stack = { null };
+   static StackT stack;
    assert ( ! allocated, "Stack already allocated" );
    allocated = true;
    return stack;
 }
 
-function void StackPush( StackT& stack, str value ) {
+void StackPush( StackT& stack, str value ) {
    auto node = AllocateFreeNode( value );
    node.next = stack.top;
    stack.top = node;
 }
 
 // Both allocates and frees a node.
-function NodeT? AllocateFreeNode( str value, NodeT? freeNode = null ) {
-   static extspec struct {
+private NodeT? AllocateFreeNode( str value, NodeT? freeNode = null ) {
+   static struct {
       NodeT node;
       bool allocated;
-   } table[] = {
-      { { null } },
-      { { null } },
-      { { null } },
-      { { null } },
-      { { null } },
-   };
+   } table[ 10 ];
    // Free a node.
    if ( freeNode ) {
-      foreach ( auto entry in table ) {
+      foreach ( auto entry; table ) {
          if ( entry.node == freeNode ) {
             entry.allocated = false;
             return null;
@@ -63,7 +64,7 @@ function NodeT? AllocateFreeNode( str value, NodeT? freeNode = null ) {
    }
    // Allocate a node.
    else {
-      foreach ( auto entry in table ) {
+      foreach ( auto entry; table ) {
          if ( ! entry.allocated ) {
             entry.allocated = true;
             auto node = entry.node;
@@ -75,7 +76,7 @@ function NodeT? AllocateFreeNode( str value, NodeT? freeNode = null ) {
    }
 }
 
-function str StackPop( StackT& stack ) {
+str StackPop( StackT& stack ) {
    assert ( stack.top );
    auto node = stack.top;
    stack.top = stack.top.next;

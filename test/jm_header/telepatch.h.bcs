@@ -3,11 +3,13 @@
 
 #linklibrary "telpatch"
 
+// ==========================================================================
 namespace Jm.Telepatch {
+// ==========================================================================
 
-function void OnDeath( int player );
-function void OnRespawn( int player );
-function void OnDisconnect( int player );
+extern void OnDeath( int player );
+extern void OnRespawn( int player );
+extern void OnDisconnect( int player );
 
 }
 

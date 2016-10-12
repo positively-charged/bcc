@@ -7,11 +7,27 @@
 
 */
 
+#include "zcommon.h"
+
+// ==========================================================================
+namespace upmost {
+// ==========================================================================
+
+script "Main" open {
+   str a = StrParam( d: INT_MAX );
+   str b = StrParam( d: INT_MAX - 1000_000_000 );
+   Print( i: BigInt.Lt( a, b ) );
+   Print( s: BigInt.Add( a, b ) );
+   Print( s: BigInt.Sub( a, b ) );
+}
+
+}
+
 // ==========================================================================
 namespace BigInt {
 // ==========================================================================
 
-function str Add( str a, str b ) {
+str Add( str a, str b ) {
    return StrParam( msgbuild: {
       // Calculate sum.
       str sum = StrParam( msgbuild: {
@@ -37,7 +53,7 @@ function str Add( str a, str b ) {
    } );
 }
 
-function str Sub( str a, str b ) {
+str Sub( str a, str b ) {
    return StrParam( msgbuild: {
       // Negative.
       if ( Lt( a, b ) ) {
@@ -73,7 +89,7 @@ function str Sub( str a, str b ) {
    } );
 }
 
-function bool Lt( str a, str b ) {
+bool Lt( str a, str b ) {
    int length = b.length();
    if ( a.length() == length ) {
       int i = 0;
@@ -85,22 +101,6 @@ function bool Lt( str a, str b ) {
    else {
       return ( a.length() < length );
    }
-}
-
-}
-
-#include "zcommon.h"
-
-// ==========================================================================
-namespace upmost {
-// ==========================================================================
-
-script "Main" open {
-   str a = StrParam( d: INT_MAX );
-   str b = StrParam( d: INT_MAX - 1000_000_000 );
-   Print( i: BigInt.Lt( a, b ) );
-   Print( s: BigInt.Add( a, b ) );
-   Print( s: BigInt.Sub( a, b ) );
 }
 
 }

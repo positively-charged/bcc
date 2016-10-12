@@ -3,10 +3,12 @@
 
 #linklibrary "solorank"
 
+// ==========================================================================
 namespace Jm.SoloRanker {
+// ==========================================================================
 
-function void Finish();
-function str GetHsAuthorName();
+extern void Finish();
+extern str GetHsAuthorName();
 
 }
 

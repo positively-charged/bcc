@@ -18,12 +18,12 @@ private str gPar = "";
 // adjust the finish times when the timer is started manually.
 private int gSkipped = 0;
 
-function void Run() {
+void Run() {
    gSkipped = Timer();
    Acs_NamedExecute( "Timer.Start", 0 );
 }
 
-function void SetPar( str par ) {
+void SetPar( str par ) {
    gPar = par;
 }
 
@@ -36,7 +36,7 @@ script "Timer.Start" {
    }
 }
 
-function void ShowTime( int time ) {
+void ShowTime( int time ) {
    SetFont( "BIGFONT" );
    HudMessage(
       d: time / 60, s: "  :  ",
@@ -58,7 +58,7 @@ script "Timer.Show" net {
    }
 }
 
-function int GetTics() {
+int GetTics() {
    return Timer() - gSkipped;
 }
 

@@ -30,16 +30,16 @@ private int gFlags = F_NONE;
 private str gPar = "";
 private int gPoints = 0;
 
-function void InitSolo( str par ) {
+void InitSolo( str par ) {
    Init( MAP_SOLO, par );
 }
 
-function void InitTeam( str par, int points ) {
+void InitTeam( str par, int points ) {
    Init( MAP_TEAM, par );
    gPoints = points;
 }
 
-private function void Init( enum MapType mapType, str par ) {
+private void Init( enum MapType mapType, str par ) {
    Utility.Init();
    gMapType = mapType;
    gPar = par;
@@ -58,15 +58,15 @@ private function void Init( enum MapType mapType, str par ) {
    }
 }
 
-function void EnableFlag( int flag ) {
+void EnableFlag( int flag ) {
    gFlags |= flag;
 }
 
-function void DisableFlags( int flag ) {
+void DisableFlags( int flag ) {
    gFlags ^= flag;
 }
 
-function void Run() {
+void Run() {
    if ( gMode == MODE_COOP ) {
       if ( gFlags & F_MANUALTIMER ) {
          Timer.ShowTime( 0 );
@@ -86,7 +86,7 @@ function void Run() {
    }
 }
 
-function void RunSvmz( str mapRestartCommand ) {
+void RunSvmz( str mapRestartCommand ) {
    if ( Svmz.Init() ) {
       ConsoleCommand( mapRestartCommand );
    }
@@ -100,7 +100,7 @@ function void RunSvmz( str mapRestartCommand ) {
    Acs_NamedExecute( "Svmz.Start", 0, gPar );
 }
 
-function void StartTimer() {
+void StartTimer() {
    if ( gFlags & F_MANUALTIMER ) {
       Timer.Run();
    }
@@ -110,11 +110,11 @@ function void StartTimer() {
    }
 }
 
-function void SetMapMessage( str name, str author, enum MapMsg.Skill skill ) {
+void SetMapMessage( str name, str author, enum MapMsg.Skill skill ) {
    MapMsg.Set( name, author, skill, gPar );
 }
 
-function void AddPoint() {
+void AddPoint() {
    if ( gMapType == MAP_TEAM ) {
       Acs_NamedExecuteAlways( "TeamRanker.AddPoint", 0 );
    }
@@ -123,7 +123,7 @@ function void AddPoint() {
    }
 }
 
-function void FinishLine() {
+void FinishLine() {
    if ( gMode == MODE_COOP ) {
       if ( gMapType == MAP_SOLO ) {
          SoloRanker.Finish();
@@ -140,18 +140,18 @@ function void FinishLine() {
    }
 }
 
-function void DisallowHs( int player ) {
+void DisallowHs( int player ) {
    Hs.Disallow( player );
 }
 
-function void Exit() {
+void Exit() {
    if ( gMode == MODE_COOP ||
       ( gMode == MODE_SVMZ && Svmz.ValidateExit() ) ) {
       WhoExited.ShowAndExit();
    }
 }
 
-function bool IsValidExit() {
+bool IsValidExit() {
    if ( gMode == MODE_SVMZ ) {
       return Svmz.ValidateExit();
    }

@@ -27,19 +27,19 @@ enum : fixed { TBL_X = 0.0038147 };
 enum : fixed { TBL_Y = 0.688171 };
 enum { TBL_LINEID = 733 };
 
-struct Spot {
+struct SpotT {
    int player;
    int minutes;
    int seconds;
    int centiseconds;
 };
 
-struct Table {
-   struct Spot spots[ RANK_LIMIT_MAX ];
+struct TableT {
+   SpotT spots[ RANK_LIMIT_MAX ];
    int size;
 };
 
-private struct Table gTable;
+private TableT gTable;
 private bool gFinished[ MAX_PLAYERS ];
 private int gShowLimit = RANK_LIMIT_MAX;
 private str gRankColors[ RANK_LIMIT_MAX ] = {
@@ -86,7 +86,7 @@ script "SoloRanker.ClientEnter" enter {
    gFinished[ PlayerNumber() ] = false;
 }
 
-function void Finish() {
+void Finish() {
    if ( PlayerNumber() >= 0 && ! gFinished[ PlayerNumber() ] ) {
       gFinished[ PlayerNumber() ] = true;
       if ( Utility.IsOnline() ) {
@@ -130,7 +130,7 @@ script "SoloRanker.AddPlayer" ( int player, int time ) {
    }
 }
 
-private function void SaveInTable( int player, int tics ) {
+private void SaveInTable( int player, int tics ) {
    auto spot = gTable.spots[ gTable.size ];
    spot.player = player;
    spot.minutes = ( tics / TICS_IN_SECOND ) / 60;
@@ -139,7 +139,7 @@ private function void SaveInTable( int player, int tics ) {
    ++gTable.size;
 }
 
-private function struct Spot? FindSpot( int player ) {
+private SpotT? FindSpot( int player ) {
    for ( auto i = 0; i < gTable.size; ++i ) {
       if ( gTable.spots[ i ].player == player ) {
          return gTable.spots[ i ];
@@ -154,7 +154,7 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
    }
 }
 
-private function void ShowTable() {
+private void ShowTable() {
    SetFont( "SMALLFONT" );
    HudMessageBold( msgbuild: {
       if ( Hs.IsSet() ) {
@@ -186,11 +186,11 @@ private function void ShowTable() {
    }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
 }
 
-private function void ClearTable() {
+private void ClearTable() {
    HudMessage( s: ""; HUDMSG_PLAIN, TBL_LINEID, 0, 0.0, 0.0, 0.0 );
 }
 
-private function void ShowIndividualTime( int tics ) {
+private void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
    HudMessage( msgbuild: {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
@@ -206,7 +206,7 @@ private function void ShowIndividualTime( int tics ) {
    }; HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
 }
 
-private function void ClearIndividualTime() {
+private void ClearIndividualTime() {
    HudMessage( s: ""; HUDMSG_PLAIN, INDITIME_LINEID, 0, 0.0, 0.0, 0.0 );
 }
 
@@ -267,7 +267,7 @@ script "SoloRanker.LoadHs" {
 
 // Sets the finish time, in tics, of the high score and converts it into more
 // familiar units like minutes and seconds.
-private function void SetHsFinishTime( int tics ) {
+private void SetHsFinishTime( int tics ) {
    if ( tics > 0 ) {
       gHsMinutes = tics / TICS_IN_SECOND / 60;
       gHsSeconds = tics / TICS_IN_SECOND % 60;
@@ -277,27 +277,27 @@ private function void SetHsFinishTime( int tics ) {
 }
 
 // Saves high score and all of its details in permanent storage.
-private function void SaveHs( int player, int tics ) { 
+private void SaveHs( int player, int tics ) { 
    Luk.StoreName( HS_RAUTHOR, player );
    Luk.StoreInt( HS_RTIME, tics );
    Luk.StoreDate( HS_RDATE );
 }
 
-private function msgbuild void DrawHsTime() {
+private msgbuild void DrawHsTime() {
    append( s: "\cnRecord: \cb",
       s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
       s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
       s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
 }
 
-private function void AnnounceHs() {
+private void AnnounceHs() {
    SetFont( "SMALL" );
    HudMessageBold( s: "\cd", n: 0, s: "\cd set a new map record!";
       HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0, 1.0 );
    AmbientSound( "JM2HSWIN", 127 );
 }
 
-private function void AnnounceCheat() {
+private void AnnounceCheat() {
    HudMessageBold( s: "\cgClever \cc", n: 0, s: "\cg tried to cheat to the "
       "high score"; HUDMSG_FADEOUT | HUDMSG_LOG, 1900, 0, 1.5, 0.15, 5.0,
       1.0 );
@@ -317,7 +317,7 @@ script "SoloRanker.ShowHs" ( raw showTime ) {
       HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
 }
 
-function str GetHsAuthorName() {
+str GetHsAuthorName() {
    return gHsAuthor;
 }
 

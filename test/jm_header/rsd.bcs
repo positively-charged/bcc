@@ -42,19 +42,19 @@ private int _rsd_line_max_size = 120;
 // Contains data that will be shown.
 private int _rsd_segment[ RSD_MAX_DATA_SIZE ];
 
-function void RsdSetPadding( int padding ) {
+void RsdSetPadding( int padding ) {
    if ( padding >= 0 && padding * 2 < RSD_MAX_PADDING ) {
       _rsd_padding = padding;
    }
 }
 
 // Set to 0 to remove maximum restriction.
-function void RsdSetMaxLineSize( int size ) {
+void RsdSetMaxLineSize( int size ) {
    _rsd_line_max_size = size;
 }
 
 // Adds a number onto the arguments queue.
-function void RsdAddNumArg( int num ) {
+void RsdAddNumArg( int num ) {
    if ( _rsd_args_size < RSD_MAX_ARGS ) {
       int size = 0;
 
@@ -94,7 +94,7 @@ function void RsdAddNumArg( int num ) {
    }
 }
 
-function void RsdAddStrArg( str value ) {
+void RsdAddStrArg( str value ) {
    int length = Strlen( value );
 
    // Only proceed if we have enough space.

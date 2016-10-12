@@ -1,6 +1,7 @@
+
 #if 1
 
-#linklibrary "mapmsg"
+#library "mapmsg"
 
 #include "zcommon.h"
 #include "config.h"
@@ -35,7 +36,7 @@ private int gNumber = Cfg.VALUE_NONE;
 private str gPar = "";
 private bool gIsSet = false;
 
-function void Set( str name, str author, enum Skill skill, str par ) {
+void Set( str name, str author, enum Skill skill, str par ) {
    gAuthor = author;
    gName = name;
    gNumber = GetLevelInfo( LEVELINFO_LEVELNUM );
@@ -68,7 +69,7 @@ script "MapMsg.Show" enter {
    Show();
 }
 
-private function void Show() {
+private void Show() {
    SetFont( "SMALLFONT" );
    HudMessage( msgbuild: {
       append(
@@ -96,7 +97,7 @@ private function void Show() {
 
 // Removes the whitespace found in the par time, so it looks nicer when shown
 // in the map message.
-private function void SetPar( str par ) {
+private void SetPar( str par ) {
    gPar = StrParam( msgbuild: {
       foreach ( int ch; par ) {
          if ( ch != ' ' ) {
