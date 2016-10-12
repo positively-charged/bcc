@@ -613,7 +613,16 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
       s_bail( semantic );
    }
    // Return value must be of the same type as the return type.
-   if ( func->return_spec == SPEC_AUTO ) {
+   if ( func->return_spec == SPEC_AUTOENUM ) {
+      if ( ! s_is_enumerator( &type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
+            "return value not an enumerator" );
+         s_bail( semantic );
+      }
+      func->enumeration = type.enumeration;
+      func->return_spec = SPEC_ENUM;
+   }
+   else if ( func->return_spec == SPEC_AUTO ) {
       if ( s_is_null( &type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
             "cannot deduce return type from `null`" );

@@ -1749,6 +1749,18 @@ bool test_func_qual( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
+   // Keep the interface of a function explicit. Nested functions are an
+   // implementation detail of a function, so it doesn't matter there.
+   if (
+      func->return_spec == SPEC_AUTO ||
+      func->return_spec == SPEC_AUTOENUM ) {
+      struct func_user* impl = func->impl;
+      if ( func->type == FUNC_USER && ! impl->nested ) {
+         s_diag( semantic, DIAG_POS | DIAG_ERR, &func->object.pos,
+            "return-type deduction only available for nested functions" );
+         s_bail( semantic );
+      }
+   }
    if ( func->return_spec >= SPEC_NAME ) {
       struct name_spec_test test;
       init_name_spec_test( &test, func->path, &func->object, func->ref, NULL,

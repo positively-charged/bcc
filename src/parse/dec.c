@@ -55,6 +55,7 @@ static bool is_dec_bcs( struct parse* parse );
 static void read_visibility( struct parse* parse, struct dec* dec );
 static void read_object( struct parse* parse, struct dec* dec );
 static void read_qual( struct parse* parse, struct dec* dec );
+static void read_auto( struct parse* parse, struct dec* dec );
 static void read_storage( struct parse* parse, struct dec* dec );
 static void read_extended_spec( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* dec );
@@ -93,6 +94,7 @@ static void read_ref_storage( struct parse* parse,
    struct ref_reading* reading );
 static void read_array_ref( struct parse* parse, struct ref_reading* reading );
 static void read_ref_func( struct parse* parse, struct ref_reading* reading );
+static void read_after_ref( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
 static void read_instance_list( struct parse* parse, struct dec* dec );
 static void read_instance( struct parse* parse, struct dec* dec );
@@ -116,7 +118,7 @@ static void test_storage( struct parse* parse, struct dec* dec );
 static void add_var( struct parse* parse, struct dec* dec );
 static struct var* alloc_var( struct dec* dec );
 static void finish_type_alias( struct parse* parse, struct dec* dec );
-static void read_auto_var( struct parse* parse, struct dec* dec );
+static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
 static void read_func( struct parse* parse, struct dec* dec );
 static void read_func_param_list( struct parse* parse, struct func* func );
@@ -329,20 +331,22 @@ void read_object( struct parse* parse, struct dec* dec ) {
          break;
       }
    }
-   if ( ! dec->type_alias ) {
+   if ( dec->type_alias ) {
+      read_extended_spec( parse, dec );
+      read_after_spec( parse, dec );
+   }
+   else {
       read_qual( parse, dec );
-      if (
-         dec->object == DECOBJ_UNDECIDED ||
-         dec->object == DECOBJ_VAR ) {
-         if ( parse->tk == TK_AUTO ) {
-            read_auto_var( parse, dec );
-            return;
-         }
+      if ( parse->tk == TK_AUTO ) {
+         read_auto( parse, dec );
+         read_after_ref( parse, dec );
+      }
+      else {
          read_storage( parse, dec );
+         read_extended_spec( parse, dec );
+         read_after_spec( parse, dec );
       }
    }
-   read_extended_spec( parse, dec );
-   read_after_spec( parse, dec );
 }
 
 void read_qual( struct parse* parse, struct dec* dec ) {
@@ -368,6 +372,16 @@ void read_qual( struct parse* parse, struct dec* dec ) {
       break;
    default:
       break;
+   }
+}
+
+void read_auto( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_AUTO );
+   dec->spec = SPEC_AUTO;
+   p_read_tk( parse );
+   if ( parse->tk == TK_ENUM ) {
+      dec->spec = SPEC_AUTOENUM;
+      p_read_tk( parse );
    }
 }
 
@@ -861,20 +875,7 @@ void read_after_spec( struct parse* parse, struct dec* dec ) {
    init_ref_reading( &ref );
    read_ref( parse, &ref );
    dec->ref = ref.head;
-   if ( dec->object == DECOBJ_UNDECIDED ) {
-      if ( is_name( parse, dec ) && p_peek( parse ) == TK_PAREN_L ) {
-         dec->object = DECOBJ_FUNC;
-      }
-      else {
-         dec->object = DECOBJ_VAR;
-      }
-   }
-   if ( dec->object == DECOBJ_FUNC ) {
-      read_func( parse, dec );
-   }
-   else {
-      read_var( parse, dec );
-   }
+   read_after_ref( parse, dec );
 }
 
 void init_ref_reading( struct ref_reading* reading ) {
@@ -994,8 +995,32 @@ void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
    prepend_ref( reading, &part->ref );
 }
 
+void read_after_ref( struct parse* parse, struct dec* dec ) {
+   if ( dec->object == DECOBJ_UNDECIDED ) {
+      if ( is_name( parse, dec ) && p_peek( parse ) == TK_PAREN_L ) {
+         dec->object = DECOBJ_FUNC;
+      }
+      else {
+         dec->object = DECOBJ_VAR;
+      }
+   }
+   if ( dec->object == DECOBJ_FUNC ) {
+      read_func( parse, dec );
+   }
+   else {
+      read_var( parse, dec );
+   }
+}
+
 void read_var( struct parse* parse, struct dec* dec ) {
-   read_instance_list( parse, dec );
+   if (
+      dec->spec == SPEC_AUTO ||
+      dec->spec == SPEC_AUTOENUM ) {
+      read_auto_instance_list( parse, dec );
+   }
+   else {
+      read_instance_list( parse, dec );
+   }
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
 }
@@ -1505,15 +1530,7 @@ void finish_type_alias( struct parse* parse, struct dec* dec ) {
    dec->type_alias_object = alias;
 }
 
-void read_auto_var( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_AUTO );
-   dec->object = DECOBJ_VAR;
-   dec->spec = SPEC_AUTO;
-   p_read_tk( parse );
-   if ( parse->tk == TK_ENUM ) {
-      dec->spec = SPEC_AUTOENUM;
-      p_read_tk( parse );
-   }
+void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
    while ( true ) {
       read_name( parse, dec );
       read_var_init( parse, dec );
@@ -1526,8 +1543,6 @@ void read_auto_var( struct parse* parse, struct dec* dec ) {
          break;
       }
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
 }
 
 struct var* p_read_cond_var( struct parse* parse ) {
