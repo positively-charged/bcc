@@ -1,21 +1,17 @@
 <h2>BCS</h2>
 
 <ul>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#incompatibilities-with-acs">Incompatibilities with ACS</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#libraries">Libraries</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#preprocessor">Preprocessor</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#namespaces">Namespaces</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#enumerations">Enumerations</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#structures">Structures</a></li>
-<li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#functions">Functions</a></li>
-<li>
-   <a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#statements">Statements</a>
-   <ul>
-   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#foreach">foreach</a></li>
-   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#goto">goto</a></li>
-   <li><a href="https://github.com/wormt/bcc/blob/bcs/doc/details.md#assert-static-assert">assert / static assert</a></li>
-   </ul>
-   </li>
+   <li><a href="#incompatibilities-with-acs">Incompatibilities with ACS</a></li>
+   <li><a href="#libraries">Libraries</a></li>
+   <li><a href="#preprocessor">Preprocessor</a></li>
+   <li><a href="#namespaces">Namespaces</a></li>
+   <li><a href="#declarations">Declarations</a></li>
+   <li><a href="#enumerations">Enumerations</a></li>
+   <li><a href="#structures">Structures</a></li>
+   <li><a href="#functions">Functions</a></li>
+   <li><a href="#statements">Statements</a></li>
+   <li><a href="#references">References</a></li>
+   <li><a href="#expressions">Expressions</a></li>
 </ul>
 
 <h3>Incompatibilities with ACS</h3>
@@ -43,7 +39,7 @@ script MAKE_STR( 1 2 3 ) open {
 
 Namespaces in BCS work similar to namespaces in other languages like C++ and C#.
 
-```
+```s
 namespace Test {
    str message = "Hello, World!";
    void Print( str message ) {
@@ -56,7 +52,49 @@ script 1 open {
 }
 ```
 
-<h3>enums</h3>
+<h4><code>using</code></h4>
+
+<h3>Declarations</h3>
+
+<h4>Block Scoping</h4>
+In bcc, names of objects follow scoping rules.
+
+A scope is a set of names, each name referring to some object&#8212;a variable say. The same name can be used to refer to some other object&#8212;such as a constant&#8212;as long as it's not in the same scope. Anywhere in your code, some scope is active. When you create a variable, say, the name of the variable is placed in the active scope.
+
+A scope is commonly created by a code block, the statement delimited by braces ({}). At the start of a code block, a new scope is created. This new scope is now the active scope. The previous scope is still there, but is now the parent of the new scope. At the end of the code block, the active scope is destroyed, and the parent scope becomes the active scope again.
+
+When using a name, the compiler will first search the active scope. If the name is not found, the parent scope is then searched. This continues until the top scope is reached. (The __top scope__ is the first scope made and the last scope searched. It is the scope containing objects like scripts and functions.) Through this process, the first instance of the name found is the instance that will be used to retrieve an object.
+
+<h6>Code:</h6>
+```
+// In scope #0 (top scope)
+int a = 0;
+
+script 1 open {
+   // In scope #1
+   print( i: a );
+   int a = 1;
+   {
+      // In scope #2
+      int a = 2;
+      print( i: a );
+   }
+   print( i: a );
+}
+```
+
+<h6>Output:</h6>
+<pre>
+0
+2
+1
+</pre>
+
+<h4><code>auto</code></h4>
+
+<h4><code>typedef</code></h4>
+
+<h3>Enumerations</h3>
 
 An <code>enum</code> is used to create a group of constants.
 
@@ -200,161 +238,9 @@ In the example above, we create a structure named <code>boss_list</code>. This s
 
 We create a variable named <code>list</code> using this new structure. The outermost braces initialize the <code>list</code> variable. Th middle braces initialize the <code>bosses</code> member, an array. The innermost braces initialize the first element of the array, a <code>boss</code> structure.
 
-<h3>Proper Scoping</h3>
-In bcc, names of objects follow scoping rules.
+<h3>Functions</h3>
 
-A scope is a set of names, each name referring to some object&#8212;a variable say. The same name can be used to refer to some other object&#8212;such as a constant&#8212;as long as it's not in the same scope. Anywhere in your code, some scope is active. When you create a variable, say, the name of the variable is placed in the active scope.
-
-A scope is commonly created by a code block, the statement delimited by braces ({}). At the start of a code block, a new scope is created. This new scope is now the active scope. The previous scope is still there, but is now the parent of the new scope. At the end of the code block, the active scope is destroyed, and the parent scope becomes the active scope again.
-
-When using a name, the compiler will first search the active scope. If the name is not found, the parent scope is then searched. This continues until the top scope is reached. (The __top scope__ is the first scope made and the last scope searched. It is the scope containing objects like scripts and functions.) Through this process, the first instance of the name found is the instance that will be used to retrieve an object.
-
-<h6>Code:</h6>
-```
-// In scope #0 (top scope)
-int a = 0;
-
-script 1 open {
-   // In scope #1
-   print( i: a );
-   int a = 1;
-   {
-      // In scope #2
-      int a = 2;
-      print( i: a );
-   }
-   print( i: a );
-}
-```
-
-<h6>Output:</h6>
-<pre>
-0
-2
-1
-</pre>
-
-<h3>Logical AND and OR Operators</h3>
-In bcc, the logical AND (__&&__) and OR (__||__) operators exhibit short-circuit evaluation.
-
-When using the logical AND operator, the left side is evaluated first. If the result is 0, the right side is __SKIPPED__, and the result of the operation is 0. Otherwise, the right side is then evaluated, and, like the left side, if the result is 0, the result of the operation is 0. Otherwise, the result of the operation is 1.
-
-When using the logical OR operator, the left side is evaluated first. If the result is __NOT__ 0, the right side is __SKIPPED__, and the result of the operation is 1. Otherwise, the right side is evaluated, and if the result is not 0, the result of the operation is 1. Otherwise, the result of the operation is 0.
-
-<h6>Code:</h6>
-```
-function int get_0( void ) {
-   print( s: "called get_0()" );
-   return 0;
-}
-
-function int get_1( void ) {
-   print( s: "called get_1()" );
-   return 1;
-}
-
-script 1 open {
-   print( s: "get_0() && get_1() == ", i: get_0() && get_1() );
-   print( s: "get_1() && get_0() == ", i: get_1() && get_0() );
-   print( s: "get_0() || get_1() == ", i: get_0() || get_1() );
-   print( s: "get_1() || get_0() == ", i: get_1() || get_0() );
-}
-```
-
-<h6>Output:</h6>
-<pre>
-  called get_0()  
-get_0() && get_1() == 0  
-  called get_1()  
-  called get_0()  
-get_1() && get_0() == 0  
-  called get_0()  
-  called get_1()  
-get_0() || get_1() == 1  
-  called get_1()  
-get_1() || get_0() == 1  
-</pre>
-
-Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
-
-In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
-
-<h3>Statements</h3>
-
-<h4>foreach</h4>
-
-<h4>goto</h4>
-
-A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
-
-```
-script 1 open {
-   goto bottom;
-   top:
-   Print( s: "top" );
-   goto end;
-   bottom:
-   Print( s: "bottom" );
-   goto top;
-   end:
-   // Output:
-   // bottom
-   // top
-}
-```
-
-<h4>assert / static assert</h4>
-
-<h3>Functions<h3>
-
-<h3>Format Blocks</h3>
-
-When calling functions like `Print()`, a format block gives you more precision in the composition of the message. A format block is like a normal block of code, but it can also contain format items. (Format items are those colon-separated arguments you pass to `Print()` and the like.) Inside a format block, a format item uses `:=` in the middle, not `:`. Everytime a format item is encountered, it is added as a part of the message. By mixing format items with other statements, you can create a different message based on how those other statements execute.
-
-```
-script 1 open {
-   bool alive = false;
-   Print( {} ) := {
-      s:= "The monster is: ";
-      if ( alive ) {
-         s:= "Alive and doing well";
-      }
-      else {
-         s:= "Dead";
-      }
-   }
-   // Output: The monster is: Dead
-}
-```
-
-In the example above, we call the `Print()` function. In the argument list, we use `{}`. This indicates we want to use a format block. Following the function call, we add `:=`. This is just a syntactic requirement. Then we have a block of code. In the block, we have a basic `if` statement and a few format items. The first format item is added to the message. If the `if` statement is true, the second format item is added to the message; otherwise, the third.
-
-```
-script 1 open {
-   HudMessage( {}; HUDMSG_PLAIN, 0, 0, 1.5, 0.5, 5.0 ) := {
-      for ( int i = 0; i < 10; ++i ) {
-         c:= '*';
-      }
-   }
-   // Output: **********
-}
-```
-
-In this example, we print a border consisting of 10 `*` characters. Change the 10 to some other number to print a border of a different length.
-
----
-
-<h5>Other Details</h5>
-
-Functions like `HudMessage()` take multiple arguments. When calling such a function, the format block is executed first, then the rest of the arguments.
-
-A format block can contain a function call that itself uses a format block.
-
-You cannot move into a format block with a `goto` statement, and you cannot move out of a format block with a `break`, `continue`, or `goto` statement. You must naturally enter and leave the format block.
-
-Inside a format block, calling a waiting function like `Delay()` is not allowed.
-
-<h3>Optional Parameters</h3>
+<h4>Optional Parameters</h4>
 
 ```
 void print_string( str string = "Hello, World!" ) {
@@ -411,33 +297,129 @@ script 1 enter {
 }
 ```
 
-<h3>Printing Section of an Array</h3>
+<h4>Nested Functions</h4>
 
-<h5>Syntax</h5>
-<pre>
-Print( a:( array<b>[</b>, start<b>[</b>, length<b>]]</b> ) );
-</pre>
+<h4>Message-building Functions</h4>
 
-If `start` is specified, printing will begin from this index. If `length` is also specified, then `length` amount of characters will be printed.
+When calling functions like `Print()`, a format block gives you more precision in the composition of the message. A format block is like a normal block of code, but it can also contain format items. (Format items are those colon-separated arguments you pass to `Print()` and the like.) Inside a format block, a format item uses `:=` in the middle, not `:`. Everytime a format item is encountered, it is added as a part of the message. By mixing format items with other statements, you can create a different message based on how those other statements execute.
 
-It is important to provide correct arguments. `start` must not be negative and must not be greater than or equal to the array size. `length` must be between zero and the array size, inclusive. If these requirements are not met, bad things will happen!
-
-<h5>Example</h5>
-<pre>
-#include "zcommon.acs"
-
-<b>int</b> array[] = { 'a', 'b', 'c', 'd' };
-
-<b>script</b> 1 <b>open</b> {
-   Print( a:( array ) );       // Output: abcd
-   Print( a:( array, 1 ) );    // Output: bcd
-   Print( a:( array, 1, 1 ) ); // Output: c
+```
+script 1 open {
+   bool alive = false;
+   Print( {} ) := {
+      s:= "The monster is: ";
+      if ( alive ) {
+         s:= "Alive and doing well";
+      }
+      else {
+         s:= "Dead";
+      }
+   }
+   // Output: The monster is: Dead
 }
+```
+
+In the example above, we call the `Print()` function. In the argument list, we use `{}`. This indicates we want to use a format block. Following the function call, we add `:=`. This is just a syntactic requirement. Then we have a block of code. In the block, we have a basic `if` statement and a few format items. The first format item is added to the message. If the `if` statement is true, the second format item is added to the message; otherwise, the third.
+
+```
+script 1 open {
+   HudMessage( {}; HUDMSG_PLAIN, 0, 0, 1.5, 0.5, 5.0 ) := {
+      for ( int i = 0; i < 10; ++i ) {
+         c:= '*';
+      }
+   }
+   // Output: **********
+}
+```
+
+In this example, we print a border consisting of 10 `*` characters. Change the 10 to some other number to print a border of a different length.
+
+---
+
+<h5>Other Details</h5>
+
+Functions like `HudMessage()` take multiple arguments. When calling such a function, the format block is executed first, then the rest of the arguments.
+
+A format block can contain a function call that itself uses a format block.
+
+You cannot move into a format block with a `goto` statement, and you cannot move out of a format block with a `break`, `continue`, or `goto` statement. You must naturally enter and leave the format block.
+
+Inside a format block, calling a waiting function like `Delay()` is not allowed.
+
+<h3>Statements</h3>
+
+<h4><code>foreach</code></h4>
+
+<h4><code>goto</code></h4>
+
+A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
+
+```
+script 1 open {
+   goto bottom;
+   top:
+   Print( s: "top" );
+   goto end;
+   bottom:
+   Print( s: "bottom" );
+   goto top;
+   end:
+   // Output:
+   // bottom
+   // top
+}
+```
+
+<h4><code>assert / static assert</code></h4>
+
+<h3>References</h3>
+
+<h3>Expressions</h3>
+
+<h4>Logical-AND and Logical-OR</h4>
+In bcc, the logical AND (__&&__) and OR (__||__) operators exhibit short-circuit evaluation.
+
+When using the logical AND operator, the left side is evaluated first. If the result is 0, the right side is __SKIPPED__, and the result of the operation is 0. Otherwise, the right side is then evaluated, and, like the left side, if the result is 0, the result of the operation is 0. Otherwise, the result of the operation is 1.
+
+When using the logical OR operator, the left side is evaluated first. If the result is __NOT__ 0, the right side is __SKIPPED__, and the result of the operation is 1. Otherwise, the right side is evaluated, and if the result is not 0, the result of the operation is 1. Otherwise, the result of the operation is 0.
+
+<h6>Code:</h6>
+```
+function int get_0( void ) {
+   print( s: "called get_0()" );
+   return 0;
+}
+
+function int get_1( void ) {
+   print( s: "called get_1()" );
+   return 1;
+}
+
+script 1 open {
+   print( s: "get_0() && get_1() == ", i: get_0() && get_1() );
+   print( s: "get_1() && get_0() == ", i: get_1() && get_0() );
+   print( s: "get_0() || get_1() == ", i: get_0() || get_1() );
+   print( s: "get_1() || get_0() == ", i: get_1() || get_0() );
+}
+```
+
+<h6>Output:</h6>
+<pre>
+  called get_0()  
+get_0() && get_1() == 0  
+  called get_1()  
+  called get_0()  
+get_1() && get_0() == 0  
+  called get_0()  
+  called get_1()  
+get_0() || get_1() == 1  
+  called get_1()  
+get_1() || get_0() == 1  
 </pre>
 
-<h5>Technical</h5>
+Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
 
-This feature uses a special instruction. At this time, Zandronum does not support this instruction so existing instructions need to be used to emulate this feature. This means your object file will be bigger and the number of instructions executed will be larger.
+In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
 
 <h3>Miscellaneous</h3>
 
