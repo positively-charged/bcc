@@ -487,6 +487,7 @@ void subscript_array_type( struct semantic* semantic, struct type_info* type,
          implicit_ref->ref.next = NULL;
          implicit_ref->ref.type = REF_STRUCTURE;
          implicit_ref->ref.nullable = false;
+         implicit_ref->storage = STORAGE_MAP;
          element_type->ref = &implicit_ref->ref;
          element_type->structure = type->structure;
          element_type->spec = SPEC_STRUCT;

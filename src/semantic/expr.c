@@ -1365,6 +1365,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       result->structure = lside->structure;
       result->enumeration = lside->enumeration;
       result->spec = lside->spec;
+      result->storage = lside->storage;
       if ( lside->dim ) {
          result->dim = lside->dim->next;
       }
@@ -1395,6 +1396,13 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       result->data_origin = lside->data_origin;
       result->structure = lside->structure;
       result->spec = lside->spec;
+      if ( lside->ref ) {
+         struct ref_array* array = ( struct ref_array* ) lside->ref;
+         result->storage = array->storage;
+      }
+      else {
+         result->storage = lside->storage;
+      }
    }
    // Primitive element.
    else {
@@ -1402,7 +1410,6 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       result->spec = s_spec( semantic, lside->spec );
       result->modifiable = true;
    }
-   result->storage = lside->storage;
    result->usable = true;
    result->complete = true;
 }
@@ -1471,8 +1478,15 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    select_object( semantic, test, result, object );
    access->rside = &object->node;
    if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
+      if ( lside.ref && ! result->ref &&
+         ( result->dim || result->spec == SPEC_STRUCT ) ) {
+         struct ref_struct* structure = ( struct ref_struct* ) lside.ref;
+         result->storage = structure->storage;
+      }
+      else {
+         result->storage = lside.storage;
+      }
       result->data_origin = lside.data_origin;
-      result->storage = lside.storage;
    }
 }
 
