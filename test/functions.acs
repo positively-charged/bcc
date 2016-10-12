@@ -1,14 +1,14 @@
-region func {
-
-import upmost: std;
+// ==========================================================================
+namespace FuncTest {
+// ==========================================================================
 
 // Compare two strings for equality, up to the specified length.
 int StrCmp( str a, str b, int length = -1 ) {
    int i = 0;
    while ( true ) {
       if ( length ) {
-         if ( a.at( i ) == b.at( i ) ) {
-            if ( a.at( i ) ) {
+         if ( a[ i ] == b[ i ] ) {
+            if ( a[ i ] ) {
                --length;
                ++i;
             }
@@ -16,7 +16,7 @@ int StrCmp( str a, str b, int length = -1 ) {
                return 0;
             }
          }
-         else if ( a.at( i ) < b.at( i ) ) {
+         else if ( a[ i ] < b[ i ] ) {
             return -1;
          }
          else {
@@ -36,18 +36,18 @@ int StriCmp( str a, str b, int length = -1 ) {
 
 // Get substring.
 str StrMid( str string, int start, int length ) {
-   return std::StrParam( {} ) := {
+   return StrParam( msgbuild: {
       if ( start < 0 ) {
          start = 0;
       }
       int i = start;
       int k = start + length;
       int c = 0;
-      while ( i < k && ( c = string.at( i ) ) ) {
-         c:= c;
+      while ( i < k && ( c = string[ i ] ) ) {
+         append( c: c );
          ++i;
       }
-   }
+   } );
 }
 
 // Get substring, starting at offset 0.
@@ -60,51 +60,44 @@ str StrRight( str string, int length ) {
    return StrMid( string, string.length() - length, length );
 }
 
-// Get string as uppercase.
+// Get string as uppercase. Character encoding assumed to be ASCII.
 str StrToUpper( str string ) {
-   return std::StrParam( {} ) := {
-      int i = 0;
-      while ( i < string.length() ) {
-         int ch = string.at( i );
-         // Character encoding assumed to be ASCII.
+   return StrParam( msgbuild: {
+      foreach ( auto ch; string ) {
          if ( ch >= 97 && ch <= 122 ) {
-            c:= ch - 32;
+            append( c: ch - 32 );
          }
          else {
-            c:= ch;
+            append( c: ch );
          }
-         ++i;
       }
-   }
+   } );
 }
 
 // Get string as lowercase.
 str StrToLower( str string ) {
-   return std::StrParam( {} ) := {
-      int i = 0;
-      while ( i < string.length() ) {
-         int ch = string.at( i );
+   return StrParam( msgbuild: {
+      foreach ( auto ch; string ) {
          if ( ch >= 65 && ch <= 90 ) {
-            c:= ch + 32;
+            append( c: ch + 32 );
          }
          else {
-            c:= ch;
+            append( c: ch );
          }
-         ++i;
       }
-   }
+   } );
 }
 
 // Supports up to 10 arguments, integer or string.
-void Printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0,
-   int arg4 = 0, int arg5 = 0, int arg6 = 0, int arg7 = 0, int arg8 = 0,
-   int arg9 = 0, int arg10 = 0 ) {
-   std::Log( {} ) := {
+void Printf( str format, raw arg1 = 0, raw arg2 = 0, raw arg3 = 0,
+   raw arg4 = 0, raw arg5 = 0, raw arg6 = 0, raw arg7 = 0, raw arg8 = 0,
+   raw arg9 = 0, raw arg10 = 0 ) {
+   Print( msgbuild: {
       int num = 0;
       int pos = 0;
       while ( num < 10 ) {
          // Select arg.
-         int arg = 0;
+         raw arg = 0;
          switch ( num + 1 ) {
          case 1: arg = arg1; break;
          case 2: arg = arg2; break;
@@ -120,26 +113,25 @@ void Printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0,
          }
          // Search for the next specifier.
          while ( true ) {
-            int ch = format.at( pos );
-            if ( ! ch ) {
+            if ( ! format[ pos ] ) {
                goto done;
             }
-            else if ( ch == '%' ) {
+            else if ( format[ pos ] == '%' ) {
                break;
             }
             else {
-               c:= ch;
+               append( c: format[ pos ] );
                ++pos;
             }
          }
          // Output the arg based on the specifier.
-         switch ( format.at( pos + 1 ) ) {
+         switch ( format[ pos + 1 ] ) {
          case 's':
-            s:= arg;
+            append( s: arg );
             pos += 2;
             break;
          case 'd':
-            i:= arg;
+            append( i: arg );
             pos += 2;
             break;
          default:
@@ -148,7 +140,7 @@ void Printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0,
          ++num;
       }
       done:
-   }
+   } );
 }
 
 }
