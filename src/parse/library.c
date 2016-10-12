@@ -853,24 +853,21 @@ void determine_needed_library_links( struct parse* parse ) {
    list_iter_init( &i, &parse->task->library_main->links );
    while ( ! list_end( &i ) ) {
       struct library_link* link = list_data( &i );
-      // A link must not refer to the library it is in.
-      if ( strcmp( link->name, parse->task->library_main->name.value ) == 0 ) {
-         p_diag( parse, DIAG_POS_ERR, &link->pos,
-            "library makes a link to itself" );
-         p_bail( parse );
-      }
-      // If a library is #imported, a link for it is not necessary.
-      list_iter_t k;
-      list_iter_init( &k, &parse->task->library_main->dynamic );
-      while ( ! list_end( &k ) ) {
-         struct library* lib = list_data( &k );
-         if ( strcmp( link->name, lib->name.value ) == 0 ) {
-            break;
+      // Ignore a self-referential link.
+      if ( strcmp( link->name, parse->task->library_main->name.value ) != 0 ) {
+         // If a library is #imported, a link for it is not necessary.
+         list_iter_t k;
+         list_iter_init( &k, &parse->task->library_main->dynamic );
+         while ( ! list_end( &k ) ) {
+            struct library* lib = list_data( &k );
+            if ( strcmp( link->name, lib->name.value ) == 0 ) {
+               break;
+            }
+            list_next( &k );
          }
-         list_next( &k );
-      }
-      if ( list_end( &k ) ) {
-         link->needed = true;
+         if ( list_end( &k ) ) {
+            link->needed = true;
+         }
       }
       list_next( &i );
    }
