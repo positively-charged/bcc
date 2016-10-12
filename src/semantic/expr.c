@@ -2549,6 +2549,9 @@ void select_func( struct semantic* semantic, struct result* result,
       result->folded = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
+      if ( ! impl->nested ) {
+         result->complete = true;
+      }
    }
    // When an action-special is not called, it decays into an integer value.
    // The value is the ID of the action-special.
@@ -2558,6 +2561,7 @@ void select_func( struct semantic* semantic, struct result* result,
       result->value = impl->id;
       result->usable = true;
       result->folded = true;
+      result->complete = true;
    }
    // An extension function can also decay into an integer.
    else if ( func->type == FUNC_EXT ) {
@@ -2566,9 +2570,9 @@ void select_func( struct semantic* semantic, struct result* result,
       result->value = -impl->id;
       result->usable = true;
       result->folded = true;
+      result->complete = true;
    }
    result->func = func;
-   result->complete = true;
 }
 
 void select_alias( struct semantic* semantic, struct expr_test* test,
