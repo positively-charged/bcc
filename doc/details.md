@@ -12,6 +12,7 @@
    <li><a href="#statements">Statements</a></li>
    <li><a href="#references">References</a></li>
    <li><a href="#expressions">Expressions</a></li>
+   <li><a href="#miscellaneous">Miscellaneous</a></li>
 </ul>
 
 <h3>Incompatibilities with ACS</h3>
@@ -35,11 +36,21 @@ script MAKE_STR( 1 2 3 ) open {
 }
 ```
 
+--
+
+When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
+
+```
+script 1 open {
+   Print( s: "Hello, " "World" "!" ); // Output: Hello, World!
+}
+```
+
 <h3>Namespaces</h3>
 
 Namespaces in BCS work similar to namespaces in other languages like C++ and C#.
 
-```s
+```
 namespace Test {
    str message = "Hello, World!";
    void Print( str message ) {
@@ -55,6 +66,67 @@ script 1 open {
 <h4><code>using</code></h4>
 
 <h3>Declarations</h3>
+
+When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either.
+
+```
+// These are all the same.
+script 1 ( void ) {}
+script 1 () {}
+script 1 {}
+```
+
+--
+
+World and global variables can be created inside a script, a function, or any other block statement.
+
+```
+void add_kill() {
+   global int 1:kills;
+   ++kills;
+}
+```
+
+You can specify the size of a dimension of world and global arrays. World and global arrays can be multidimensional.
+
+```
+script 1 open {
+   global int 1:array[ 10 ];
+   global int 2:multi_array[ 10 ][ 20 ];
+   array[ 0 ] = 123;
+   multi_array[ 0 ][ 1 ] = 321;
+}
+```
+
+--
+
+When creating an array, the size of the _first dimension_ can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
+
+```
+// The size of this array is 5, because it is initialized with 5 strings.
+str names[] = {
+   "Positron",
+   "Hypnotoad",
+   "AC3",
+   "Frank",
+   ""
+};
+```
+
+--
+
+The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
+
+```
+script 1 open {
+   v = c;
+   f(); // Output: 123
+}
+
+int v = 0;
+enum c = 123;
+void f() { Print( i: v ); }
+```
 
 <h4>Block Scoping</h4>
 In bcc, names of objects follow scoping rules.
@@ -240,6 +312,45 @@ We create a variable named <code>list</code> using this new structure. The outer
 
 <h3>Functions</h3>
 
+The `function` keyword is optional. If the function has no parameters, the `void` keyword is optional.
+
+```
+// These are all the same.
+function void F( void ) {}
+function void F() {}
+void F() {}
+```
+
+--
+
+For a function that returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but __don't__ do this.)
+
+```
+// Get absolute value of number.
+int Abs( int number ) {
+   if ( number < 0 ) {
+      return number * -1;
+   }
+   else {
+      return number;
+   }
+}
+```
+
+--
+
+A parameter can lack a name. You won't be able to use such a parameter, but you still need to pass an argument for it. This can be used to indicate a parameter is no longer used. This works for script parameters as well.
+
+```
+int Sum( int used1, int, int used2 ) {
+   return used1 + used2;
+}
+
+script "Main" open {
+   Print( d: Sum( 100, 0, 200 ) ); // Output: 300
+}
+```
+
 <h4>Optional Parameters</h4>
 
 ```
@@ -350,6 +461,11 @@ Inside a format block, calling a waiting function like `Delay()` is not allowed.
 
 <h4><code>foreach</code></h4>
 
+<pre>
+foreach ( <i>value</i> ; <i>collection</i> ) {}
+foreach ( <i>key</i>, <i>value</i> ; <i>collection</i> ) {}
+</pre>
+
 <h4><code>goto</code></h4>
 
 A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
@@ -370,11 +486,71 @@ script 1 open {
 }
 ```
 
-<h4><code>assert / static assert</code></h4>
+<h4>Assertions</h4>
+
+<pre>
+assert ( <i>condition</i> [, str <i>description</i>] ) ;
+static assert ( <i>condition</i> [, str <i>description</i>] ) ;
+</pre>
+
+An `assert` statement evaluates the specified condition. If the condition is `false`, an error message is logged into the game console and the current script is terminated. The error message will contain the full path to the source file that contains the failed assertion, along with the line and column positions. An optional description may be included in the error message.
+
+```
+script "Main" open {
+   enum { A, B, C } d = C;
+   switch ( d ) {
+   case A:
+   case B:
+      break;
+   default:
+      assert( 0, "missing case" );
+   }
+}
+```
+
+A `static assert` statement is executed at compile time. If the condition is `false`, the compiler outputs an error message, and the compilation is aborted.
+
+```
+script "Main" open {
+   enum { A, B, C, TOTAL } d;
+   static assert ( TOTAL == 2, "missing case" );
+   switch ( d ) {
+   case A:
+   case B:
+      break;
+   }
+}
+```
 
 <h3>References</h3>
 
 <h3>Expressions</h3>
+
+The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
+
+```
+script 1 open {
+   int a, b, c;
+   a = b = c = 123; // a, b, and c now have the value 123.
+   // First a random number is generated. Then the random number is assigned to
+   // variable `a`. The result of the assignment, which is the random number,
+   // is then checked if it's not 3.
+   while ( ( a = random( 0, 10 ) ) != 3 ) {
+      Print( s: "Bad number: ", i: a );
+   }
+}
+```
+
+--
+
+There are two functions that are associated with the `str` type: `at()` and `length()`. These functions can only be called on a value or a variable of `str` type. `at()` returns the character found at the specified index, and `length()` returns the length of the string.
+
+```
+script 1 open {
+   Print( c: "Hello, World!".at( 7 ) );  // Output: W
+   Print( i: "Hello, World!".length() ); // Output: 13
+}
+```
 
 <h4>Logical-AND and Logical-OR</h4>
 In bcc, the logical AND (__&&__) and OR (__||__) operators exhibit short-circuit evaluation.
@@ -405,190 +581,33 @@ script 1 open {
 
 <h6>Output:</h6>
 <pre>
-  called get_0()  
-get_0() && get_1() == 0  
-  called get_1()  
-  called get_0()  
-get_1() && get_0() == 0  
-  called get_0()  
-  called get_1()  
-get_0() || get_1() == 1  
-  called get_1()  
-get_1() || get_0() == 1  
+  called get_0()
+get_0() && get_1() == 0
+  called get_1()
+  called get_0()
+get_1() && get_0() == 0
+  called get_0()
+  called get_1()
+get_0() || get_1() == 1
+  called get_1()
+get_1() || get_0() == 1
 </pre>
 
 Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
 
 In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
 
+<h3>memcpy()</h3>
+
 <h3>Miscellaneous</h3>
 
-There are new keywords: `enum`, `false`, `fixed`, `region`, `struct`, `true`, and `upmost`. `fixed` is currently reserved but is not used. In acc, the `goto` keyword is reserved but is not used; in bcc, it is used to represent the goto statement.
+New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the goto statement.
 
-The following keywords can be used as names for your objects and are no longer reserved: `define`, `include`, `print`, `printbold`, `log`, `hudmessage`, `hudmessagebold`, `nocompact`, `wadauthor`, `nowadauthor`, `acs_executewait`, `encryptstrings`, `library`, `libdefine`, `strparam`, and `strcpy`.
+The following are keywords in ACS, but they are not keywords in BCS: `acs_executewait`, `acs_namedexecutewait`, `bluereturn`, `clientside`, `death`, `define`, `disconnect`, `encryptstrings`, `endregion`, `enter`, `event`, `hudmessage`, `hudmessagebold`, `import`, `include`, `kill`, `libdefine`, `library`, `lightning`, `log`, `net`, `nocompact`, `nowadauthor`, `open`, `pickup`, `redreturn`, `region`, `reopen`, `respawn`, `strparam`, `unloading`, `wadauthor`, and `whitereturn`. These identifiers can be used as names for your functions and variables.
 
----
+--
 
 It is not necessary to `#include "zcommon.acs"` in order to use the boolean literals. The boolean literals `true` and `false` are now keywords. `true` is the value 1, and `false` is the value 0.
-
----
-
-The following directives are not supported: `#wadauthor` and `#nowadauthor`
-
----
-
-When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either.
-
-```
-// These are all the same.
-script 1 ( void ) {}
-script 1 () {}
-script 1 {}
-```
-
----
-
-When creating a function, the `function` keyword is not necessary. If the function has no parameters, the `void` keyword is not necessary.
-
-```
-// These are all the same.
-function void f( void ) {}
-function void f() {}
-void f() {}
-```
-
----
-
-When a function returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but __don't__ do this.)
-
-```
-// Get absolute value of number.
-int abs( int number ) {
-   if ( number < 0 ) {
-      return number * -1;
-   }
-   else {
-      return number;
-   }
-}
-```
-
----
-
-The name of a function or script parameter is not required. You still need to pass an argument, but you won't be able to use such a parameter. This can be used to indicate a parameter is no longer used.
-
-```
-int sum( int used1, int, int used2 ) {
-   return used1 + used2;
-}
-
-script 1 open {
-   Print( i: sum( 100, 0, 200 ) ); // Output: 300
-}
-```
-
----
-
-World and global variables can be created inside a script, a function, or any other block statement.
-
-```
-void add_kill() {
-   global int 1:kills;
-   ++kills;
-}
-```
-
-You can specify the size of a dimension of world and global arrays. World and global arrays can be multidimensional.
-
-```
-script 1 open {
-   global int 1:array[ 10 ];
-   global int 2:multi_array[ 10 ][ 20 ];
-   array[ 0 ] = 123;
-   multi_array[ 0 ][ 1 ] = 321;
-}
-```
-
----
-
-When creating an array, the size of the _first dimension_ can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
-
-```
-// The size of this array is 5, because it is initialized with 5 strings.
-str names[] = {
-   "Positron",
-   "Hypnotoad",
-   "AC3",
-   "Frank",
-   ""
-};
-```
-
----
-
-The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
-
-```
-script 1 open {
-   v = c;
-   f(); // Output: 123
-}
-
-int v = 0;
-enum c = 123;
-void f() { Print( i: v ); }
-```
-
----
-
-The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
-
-```
-script 1 open {
-   int a, b, c;
-   a = b = c = 123; // a, b, and c now have the value 123.
-   // First a random number is generated. Then the random number is assigned to
-   // variable `a`. The result of the assignment, which is the random number,
-   // is then checked if it's not 3.
-   while ( ( a = random( 0, 10 ) ) != 3 ) {
-      Print( s: "Bad number: ", i: a );
-   }
-}
-```
-
----
-
-There are two functions that are associated with the `str` type: `at()` and `length()`. These functions can only be called on a value or a variable of `str` type. `at()` returns the character found at the specified index, and `length()` returns the length of the string.
-
-```
-script 1 open {
-   Print( c: "Hello, World!".at( 7 ) );  // Output: W
-   Print( i: "Hello, World!".length() ); // Output: 13
-}
-```
-
----
-
-When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
-
-```
-script 1 open {
-   Print( s: "Hello, " "World" "!" ); // Output: Hello, World!
-}
-```
-
----
-
-A line of code can be broken up into multiple lines. To break up a line, position your cursor somewhere in the line, type in a backslash character, then press Enter. Make sure no other characters follow the backslash.
-
-```
-script 1 open {
-   str reallyniceintro = "Hello, World!";
-   Print( s: really\
-nice\
-intro );
-}
-```
 
 <h2>bcc (Compiler)</h2>
 
