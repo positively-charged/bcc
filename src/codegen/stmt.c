@@ -120,6 +120,15 @@ void write_runtime_assert( struct codegen* codegen, struct assert* assert ) {
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &exit_jump->node );
    c_pcd( codegen, PCD_BEGINPRINT );
+   // Make the message red.
+   #define MSG_COLOR "\\cg"
+   struct indexed_string* string = t_intern_string( codegen->task,
+      MSG_COLOR, sizeof( MSG_COLOR ) );
+   string->used = true;
+   c_append_string( codegen, string );
+   c_pcd( codegen, PCD_PUSHNUMBER, string->index_runtime );
+   c_pcd( codegen, PCD_PRINTSTRING );
+   #undef RED
    // Print file.
    c_push_string( codegen, assert->file );
    c_pcd( codegen, PCD_PRINTSTRING );
@@ -149,15 +158,7 @@ void write_runtime_assert( struct codegen* codegen, struct assert* assert ) {
       c_push_string( codegen, assert->message );
       c_pcd( codegen, PCD_PRINTSTRING );
    }
-   // Message properties, in ACS terms: HUDMSG_LOG, 0, CR_RED, 1.5, 0.5, 0.0
-   c_pcd( codegen, PCD_MOREHUDMESSAGE );
-   c_pcd( codegen, PCD_PUSHNUMBER, ( int ) 0x80000000 );
-   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   c_pcd( codegen, PCD_PUSHNUMBER, 6 );
-   c_pcd( codegen, PCD_PUSHNUMBER, 98304 );
-   c_pcd( codegen, PCD_PUSHNUMBER, 16384 );
-   c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   c_pcd( codegen, PCD_ENDHUDMESSAGEBOLD );
+   c_pcd( codegen, PCD_ENDLOG );
    c_pcd( codegen, PCD_TERMINATE );
    struct c_point* exit_point = c_create_point( codegen );
    c_append_node( codegen, &exit_point->node );
