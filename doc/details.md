@@ -29,7 +29,7 @@ The library specified as an argument to the compiler is called the _main library
 In an imported library, the predefined macro `__IMPORTED__` is available. It's defined as `1`. This macro is useful for reporting an error when the user imports a library using `#include` instead of `#import`:
 
 ```
-#library "main"
+#library "somelib"
 
 #ifndef __IMPORTED__
    #error you must #import this file
@@ -69,7 +69,102 @@ script "Main" open {
 }
 ```
 
+<h4>External declarations</h4>
+
+Variables can be declared `extern`. An external variable declaration is not actually a real variable. All it does is tell the compiler that such a variable exists in some library. The compiler will tell the game to import the variable when the game runs. External function declarations are also supported.
+
+<h6>File: <i>lib1.bcs</i></h6>
+```
+#library "lib1"
+
+int v;
+void F() {}
+```
+
+<h6>File: <i>lib2.bcs</i></h6>
+```
+#library "lib2"
+
+extern int v;
+extern void F();
+
+script "Main" open {
+   ++v;
+   F();
+}
+```
+
+The game cannot use an external variable unless it knows which library has the variable. To instruct the game to look in some library so it can find the external variable, use `#linklibrary`:
+
+<h6>File: <i>lib2.bcs (Fixed)</i></h6>
+```
+#library "lib2"
+
+// The game will now load the "lib1" library. It will also look in the "lib1"
+// library when it tries to find the `v` variable.
+#linklibrary "lib1"
+
+extern int v;
+
+script "Main" open {
+   ++v;
+}
+```
+
+External declarations and the `#linklibrary` directive are probably not all that useful unless you plan to use header files.
+
 <h4>Header files</h4>
+
+The header file development style of C/C++ is supported by BCS. To avoid conflicts with C/C++ header files, it is suggested you give your header files a `.h.bcs` file extension, although it is not mandatory to do so.
+
+<h6>Header file: <i>example.h.bcs</i></h6>
+```
+#ifndef EXAMPLE_H_BCS
+#define EXAMPLE_H_BCS
+
+#linklibrary "example"
+
+extern int v;
+extern void F();
+
+#endif
+```
+
+<h6>Source (library) file: <i>example.bcs</i></h6>
+```
+#library "example"
+
+#include "example.h.bcs"
+
+int v = 123;
+void F() {}
+```
+
+<h6>File: <i>main.bcs</i></h6>
+```
+#include "zcommon.h.bcs"
+#include "example.h.bcs"
+
+script "Main" open {
+   v = INT_MAX;
+   F();
+}
+```
+
+--
+
+If the name of your header file ends with `.h.bcs`, the `.bcs` extension does not need to be specified in an `#include` directive:
+
+<h6>File: <i>main.bcs (Now with shorter include paths)</i></h6>
+```
+#include "zcommon.h"
+#include "example.h"
+
+script "Main" open {
+   v = INT_MAX;
+   F();
+}
+```
 
 <h3>Preprocessor</h3>
 
@@ -142,7 +237,7 @@ void F() { Print( d: v ); }
 
 --
 
-When declaring an array, the length of _any_ dimension can be omitted. The length will be determined based on the number of values found in the initializer. So if the array is initialized with 5 values, the length of the dimension will be 5:
+When declaring an array, the length of _any_ dimension can be omitted. The length will be determined based on the number of values found in the brace initializer. So if the array is initialized with 5 values, the length of the dimension will be 5:
 
 ```
 // This array is initialized with 5 strings, so the length of the array is 5.
