@@ -78,32 +78,25 @@ script 1 {}
 
 --
 
-World and global variables can be created inside a script, a function, or any other block statement.
+Objects outside of scripts and functions do not need to be declared first before they can be used. In the following example, a variable, a constant, and a function are used before they appear:
 
 ```
-void add_kill() {
-   global int 1:kills;
-   ++kills;
+script "Main" open {
+   v = C;
+   F(); // Output: 123
 }
-```
 
-You can specify the size of a dimension of world and global arrays. World and global arrays can be multidimensional.
-
-```
-script 1 open {
-   global int 1:array[ 10 ];
-   global int 2:multi_array[ 10 ][ 20 ];
-   array[ 0 ] = 123;
-   multi_array[ 0 ][ 1 ] = 321;
-}
+int v;
+enum { C = 123 };
+void F() { Print( d: v ); }
 ```
 
 --
 
-When creating an array, the size of the _first dimension_ can be omitted. The size will be determined based on the number of values found in the initialization part. So if the array is initialized with 5 values, the size of the dimension will be 5.
+When declaring an array, the length of _any_ dimension can be omitted. The length will be determined based on the number of values found in the initializer. So if the array is initialized with 5 values, the length of the dimension will be 5:
 
 ```
-// The size of this array is 5, because it is initialized with 5 strings.
+// This array is initialized with 5 strings, so the length of the array is 5.
 str names[] = {
    "Positron",
    "Hypnotoad",
@@ -113,19 +106,55 @@ str names[] = {
 };
 ```
 
---
-
-The location of a region item doesn't matter. In the example below, a variable, a constant, and a function are used before they appear.
+For multidimensional arrays, the nested initializer with the most values will determine the length of the dimension:
 
 ```
-script 1 open {
-   v = c;
-   f(); // Output: 123
-}
+// The outmost brace initializer contains three values, the inner brace
+// initializers, so the length of the first dimension will be 3. Of the three
+// inner brace initializers, the second brace initializer contains the most
+// values, so the length of the second dimension will be 4.
+int years[][] = {
+   { 1989 },
+   { 1992, 1993, 1994, 1996 },
+   { 2008, 2009 }
+};
+```
 
-int v = 0;
-enum c = 123;
-void f() { Print( i: v ); }
+--
+
+For the `if`, `switch`, `while`, `until`, and `for` statements, you can declare and use a variable as the condition at the same time. The variable is first initialized, and the value of the variable is then used as the condition:
+
+```
+script "Main" open {
+   // This if-statement will only be executed if `value` is nonzero.
+   if ( let int value = Random( 0, 5 ) ) {
+      Print( d: value );
+   }
+}
+```
+
+--
+
+World and global variables can be declared inside a script (or a function). It's the same thing as declaring the variable outside the script, except that the name of the variable will not be visible to code outside the script.
+
+```
+script "DeathCount" death {
+   global int 1:deaths;
+   ++deaths;
+}
+```
+
+--
+
+You can specify the length of world and global arrays. World and global arrays can be multidimensional.
+
+```
+script "Main" open {
+   global int 1:array[ 10 ];
+   global int 2:multiArray[ 10 ][ 20 ];
+   array[ 0 ] = 123;
+   multiArray[ 0 ][ 1 ] = 321;
+}
 ```
 
 <h4>Block Scoping</h4>
@@ -162,7 +191,35 @@ script 1 open {
 1
 </pre>
 
-<h4><code>auto</code></h4>
+<h4>Type Deduction</h4>
+
+When the variable type is `auto`, the compiler will deduce the type of the variable from its initializer. For example, if the variable is initialized with an integer such as 123, the type of the variable will be `int`; or if the variable is initialized with a string, the type of the variable will be `str`:
+
+```
+namespace upmost {
+   script "Main" {
+      auto number = 123;    // Same as: int number = 123;
+      auto string = "abc";  // Same as: str string = "abc";
+      static fixed array[] = { 1.0, 2.0, 3.0 };
+      auto r = array;       // Same as: int[] r = array;
+      auto f = array[ 0 ];  // Same as: fixed d = array[ 0 ];
+   }
+}
+```
+
+When an enumerator is the initializer, the base type of the enumeration will be selected as the variable type. If you want the enumeration itself to be the varible type, then use `auto enum`:
+
+```
+namespace upmost {
+   script "Main" {
+      enum FruitT { APPLE, ORANGE, PEAR };
+      auto f1 = ORANGE;     // Same as: int f1 = ORAGE;
+      auto enum f2 = PEAR;  // Same as: FruitT f2 = PEAR;
+   }
+}
+```
+
+Type deduction is only supported for local variables.
 
 <h4><code>typedef</code></h4>
 

@@ -1,6 +1,6 @@
 __bcc__ is an ACS/ACS95/BCS compiler.
 
-BCS is mostly compatible with ACS, and provides many extra features, including the following:
+BCS is mostly compatible with ACS and provides many extra features, including the following:
 
 * Enumerations
 * Structures
@@ -18,6 +18,4 @@ BCS is mostly compatible with ACS, and provides many extra features, including t
 * <code>?:</code> operator
 * Inline assembly
 
-__Note:__ New features and their characteristics are subject to change until further notice.
-
-More details about a feature are found in the [details](https://github.com/wormt/bcc/blob/master/details.md) file.
+The [details](https://github.com/wormt/bcc/blob/bcs/doc/details.md) file provides an overview of the features.
