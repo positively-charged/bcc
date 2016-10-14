@@ -22,6 +22,55 @@
 
 <h3>Libraries</h3>
 
+The library specified as an argument to the compiler is called the _main library_. First, the main library is parsed and preprocessed. Then, each library imported by the main library is parsed and preprocessed. The preprocessor starts afresh for every library, so macros defined in one library will not be available in another library.
+
+--
+
+In an imported library, the predefined macro `__IMPORTED__` is available. It's defined as `1`. This macro is useful for reporting an error when the user imports a library using `#include` instead of `#import`:
+
+```
+#library "main"
+
+#ifndef __IMPORTED__
+   #error you must #import this file
+#endif
+```
+
+<h4>Private visibility</h4>
+
+A library can have private variables. Only the library can see its private variables. A library that imports another library will not be able to see the private variables of the imported library. Functions and unnamed enumerations can also be private.
+
+<h6>File: <i>lib1.bcs</i></h6>
+```
+#library "lib1"
+
+int a;
+
+// The following variable, function, and unnamed enumeration are only visible
+// inside "lib1":
+private int b;
+private void F() {}
+private enum { C = 123 };
+```
+
+<h6>File: <i>lib2.bcs</i></h6>
+```
+#library "lib2"
+
+#import "lib1.bcs"
+
+// This `b` is only visible inside "lib2".
+private int b;
+
+script "Main" open {
+   ++a; // Will increment `a` in "lib1".
+   ++b; // Will increment `b` in "lib2".
+   F(); // Error: `F` not found. 
+}
+```
+
+<h4>Header files</h4>
+
 <h3>Preprocessor</h3>
 
 The BCS preprocessor replicates much of the behavior of the C99 preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` only get executed if they appear in an `#if/#ifdef/#ifndef` block.
@@ -71,9 +120,9 @@ When a script has no parameters, the `void` keyword is not necessary. The parent
 
 ```
 // These are all the same.
-script 1 ( void ) {}
-script 1 () {}
-script 1 {}
+script "Main" ( void ) {}
+script "Main" () {}
+script "Main" {}
 ```
 
 --
@@ -193,29 +242,33 @@ script 1 open {
 
 <h4>Type Deduction</h4>
 
-When the variable type is `auto`, the compiler will deduce the type of the variable from its initializer. For example, if the variable is initialized with an integer such as 123, the type of the variable will be `int`; or if the variable is initialized with a string, the type of the variable will be `str`:
+When the variable type is `auto`, the compiler will deduce the type of the variable from its initializer. The variable type will be whatever the type of the initializer is. For example, if the variable is initialized with an integer such as 123, the type of the variable will be `int`; or if the variable is initialized with a string, the type of the variable will be `str`:
 
 ```
 namespace upmost {
-   script "Main" {
-      auto number = 123;    // Same as: int number = 123;
-      auto string = "abc";  // Same as: str string = "abc";
-      static fixed array[] = { 1.0, 2.0, 3.0 };
-      auto r = array;       // Same as: int[] r = array;
-      auto f = array[ 0 ];  // Same as: fixed d = array[ 0 ];
-   }
+
+script "Main" open {
+   auto number = 123;    // Same as: int number = 123;
+   auto string = "abc";  // Same as: str string = "abc";
+   static fixed array[] = { 1.0, 2.0, 3.0 };
+   auto r = array;       // Same as: int[] r = array;
+   auto f = array[ 0 ];  // Same as: fixed d = array[ 0 ];
+}
+
 }
 ```
 
-When an enumerator is the initializer, the base type of the enumeration will be selected as the variable type. If you want the enumeration itself to be the varible type, then use `auto enum`:
+When an enumerator is the initializer, the base type of the enumeration will be selected as the variable type. If you want the enumeration itself to be the variable type, use `auto enum`:
 
 ```
 namespace upmost {
-   script "Main" {
-      enum FruitT { APPLE, ORANGE, PEAR };
-      auto f1 = ORANGE;     // Same as: int f1 = ORAGE;
-      auto enum f2 = PEAR;  // Same as: FruitT f2 = PEAR;
-   }
+
+script "Main" open {
+   enum FruitT { APPLE, ORANGE, PEAR };
+   auto f1 = ORANGE;     // Same as: int f1 = ORAGE;
+   auto enum f2 = PEAR;  // Same as: FruitT f2 = PEAR;
+}
+
 }
 ```
 
