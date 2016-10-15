@@ -301,6 +301,10 @@ script "Main" open {
 }
 ```
 
+--
+
+Enumerations, structures, and type aliases can be nested inside scripts or functions.
+
 <h4>Block Scoping</h4>
 In bcc, names of objects follow scoping rules.
 
@@ -373,56 +377,73 @@ Type deduction is only supported for local variables.
 
 <h3>Enumerations</h3>
 
-An <code>enum</code> is used to create a group of constants.
+An enumeration is a group of related constants, called enumerators. The first enumerator has a value of 0, the next constant has a value of 1, and so on. The value increases by 1:
 
 ```
 enum {
-   CONSTANT_A, // 0
-   CONSTANT_B, // 1
-   CONSTANT_C  // 2
+   FRUIT_APPLE,  // 0
+   FRUIT_ORANGE, // 1
+   FRUIT_PEAR    // 2
 };
 ```
 
-The first constant has a value of 0, the next constant has a value of 1, and so on. The value increases by 1.
+--
+
+The value of an enumerator can be set explicitly. The next value will increase starting from the new value:
 
 ```
 enum {
-   CONSTANT_A,      // 0
-   CONSTANT_B = 10, // 10
-   CONSTANT_C       // 11
+   FRUIT_APPLE,       // 0
+   FRUIT_ORANGE = 10, // 10
+   FRUIT_PEAR         // 11
 };
 ```
 
-The value of a constant can be changed. The next value will increase starting from the new value.
+--
+
+The type of an enumerator
+
+--
+
+Enumerations can be named and then used as a variable type. The only thing special about enumeration variables is that they must be initialized and updated with one of the enumerators instead of the value of an enumerator:
 
 ```
-enum CONSTANT_LONESOME = 123;
-```
-
-A single constant can also be created. This is similar to using <code>#define</code>.
-
-<h5>Other Details</h5>
-
-The last constant can have a comma after it. This is a convenience feature.
-
-```
-enum {
-   CONSTANT_A,
-   CONSTANT_B,
-   CONSTANT_C, // Comma here is allowed.
+enum Fruit {
+   FRUIT_APPLE,
+   FRUIT_ORANGE,
+   FRUIT_PEAR
 };
-```
 
-An <code>enum</code> can appear in a script. The constants are only visible inside the script. An <code>enum</code> can also appear in a function, and in other block statements.
-
-```
-script 1 open {
-   enum { CONSTANT_A, CONSTANT_B, CONSTANT_C };
-   enum CONSTANT_LONESOME = 123;
-   // Constants can be used here...
+script "Main" open {
+   enum Fruit f = FRUIT_PEAR;
+   f = 2; // Error: Not using an enumerator.
 }
+```
 
-// ...but not here.
+--
+
+If you don't want to type the the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="">type name</a>. This will implicitly create a <a href="">type alias</a> that refers to the enumeration:
+
+```
+enum FruitT {
+   FRUIT_APPLE,
+   FRUIT_ORANGE,
+   FRUIT_PEAR
+};
+
+FruitT f = FRUIT_PEAR; // Same as: enum FruitT f = FRUIT_PEAR;
+```
+
+--
+
+The last enumerator can have a comma after it. This is a convenience feature.
+
+```
+enum {
+   FRUIT_APPLE,
+   FRUIT_ORANGE,
+   FRUIT_PEAR, // Comma here is allowed.
+};
 ```
 
 <h3>Structures</h3>
@@ -556,7 +577,19 @@ script "Main" open {
 }
 ```
 
-<h4>Optional Parameters</h4>
+--
+
+In a function, the magic identifier `__FUNCTION__` is a string literal that contains the name of the function:
+
+```
+void SomeFunc() {
+   Print( s: __FUNCTION__ ); // Output: somefunc
+}
+```
+
+`__FUNCTION__` might look like a predefined macro, but it is not a macro. Also, it cannot be used in string literal concatenation.
+
+<h4>Optional parameters</h4>
 
 ```
 void print_string( str string = "Hello, World!" ) {
@@ -729,24 +762,7 @@ script "Main" open {
 
 <h3>References</h3>
 
-<h3>Expressions</h3>
-
-The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
-
-```
-script 1 open {
-   int a, b, c;
-   a = b = c = 123; // a, b, and c now have the value 123.
-   // First a random number is generated. Then the random number is assigned to
-   // variable `a`. The result of the assignment, which is the random number,
-   // is then checked if it's not 3.
-   while ( ( a = random( 0, 10 ) ) != 3 ) {
-      Print( s: "Bad number: ", i: a );
-   }
-}
-```
-
---
+<h3>Strong Types</h3>
 
 There are two functions that are associated with the `str` type: `at()` and `length()`. These functions can only be called on a value or a variable of `str` type. `at()` returns the character found at the specified index, and `length()` returns the length of the string.
 
@@ -757,52 +773,148 @@ script 1 open {
 }
 ```
 
-<h4>Logical-AND and Logical-OR</h4>
-In bcc, the logical AND (__&&__) and OR (__||__) operators exhibit short-circuit evaluation.
+<h3>Expressions</h3>
 
-When using the logical AND operator, the left side is evaluated first. If the result is 0, the right side is __SKIPPED__, and the result of the operation is 0. Otherwise, the right side is then evaluated, and, like the left side, if the result is 0, the result of the operation is 0. Otherwise, the result of the operation is 1.
+The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
 
-When using the logical OR operator, the left side is evaluated first. If the result is __NOT__ 0, the right side is __SKIPPED__, and the result of the operation is 1. Otherwise, the right side is evaluated, and if the result is not 0, the result of the operation is 1. Otherwise, the result of the operation is 0.
-
-<h6>Code:</h6>
 ```
-function int get_0( void ) {
-   print( s: "called get_0()" );
+script "Main" open {
+   int a, b, c;
+   a = b = c = 123; // `a`, `b`, and `c` now have the value 123.
+
+   // First a random number is generated. Then the random number is assigned to
+   // variable `a`. The result of the assignment, which is the random number,
+   // is then checked if it's not 3.
+   while ( ( a = random( 0, 10 ) ) != 3 ) {
+      Print( s: "Discarding number: ", d: a );
+   }
+}
+```
+
+--
+
+For `strcpy()`, unless you want to use the extra arguments, the `a:` is optional:
+
+```
+script "Main" {
+   static int v[ 10 ];
+   strcpy( v, "abc" );
+   strcpy( a: ( v, 0, 1 ), "abc" );
+}
+```
+
+<h4>Short-circuit evaluation</h4>
+
+In ACS, both of the operands to `&&` and `||` are evaluated at all times. In BCS, the right operand is only evaluated if necessary. For example, if the left operand to `&&` is false, there is no need to evaluate the right operand because the result of the operation will still be false. Similarly, if the left operand to `||` is true, there is no need to evaluate the right operand because the result of the operation will still be true. This is called short-circuit evaluation:
+
+```
+int Zero() {
    return 0;
 }
 
-function int get_1( void ) {
-   print( s: "called get_1()" );
+int One() {
    return 1;
 }
 
-script 1 open {
-   print( s: "get_0() && get_1() == ", i: get_0() && get_1() );
-   print( s: "get_1() && get_0() == ", i: get_1() && get_0() );
-   print( s: "get_0() || get_1() == ", i: get_0() || get_1() );
-   print( s: "get_1() || get_0() == ", i: get_1() || get_0() );
+script "Main" open {
+   // Zero() makes the && operation false, so calling One() is not necessary
+   // because the result will still be false.
+   Zero() && One();
+   // One() makes the || operation true, so calling Zero() is not necessary
+   // because the result will still be true.
+   One() || Zero();
 }
 ```
 
-<h6>Output:</h6>
+<h4>Numeric literals</h4>
+
+Along with decimal and hexadecimal literals, there are now also octal and binary literals. Octal literals are base-8 numbers, use the digits, 0 to 7, and start with `0o`. Binary literals are base-2 numbers, use the digits, 0 and 1, and start with `0b`.
+
+```
+script "Main" open {
+   Print( d: 0b101 ); // Output: 5
+   Print( d: 0o123 ); // Output: 83
+}
+```
+
+Like ACS, BCS supports radix constants, which allow you to specify the base of the number. The base can range from 2 to 36. The valid digits are, 0 to 9, and after that, `a` to `z`. The base and the number are separated by `r` (`_` in ACS):
+
+```
+script "Main" open {
+   Print( d: 2r101 ); // Base-2 (Binary). Output: 5
+   Print( d: 8r123 ); // Base-8 (Octal). Output: 83
+   Print( d: 16rFF ); // Base-16 (Hexadecimal). Output: 255
+   Print( d: 36rZZ ); // Base-36. Output: 1295
+}
+```
+
+To improve readability of long numbers, an underscore can be used to separate digits into easily recognizable groups:
+
+```
+script "Main" open {
+   Print( d: 2_000_000_000 );
+   Print( d: 0b_1101_0111_0100_0110 );
+}
+```
+
+<h4>Conditional operator (<code>?:</code>)</h4>
+
 <pre>
-  called get_0()
-get_0() && get_1() == 0
-  called get_1()
-  called get_0()
-get_1() && get_0() == 0
-  called get_0()
-  called get_1()
-get_0() || get_1() == 1
-  called get_1()
-get_1() || get_0() == 1
+<i>left</i> ? <i>middle</i> : <i>right</i>
+<i>left</i> ? : <i>right</i>
 </pre>
 
-Notice in the first expression, when the left side is 0, get_1() is not called. Similarly, in the final expression, when the left side of the expression is 1, get_0() is not called.
+The `?:` operator is similar to the `if` statement. The left operand is evaluated first. If the result is true, then the middle operand is evaluated and returned; otherwise, the right operand is evaluated and returned:
 
-In simpler words: In the following discussion, _false_ is the value 0 and _true_ is any other value. When using the logical AND operator, you'll get 1 only if both sides are true. If the left side is false, the right side is skipped because the condition to get 1 won't be met. When using the logical OR operator, you'll get 1 as long as one of the sides is true. If the left side is true, there is no need to evaluate the right side, because the condition is already met.
+```
+script "Main" open {
+   Print( d: 1 ? 123 : 321 ); // Output: 123
+   Print( d: 0 ? 123 : 321 ); // Output: 321
+}
+```
 
-<h3>memcpy()</h3>
+The middle operand can be left out. In this case, the left operand is evaluated first. If the result is true, then it is returned; otherwise, the right operand is evaluated and returned:
+
+```
+script "Main" open {
+   Print( d: 123 ?: 321 ); // Output: 123
+   Print( d: 0 ?: 321 );   // Output: 321
+}
+```
+
+<h4>Copy arrays and structures</h4>
+
+<pre>
+bool memcpy ( a: ( <i>destination</i> [, int <i>offset</i> [, int <i>elementsToCopy</i>]] ) , <i>source</i> [, int <i>sourceOffset</i>] )
+bool memcpy ( <i>destination</i> , <i>source</i> ) // For structures.
+</pre>
+
+`memcpy()` is similar in syntax and functionality to [`strcpy()`](http://zdoom.org/wiki/StrCpy), but instead of copying strings, `memcpy()` copies arrays and structures:
+
+```
+int arrayA[] = { 1, 2, 3 };
+int arrayB[] = { 4, 5, 6 };
+
+script "CopyArrays" open {
+   memcpy( arrayA, arrayB );
+   // `arrayA` will now be the same as `arrayB`.
+   Print( d: arrayA[ 1 ] ); // Output: 5
+}
+
+struct {
+   int value;
+} structA = { 123 }, structB = { 321 };
+
+script "CopyStructs" open {
+   memcpy( structA, structB );
+   // `structA` will now be the same as `structB`.
+   Print( d: structA.value ); // Output: 321
+}
+```
+
+<h5>Technical details</h5>
+
+`memcpy()` is not a feature of the game engine. It is implemented by the compiler. The compiler will generate extra code behind the scenes to make it work. So be aware of that when writing performance critical code.
 
 <h3>Miscellaneous</h3>
 
