@@ -591,109 +591,218 @@ void SomeFunc() {
 
 <h4>Optional parameters</h4>
 
-```
-void print_string( str string = "Hello, World!" ) {
-   Print( s: string );
-}
-
-script 1 open {
-   print_string( "Hello, Fine Fella!" ); // Output: Hello, Fine Fella!
-   print_string();                       // Output: Hello, World!
-}
-```
-
-If you call `print_string()` with an argument, your argument will be used. If you don't provide an argument, a default argument will be used. In the above example, the default argument is the `"Hello, World!"` string.
-
-A script cannot have optional parameters.
-
----
-
-You can have multiple optional parameters.
+A function parameter can have a default argument. If the user does not supply an argument for the parameter, the default argument will be used:
 
 ```
-void print_numbers( int a = 111, int b = 999 ) {
-   Print( s: "a ", i: a, s: ", b ", i: b );
+void Greet( str who = "Mate" ) {
+   Print( s: "Hello, ", s: who, s: "!" );
 }
 
-script 1 open {
-   print_numbers( 5, 35 ); // Output: a 5, b 35
-   print_numbers( 5 );     // Output: a 5, b 999
-   print_numbers();        // Output: a 111, b 999
+script "Main" open {
+   Greet( "Fine Fella" ); // Output: Hello, Fine Fella!
+   Greet();               // Output: Hello, Mate!
 }
 ```
 
----
+--
 
-You can have required parameters and optional parameters in the same function. The optional parameters must follow the required parameters. So the required parameters appear first, then come the optional parameters.
-
-```
-// Correct.
-void printf( str format, int arg1 = 0, int arg2 = 0, int arg3 = 0 ) {}
-
-// Incorrect.
-void printf( int arg1 = 0, int arg2 = 0, int arg3 = 0, str format ) {}
-```
-
----
-
-Optional parameters having a string as a default argument, now work with builtin functions. This means you can use the `MorphActor()` function with one argument, as allowed by the [wiki page](http://zdoom.org/wiki/MorphActor):
+Builtin functions now support default arguments that are strings. This means you can use `MorphActor()` with a single argument, as is allowed by the [wiki page](http://zdoom.org/wiki/MorphActor), and it will work as intended:
 
 ```
-script 1 enter {
-   // These are the same.
-   MorphActor( 0 );
+script "Main" enter {
+   // These are the same:
    MorphActor( 0, "", "", 0, 0, "", "" );
+   MorphActor( 0 );
 }
 ```
 
-<h4>Nested Functions</h4>
+<h4>Nested functions</h4>
 
-<h4>Message-building Functions</h4>
-
-When calling functions like `Print()`, a format block gives you more precision in the composition of the message. A format block is like a normal block of code, but it can also contain format items. (Format items are those colon-separated arguments you pass to `Print()` and the like.) Inside a format block, a format item uses `:=` in the middle, not `:`. Everytime a format item is encountered, it is added as a part of the message. By mixing format items with other statements, you can create a different message based on how those other statements execute.
+A function can be declared inside a script or inside another function. Such a function is called a <em>nested function</em>:
 
 ```
-script 1 open {
-   bool alive = false;
-   Print( {} ) := {
-      s:= "The monster is: ";
-      if ( alive ) {
-         s:= "Alive and doing well";
+script "Main" open {
+   void Greet() {
+      Print( s: "Hello, World!" );
+   }
+   Greet();
+}
+```
+
+--
+
+There is no limit on how deep functions can be nested:
+
+```
+script "Main" open {
+   void F1() {
+      Print( s: "F1()" );
+      void F2() {
+         Print( s: "F2()" );
+         void F3() {
+            Print( s: "F3()" );
+         }
+         F3();
       }
-      else {
-         s:= "Dead";
+      F2();
+   }
+   F1();
+}
+```
+
+--
+
+A nested function can access the local variables located outside of it:
+
+```
+script "Main" open {
+   str msg;
+   void ShowMsg() {
+      Print( s: msg );
+   }
+   msg = "Hello, World";
+   ShowMsg();
+   msg = "Goodbye, World!";
+   ShowMsg();
+}
+```
+
+--
+
+Nested functions can have `auto` as the return type. The compiler will deduce the return type from the returned value. If no value is returned, the return type will be `void`:
+
+```
+namespace upmost {
+
+script "Main" open {
+   auto F1() {} // Same as: void F1() {}
+   auto F2() { return; } // Same as: void F2() {}
+   auto F3() { return "abc"; } // Same as: str F3() {}
+}
+
+}
+```
+
+--
+
+Passing around a nested function as a reference is not allowed.
+
+<h5>Technical details</h5>
+
+Be aware when calling a nested function that has a lot of local variables. The compiler generates code to save and restore local variables. This might be too much a penalty for performance critical code.
+
+Calling a nested function recursively too many times will eventually crash the game.
+
+<h4>Anonymous functions</h4>
+
+You can declare and call a nested function at the same time. The nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type; only the body can be specified. Such a nested function is called an <em>anonymous function</em>:
+
+```
+script "Main" open {
+   Print( s: "Sum: ", d: {
+      int sum = 0, i = 1;
+      while ( i <= 10 ) {
+         sum = sum + i;
+         ++i;
+      }
+      return sum;
+   }() );
+}
+```
+
+The above code is equivalent to the following code:
+
+```
+script "Main" open {
+   auto CalculateSum() {
+      int sum = 0, i = 1;
+      while ( i <= 10 ) {
+         sum = sum + i;
+         ++i;
+      }
+      return sum;
+   }
+   Print( s: "Sum: ", d: CalculateSum() );
+}
+```
+
+<h4>Message-building functions</h4>
+
+When calling `Print()` and the like, sometimes you want more control of the message-building process: what parts will form the message, in what order, and in what quantity. A message-building functions gives you control of these characteristics.
+
+A message-building function is qualified with `msgbuild`, must have a `void` return type, and must not have any parameters. In the body of a message-building function, a special function called `append()` becomes visible. You use `append()` to output the parts of the message. `append()` supports all of the cast types that are supported by `Print()`.
+
+To create and print the message, pass the message-building function along with the `msgbuild:` cast type:
+
+```
+void Welcome( int borderLength ) {
+   // This nested message-building function will create the message:
+   msgbuild void CreateMessage() {
+      int i = 0;
+      while ( i < borderLength ) {
+         append( c: '*' );
+         ++i;
+      }
+      append( s: "\n" );
+      append( s: "Hello there!\n" );
+      i = 0;
+      while ( i < borderLength ) {
+         append( c: '*' );
+         ++i;
       }
    }
-   // Output: The monster is: Dead
+   // Create and print message.
+   Print( msgbuild: CreateMessage );
+}
+
+script "Main" open {
+   Welcome( 20 );
 }
 ```
 
-In the example above, we call the `Print()` function. In the argument list, we use `{}`. This indicates we want to use a format block. Following the function call, we add `:=`. This is just a syntactic requirement. Then we have a block of code. In the block, we have a basic `if` statement and a few format items. The first format item is added to the message. If the `if` statement is true, the second format item is added to the message; otherwise, the third.
+Message-building functions can call other message-building functions:
 
 ```
-script 1 open {
-   HudMessage( {}; HUDMSG_PLAIN, 0, 0, 1.5, 0.5, 5.0 ) := {
-      for ( int i = 0; i < 10; ++i ) {
-         c:= '*';
+void Welcome( int borderLength ) {
+   // This nested message-building function will create the message:
+   msgbuild void CreateMessage() {
+      msgbuild void CreateBorder() {
+         int i = 0;
+         while ( i < borderLength ) {
+            append( c: '*' );
+            ++i;
+         }
       }
+      CreateBorder();
+      append( s: "\n" );
+      append( s: "Hello there!\n" );
+      CreateBorder();
    }
-   // Output: **********
+   // Create and print message.
+   Print( msgbuild: CreateMessage );
 }
 ```
 
-In this example, we print a border consisting of 10 `*` characters. Change the 10 to some other number to print a border of a different length.
+Anonymous functions can be used as message-building functions:
 
----
-
-<h5>Other Details</h5>
-
-Functions like `HudMessage()` take multiple arguments. When calling such a function, the format block is executed first, then the rest of the arguments.
-
-A format block can contain a function call that itself uses a format block.
-
-You cannot move into a format block with a `goto` statement, and you cannot move out of a format block with a `break`, `continue`, or `goto` statement. You must naturally enter and leave the format block.
-
-Inside a format block, calling a waiting function like `Delay()` is not allowed.
+```
+void Welcome( int borderLength ) {
+   // Create and print message.
+   Print( msgbuild: {
+      msgbuild void CreateBorder() {
+         int i = 0;
+         while ( i < borderLength ) {
+            append( c: '*' );
+            ++i;
+         }
+      }
+      CreateBorder();
+      append( s: "\n" );
+      append( s: "Hello there!\n" );
+      CreateBorder();
+   } );
+}
+```
 
 <h3>Statements</h3>
 
@@ -731,7 +840,7 @@ assert ( <i>condition</i> [, str <i>description</i>] ) ;
 static assert ( <i>condition</i> [, str <i>description</i>] ) ;
 </pre>
 
-An `assert` statement evaluates the specified condition. If the condition is `false`, an error message is logged into the game console and the current script is terminated. The error message will contain the full path to the source file that contains the failed assertion, along with the line and column positions. An optional description may be included in the error message.
+An `assert` statement evaluates the specified condition. If the condition is false, an error message is logged into the game console and the current script is terminated. The error message will contain the full path to the source file that contains the failed assertion, along with the line and column positions. An optional description may be included in the error message.
 
 ```
 script "Main" open {
@@ -746,7 +855,7 @@ script "Main" open {
 }
 ```
 
-A `static assert` statement is executed at compile time. If the condition is `false`, the compiler outputs an error message, and the compilation is aborted.
+A `static assert` statement is executed at compile time. If the condition is false, the compiler outputs an error message, and the compilation is aborted.
 
 ```
 script "Main" open {
