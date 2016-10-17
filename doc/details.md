@@ -1,6 +1,8 @@
 <h2>BCS</h2>
 
-<ul>
+<h3>Table of Contents</h3>
+
+<ol>
    <li><a href="#incompatibilities-with-acs">Incompatibilities with ACS</a></li>
    <li><a href="#libraries">Libraries</a></li>
    <li><a href="#preprocessor">Preprocessor</a></li>
@@ -11,9 +13,10 @@
    <li><a href="#functions">Functions</a></li>
    <li><a href="#statements">Statements</a></li>
    <li><a href="#references">References</a></li>
+   <li><a href="#strong-types">Strong Types</a></li>
    <li><a href="#expressions">Expressions</a></li>
    <li><a href="#miscellaneous">Miscellaneous</a></li>
-</ul>
+</ol>
 
 <h3>Incompatibilities with ACS</h3>
 
@@ -168,7 +171,7 @@ script "Main" open {
 
 <h3>Preprocessor</h3>
 
-The BCS preprocessor replicates much of the behavior of the C99 preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` only get executed if they appear in an `#if/#ifdef/#ifndef` block.
+The BCS preprocessor replicates much of the behavior of the C (C99) preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` only get executed if they appear in an `#if/#ifdef/#ifndef` block:
 
 ```
 #if 1
@@ -182,11 +185,15 @@ script MAKE_STR( 1 2 3 ) open {
 
 --
 
-When multiple strings appear next to each other, they are combined into one. This can be used to break up a long string into smaller parts, making it easier to see the whole string.
+The compiler performs string literal concatentation: adjacent string literals are combined into a single string literal. This can be used to break up a long string literal into smaller parts, making it easier to see the whole string:
 
 ```
-script 1 open {
-   Print( s: "Hello, " "World" "!" ); // Output: Hello, World!
+script "Main" open {
+   Print( s:
+      "This is a very long string. It will require a lot of horizontal "
+      "scrolling to see it all. Horizontal scrolling is not fun. Thankfully, "
+      "we can break this string into smaller strings, which will then be "
+      "combined into a single string by the compiler. Awesome!" );
 }
 ```
 
@@ -250,7 +257,7 @@ str names[] = {
 };
 ```
 
-For multidimensional arrays, the nested initializer with the most values will determine the length of the dimension:
+For multidimensional arrays, the nested brace initializer with the most values will determine the length of the dimension:
 
 ```
 // The outmost brace initializer contains three values, the inner brace
@@ -262,6 +269,14 @@ int years[][] = {
    { 1992, 1993, 1994, 1996 },
    { 2008, 2009 }
 };
+```
+
+--
+
+An array can be initialized with a string. Each character of the string, including the NUL character, initializes an element of the array. If the dimension length is omitted, the dimension length will be the length of the string, plus 1 for the NUL character. The array must be one-dimensional and have either `int` or `raw` element type:
+
+```
+int letters[] = "abc"; // Same as: int letters[] = { 'a', 'b', 'c', '\0' };
 ```
 
 --
@@ -381,11 +396,11 @@ A type alias declaration starts with the `typedef` keyword and continues like a 
 
 ```
 // Declare some type aliases.
-typedef int IntT;
+typedef int NumberT;
 typedef str Str10_T[ 10 ];
 
 // Declare some variables and use the type aliases.
-IntT integer; // Same as: int integer;
+NumberT integer; // Same as: int integer;
 Str10_T stringArray; // Same as: str stringArray[ 10 ];
 ```
 
@@ -393,17 +408,17 @@ A declaration for a function alias starts with the `typedef` keyword and continu
 
 ```
 // Declare some function aliases.
-typedef void VoidFuncT();
+typedef void PlainFuncT();
 typedef str StrFuncIntIntT( IntT, IntT );
 
 // Declare some variables and use the type aliases.
-VoidFuncT? func; // Same as: void function()? func;
+PlainFuncT? func; // Same as: void function()? func;
 StrFuncIntIntT? func2; // Same as: str function( int, int )? func2;
 ```
 
 <h5>Type names</h5>
 
-The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: IntT, Str10_T, T.
+The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: `NumberT`, `Str10_T`, `T`.
 
 <h3>Enumerations</h3>
 
