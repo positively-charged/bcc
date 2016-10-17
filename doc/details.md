@@ -305,7 +305,7 @@ script "Main" open {
 
 Enumerations, structures, and type aliases can be nested inside scripts or functions.
 
-<h4>Block Scoping</h4>
+<h4>Block scoping</h4>
 In bcc, names of objects follow scoping rules.
 
 A scope is a set of names, each name referring to some object&#8212;a variable say. The same name can be used to refer to some other object&#8212;such as a constant&#8212;as long as it's not in the same scope. Anywhere in your code, some scope is active. When you create a variable, say, the name of the variable is placed in the active scope.
@@ -339,7 +339,7 @@ script 1 open {
 1
 </pre>
 
-<h4>Type Deduction</h4>
+<h4>Type deduction</h4>
 
 When the variable type is `auto`, the compiler will deduce the type of the variable from its initializer. The variable type will be whatever the type of the initializer is. For example, if the variable is initialized with an integer such as 123, the type of the variable will be `int`; or if the variable is initialized with a string, the type of the variable will be `str`:
 
@@ -373,7 +373,37 @@ script "Main" open {
 
 Type deduction is only supported for local variables.
 
-<h4><code>typedef</code></h4>
+<h4>Type aliases</h4>
+
+A type alias is a name that refers to some type information. A type alias can be used as a type for variables, structure members, function parameters, or whatever else that can have a type. The variable, or whatever the object, will get all of the type information referenced by the type alias.
+
+A type alias declaration starts with the `typedef` keyword and continues like a variable declaration. The variable name becomes the name of the type alias, and the type of the variable, including array dimensions, becomes the type information to be referenced by the type alias:
+
+```
+// Declare some type aliases.
+typedef int IntT;
+typedef str Str10_T[ 10 ];
+
+// Declare some variables and use the type aliases.
+IntT integer; // Same as: int integer;
+Str10_T stringArray; // Same as: str stringArray[ 10 ];
+```
+
+A declaration for a function alias starts with the `typedef` keyword and continues like a function declaration, except that the function body is not specified. You cannot declare variables of a function type, but you can declare variables of reference-to-function type:
+
+```
+// Declare some function aliases.
+typedef void VoidFuncT();
+typedef str StrFuncIntIntT( IntT, IntT );
+
+// Declare some variables and use the type aliases.
+VoidFuncT? func; // Same as: void function()? func;
+StrFuncIntIntT? func2; // Same as: str function( int, int )? func2;
+```
+
+<h5>Type names</h5>
+
+The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: IntT, Str10_T, T.
 
 <h3>Enumerations</h3>
 
@@ -422,7 +452,7 @@ script "Main" open {
 
 --
 
-If you don't want to type the the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="">type name</a>. This will implicitly create a <a href="">type alias</a> that refers to the enumeration:
+If you don't want to type the the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="#type-names">type name</a>. This will implicitly create a <a href="#type-aliases">type alias</a> that refers to the enumeration:
 
 ```
 enum FruitT {
@@ -541,7 +571,7 @@ We create a variable named <code>list</code> using this new structure. The outer
 The `function` keyword is optional. If the function has no parameters, the `void` keyword is optional.
 
 ```
-// These are all the same.
+// These are all the same:
 function void F( void ) {}
 function void F() {}
 void F() {}
@@ -695,7 +725,7 @@ Calling a nested function recursively too many times will eventually crash the g
 
 <h4>Anonymous functions</h4>
 
-You can declare and call a nested function at the same time. The nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type; only the body can be specified. Such a nested function is called an <em>anonymous function</em>:
+You can declare and call a nested function at the same time. Only the body can be specified; the nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type. Such a nested function is called an <em>anonymous function</em>:
 
 ```
 script "Main" open {
@@ -728,15 +758,14 @@ script "Main" open {
 
 <h4>Message-building functions</h4>
 
-When calling `Print()` and the like, sometimes you want more control of the message-building process: what parts will form the message, in what order, and in what quantity. A message-building functions gives you control of these characteristics.
+When calling `Print()` and the like, sometimes you want more control of the message-building process: what parts will form the message, in what order, and in what quantity. Message-building functions give you control of these characteristics.
 
-A message-building function is qualified with `msgbuild`, must have a `void` return type, and must not have any parameters. In the body of a message-building function, a special function called `append()` becomes visible. You use `append()` to output the parts of the message. `append()` supports all of the cast types that are supported by `Print()`.
+A message-building function is qualified with `msgbuild`, must not have any parameters, and must have a `void` return type. In the body of a message-building function, a special function called `append()` becomes visible. You use `append()` to output the parts of the message. `append()` supports all of the cast types that are supported by `Print()`.
 
 To create and print the message, pass the message-building function along with the `msgbuild:` cast type:
 
 ```
 void Welcome( int borderLength ) {
-   // This nested message-building function will create the message:
    msgbuild void CreateMessage() {
       int i = 0;
       while ( i < borderLength ) {
@@ -764,7 +793,6 @@ Message-building functions can call other message-building functions:
 
 ```
 void Welcome( int borderLength ) {
-   // This nested message-building function will create the message:
    msgbuild void CreateMessage() {
       msgbuild void CreateBorder() {
          int i = 0;
@@ -783,7 +811,7 @@ void Welcome( int borderLength ) {
 }
 ```
 
-Anonymous functions can be used as message-building functions:
+Anonymous functions can be used as message-building functions. The anonymous function is implicitly qualified with `msgbuild`:
 
 ```
 void Welcome( int borderLength ) {
