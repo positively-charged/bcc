@@ -199,22 +199,109 @@ script "Main" open {
 
 <h3>Namespaces</h3>
 
-Namespaces in BCS work similar to namespaces in other languages like C++ and C#.
+Namespaces in BCS work similar to namespaces in other languages like C++ and C#. The `.` operator is used to access the objects of a namespace:
 
 ```
 namespace Test {
-   str message = "Hello, World!";
-   void Print( str message ) {
-      upmost.Print( s: message );
-   }
+   int v = 123;
+   void F() { Print( d: v ); }
+   enum { C = 321 };
 }
 
-script 1 open {
-   Test.Print( Test.message );
+script "Main" open {
+   Test.v = Test.C;
+   Test.F(); // Output: 321
 }
 ```
 
-<h4><code>using</code></h4>
+Nested namespaces can be declared in one go:
+
+```
+// These are the same:
+namespace A { namespace B { namespace C {} } }
+namespace A.B.C {}
+```
+
+To avoid confusion with global variables, the global namespace is called the _upmost namespace_. The `upmost` keyword refers to the upmost namespace:
+
+```
+int a = 123;
+namespace Test {
+   int a = 321;
+   script "Main" open {
+      Print( d: a ); // Output: 321
+      Print( d: upmost.a ); // Output: 123
+   }
+}
+```
+
+When in a namespace block, two special things happen: first, [strong types](#strong-types) are in effect; second, the `let` keyword is implied, so you get [block scoping](#block-scoping) by default.
+
+If you don't want to use namespaces but still want strong types and default block scoping, you can put your code in a namespace block for the upmost namespace:
+
+```
+namespace upmost {
+   // Value and variable must have the same type:
+   int a = ( int ) "abc";
+   script "Main" open {
+      // Block scoping enabled by default. No need for the `let` keyword:
+      for ( int i = 0; i < 10; ++i ) {}
+      for ( int i = 0; i < 10; ++i ) {}
+   }
+}
+```
+
+<h4>Importing stuff</h4>
+
+The `using` directive is used to import objects from other namespaces. You can either import a whole namespace or import specific objects from a namespace.
+
+<h5>Importing namespaces</h5>
+
+<pre>
+using <i>namespace</i> ;
+</pre>
+
+You can import a whole namespace. This will make all of the objects in the specified namespace available for use:
+
+```
+namespace Test {
+   int v = 123;
+   void F() { Print( d: v ); }
+   enum { C = 321 };
+}
+
+// All of the objects in the `Test` namespace will now be available.
+using Test;
+
+script "Main" open {
+   v = C;
+   F();
+}
+```
+
+<h5>Importing specific objects</h5>
+
+<pre>
+using <i>namespace</i> : [<i>alias</i> =] <i>object</i> [, ...] ;
+</pre>
+
+If you need only a few objects from a namespace, you can import only those objects you want. You can give the imported object a different name if you like:
+
+```
+namespace Test {
+   int v = 123;
+   void F() { Print( d: v ); }
+   enum { C = 321 };
+}
+
+// Import only `v` and `C` from the `Test` namespace. `C` is refered to as `CONSTANT`.
+using Test: v, CONSTANT = C;
+
+script "Main" open {
+   v = CONSTANT;
+   Test.F();
+}
+```
 
 <h3>Declarations</h3>
 
@@ -321,38 +408,41 @@ script "Main" open {
 Enumerations, structures, and type aliases can be nested inside scripts or functions.
 
 <h4>Block scoping</h4>
-In bcc, names of objects follow scoping rules.
 
-A scope is a set of names, each name referring to some object&#8212;a variable say. The same name can be used to refer to some other object&#8212;such as a constant&#8212;as long as it's not in the same scope. Anywhere in your code, some scope is active. When you create a variable, say, the name of the variable is placed in the active scope.
+A local scope is created by the block statement, statements that support a variable declaration as a condition, and the initialization part of the `for` and `foreach` loops. To put your objects in local scope, prefix the declarations with the `let` keyword: 
 
-A scope is commonly created by a code block, the statement delimited by braces ({}). At the start of a code block, a new scope is created. This new scope is now the active scope. The previous scope is still there, but is now the parent of the new scope. At the end of the code block, the active scope is destroyed, and the parent scope becomes the active scope again.
-
-When using a name, the compiler will first search the active scope. If the name is not found, the parent scope is then searched. This continues until the top scope is reached. (The __top scope__ is the first scope made and the last scope searched. It is the scope containing objects like scripts and functions.) Through this process, the first instance of the name found is the instance that will be used to retrieve an object.
-
-<h6>Code:</h6>
 ```
-// In scope #0 (top scope)
-int a = 0;
-
-script 1 open {
-   // In scope #1
-   print( i: a );
-   int a = 1;
+script "Main" open {
+   let int var = 123;
    {
-      // In scope #2
-      int a = 2;
-      print( i: a );
+      // This `var` hides the outer `var` and will not be visible after the
+      // closing brace of the block statement:
+      let int var = 321;
+      Print( d: var ); // Output: 321
    }
-   print( i: a );
+   Print( d: var ); // Output: 123
 }
 ```
 
-<h6>Output:</h6>
-<pre>
-0
-2
-1
-</pre>
+In a namespace block, the `let` keyword is implied, so you get block scoping by default:
+
+```
+// In a namespace block, the `let` keyword is not necessary.
+namespace upmost {
+
+script "Main" open {
+   int var = 123;
+   {
+      // This `var` hides the outer `var` and will not be visible after the
+      // closing brace of the block statement:
+      int var = 321;
+      Print( d: var ); // Output: 321
+   }
+   Print( d: var ); // Output: 123
+}
+
+}
+```
 
 <h4>Type deduction</h4>
 
@@ -400,7 +490,7 @@ typedef int NumberT;
 typedef str Str10_T[ 10 ];
 
 // Declare some variables and use the type aliases.
-NumberT integer; // Same as: int integer;
+NumberT number; // Same as: int number;
 Str10_T stringArray; // Same as: str stringArray[ 10 ];
 ```
 
@@ -856,23 +946,69 @@ foreach ( <i>value</i> ; <i>collection</i> ) {}
 foreach ( <i>key</i>, <i>value</i> ; <i>collection</i> ) {}
 </pre>
 
-<h4><code>goto</code></h4>
+A `foreach` loop goes over every item in a collection. An array is a collection; the elements of the array are the items. A string is also a collection; the characters of the string are the items. `value` is a variable that will contain the item.
 
-A <code>goto</code> statement is used to move to some location within a script or a function. A location is identified with a label. A label consists of a name, followed by a colon character. There must be no duplicate labels inside the same script or function.
+`value` will contain the current item being looked at:
 
 ```
-script 1 open {
-   goto bottom;
+script "Main" open {
+   static int set[] = { 1, 2, 3 };
+   foreach ( int number; set ) {
+      Print( d: number );
+   }
+}
+```
+
+You can get the index of the element or character. Declare a variable before the value variable,
+
+```
+script "Main" open {
+   static int set[] = { 1, 2, 3 };
+   foreach ( int index, number; set ) {
+      Print( s: "set[", d: index, s: "] == ", d: number );
+   }
+}
+```
+
+If the key and value are of different type, you can declare two different variables by separating them with a semicolon:
+
+```
+namespace upmost {
+
+script "Main" open {
+   static fixed set[] = { 1.0, 2.0, 3.0 };
+   foreach ( int index; fixed number; set ) {
+      Print( s: "set[", d: index, s: "] == ", f: number );
+   }
+}
+
+}
+```
+
+<h4><code>goto</code></h4>
+
+<pre>
+goto <i>label</i> ;
+<i>label</i> :
+</pre>
+
+A <code>goto</code> statement allows you to move anywhere within your script or function. A label is a destination of a `goto` statement:
+
+```
+script "Main" open {
+   goto middle;
    top:
    Print( s: "top" );
-   goto end;
+   goto bottom;
+   middle:
+   Print( s: "middle" );
+   goto top;
    bottom:
    Print( s: "bottom" );
-   goto top;
-   end:
    // Output:
-   // bottom
+   // middle
    // top
+   // bottom
 }
 ```
 
@@ -914,16 +1050,202 @@ script "Main" open {
 
 <h3>References</h3>
 
-<h3>Strong Types</h3>
+References work similar to how class types are passed around 
 
-There are two functions that are associated with the `str` type: `at()` and `length()`. These functions can only be called on a value or a variable of `str` type. `at()` returns the character found at the specified index, and `length()` returns the length of the string.
+A _reference_ is a value that identifies a particular variable or function. You can indirectly access a variable through a reference.
+
+In languages such as Java, C#, and Python, you can create an object from a class and pass it around to other functions. This 
+
+__NOTE:__ At this time, due to lack of support from the game engine, there are restrictions imposed on array and structure references, but not on function references: 
+
+* Only private variables can be passed around as a reference.
+* References cannot be shared between libraries. That means you cannot pass an array reference to another library, and you cannot use references in, or returned from, another library.
+
+<h4>Array references</h4>
+
+<pre>
+<i>element-type</i> [] <i>var</i> = <i>reference</i> ;
+</pre>
 
 ```
-script 1 open {
-   Print( c: "Hello, World!".at( 7 ) );  // Output: W
-   Print( i: "Hello, World!".length() ); // Output: 13
+#library "reftest"
+
+// Only references to private variables can be passed around to functions.
+private int a[] = { 1, 2, 3 };
+private int b[] = { 6, 5, 4 };
+
+script "Main" open {
+   PrintArray( a );
+   PrintArray( b );
+}
+
+void PrintArray( int[] array ) {
+   foreach ( let int element; array ) {
+      Print( d: element );
+   }
 }
 ```
+
+<h4>Structure references</h4>
+
+<pre>
+<i>structure</i> &amp; <i>var</i> = <i>reference</i> ;
+</pre>
+
+<pre>
+struct PlayerT {
+   str name;
+};
+
+PlayerT& player;
+</pre>
+
+Similar to arrays, when you use the name of a structure variable, the compiler implicitly creates a reference to the variable and uses that. So when you use a structure variable, it's like using a reference-to-structure value:
+
+```
+#library "reftest"
+
+struct NumberT {
+   int value;
+};
+
+// A reference can only accept private variables.
+private NumberT someNumber = { 123 };
+
+script "Main" open {
+   // When using the `someNumber` variable, you will implicitly get a reference
+   // value that refers to `someNumber`.
+   NumberT& number = someNumber;
+   Print( d: number.value ); // Output: 123
+   ChangeNumber( number );
+   Print( d: number.value ); // Output: 321
+}
+
+void ChangeNumber( NumberT& number ) {
+   number.value = 321;
+}
+```
+
+<h4>Function references</h4>
+ 
+<pre>
+<i>return-type</i> function( <i>parameters</i> ) <i>var</i> = <i>reference</i>  ;
+<i>return-type</i> function( <i>parameters</i> ) <i>qualifiers</i> <i>var</i> = <i>reference</i> ;
+</pre>
+
+A variable of reference-to-function type looks like a header of a function, but the name is moved all the way to the right and the  
+
+Unlike arrays and structure references, you can share function references between libraries.
+
+```
+#library "reftest"
+
+void F1() { Print( s: "F1() called" ); }
+void F2() { Print( s: "F2() called" ); }
+
+script "Main" open {
+   void function() f = F1;
+   f(); // Output: F1() called
+   f = F2;
+   f(); // Output: F2() called
+}
+```
+
+<h4>Null reference</h4>
+
+The reference variables used above require y
+
+__Be careful:__ if you dereference a null reference, the game will report an error and the current script will be terminated.
+
+<h3>Strong Types</h3>
+
+The primitive types are: `int`, `fixed`, `str`, and `bool`.
+
+<h4>Raw type</h4>
+
+To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves like the `int` type, but has the following additional characteristics:
+
+* A value of `raw` type can be assigned to a variable of primitive type, and a variable of `raw` type can accept any value of primitive type.
+* When mixing a `raw` operand with a primitive operand, the primitive operand is implicitly casted to `raw`.
+* A value of primitive type gets implicitly casted to `raw`. In a namespace block, no such implicit casting occurs.
+
+<h4>Conversions and Casts</h4>
+
+--
+
+Operands in expressions must be of the same type.
+
+The following subsections list the possible operations on the primitive types.
+
+<h5>int</h5>
+<h5>fixed</h5>
+<h5>bool</h5>
+<h5>str</h5>
+<table>
+   <tr>
+   <th>Operation</th>
+   <th>Result Type</th>
+   <th>Description</th>
+   </tr>
+   <tr>
+   <td><i>left</i> + <i>right</i></td>
+   <td>str</td>
+   <td>The left string is concatenated with the right string.</td>
+   </tr>
+   <tr>
+   <td><i>left</i> == <i>right</i></td>
+   <td>bool</td>
+   <td>Returns <code>true</code> if the two strings are equal, <code>false</code> otherwise.</td>
+   </tr>
+   <tr>
+   <td><i>string</i>[ <i>index</i> ]</td>
+   <td>int</td>
+   <td>
+      Returns the character at the specified index. <br />
+      This is the same as: <code>GetChar( <i>string</i>, <i>index</i> )</code></td>
+   </tr>
+   <tr>
+   <td>! <i>string</i></td>
+   <td>bool</td>
+   <td>
+      Returns <code>true</code> if the string is the empty string (<code>""</code>), <code>false</code> otherwise. <br />
+      This is the same as : <code>( StrCmp( <i>string</i>, "" ) == 0 )</code>
+      </td>
+   </tr>
+</table>
+
+<h4>Methods</h4>
+
+The `str` type has a function called `length()`. This function returns the length of the string:
+
+```
+namespace upmost {
+
+script "Main" open {
+   // Same as: Print( d: StrLen( "Hello, World!" ) );
+   Print( d: "Hello, World!".length() ); // Output: 13
+}
+
+}
+```
+
+--
+
+An array has a function called `length()`. This function returns the length of the array dimension:
+
+```
+namespace upmost {
+
+int a[] = { 1, 2, 3 };
+
+script "Main" open {
+   Print( d: a.length() ); // Output: 3
+}
+
+}
+```
+
+<h4>Default initializers</h4>
 
 <h3>Expressions</h3>
 
@@ -945,7 +1267,7 @@ script "Main" open {
 
 --
 
-For `strcpy()`, unless you want to use the extra arguments, the `a:` is optional:
+For `strcpy()`, the `a:` is optional, unless you want to use the extra arguments:
 
 ```
 script "Main" {
