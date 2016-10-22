@@ -1159,7 +1159,9 @@ __Be careful:__ if you dereference a null reference, the game will report an err
 
 <h3>Strong Types</h3>
 
-The primitive types are: `int`, `fixed`, `str`, and `bool`.
+When assigning a value to a variable, the type of the value must match the type of the variable.
+
+The primitive types are: `int`, `fixed`, `bool`, and `str`.
 
 <h4>Raw type</h4>
 
@@ -1171,16 +1173,200 @@ To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves 
 
 <h4>Conversions and Casts</h4>
 
---
+A value of one type can be converted to another type. A conversion looks like a function call: the type you want to convert to is the function name, and the value you want to convert is the argument. The following sections describe the supported conversions.
 
-Operands in expressions must be of the same type.
+<h5>Conversion to <code>int</code></h5>
 
-The following subsections list the possible operations on the primitive types.
+<table>
+  <tr>
+    <th>Conversion</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>int( int <i>value</i> )</td>
+    <td>Returns <i>value</i>.</td>
+  </tr>
+  <tr>
+    <td>int( fixed <i>value</i> )</td>
+    <td>Returns the whole part of <i>value</i> as an integer.</td>
+  </tr>
+  <tr>
+    <td>int( bool <i>value</i> )</td>
+    <td>Returns 1 if <i>value</i> is <code>true</code>; otherwise, returns 0.</td>
+  </tr>
+  <tr>
+    <td>int( str <i>value</i> )</td>
+    <td><em>Not currently supported.</em></td>
+  </tr>
+</table>
 
-<h5>int</h5>
-<h5>fixed</h5>
-<h5>bool</h5>
-<h5>str</h5>
+<h5>Conversion to <code>fixed</code></h5>
+
+<table>
+  <tr>
+    <th>Conversion</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>fixed( int <i>value</i> )</td>
+    <td>Returns a fixed-point number whose whole part is <i>value</i>.</td>
+  </tr>
+  <tr>
+    <td>fixed( fixed <i>value</i> )</td>
+    <td>Returns <i>value</i>.</td>
+  </tr>
+  <tr>
+    <td>fixed( bool <i>value</i> )</td>
+    <td>Returns 1.0 if <i>value</i> is <code>true</code>; otherwise, returns 0.0.</td>
+  </tr>
+  <tr>
+    <td>fixed( str <i>value</i> )</td>
+    <td><em>Not currently supported.</em></td>
+  </tr>
+</table>
+
+<h5>Conversion to <code>bool</code></h5>
+
+<table>
+  <tr>
+    <th>Conversion</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>bool( int <i>value</i> )</td>
+    <td>Returns <code>false</code> if <i>value</i> is 0.0, otherwise, returns <code>true</code></td>
+  </tr>
+  <tr>
+    <td>bool( fixed <i>value</i> )</td>
+    <td>Returns <code>false</code> if <i>value</i> is 0, otherwise, returns <code>true</code></td>
+  </tr>
+  <tr>
+    <td>bool( bool <i>value</i> )</td>
+    <td>Returns <i>value</i></td>
+  </tr>
+  <tr>
+    <td>bool( str <i>value</i> )</td>
+    <td>Returns <code>false</code> if <i>value</i> is the empty string (<code>""</code>); otherwise, returns <code>true</code>.</td>
+  </tr>
+  <tr>
+    <td>bool( reference <i>value</i> )</td>
+    <td>Returns <code>false</code> if <i>value</i> is the null reference; otherwise, returns <code>true</code>.</td>
+  </tr>
+</table>
+
+<h5>Conversion to <code>str</code></h5>
+
+<table>
+  <tr>
+    <th>Conversion</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>str( int <i>value</i> )</td>
+    <td>Same as: <code>StrParam( d: <i>value</i> )</code></td>
+  </tr>
+  <tr>
+    <td>str( fixed <i>value</i> )</td>
+    <td>Same as: <code>StrParam( f: <i>value</i> )</code></td>
+  </tr>
+  <tr>
+    <td>str( bool <i>value</i> )</td>
+    <td>Returns <code>""</code> if <i>value</i> is <code>true</code>; otherwise, returns <code>"1"</code>.</td>
+  </tr>
+  <tr>
+    <td>str( str <i>value</i> )</td>
+    <td>Returns <i>value</i>.</td>
+  </tr>
+</table>
+
+Only primitive types can be used in casts.
+
+<h4>Operations</h4>
+
+In binary operations, the operands must be of the same type.
+
+<h5>Operations on <code>fixed</code> type</h5>
+
+<table>
+   <tr>
+   <th>Operation</th>
+   <th>Result<br />Type</th>
+   <th>Description</th>
+   </tr>
+   <tr>
+      <td><code><i>left</i> * <i>right</i></code></td>
+      <td><code>fixed</code></td>
+      <td>Same as: <code>FixedMul( <i>left</i>, <i>right</i> )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> / <i>right</i></code></td>
+      <td><code>fixed</code></td>
+      <td>Same as: <code>FixedDiv( <i>left</i>, <i>right</i> )</code></td>
+   </tr>
+</table>
+
+<h5>Operations on <code>str</code> type</h5>
+
+<table>
+   <tr>
+   <th>Operation</th>
+   <th>Result<br />Type</th>
+   <th>Description</th>
+   </tr>
+   <tr>
+     <td><code><i>left</i> == <i>right</i></code></td>
+     <td><code>bool</code></td>
+     <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) == 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> != <i>right</i></code></td>
+      <td><code>bool</code></td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) != 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> &lt; <i>right</i></code></td>
+      <td><code>bool</code></td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt; 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> &lt;= <i>right</i></code></td>
+      <td><code>bool</code></td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt;= 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> &gt; <i>right</i></code></td>
+      <td><code>bool</code></td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt; 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> &gt;= <i>right</i></code></td>
+      <td><code>bool</code></td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt;= 0 )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> + <i>right</i></code></td>
+      <td><code>str</code></td>
+      <td>Same as: <code>StrParam( s: <i>left</i>, s: <i>right</i> )</code></td>
+   </tr>
+   <tr>
+      <td><code><i>left</i> += <i>right</i></code></td>
+      <td><code>str</code></td>
+      <td>Same as: <code>( <i>left</i> = StrParam( s: <i>left</i>, s: <i>right</i> ) )</code></td>
+   </tr>
+   <tr>
+     <td><code><i>string</i>[ <i>index</i> ]</code></td>
+     <td><code>int</code></td>
+     <td>Same as: <code>GetChar( <i>string</i>, <i>index</i> )</code></td>
+   </tr>
+   <tr>
+     <td><code>! <i>string</i></code></td>
+     <td><code>bool</code></td>
+     <td>Same as : <code>( StrCmp( <i>string</i>, "" ) == 0 )</code></td>
+   </tr>
+</table>
+
+<h5>Operations on reference type</h5>
+
 <table>
    <tr>
    <th>Operation</th>
@@ -1188,29 +1374,24 @@ The following subsections list the possible operations on the primitive types.
    <th>Description</th>
    </tr>
    <tr>
-   <td><i>left</i> + <i>right</i></td>
-   <td>str</td>
-   <td>The left string is concatenated with the right string.</td>
-   </tr>
-   <tr>
    <td><i>left</i> == <i>right</i></td>
    <td>bool</td>
-   <td>Returns <code>true</code> if the two strings are equal, <code>false</code> otherwise.</td>
+   <td>If the left and right operands refer to the same object, <code>true</code> is returned; <code>false</code> otherwise.</td>
    </tr>
    <tr>
-   <td><i>string</i>[ <i>index</i> ]</td>
-   <td>int</td>
-   <td>
-      Returns the character at the specified index. <br />
-      This is the same as: <code>GetChar( <i>string</i>, <i>index</i> )</code></td>
-   </tr>
-   <tr>
-   <td>! <i>string</i></td>
+   <td><i>left</i> != <i>right</i></td>
    <td>bool</td>
-   <td>
-      Returns <code>true</code> if the string is the empty string (<code>""</code>), <code>false</code> otherwise. <br />
-      This is the same as : <code>( StrCmp( <i>string</i>, "" ) == 0 )</code>
-      </td>
+   <td>If the left and right operands refer to a different object, <code>true</code> is returned; <code>false</code> otherwise.</td>
+   </tr>
+   <tr>
+      <td>! <i>operand</i></td>
+      <td>bool</td>
+      <td>If the operand is the null reference, <code>true</code> is returned; <code>false</code> otherwise.</td>
+   </tr>
+   <tr>
+      <td><i>operand</i> !!</td>
+      <td>Reference</td>
+      <td>Asserts that the operand is a valid reference. If the operand is the null reference, an error message will be printed in the console and the current script will be terminated. If the operand is not null, it is returned</td>
    </tr>
 </table>
 
@@ -1246,6 +1427,41 @@ script "Main" open {
 ```
 
 <h4>Default initializers</h4>
+
+<table>
+   <tr>
+      <th>Type</th>
+      <th>Default Initializer</th>
+   </tr>
+   <tr>
+      <td>int</td>
+      <td>0</td>
+   </tr>
+   <tr>
+      <td>fixed</td>
+      <td>0.0</td>
+   </tr>
+   <tr>
+      <td>bool</td>
+      <td>false</td>
+   </tr>
+   <tr>
+      <td>str</td>
+      <td>""</td>
+   </tr>
+   <tr>
+      <td>Reference (&amp;)</td>
+      <td><em>None available</em></td>
+   </tr>
+   <tr>
+      <td>Reference (?)</td>
+      <td>null</td>
+   </tr>
+   <tr>
+      <td>Enumeration</td>
+      <td><em>(See below)</em></td>
+   </tr>
+</table>
 
 <h3>Expressions</h3>
 
