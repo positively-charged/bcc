@@ -20,16 +20,17 @@
 
 <h3>Incompatibilities with ACS</h3>
 
-* Logical-AND (`&&`) and Logical-OR (`||`) use short-circuit evaluation
-* In radix constants, an `r` is used to separate the base from the number
+* Logical-AND (`&&`) and Logical-OR (`||`) do [short-circuit evaluation](#short-circuit-evaluation)
+* In [radix constants](#numeric-literals), an `r` is used to separate the base from the number
+* Some previously usable identifiers are now [keywords](#keywords)
 
 <h3>Libraries</h3>
 
-The library specified as an argument to the compiler is called the _main library_. First, the main library is parsed and preprocessed. Then, each library imported by the main library is parsed and preprocessed. The preprocessor starts afresh for every library, so macros defined in one library will not be available in another library.
+The library specified as an argument to the compiler is called _the main library_. First, the main library is preprocessed and parsed. Then, each library imported by the main library is preprocessed and parsed. The preprocessor starts afresh for every library, so macros defined in one library will not be available in another library. Macros defined on the command-line are only available during the preprocessing of the main library.
 
 --
 
-In an imported library, the predefined macro `__IMPORTED__` is available. It's defined as `1`. This macro is useful for reporting an error when the user imports a library using `#include` instead of `#import`:
+In an imported library, the predefined macro, `__IMPORTED__`, is available. It is defined as `1`. This macro is useful for identifying the error where the user imports a library using `#include` instead of `#import`:
 
 ```
 #library "somelib"
@@ -41,9 +42,10 @@ In an imported library, the predefined macro `__IMPORTED__` is available. It's d
 
 <h4>Private visibility</h4>
 
-A library can have private variables. Only the library can see its private variables. A library that imports another library will not be able to see the private variables of the imported library. Functions and unnamed enumerations can also be private.
+A library can have private objects, which can be variables, functions, and unnamed enumerations. Only the library can see its private objects. A library that imports another library will not be able to see the private objects of the imported library:
 
 <h6>File: <i>lib1.bcs</i></h6>
+
 ```
 #library "lib1"
 
@@ -57,12 +59,13 @@ private enum { C = 123 };
 ```
 
 <h6>File: <i>lib2.bcs</i></h6>
+
 ```
 #library "lib2"
 
 #import "lib1.bcs"
 
-// This `b` is only visible inside "lib2".
+// This `b` is only visible inside "lib2":
 private int b;
 
 script "Main" open {
@@ -72,9 +75,11 @@ script "Main" open {
 }
 ```
 
+You can have as many private variables in your library as you like. When the maximum variable limit is about to be reached, the compiler will combine the remaining private variables into a single array.
+
 <h4>External declarations</h4>
 
-Variables can be declared `extern`. An external variable declaration is not actually a real variable. All it does is tell the compiler that such a variable exists in some library. The compiler will tell the game to import the variable when the game runs. External function declarations are also supported.
+Variables can be declared `extern`. An external variable declaration is not actually a real variable. All it does is tell the compiler that such a variable exists in some library. The compiler will tell the game to import the variable when the game runs. Along with external variable declarations, external function declarations are also supported:
 
 <h6>File: <i>lib1.bcs</i></h6>
 ```
@@ -104,13 +109,15 @@ The game cannot use an external variable unless it knows which library has the v
 #library "lib2"
 
 // The game will now load the "lib1" library. It will also look in the "lib1"
-// library when it tries to find the `v` variable.
+// library when it tries to find the `v` variable and the `F` function.
 #linklibrary "lib1"
 
 extern int v;
+extern void F();
 
 script "Main" open {
    ++v;
+   F();
 }
 ```
 
@@ -118,14 +125,14 @@ External declarations and the `#linklibrary` directive are probably not all that
 
 <h4>Header files</h4>
 
-The header file development style of C/C++ is supported by BCS. To avoid conflicts with C/C++ header files, it is suggested you give your header files a `.h.bcs` file extension, although it is not mandatory to do so.
+The header file organization style of C/C++ is supported by BCS. To avoid conflicts with C/C++ header files, it is suggested you give your header files a `.h.bcs` file extension, although it is not mandatory to do so:
 
-<h6>Header file: <i>example.h.bcs</i></h6>
+<h6>Header file: <i>lib1.h.bcs</i></h6>
 ```
-#ifndef EXAMPLE_H_BCS
-#define EXAMPLE_H_BCS
+#ifndef LIB1_H_BCS
+#define LIB1_H_BCS
 
-#linklibrary "example"
+#linklibrary "lib1"
 
 extern int v;
 extern void F();
@@ -133,11 +140,11 @@ extern void F();
 #endif
 ```
 
-<h6>Source (library) file: <i>example.bcs</i></h6>
+<h6>Source (library) file: <i>lib1.bcs</i></h6>
 ```
-#library "example"
+#library "lib1"
 
-#include "example.h.bcs"
+#include "lib1.h.bcs"
 
 int v = 123;
 void F() {}
@@ -146,7 +153,7 @@ void F() {}
 <h6>File: <i>main.bcs</i></h6>
 ```
 #include "zcommon.h.bcs"
-#include "example.h.bcs"
+#include "lib1.h.bcs"
 
 script "Main" open {
    v = INT_MAX;
@@ -154,14 +161,12 @@ script "Main" open {
 }
 ```
 
---
-
 If the name of your header file ends with `.h.bcs`, the `.bcs` extension does not need to be specified in an `#include` directive:
 
 <h6>File: <i>main.bcs (Now with shorter include paths)</i></h6>
 ```
 #include "zcommon.h"
-#include "example.h"
+#include "lib1.h"
 
 script "Main" open {
    v = INT_MAX;
@@ -171,7 +176,7 @@ script "Main" open {
 
 <h3>Preprocessor</h3>
 
-The BCS preprocessor replicates much of the behavior of the C (C99) preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` only get executed if they appear in an `#if/#ifdef/#ifndef` block:
+The BCS preprocessor attempts to replicate much of the behavior of the C (C99) preprocessor. The preprocessor is case-sensitive. To be compatible with ACS, the preprocessor-based `#define` and `#include` directives only get executed if they appear in an `#if/#ifdef/#ifndef` block:
 
 ```
 #if 1
@@ -214,7 +219,9 @@ script "Main" open {
 }
 ```
 
-Nested namespaces can be declared in one go:
+--
+
+A nested namespace can be declared in one go:
 
 ```
 // These are the same:
@@ -222,7 +229,9 @@ namespace A { namespace B { namespace C {} } }
 namespace A.B.C {}
 ```
 
-To avoid confusion with global variables, the global namespace is called the _upmost namespace_. The `upmost` keyword refers to the upmost namespace:
+--
+
+To avoid confusion with `global` variables, the global namespace is called _the upmost namespace_. The `upmost` keyword refers to the upmost namespace:
 
 ```
 int a = 123;
@@ -235,9 +244,11 @@ namespace Test {
 }
 ```
 
+--
+
 When in a namespace block, two special things happen: first, [strong types](#strong-types) are in effect; second, the `let` keyword is implied, so you get [block scoping](#block-scoping) by default.
 
-If you don't want to use namespaces but still want strong types and default block scoping, you can put your code in a namespace block for the upmost namespace:
+If you don't want to use namespaces but still want strong types and default block scoping, you can wrap your code in a namespace block for the upmost namespace. This is the same as being in the upmost namespace, but now you get to enjoy the benefits of namespace blocks:
 
 ```
 namespace upmost {
@@ -253,7 +264,7 @@ namespace upmost {
 
 <h4>Importing stuff</h4>
 
-The `using` directive is used to import objects from other namespaces. You can either import a whole namespace or import specific objects from a namespace.
+The `using` directive is used to import objects from a namespace. You can either import a whole namespace or import specific objects from a namespace.
 
 <h5>Importing namespaces</h5>
 
@@ -294,7 +305,8 @@ namespace Test {
    enum { C = 321 };
 }
 
-// Import only `v` and `C` from the `Test` namespace. `C` is refered to as `CONSTANT`.
+// Import only `v` and `C` from the `Test` namespace. `C` is referred to as
+// `CONSTANT`.
 using Test: v, CONSTANT = C;
 
 script "Main" open {
@@ -536,7 +548,23 @@ enum {
 
 --
 
-The type of an enumerator
+An enumeration has a base type. The value of every enumerator will be of the base type. By default, `int` is the base type, but you can change it. If `int` is not the base type, then you must explicitly set the value of every enumerator:
+
+```
+namespace upmost {
+
+enum : str {
+   FRUIT_APPLE = "Apple",
+   FRUIT_ORANGE = "Orange",
+   FRUIT_PEAR = "Pear"
+};
+
+script "Main" open {
+   Print( s: FRUIT_APPLE + FRUIT_ORANGE + FRUIT_PEAR );
+}
+
+}
+```
 
 --
 
@@ -557,7 +585,7 @@ script "Main" open {
 
 --
 
-If you don't want to type the the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="#type-names">type name</a>. This will implicitly create a <a href="#type-aliases">type alias</a> that refers to the enumeration:
+If you don't want to type the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="#type-names">type name</a>. This will implicitly create a <a href="#type-aliases">type alias</a> that refers to the enumeration:
 
 ```
 enum FruitT {
@@ -583,93 +611,37 @@ enum {
 
 <h3>Structures</h3>
 
-A structure is a group of data. It has a name and a list of members. The members are the actual data. In code, the <code>struct</code> keyword is used to represent a structure:
+Structures work much like in C:
 
 ```
-struct boss {
+// Declare structure.
+struct Boss {
    int id;
    str name;
 };
-```
 
-Here, the structure is named <code>boss</code>. It contains two members: an integer named <code>id</code> and a string named <code>name</code>.
+// Declare and initialize structure variable.
+struct Boss bigBoss = { 123, "Really Mean Boss" };
 
----
-
-A structure is used as a variable type. When a variable of a structure type is created, the variable will contain every member of the structure. If multiple variables of the same structure type are created, each variable will have its own copy of the members.
-
-```
-struct boss big_boss;
-```
-
-In the example above, we create a variable named <code>big\_boss</code>. The type of this variable is <code>struct boss</code>, the structure we made earlier. When specifying the type, notice we use the <code>struct</code> keyword plus the name of the structure we want to use.
-
----
-
-The dot operator is used to access a member. A member can be modified like any other variable.
-
-```
-struct boss big_boss;
-
-script 1 open {
-   // Modify members:
-   big_boss.id = 123;
-   big_boss.name = "Really Mean Boss";
-   // View members:
-   Print( s: "Boss ID is ", i: big_boss.id );     // Output: Boss ID is 123
-   Print( s: "Boss name is ", s: big_boss.name ); // Output: Boss name is Really Mean Boss
+script "Main" open {
+   // Output: Boss ID is 123
+   Print( s: "Boss ID is ", d: bigBoss.id );
+   // Output: Boss name is Really Mean Boss
+   Print( s: "Boss name is ", s: bigBoss.name );
 }
 ```
 
-In the example above, we use the dot operator to access the <code>id</code> member and change its value to 123. We do the same for the <code>name</code> member, changing its value to <code>"Really Mean Boss"</code>. We then print the values of the members, using the dot operator to access each member.
-
----
-
-<p style="background-color: #FCC; padding: 8px;">
-<strong>Note:</strong> At this time, it is not possible to initialize the string members of a variable of a structure type. You will need to manually assign values to these members.
-</p>
-
-To initialize a variable of a structure type, the brace initializer is used. The first value in the initializer will be the starting value of the first member, the second value will be the starting value of the second member, and so on.
+If you don't want to type the `struct` keyword when declaring a structure variable, you can name the structure with a <a href="#type-names">type name</a>. This will implicitly create a <a href="#type-aliases">type alias</a> that refers to the structure:
 
 ```
-struct boss big_boss = { 123, "Really Mean Boss" };
-
-script 1 open {
-   // View members:
-   Print( s: "Boss ID is ", i: big_boss.id );     // Output: Boss ID is 123
-   Print( s: "Boss name is ", s: big_boss.name ); // Output: Boss name is Really Mean Boss
-}
-```
-
-The example above and the example in the previous section are similar. The difference is how the members get their values. In the example above, we assign the values of the members when we create the variable. In the example in the previous section, we first create the variable, and later assign the values.
-
----
-
-A member can be an array or a structure, or both.
-
-```
-struct boss_list {
-   struct boss bosses[ 10 ];
-   int count;
+struct BossT {
+   int id;
+   str name;
 };
 
-// `list` initialized with a single boss.
-struct boss_list list = {
-   { { 123, "Really Mean Boss" } },
-   1
-};
-
-script 1 open {
-   // Add second boss:
-   list.bosses[ 1 ].id = 321;
-   list.bosses[ 1 ].name = "Spooky Boss";
-   ++list.count;
-}
+BossT bigBoss;      // Same as: struct BossT bigBoss;
+BossT bosses[ 10 ]; // Same as: struct BossT bosses[ 10 ];
 ```
-
-In the example above, we create a structure named <code>boss_list</code>. This structure has a member named <code>bosses</code> that is an array, and this array can hold 10 <code>boss</code> elements. The next member is an integer member named <code>count</code>, the number of bosses.
-
-We create a variable named <code>list</code> using this new structure. The outermost braces initialize the <code>list</code> variable. Th middle braces initialize the <code>bosses</code> member, an array. The innermost braces initialize the first element of the array, a <code>boss</code> structure.
 
 <h3>Functions</h3>
 
@@ -1065,6 +1037,7 @@ __NOTE:__ At this time, due to lack of support from the game engine, there are r
 
 <pre>
 <i>element-type</i> [] <i>var</i> = <i>reference</i> ;
+<i>element-type</i> [] &amp; <i>var</i> = <i>reference</i> ;
 </pre>
 
 ```
@@ -1151,11 +1124,44 @@ script "Main" open {
 }
 ```
 
-<h4>Null reference</h4>
+<h4>Nullable references</h4>
 
-The reference variables used above require y
+The _null reference_ is an invalid reference. A <em>nullable reference</em> is a reference that can also be the null reference. Nullable references can only be assigned to nullable reference variables. A nullable reference type is marked with a question mark:
 
-__Be careful:__ if you dereference a null reference, the game will report an error and the current script will be terminated.
+```
+script "Main" open {
+   int[]? r = null;
+   struct S { int a; }? r2 = null;
+   void function()? r3 = null;
+}
+```
+
+<h5>Null check</h5>
+
+The null reference cannot be dereferenced. Everytime you use a nullable reference, the game will check the reference. If it is the null reference, an error will be reported in the console and the current script will be terminated:
+
+```
+script "Main" open {
+   int[]? r = null;
+   r[ 0 ] = 123; // Prints error and terminates script.
+}
+```
+
+<h5>From nullable to non-nullable</h5>
+
+A nullable reference cannot be assigned to a non-nullable reference variable. The `!!` operator confirms that a nullable reference is not the null reference by performing the above null check:
+
+```
+script "Main" open {
+   static int a[] = { 1, 2, 3 };
+   int[]? r = a;
+   // `r` refers to a valid reference, so will succeed.
+   int[] r2 = r!!;
+   r = null;
+   // `r` no longer refers a valid reference, so prints error and terminates script.
+   r2 = r!!;
+}
+```
 
 <h3>Strong Types</h3>
 
@@ -1173,7 +1179,7 @@ To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves 
 
 <h4>Conversions and Casts</h4>
 
-A value of one type can be converted to another type. A conversion looks like a function call: the type you want to convert to is the function name, and the value you want to convert is the argument. The following sections describe the supported conversions.
+A value of one type can be converted to another type. A conversion looks like a function call: the type you want to convert to is the function name, and the value you want to convert is the argument.
 
 <h5>Conversion to <code>int</code></h5>
 
@@ -1426,42 +1432,25 @@ script "Main" open {
 }
 ```
 
+<!--
+
 <h4>Default initializers</h4>
 
-<table>
-   <tr>
-      <th>Type</th>
-      <th>Default Initializer</th>
-   </tr>
-   <tr>
-      <td>int</td>
-      <td>0</td>
-   </tr>
-   <tr>
-      <td>fixed</td>
-      <td>0.0</td>
-   </tr>
-   <tr>
-      <td>bool</td>
-      <td>false</td>
-   </tr>
-   <tr>
-      <td>str</td>
-      <td>""</td>
-   </tr>
-   <tr>
-      <td>Reference (&amp;)</td>
-      <td><em>None available</em></td>
-   </tr>
-   <tr>
-      <td>Reference (?)</td>
-      <td>null</td>
-   </tr>
-   <tr>
-      <td>Enumeration</td>
-      <td><em>(See below)</em></td>
-   </tr>
-</table>
+When a variable does not have an initializer, it is initialized with a default value.
+
+For `int` variables, the default initializer is 0.
+
+For `fixed` variables, the default initializer is 0.0.
+
+For `bool` variables, the default initializer is `false`.
+
+For `str` variables, the default initializer is the string with index 0, which could be any string. Would be nice if the engine reserves index 0 for the empty string ("").
+
+For mandatory reference variables, there is no default initializer; the variable must be initialized with a valid reference. For nullable reference variables, the default initializer is `null`.
+
+For enumeration variables, the default initializer is the enumerator whose value is the default initializer of the base type. If no such enumerator exists, then there is no default initializer.
+
+-->
 
 <h3>Expressions</h3>
 
@@ -1607,6 +1596,8 @@ script "CopyStructs" open {
 `memcpy()` is not a feature of the game engine. It is implemented by the compiler. The compiler will generate extra code behind the scenes to make it work. So be aware of that when writing performance critical code.
 
 <h3>Miscellaneous</h3>
+
+<h4>Keywords</h4>
 
 New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the goto statement.
 
