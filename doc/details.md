@@ -188,9 +188,9 @@ script MAKE_STR( 1 2 3 ) open {
 }
 ```
 
---
+<h4>String literal concatenation</h4>
 
-The compiler performs string literal concatentation: adjacent string literals are combined into a single string literal. This can be used to break up a long string literal into smaller parts, making it easier to see the whole string:
+The compiler performs _string literal concatenation_: adjacent string literals are combined to form a single string literal. This can be used to break up a long string literal into smaller parts, making it easier to see the whole string:
 
 ```
 script "Main" open {
@@ -694,7 +694,7 @@ void SomeFunc() {
 }
 ```
 
-`__FUNCTION__` might look like a predefined macro, but it is not a macro. As a consequence, it cannot be used in string literal concatenation.
+`__FUNCTION__` might look like a predefined macro, but it is not a macro. As a consequence, it cannot be used in [string literal concatenation](#string-literal-concatenation).
 
 <h4>Optional parameters</h4>
 
@@ -1163,7 +1163,7 @@ To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves 
 
 Outside a namespace block, a value of primitive type gets implicitly casted to the `raw` type. In a namespace block, no such implicit casting occurs.
 
-<h4>Casting</h4>
+<h4>Casts</h4>
 
 You can force the compiler to treat a value of one type as a value of another type:
 
@@ -1400,7 +1400,7 @@ In binary operations, the operands must be of the same type.
    </tr>
 </table>
 
-<h4>Methods</h4>
+<h4>Functions</h4>
 
 The `str` type has a function called `length()`. This function returns the length of the string:
 
@@ -1615,7 +1615,7 @@ script "Main" open {
 
 New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the [goto statement](#goto).
 
-The following are keywords in ACS, but they are not keywords in BCS: `acs_executewait`, `acs_namedexecutewait`, `bluereturn`, `clientside`, `death`, `define`, `disconnect`, `encryptstrings`, `endregion`, `enter`, `event`, `hudmessage`, `hudmessagebold`, `import`, `include`, `kill`, `libdefine`, `library`, `lightning`, `log`, `net`, `nocompact`, `nowadauthor`, `open`, `pickup`, `redreturn`, `region`, `reopen`, `respawn`, `strparam`, `unloading`, `wadauthor`, and `whitereturn`. These identifiers can be used as names for your functions and variables.
+While the following identifiers still retain their usage, they can now also be used as function/variable names and are no longer reserved as keywords: `acs_executewait`, `acs_namedexecutewait`, `bluereturn`, `clientside`, `death`, `define`, `disconnect`, `encryptstrings`, `endregion`, `enter`, `event`, `hudmessage`, `hudmessagebold`, `import`, `include`, `kill`, `libdefine`, `library`, `lightning`, `log`, `net`, `nocompact`, `nowadauthor`, `open`, `pickup`, `redreturn`, `region`, `reopen`, `respawn`, `strparam`, `unloading`, `wadauthor`, and `whitereturn`.
 
 <h2>bcc (Compiler)</h2>
 
