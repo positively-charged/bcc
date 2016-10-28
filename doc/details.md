@@ -21,7 +21,7 @@
 <h3>Incompatibilities with ACS</h3>
 
 * Logical-AND (`&&`) and Logical-OR (`||`) do [short-circuit evaluation](#short-circuit-evaluation)
-* In [radix constants](#numeric-literals), an `r` is used to separate the base from the number
+* In [radix constants](#radix-constants), an `r` is used to separate the base from the number
 * Some previously usable identifiers are now [keywords](#keywords)
 
 <h3>Libraries</h3>
@@ -317,10 +317,10 @@ script "Main" open {
 
 <h3>Declarations</h3>
 
-When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either.
+When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either:
 
 ```
-// These are all the same.
+// These are all the same:
 script "Main" ( void ) {}
 script "Main" () {}
 script "Main" {}
@@ -328,7 +328,7 @@ script "Main" {}
 
 --
 
-Objects outside of scripts and functions do not need to be declared first before they can be used. In the following example, a variable, a constant, and a function are used before they appear:
+A namespace object does not need to be declared before it can be used. In the following example, a variable, a constant, and a function are used before they are declared:
 
 ```
 script "Main" open {
@@ -393,10 +393,10 @@ script "Main" open {
 
 --
 
-World and global variables can be declared inside a script (or a function). It's the same thing as declaring the variable outside the script, except that the name of the variable will not be visible to code outside the script.
+World and global variables can be declared inside a script (or a function). It is the same thing as declaring the variable outside the script, except that the name of the variable will not be visible to code outside the script.
 
 ```
-script "DeathCount" death {
+script "DeathCounter" death {
    global int 1:deaths;
    ++deaths;
 }
@@ -467,7 +467,7 @@ script "Main" open {
    auto number = 123;    // Same as: int number = 123;
    auto string = "abc";  // Same as: str string = "abc";
    static fixed array[] = { 1.0, 2.0, 3.0 };
-   auto r = array;       // Same as: int[] r = array;
+   auto r = array;       // Same as: fixed[] r = array;
    auto f = array[ 0 ];  // Same as: fixed d = array[ 0 ];
 }
 
@@ -568,7 +568,7 @@ script "Main" open {
 
 --
 
-Enumerations can be named and then used as a variable type. The only thing special about enumeration variables is that they must be initialized and updated with one of the enumerators instead of the value of an enumerator:
+Enumerations can be named and then used as a variable type. The only thing special about enumeration variables is that they must be initialized and updated with one of the enumerators:
 
 ```
 enum Fruit {
@@ -599,7 +599,7 @@ FruitT f = FRUIT_PEAR; // Same as: enum FruitT f = FRUIT_PEAR;
 
 --
 
-The last enumerator can have a comma after it. This is a convenience feature.
+The last enumerator can have a comma after it:
 
 ```
 enum {
@@ -614,13 +614,13 @@ enum {
 Structures work much like in C:
 
 ```
-// Declare structure.
+// Declare a structure.
 struct Boss {
    int id;
    str name;
 };
 
-// Declare and initialize structure variable.
+// Declare and initialize a structure variable.
 struct Boss bigBoss = { 123, "Really Mean Boss" };
 
 script "Main" open {
@@ -645,7 +645,7 @@ BossT bosses[ 10 ]; // Same as: struct BossT bosses[ 10 ];
 
 <h3>Functions</h3>
 
-The `function` keyword is optional. If the function has no parameters, the `void` keyword is optional.
+The `function` keyword is optional. If the function has no parameters, the `void` keyword is optional:
 
 ```
 // These are all the same:
@@ -686,7 +686,7 @@ script "Main" open {
 
 --
 
-In a function, the magic identifier `__FUNCTION__` is a string literal that contains the name of the function:
+In a function, the magic identifier, `__FUNCTION__`, is a string literal that contains the name of the function:
 
 ```
 void SomeFunc() {
@@ -694,7 +694,7 @@ void SomeFunc() {
 }
 ```
 
-`__FUNCTION__` might look like a predefined macro, but it is not a macro. Also, it cannot be used in string literal concatenation.
+`__FUNCTION__` might look like a predefined macro, but it is not a macro. As a consequence, it cannot be used in string literal concatenation.
 
 <h4>Optional parameters</h4>
 
@@ -738,7 +738,7 @@ script "Main" open {
 
 --
 
-There is no limit on how deep functions can be nested:
+Functions can be nested arbitrarily deep:
 
 ```
 script "Main" open {
@@ -792,7 +792,7 @@ script "Main" open {
 
 --
 
-Passing around a nested function as a reference is not allowed.
+Passing around a reference to a nested function is not allowed at this time.
 
 <h5>Technical details</h5>
 
@@ -839,7 +839,7 @@ When calling `Print()` and the like, sometimes you want more control of the mess
 
 A message-building function is qualified with `msgbuild`, must not have any parameters, and must have a `void` return type. In the body of a message-building function, a special function called `append()` becomes visible. You use `append()` to output the parts of the message. `append()` supports all of the cast types that are supported by `Print()`.
 
-To create and print the message, pass the message-building function along with the `msgbuild:` cast type:
+To utilize a message-building function, pass it with the `msgbuild:` cast:
 
 ```
 void Welcome( int borderLength ) {
@@ -918,9 +918,7 @@ foreach ( <i>value</i> ; <i>collection</i> ) {}
 foreach ( <i>key</i>, <i>value</i> ; <i>collection</i> ) {}
 </pre>
 
-A `foreach` loop goes over every item in a collection. An array is a collection; the elements of the array are the items. A string is also a collection; the characters of the string are the items. `value` is a variable that will contain the item.
-
-`value` will contain the current item being looked at:
+A `foreach` loop goes over every item in a collection. An array is a collection, and the elements of the array are the items. A string is also a collection, and the characters of the string are the items. `value` is a variable that will contain the current item being looked at:
 
 ```
 script "Main" open {
@@ -931,7 +929,7 @@ script "Main" open {
 }
 ```
 
-You can get the index of the element or character. Declare a variable before the value variable,
+You can declare another variable before the `value` variable. This variable is called the `key` variable. The `key` variable will contain the index of the array element or string character:
 
 ```
 script "Main" open {
@@ -942,7 +940,7 @@ script "Main" open {
 }
 ```
 
-If the key and value are of different type, you can declare two different variables by separating them with a semicolon:
+If the `key` and `value` variables are of different type, you can declare two different variables by separating them with a semicolon:
 
 ```
 namespace upmost {
@@ -956,6 +954,8 @@ script "Main" open {
 
 }
 ```
+
+At this time, the `key` and `value` variables cannot be modified.
 
 <h4><code>goto</code></h4>
 
@@ -984,6 +984,8 @@ script "Main" open {
 }
 ```
 
+The `goto` statement is powerful and should be used with care.
+
 <h4>Assertions</h4>
 
 <pre>
@@ -991,7 +993,7 @@ assert ( <i>condition</i> [, str <i>description</i>] ) ;
 static assert ( <i>condition</i> [, str <i>description</i>] ) ;
 </pre>
 
-An `assert` statement evaluates the specified condition. If the condition is false, an error message is logged into the game console and the current script is terminated. The error message will contain the full path to the source file that contains the failed assertion, along with the line and column positions. An optional description may be included in the error message.
+An `assert` statement evaluates the specified condition. If the condition is `false`, an error message is logged into the game console and the current script is terminated. The error message will contain the full path to the source file that contains the failed assertion, along with the line and column positions. An optional description may be included in the error message.
 
 ```
 script "Main" open {
@@ -1006,7 +1008,7 @@ script "Main" open {
 }
 ```
 
-A `static assert` statement is executed at compile time. If the condition is false, the compiler outputs an error message, and the compilation is aborted.
+A `static assert` statement is executed at compile time. If the condition is `false`, the compiler outputs an error message, and the compilation is aborted.
 
 ```
 script "Main" open {
@@ -1022,23 +1024,18 @@ script "Main" open {
 
 <h3>References</h3>
 
-References work similar to how class types are passed around 
+__NOTE:__ At this time, due to lack of support for non-function references in the game engine, references to arrays and structure variables have the following restrictions: 
 
-A _reference_ is a value that identifies a particular variable or function. You can indirectly access a variable through a reference.
-
-In languages such as Java, C#, and Python, you can create an object from a class and pass it around to other functions. This 
-
-__NOTE:__ At this time, due to lack of support from the game engine, there are restrictions imposed on array and structure references, but not on function references: 
-
-* Only private variables can be passed around as a reference.
-* References cannot be shared between libraries. That means you cannot pass an array reference to another library, and you cannot use references in, or returned from, another library.
+* Only references to _private_ arrays and structure variables can be assigned to variables and passed to functions.
+* Array and structure variable references cannot be shared between libraries. That means you cannot pass an array reference to another library, and you cannot use an array reference in, or returned from, another library.
 
 <h4>Array references</h4>
 
 <pre>
 <i>element-type</i> [] <i>var</i> = <i>reference</i> ;
-<i>element-type</i> [] &amp; <i>var</i> = <i>reference</i> ;
 </pre>
+
+In C, when you specify an array, it "decays" into a pointer to the first element of the array. In BCS, something similar happens: when you specify an array, what you actually get is a reference to the array. You can then save that reference into a reference variable, or pass it to a function:
 
 ```
 #library "reftest"
@@ -1059,21 +1056,13 @@ void PrintArray( int[] array ) {
 }
 ```
 
-<h4>Structure references</h4>
+<h4>Structure variable references</h4>
 
 <pre>
 <i>structure</i> &amp; <i>var</i> = <i>reference</i> ;
 </pre>
 
-<pre>
-struct PlayerT {
-   str name;
-};
-
-PlayerT& player;
-</pre>
-
-Similar to arrays, when you use the name of a structure variable, the compiler implicitly creates a reference to the variable and uses that. So when you use a structure variable, it's like using a reference-to-structure value:
+Similar to arrays, when you specify a structure variable, what you get is a reference to the structure variable:
 
 ```
 #library "reftest"
@@ -1082,12 +1071,11 @@ struct NumberT {
    int value;
 };
 
-// A reference can only accept private variables.
+// Only references to private variables can be assigned to reference variables
+// and passed around to functions.
 private NumberT someNumber = { 123 };
 
 script "Main" open {
-   // When using the `someNumber` variable, you will implicitly get a reference
-   // value that refers to `someNumber`.
    NumberT& number = someNumber;
    Print( d: number.value ); // Output: 123
    ChangeNumber( number );
@@ -1102,13 +1090,10 @@ void ChangeNumber( NumberT& number ) {
 <h4>Function references</h4>
  
 <pre>
-<i>return-type</i> function( <i>parameters</i> ) <i>var</i> = <i>reference</i>  ;
-<i>return-type</i> function( <i>parameters</i> ) <i>qualifiers</i> <i>var</i> = <i>reference</i> ;
+<i>return-type</i> function( [<i>parameters</i>] ) [<i>qualifiers</i>] <i>var</i> = <i>reference</i> ;
 </pre>
 
-A variable of reference-to-function type looks like a header of a function, but the name is moved all the way to the right and the  
-
-Unlike arrays and structure references, you can share function references between libraries.
+Similar to arrays and structure variables, when you specify a function, what you get is a reference to the function:
 
 ```
 #library "reftest"
@@ -1126,7 +1111,7 @@ script "Main" open {
 
 <h4>Nullable references</h4>
 
-The _null reference_ is an invalid reference. A <em>nullable reference</em> is a reference that can also be the null reference. Nullable references can only be assigned to nullable reference variables. A nullable reference type is marked with a question mark:
+The _null reference_ is an invalid reference. A <em>nullable reference</em> is a reference that can either be a valid reference or the null reference. Nullable references can only be assigned to variables of nullable reference type. A nullable reference type is marked with a question mark:
 
 ```
 script "Main" open {
@@ -1149,7 +1134,7 @@ script "Main" open {
 
 <h5>From nullable to non-nullable</h5>
 
-A nullable reference cannot be assigned to a non-nullable reference variable. The `!!` operator confirms that a nullable reference is not the null reference by performing the above null check:
+A nullable reference cannot be assigned to a non-nullable reference variable. The `!!` operator confirms that a nullable reference is not the null reference by performing the above null check and returns the nullable reference as a non-nullable reference:
 
 ```
 script "Main" open {
@@ -1169,19 +1154,35 @@ When assigning a value to a variable, the type of the value must match the type 
 
 The primitive types are: `int`, `fixed`, `bool`, and `str`.
 
-<h4>Raw type</h4>
+<h4><code>raw</code> type</h4>
 
 To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves like the `int` type, but has the following additional characteristics:
 
-* A value of `raw` type can be assigned to a variable of primitive type, and a variable of `raw` type can accept any value of primitive type.
-* When mixing a `raw` operand with a primitive operand, the primitive operand is implicitly casted to `raw`.
-* A value of primitive type gets implicitly casted to `raw`. In a namespace block, no such implicit casting occurs.
+* A value of `raw` type can be assigned to a variable of any primitive type, and a variable of `raw` type can accept a value of any primitive type.
+* In binary operations, when one operand is of `raw` type and the other is of primitive type, the operand of primitive type is implicitly casted to the `raw` type.
 
-<h4>Conversions and Casts</h4>
+Outside a namespace block, a value of primitive type gets implicitly casted to the `raw` type. In a namespace block, no such implicit casting occurs.
+
+<h4>Casting</h4>
+
+You can force the compiler to treat a value of one type as a value of another type:
+
+```
+namespace upmost {
+
+script "Main" open {
+   Print( d: ( int ) "abc" );
+   Print( s: ( str ) 0 );
+}
+
+}
+```
+
+<h4>Conversions</h4>
 
 A value of one type can be converted to another type. A conversion looks like a function call: the type you want to convert to is the function name, and the value you want to convert is the argument.
 
-<h5>Conversion to <code>int</code></h5>
+<h5>Conversion to <code>int</code> type</h5>
 
 <table>
   <tr>
@@ -1206,7 +1207,7 @@ A value of one type can be converted to another type. A conversion looks like a 
   </tr>
 </table>
 
-<h5>Conversion to <code>fixed</code></h5>
+<h5>Conversion to <code>fixed</code> type</h5>
 
 <table>
   <tr>
@@ -1231,7 +1232,7 @@ A value of one type can be converted to another type. A conversion looks like a 
   </tr>
 </table>
 
-<h5>Conversion to <code>bool</code></h5>
+<h5>Conversion to <code>bool</code> type</h5>
 
 <table>
   <tr>
@@ -1240,15 +1241,15 @@ A value of one type can be converted to another type. A conversion looks like a 
   </tr>
   <tr>
     <td>bool( int <i>value</i> )</td>
-    <td>Returns <code>false</code> if <i>value</i> is 0.0, otherwise, returns <code>true</code></td>
+    <td>Returns <code>false</code> if <i>value</i> is 0.0; otherwise, returns <code>true</code>.</td>
   </tr>
   <tr>
     <td>bool( fixed <i>value</i> )</td>
-    <td>Returns <code>false</code> if <i>value</i> is 0, otherwise, returns <code>true</code></td>
+    <td>Returns <code>false</code> if <i>value</i> is 0; otherwise, returns <code>true</code>.</td>
   </tr>
   <tr>
     <td>bool( bool <i>value</i> )</td>
-    <td>Returns <i>value</i></td>
+    <td>Returns <i>value</i>.</td>
   </tr>
   <tr>
     <td>bool( str <i>value</i> )</td>
@@ -1260,7 +1261,7 @@ A value of one type can be converted to another type. A conversion looks like a 
   </tr>
 </table>
 
-<h5>Conversion to <code>str</code></h5>
+<h5>Conversion to <code>str</code> type</h5>
 
 <table>
   <tr>
@@ -1285,93 +1286,11 @@ A value of one type can be converted to another type. A conversion looks like a 
   </tr>
 </table>
 
-Only primitive types can be used in casts.
-
 <h4>Operations</h4>
 
 In binary operations, the operands must be of the same type.
 
-<h5>Operations on <code>fixed</code> type</h5>
-
-<table>
-   <tr>
-   <th>Operation</th>
-   <th>Result<br />Type</th>
-   <th>Description</th>
-   </tr>
-   <tr>
-      <td><code><i>left</i> * <i>right</i></code></td>
-      <td><code>fixed</code></td>
-      <td>Same as: <code>FixedMul( <i>left</i>, <i>right</i> )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> / <i>right</i></code></td>
-      <td><code>fixed</code></td>
-      <td>Same as: <code>FixedDiv( <i>left</i>, <i>right</i> )</code></td>
-   </tr>
-</table>
-
-<h5>Operations on <code>str</code> type</h5>
-
-<table>
-   <tr>
-   <th>Operation</th>
-   <th>Result<br />Type</th>
-   <th>Description</th>
-   </tr>
-   <tr>
-     <td><code><i>left</i> == <i>right</i></code></td>
-     <td><code>bool</code></td>
-     <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) == 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> != <i>right</i></code></td>
-      <td><code>bool</code></td>
-      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) != 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> &lt; <i>right</i></code></td>
-      <td><code>bool</code></td>
-      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt; 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> &lt;= <i>right</i></code></td>
-      <td><code>bool</code></td>
-      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt;= 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> &gt; <i>right</i></code></td>
-      <td><code>bool</code></td>
-      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt; 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> &gt;= <i>right</i></code></td>
-      <td><code>bool</code></td>
-      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt;= 0 )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> + <i>right</i></code></td>
-      <td><code>str</code></td>
-      <td>Same as: <code>StrParam( s: <i>left</i>, s: <i>right</i> )</code></td>
-   </tr>
-   <tr>
-      <td><code><i>left</i> += <i>right</i></code></td>
-      <td><code>str</code></td>
-      <td>Same as: <code>( <i>left</i> = StrParam( s: <i>left</i>, s: <i>right</i> ) )</code></td>
-   </tr>
-   <tr>
-     <td><code><i>string</i>[ <i>index</i> ]</code></td>
-     <td><code>int</code></td>
-     <td>Same as: <code>GetChar( <i>string</i>, <i>index</i> )</code></td>
-   </tr>
-   <tr>
-     <td><code>! <i>string</i></code></td>
-     <td><code>bool</code></td>
-     <td>Same as : <code>( StrCmp( <i>string</i>, "" ) == 0 )</code></td>
-   </tr>
-</table>
-
-<h5>Operations on reference type</h5>
+<h5>Operations of <code>fixed</code> type</h5>
 
 <table>
    <tr>
@@ -1380,24 +1299,104 @@ In binary operations, the operands must be of the same type.
    <th>Description</th>
    </tr>
    <tr>
-   <td><i>left</i> == <i>right</i></td>
-   <td>bool</td>
-   <td>If the left and right operands refer to the same object, <code>true</code> is returned; <code>false</code> otherwise.</td>
+      <td><i>left</i> * <i>right</i></td>
+      <td>fixed</td>
+      <td>Same as: <code>FixedMul( <i>left</i>, <i>right</i> )</code></td>
    </tr>
    <tr>
-   <td><i>left</i> != <i>right</i></td>
-   <td>bool</td>
-   <td>If the left and right operands refer to a different object, <code>true</code> is returned; <code>false</code> otherwise.</td>
+      <td><i>left</i> / <i>right</i></td>
+      <td>fixed</td>
+      <td>Same as: <code>FixedDiv( <i>left</i>, <i>right</i> )</code></td>
+   </tr>
+</table>
+
+<h5>Operations of <code>str</code> type</h5>
+
+<table>
+   <tr>
+   <th>Operation</th>
+   <th>Result Type</th>
+   <th>Description</th>
+   </tr>
+   <tr>
+     <td><i>left</i> == <i>right</i></td>
+     <td>bool</td>
+     <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) == 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> != <i>right</i></td>
+      <td>bool</td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) != 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> &lt; <i>right</i></td>
+      <td>bool</td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt; 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> &lt;= <i>right</i></td>
+      <td>bool</td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &lt;= 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> &gt; <i>right</i></td>
+      <td>bool</td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt; 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> &gt;= <i>right</i></td>
+      <td>bool</td>
+      <td>Same as: <code>( StrCmp( <i>left</i>, <i>right</i> ) &gt;= 0 )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> + <i>right</i></td>
+      <td>str</td>
+      <td>Same as: <code>StrParam( s: <i>left</i>, s: <i>right</i> )</code></td>
+   </tr>
+   <tr>
+      <td><i>left</i> += <i>right</i></td>
+      <td>str</td>
+      <td>Same as: <code>( <i>left</i> = StrParam( s: <i>left</i>, s: <i>right</i> ) )</code></td>
+   </tr>
+   <tr>
+     <td><i>string</i>[ <i>index</i> ]</td>
+     <td>int</td>
+     <td>Same as: <code>GetChar( <i>string</i>, <i>index</i> )</code></td>
+   </tr>
+   <tr>
+     <td>! <i>string</i></td>
+     <td>bool</td>
+     <td>Same as : <code>( StrCmp( <i>string</i>, "" ) == 0 )</code></td>
+   </tr>
+</table>
+
+<h5>Operations of reference type</h5>
+
+<table>
+   <tr>
+     <th>Operation</th>
+     <th>Result Type</th>
+     <th>Description</th>
+   </tr>
+   <tr>
+     <td><i>left</i>&nbsp;==&nbsp;<i>right</i></td>
+     <td>bool</td>
+     <td>Returns <code>true</code> if <i>left</i> and <i>right</i> refer to the same object; otherwise, returns <code>false</code>.</td>
+   </tr>
+   <tr>
+     <td><i>left</i> != <i>right</i></td>
+     <td>bool</td>
+     <td>Returns <code>true</code> if <i>left</i> and <i>right</i> refer to a different object; otherwise, returns <code>false</code>.</td>
    </tr>
    <tr>
       <td>! <i>operand</i></td>
       <td>bool</td>
-      <td>If the operand is the null reference, <code>true</code> is returned; <code>false</code> otherwise.</td>
+      <td>Returns <code>true</code> if <i>operand</i> is the null reference; otherwise, returns <code>false</code>.</td>
    </tr>
    <tr>
       <td><i>operand</i> !!</td>
       <td>Reference</td>
-      <td>Asserts that the operand is a valid reference. If the operand is the null reference, an error message will be printed in the console and the current script will be terminated. If the operand is not null, it is returned</td>
+      <td>See: <a href="#from-nullable-to-non-nullable">From nullable to non-nullable</a>.</td>
    </tr>
 </table>
 
@@ -1454,7 +1453,7 @@ For enumeration variables, the default initializer is the enumerator whose value
 
 <h3>Expressions</h3>
 
-The assignment operation now produces a result. The result is the value being assigned. This way, you can chain together multiple assignments or use an assignment in a condition.
+The assignment operation now produces a result. The result is the value being assigned. As a consequence, you can chain together multiple assignments or use an assignment in a condition.
 
 ```
 script "Main" open {
@@ -1472,7 +1471,7 @@ script "Main" open {
 
 --
 
-For `strcpy()`, the `a:` is optional, unless you want to use the extra arguments:
+For `strcpy()`, the `a:` is optional, unless you want to use the extra parameters:
 
 ```
 script "Main" {
@@ -1484,7 +1483,7 @@ script "Main" {
 
 <h4>Short-circuit evaluation</h4>
 
-In ACS, both of the operands to `&&` and `||` are evaluated at all times. In BCS, the right operand is only evaluated if necessary. For example, if the left operand to `&&` is false, there is no need to evaluate the right operand because the result of the operation will still be false. Similarly, if the left operand to `||` is true, there is no need to evaluate the right operand because the result of the operation will still be true. This is called short-circuit evaluation:
+In ACS, both of the operands to `&&` and `||` are evaluated at all times. In BCS, the right operand is only evaluated if necessary. For example, if the left operand to `&&` is false, there is no need to evaluate the right operand because the result of the operation will still be false. Similarly, if the left operand to `||` is true, there is no need to evaluate the right operand because the result of the operation will still be true. This is called _short-circuit evaluation_:
 
 ```
 int Zero() {
@@ -1516,6 +1515,8 @@ script "Main" open {
 }
 ```
 
+<h5>Radix constants</h5>
+
 Like ACS, BCS supports radix constants, which allow you to specify the base of the number. The base can range from 2 to 36. The valid digits are, 0 to 9, and after that, `a` to `z`. The base and the number are separated by `r` (`_` in ACS):
 
 ```
@@ -1526,6 +1527,8 @@ script "Main" open {
    Print( d: 36rZZ ); // Base-36. Output: 1295
 }
 ```
+
+<h5>Digit separator</h5>
 
 To improve readability of long numbers, an underscore can be used to separate digits into easily recognizable groups:
 
@@ -1543,7 +1546,7 @@ script "Main" open {
 <i>left</i> ? : <i>right</i>
 </pre>
 
-The `?:` operator is similar to the `if` statement. The left operand is evaluated first. If the result is true, then the middle operand is evaluated and returned; otherwise, the right operand is evaluated and returned:
+The `?:` operator is similar to the `if` statement. The left operand is evaluated first. If the result is `true`, then the middle operand is evaluated and returned; otherwise, the right operand is evaluated and returned:
 
 ```
 script "Main" open {
@@ -1552,7 +1555,7 @@ script "Main" open {
 }
 ```
 
-The middle operand can be left out. In this case, the left operand is evaluated first. If the result is true, then it is returned; otherwise, the right operand is evaluated and returned:
+The middle operand can be left out. In this case, the left operand is evaluated first. After an implicit conversion to `bool`, if the result is `true`, then the result before the implicit conversion is returned; otherwise, the right operand is evaluated and returned:
 
 ```
 script "Main" open {
@@ -1561,32 +1564,43 @@ script "Main" open {
 }
 ```
 
-<h4>Copy arrays and structures</h4>
+<h4>Copying arrays and structure variables</h4>
+
+`memcpy()` is similar in syntax and functionality to [`strcpy()`](http://zdoom.org/wiki/StrCpy), but instead of copying strings, `memcpy()` copies arrays and structure variables.
+
+<h5>Copying arrays</h5>
 
 <pre>
 bool memcpy ( a: ( <i>destination</i> [, int <i>offset</i> [, int <i>elementsToCopy</i>]] ) , <i>source</i> [, int <i>sourceOffset</i>] )
-bool memcpy ( <i>destination</i> , <i>source</i> ) // For structures.
 </pre>
-
-`memcpy()` is similar in syntax and functionality to [`strcpy()`](http://zdoom.org/wiki/StrCpy), but instead of copying strings, `memcpy()` copies arrays and structures:
 
 ```
 int arrayA[] = { 1, 2, 3 };
 int arrayB[] = { 4, 5, 6 };
 
-script "CopyArrays" open {
+script "Main" open {
    memcpy( arrayA, arrayB );
-   // `arrayA` will now be the same as `arrayB`.
+   // The elements of `arrayA` will now have the same value as the elements of
+   // the `arrayB` array.
    Print( d: arrayA[ 1 ] ); // Output: 5
 }
+```
 
+<h5>Copying structure variables</h5>
+
+<pre>
+bool memcpy ( <i>destination</i> , <i>source</i> )
+</pre>
+
+```
 struct {
    int value;
 } structA = { 123 }, structB = { 321 };
 
-script "CopyStructs" open {
+script "Main" open {
    memcpy( structA, structB );
-   // `structA` will now be the same as `structB`.
+   // The members of the `structA` structure variable will now have the same
+   // value as the members of `structB`.
    Print( d: structA.value ); // Output: 321
 }
 ```
@@ -1599,16 +1613,158 @@ script "CopyStructs" open {
 
 <h4>Keywords</h4>
 
-New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the goto statement.
+New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the [goto statement](#goto).
 
 The following are keywords in ACS, but they are not keywords in BCS: `acs_executewait`, `acs_namedexecutewait`, `bluereturn`, `clientside`, `death`, `define`, `disconnect`, `encryptstrings`, `endregion`, `enter`, `event`, `hudmessage`, `hudmessagebold`, `import`, `include`, `kill`, `libdefine`, `library`, `lightning`, `log`, `net`, `nocompact`, `nowadauthor`, `open`, `pickup`, `redreturn`, `region`, `reopen`, `respawn`, `strparam`, `unloading`, `wadauthor`, and `whitereturn`. These identifiers can be used as names for your functions and variables.
 
---
-
-It is not necessary to `#include "zcommon.acs"` in order to use the boolean literals. The boolean literals `true` and `false` are now keywords. `true` is the value 1, and `false` is the value 0.
-
 <h2>bcc (Compiler)</h2>
 
-<h3>Command-line Options</h3>
+<h3>Usage</h3>
 
-<h3>Cache</h3>
+<pre>
+./bcc [<i>options</i>] <i>source-file</i> [<i>object-file</i>]
+</pre>
+
+<h4>Options</h4>
+
+<table>
+  <tr>
+    <th>Option</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>-acc-err-file</td>
+    <td>On error, create an error file like one created by the acc compiler.</td>
+  </tr>
+  <tr>
+    <td>-acc-stats</td>
+    <td>Show compilation statistics like those shown by the acc compiler.</td>
+  </tr>
+  <tr>
+    <td>-h</td>
+    <td>Show help information.</td>
+  </tr>
+  <tr>
+    <td>-i <i>directory</i></td>
+    <td rowspan="2">Add a directory to search in for files.</td>
+  </tr>
+  <tr>
+    <td>-I <i>directory</i></td>
+  </tr>
+  <tr>
+    <td>-one-column</td>
+    <td>Start column position at 1. Default is 0.</td>
+  </tr>
+  <tr>
+    <td>-tab-size&nbsp;<i>size</i></code></td>
+    <td>Specify the width of the tab character.</td>
+  </tr>
+  <tr>
+    <td>-no-assert</td>
+    <td>Do not include asserts in object file. (Asserts will not be executed at run-time.)</td>
+  </tr>
+  <tr>
+    <td>-E</td>
+    <td>Do preprocessing only.</td>
+  </tr>
+  <tr>
+    <td>-D <i>name</i></td>
+    <td>Create a macro with the specified name. The macro will be defined as <code>1</code>. The macro will only be available during the preprocessing of the main library.</td>
+  </tr>
+  <tr>
+    <td>-x <i>language</i></td>
+    <td>Specify the language of the source file. The language must be one of the following:
+      <ul>
+        <li><b>acs</b> (ACS as defined by the latest version of <a href="https://github.com/rheit/acc">acc</a>)</li>
+        <li><b>acs95</b> (ACS as originally defined for Hexen)</li>
+        <li><b>bcs</b> (See <a href="#bcs">BCS</a>)</li>
+      </ul>
+      If a language is not explicitly specified, the compiler will determine the language based on the file extension of the source file. If the file extension is <code>.bcs</code>, the language will be <b>bcs</b>; otherwise, <b>acs</b>.
+    </td>
+  </tr>
+  <tr>
+    <td>-l <i>library</i></td>
+    <td>Create a link to the specified library. This is the same as: <code>#linklibrary "<i>library</i>"</code></td>
+  </tr>
+</table>
+
+<h4>Cache options</h4>
+
+<table>
+  <tr>
+    <th>Option</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>-cache</td>
+    <td>Enable caching of libraries. Only imported libraries are cached.</td>
+  </tr>
+  <tr>
+    <td>-cache-dir <i>directory</i></td>
+    <td>Store cache-related files in the specified directory. If one is not specified, a system-default temporary directory will be used.</td>
+  </tr>
+  <tr>
+    <td>-cache-lifetime<br />&nbsp;&nbsp;&nbsp;<i>duration</i></td>
+    <td>Keep a library cached for the specified duration. The duration is measured in hours.</td>
+  </tr>
+  <tr>
+    <td>-cache-print</td>
+    <td>Show the contents of the cache.</td>
+  </tr>
+  <tr>
+    <td>-cache-clear</td>
+    <td>Delete all cached library files.</td>
+  </tr>
+</table>
+
+<h2>Credits</h2>
+
+The following people have contributed to the __bcc__ project. The names are listed in alphabetical order. If I missed you, if you want me to use your personal name, or if a correction is needed, please let me know.
+
+<table>
+  <tr>
+    <th>Name</th>
+    <th>Contributions</th>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/caiosm1005">caiosm1005</a></td>
+    <td>
+      <ul>
+        <li>Contributed code that checks for integer overflow in numeric literals</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/Hypnotoad90">Hypnotoad</a></td>
+    <td>
+      <ul>
+        <li>Came up with the name, "bcc"</li>
+        <li>For the upmost namespace, came up with the name, "upmost"</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/MazterQyou">MazterQyou</a></td>
+    <td>
+      <ul>
+        <li>Fixed compilation on certain operating systems</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/Monsterovich">Monsterovich</a></td>
+    <td>
+      <ul>
+        <li>Compiled and provided binaries to others</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/wormt">Positron</a></td>
+    <td>
+      <ul>
+        <li>Primary developer</li>
+      </ul>
+    </td>
+  </tr>
+</table>
