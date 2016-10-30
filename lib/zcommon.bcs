@@ -1548,6 +1548,8 @@ special
 -201:DamageActor(int,int,int,int,int,str):int,
 -202:SetActorFlag(int,str,bool):int,
 -203:SetTranslation(int,str):void,
+-300:GetLineX(int,fixed,fixed):fixed,
+-301:GetLineY(int,fixed,fixed):fixed,
 -19620:GetTeamScore(int):int,
 -19621:SetTeamScore(int,int):void,
 
