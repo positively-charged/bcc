@@ -138,7 +138,7 @@ static struct pcode pcode_info[] = {
    { PCD_PLAYERGOLDSKULL, 0, "" },
    { PCD_PLAYERBLACKCARD, 0, "" },
    { PCD_PLAYERSILVERCARD, 0, "" },
-   { PCD_ISMULTIPLAYER, 0, "" },
+   { PCD_ISNETWORKGAME, 0, "" },
    { PCD_PLAYERTEAM, 0, "" },
    { PCD_PLAYERHEALTH, 0, "" },
    { PCD_PLAYERARMORPOINTS, 0, "" },
