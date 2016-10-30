@@ -24,7 +24,7 @@ static bool array_var( struct var* var );
 static bool scalar_var( struct var* var );
 static void assign_indexes( struct codegen* codegen );
 static void create_assert_strings( struct codegen* codegen );
-static void append_all_strings( struct codegen* codegen );
+static void append_acs_strings( struct codegen* codegen );
 
 void c_init( struct codegen* codegen, struct task* task ) {
    codegen->task = task;
@@ -128,7 +128,7 @@ void publish_acs95( struct codegen* codegen ) {
 void publish( struct codegen* codegen ) {
    switch ( codegen->lang ) {
    case LANG_ACS:
-      append_all_strings( codegen );
+      append_acs_strings( codegen );
       break;
    default:
       // Reserve index 0 for the empty string.
@@ -463,7 +463,7 @@ void patch_value( struct codegen* codegen, struct value* value ) {
       value->expr->value = impl->index;
    }
    else {
-      if ( value->expr->has_str ) {
+      if ( value->expr->has_str && value->type != VALUE_STRINGINITZ ) {
          struct indexed_string* string = t_lookup_string( codegen->task,
             value->expr->value );
          // In ACS, one can add strings to numbers, so an invalid string index
@@ -640,10 +640,12 @@ void c_append_string( struct codegen* codegen,
    }
 }
 
-void append_all_strings( struct codegen* codegen ) {
+void append_acs_strings( struct codegen* codegen ) {
    struct indexed_string* string = codegen->task->str_table.head;
    while ( string ) {
-      c_append_string( codegen, string );
+      if ( string->in_source_code ) {
+         c_append_string( codegen, string );
+      }
       string = string->next;
    }
 }

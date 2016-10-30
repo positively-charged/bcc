@@ -942,6 +942,7 @@ struct indexed_string {
    int index;
    int index_runtime;
    bool used;
+   bool in_source_code;
 };
 
 struct indexed_string_usage {

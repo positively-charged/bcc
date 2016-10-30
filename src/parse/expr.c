@@ -685,6 +685,7 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    else {
       struct indexed_string* string = t_intern_string( parse->task,
          parse->tk_text, parse->tk_length );
+      string->in_source_code = true;
       struct indexed_string_usage* usage = mem_slot_alloc( sizeof( *usage ) );
       usage->node.type = NODE_INDEXED_STRING_USAGE;
       usage->string = string;

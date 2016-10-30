@@ -1246,7 +1246,7 @@ bool test_value( struct semantic* semantic, struct initz_test* test,
       }
       return true;
    }
-   else if ( s_is_onedim_int_array( type ) ) {
+   else if ( semantic->lang == LANG_BCS && s_is_onedim_int_array( type ) ) {
       return test_string_initz( semantic, type->dim, value );
    }
    else {
@@ -1336,7 +1336,8 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
    if ( expr.undef_erred ) {
       return false;
    }
-   if ( ! s_is_str_value_type( &type ) ) {
+   if ( ! ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ||
+      s_is_str_value_type( &type ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "missing brace initializer" );
       s_bail( semantic );
@@ -2107,6 +2108,11 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
             "function missing return statement at end of body" );
          s_bail( semantic );
       }
+   }
+   // If `auto` is still the specifier, it means no return statements were
+   // encountered. The return type is then `void`.
+   if ( func->return_spec == SPEC_AUTO ) {
+      func->return_spec = SPEC_VOID;
    }
 }
 

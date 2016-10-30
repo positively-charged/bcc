@@ -688,6 +688,7 @@ struct indexed_string* intern_string( struct task* task,
    string->left = NULL;
    string->right = NULL;
    string->used = false;
+   string->in_source_code = false;
    if ( table->head ) {
       table->tail->next = string;
    }

@@ -2549,7 +2549,7 @@ void select_func( struct semantic* semantic, struct result* result,
       result->folded = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
-      if ( ! impl->nested ) {
+      if ( ! impl->nested || func->msgbuild ) {
          result->complete = true;
       }
    }
@@ -2717,7 +2717,7 @@ bool is_onedim_intelem_array_ref( struct semantic* semantic,
    struct result* result ) {
    bool onedim_array = ( result->dim && ! result->dim->next ) ||
       ( result->ref_dim == 1 );
-   bool int_elem = ( result->spec == s_spec( semantic, SPEC_INT ) );
+   bool int_elem = ( result->spec == SPEC_INT );
    return ( onedim_array && int_elem );
 }
 
