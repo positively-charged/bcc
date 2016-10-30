@@ -534,15 +534,22 @@ struct block {
    struct pos pos;
 };
 
+struct cond {
+   union {
+      struct node* node;
+      struct expr* expr;
+      struct var* var;
+   } u;
+};
+
+struct heavy_cond {
+   struct expr* expr;
+   struct var* var;
+};
+
 struct if_stmt {
    struct node node;
-   struct cond {
-      union {
-         struct node* node;
-         struct expr* expr;
-         struct var* var;
-      } u;
-   } cond;
+   struct heavy_cond cond;
    struct node* body;
    struct node* else_body;
 };
@@ -558,7 +565,7 @@ struct case_label {
 
 struct switch_stmt {
    struct node node;
-   struct cond cond;
+   struct heavy_cond cond;
    // Cases are sorted by their value, in ascending order. Default case not
    // included in this list.
    struct case_label* case_head;

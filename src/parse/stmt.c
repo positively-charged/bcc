@@ -17,6 +17,8 @@ static void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block );
 static void read_if( struct parse* parse, struct stmt_reading* );
 static void read_cond( struct parse* parse, struct cond* cond );
+static void init_heavy_cond( struct heavy_cond* cond );
+static void read_heavy_cond( struct parse* parse, struct heavy_cond* cond );
 static void init_cond( struct cond* cond );
 static void read_switch( struct parse* parse, struct stmt_reading* );
 static struct switch_stmt* alloc_switch_stmt( void );
@@ -301,9 +303,10 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct if_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_IF;
+   init_heavy_cond( &stmt->cond );
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   read_cond( parse, &stmt->cond );
+   read_heavy_cond( parse, &stmt->cond );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    // Warn when the body of an `if` statement is empty. It is assumed that a
@@ -327,6 +330,10 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
+void init_cond( struct cond* cond ) {
+   cond->u.node = NULL;
+}
+
 void read_cond( struct parse* parse, struct cond* cond ) {
    if ( parse->lang == LANG_BCS && p_is_local_dec( parse ) ) {
       cond->u.var = p_read_cond_var( parse );
@@ -339,8 +346,29 @@ void read_cond( struct parse* parse, struct cond* cond ) {
    }
 }
 
-void init_cond( struct cond* cond ) {
-   cond->u.node = NULL;
+void init_heavy_cond( struct heavy_cond* cond ) {
+   cond->var = NULL;
+   cond->expr = NULL;
+}
+
+void read_heavy_cond( struct parse* parse, struct heavy_cond* cond ) {
+   bool read_expr = false;
+   if ( parse->lang == LANG_BCS && p_is_local_dec( parse ) ) {
+      cond->var = p_read_cond_var( parse );
+      if ( parse->tk == TK_SEMICOLON ) {
+         p_read_tk( parse );
+         read_expr = true;
+      }
+   }
+   else {
+      read_expr = true;
+   }
+   if ( read_expr ) {
+      struct expr_reading expr;
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      cond->expr = expr.output_node;
+   }
 }
 
 void read_switch( struct parse* parse, struct stmt_reading* reading ) {
@@ -348,7 +376,7 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    struct switch_stmt* stmt = alloc_switch_stmt();
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   read_cond( parse, &stmt->cond );
+   read_heavy_cond( parse, &stmt->cond );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    read_implicit_block( parse, reading );
@@ -359,7 +387,7 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
 struct switch_stmt* alloc_switch_stmt( void ) {
    struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SWITCH;
-   init_cond( &stmt->cond );
+   init_heavy_cond( &stmt->cond );
    stmt->case_head = NULL;
    stmt->case_default = NULL;
    stmt->jump_break = NULL;

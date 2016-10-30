@@ -16,6 +16,8 @@ static void test_stmt( struct semantic* semantic, struct stmt_test* test,
 static void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt );
 static void test_cond( struct semantic* semantic, struct cond* cond );
+static void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
+   struct heavy_cond* cond );
 static void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt );
 static void test_switch_cond( struct semantic* semantic,
@@ -303,7 +305,7 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
 void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt ) {
    s_add_scope( semantic, false );
-   test_cond( semantic, &stmt->cond );
+   test_heavy_cond( semantic, test, &stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
    test_stmt( semantic, &body, stmt->body );
@@ -312,6 +314,41 @@ void test_if( struct semantic* semantic, struct stmt_test* test,
       test_stmt( semantic, &body, stmt->else_body );
    }
    s_pop_scope( semantic );
+}
+
+void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
+   struct heavy_cond* cond ) {
+   if ( cond->var ) {
+      s_test_local_var( semantic, cond->var );
+      if ( test->switch_stmt ) {
+         s_init_type_info( &test->cond_type, cond->var->ref,
+            cond->var->structure, cond->var->enumeration, cond->var->dim,
+            cond->var->spec, cond->var->storage );
+         s_decay( semantic, &test->cond_type );
+      }
+      if ( ! cond->var->force_local_scope ) {
+         s_diag( semantic, DIAG_POS_ERR, &cond->var->object.pos,
+            "non-local condition variable (to make the variable local, add "
+            "the `let` keyword before the variable type)" );
+         s_bail( semantic );
+      }
+   }
+   if ( cond->expr ) {
+      if ( test->switch_stmt ) {
+         struct expr_test expr;
+         s_init_expr_test( &expr, true, true );
+         s_test_expr_type( semantic, &expr, &test->cond_type, cond->expr );
+      }
+      else {
+         s_test_bool_expr( semantic, cond->expr );
+      }
+      // For now, force the user to use the condition variable.
+      if ( cond->var && ! cond->var->used ) {
+         s_diag( semantic, DIAG_POS_ERR, &cond->var->object.pos,
+            "condition variable not used in expression part of condition" );
+         s_bail( semantic );
+      }
+   }
 }
 
 void test_cond( struct semantic* semantic, struct cond* cond ) {
@@ -343,23 +380,11 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
 
 void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
-   if ( stmt->cond.u.node->type == NODE_VAR ) {
-      s_test_local_var( semantic, stmt->cond.u.var );
-      s_init_type_info( &test->cond_type, stmt->cond.u.var->ref,
-         stmt->cond.u.var->structure, stmt->cond.u.var->enumeration,
-         stmt->cond.u.var->dim, stmt->cond.u.var->spec,
-         stmt->cond.u.var->storage );
-      s_decay( semantic, &test->cond_type );
-   }
-   else {
-      struct expr_test expr;
-      s_init_expr_test( &expr, true, true );
-      s_test_expr_type( semantic, &expr, &test->cond_type, stmt->cond.u.expr );
-   }
+   test_heavy_cond( semantic, test, &stmt->cond );
    // Only condition of a primitive type is supported.
    if ( ! s_is_primitive_type( &test->cond_type ) ) {
-      s_diag( semantic, DIAG_POS_ERR, stmt->cond.u.node->type == NODE_VAR ?
-         &stmt->cond.u.var->object.pos : &stmt->cond.u.expr->pos,
+      s_diag( semantic, DIAG_POS_ERR, stmt->cond.expr ?
+         &stmt->cond.expr->pos : &stmt->cond.var->object.pos,
          "condition of switch statement not of primitive type" );
       s_bail( semantic );
    }

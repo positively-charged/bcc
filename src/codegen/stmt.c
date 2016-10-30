@@ -11,7 +11,7 @@ static void write_assert( struct codegen* codegen, struct assert* assert );
 static void write_runtime_assert( struct codegen* codegen,
    struct assert* assert );
 static void visit_if( struct codegen* codegen, struct if_stmt* );
-static void push_cond( struct codegen* codegen, struct cond* cond );
+static void push_if_cond( struct codegen* codegen, struct heavy_cond* cond );
 static void visit_switch( struct codegen* codegen, struct switch_stmt* );
 static void write_switch_casegoto( struct codegen* codegen,
    struct switch_stmt* stmt );
@@ -24,6 +24,7 @@ static void write_string_switch( struct codegen* codegen,
 static void visit_case( struct codegen* codegen, struct case_label* );
 static void visit_while( struct codegen* codegen, struct while_stmt* );
 static void write_while( struct codegen* codegen, struct while_stmt* stmt );
+static void push_cond( struct codegen* codegen, struct cond* cond );
 static void write_folded_while( struct codegen* codegen,
    struct while_stmt* stmt );
 static bool while_stmt( struct while_stmt* stmt );
@@ -221,7 +222,7 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
-   push_cond( codegen, &stmt->cond );
+   push_if_cond( codegen, &stmt->cond );
    struct c_jump* else_jump = c_create_jump( codegen, PCD_IFNOTGOTO );
    struct c_jump* exit_jump = else_jump;
    c_append_node( codegen, &else_jump->node );
@@ -240,13 +241,18 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void push_cond( struct codegen* codegen, struct cond* cond ) {
-   if ( cond->u.node->type == NODE_VAR ) {
-      c_visit_var( codegen, cond->u.var );
-      c_push_bool_cond_var( codegen, cond->u.var );
+void push_if_cond( struct codegen* codegen, struct heavy_cond* cond ) {
+   if ( cond->var ) {
+      c_visit_var( codegen, cond->var );
+      if ( cond->expr ) {
+         c_push_bool_expr( codegen, cond->expr );
+      }
+      else {
+         c_push_bool_cond_var( codegen, cond->var );
+      }
    }
    else {
-      c_push_bool_expr( codegen, cond->u.expr );
+      c_push_bool_expr( codegen, cond->expr );
    }
 }
 
@@ -272,7 +278,7 @@ void write_switch_casegoto( struct codegen* codegen,
    struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Condition.
-   c_push_expr( codegen, stmt->cond.u.expr );
+   c_push_expr( codegen, stmt->cond.expr );
    // Case selection.
    bool zero_value_case = false;
    struct case_label* label = stmt->case_head;
@@ -312,9 +318,9 @@ void write_switch_casegoto( struct codegen* codegen,
 }
 
 inline bool string_switch( struct switch_stmt* stmt ) {
-   return ( stmt->cond.u.node->type == NODE_VAR ?
-      stmt->cond.u.var->spec == SPEC_STR :
-      stmt->cond.u.expr->spec == SPEC_STR );
+   return ( stmt->cond.expr ?
+      stmt->cond.expr->spec == SPEC_STR :
+      stmt->cond.var->spec == SPEC_STR );
 }
 
 void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
@@ -351,12 +357,17 @@ void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
 }
 
 void write_switch_cond( struct codegen* codegen, struct switch_stmt* stmt ) {
-   if ( stmt->cond.u.node->type == NODE_VAR ) {
-      c_visit_var( codegen, stmt->cond.u.var );
-      c_pcd( codegen, PCD_PUSHSCRIPTVAR, stmt->cond.u.var->index );
+   if ( stmt->cond.var ) {
+      c_visit_var( codegen, stmt->cond.var );
+      if ( stmt->cond.expr ) {
+         c_push_expr( codegen, stmt->cond.expr );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHSCRIPTVAR, stmt->cond.var->index );
+      }
    }
    else {
-      c_push_expr( codegen, stmt->cond.u.expr );
+      c_push_expr( codegen, stmt->cond.expr );
    }
 }
 
@@ -462,6 +473,16 @@ void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
    set_jumps_point( codegen, stmt->jump_break, exit_point );
    set_jumps_point( codegen, stmt->jump_continue, cond_point );
    pop_local_record( codegen );
+}
+
+void push_cond( struct codegen* codegen, struct cond* cond ) {
+   if ( cond->u.node->type == NODE_VAR ) {
+      c_visit_var( codegen, cond->u.var );
+      c_push_bool_cond_var( codegen, cond->u.var );
+   }
+   else {
+      c_push_bool_expr( codegen, cond->u.expr );
+   }
 }
 
 void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
