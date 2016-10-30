@@ -380,19 +380,6 @@ int letters[] = "abc"; // Same as: int letters[] = { 'a', 'b', 'c', '\0' };
 
 --
 
-For the `if`, `switch`, `while`, `until`, and `for` statements, you can declare and use a variable as the condition at the same time. The variable is first initialized, and the value of the variable is then used as the condition:
-
-```
-script "Main" open {
-   // This if-statement will only be executed if `value` is nonzero.
-   if ( let int value = Random( 0, 5 ) ) {
-      Print( d: value );
-   }
-}
-```
-
---
-
 World and global variables can be declared inside a script (or a function). It is the same thing as declaring the variable outside the script, except that the name of the variable will not be visible to code outside the script.
 
 ```
@@ -910,6 +897,28 @@ void Welcome( int borderLength ) {
 ```
 
 <h3>Statements</h3>
+
+For the `if`, `switch`, `while`, `until`, and `for` statements, you can declare and use a variable as the condition at the same time. The variable is first initialized, and the value of the variable is then used as the condition:
+
+```
+script "Main" open {
+   // This if-statement will only be executed if `value` is nonzero.
+   if ( let int value = Random( 0, 5 ) ) {
+      Print( d: value );
+   }
+}
+```
+
+For the `if` and `switch` statements, the variable can be followed by an expression. The variable must be used in the expression, and the expression becomes the condition:
+
+```
+script "Main" open {
+   // This if-statement will only be executed if `value` is greater than 3.
+   if ( let int value = Random( 0, 5 ); value > 3 ) {
+      Print( d: value );
+   }
+}
+```
 
 <h4><code>foreach</code></h4>
 
