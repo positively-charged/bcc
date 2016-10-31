@@ -1642,7 +1642,7 @@ While the following identifiers still retain their usage, they can now also be u
     <th>Description</th>
   </tr>
   <tr>
-    <td>-acc-err-file</td>
+    <td>-acc-err</td>
     <td>On error, create an error file like one created by the acc compiler.</td>
   </tr>
   <tr>
@@ -1669,7 +1669,7 @@ While the following identifiers still retain their usage, they can now also be u
     <td>Specify the width of the tab character.</td>
   </tr>
   <tr>
-    <td>-no-assert</td>
+    <td>-strip-asserts</td>
     <td>Do not include asserts in object file. (Asserts will not be executed at run-time.)</td>
   </tr>
   <tr>

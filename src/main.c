@@ -185,7 +185,9 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "one-column" ) == 0 ) {
          options->one_column = true;
       }
-      else if ( strcmp( option, "acc-err-file" ) == 0 ) {
+      else if ( strcmp( option, "acc-err" ) == 0 ||
+         // Deprecated name:
+         strcmp( option, "acc-err-file" ) == 0 ) {
          options->acc_err = true;
       }
       else if ( strcmp( option, "acc-stats" ) == 0 ) {
@@ -225,7 +227,7 @@ bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "E" ) == 0 ) {
          options->preprocess = true;
       }
-      else if ( strcmp( option, "no-assert" ) == 0 ) {
+      else if ( strcmp( option, "strip-asserts" ) == 0 ) {
          options->write_asserts = false;
       }
       else if ( strcmp( option, "D" ) == 0 ) {
@@ -319,7 +321,7 @@ void print_usage( char* path ) {
    printf(
       "Usage: %s [options] <source-file> [object-file]\n"
       "Options: \n"
-      "  -acc-err-file        On error, create an error file like one\n"
+      "  -acc-err             On error, create an error file like one\n"
       "                       created by the acc compiler\n"
       "  -acc-stats           Show compilation statistics like those shown\n"
       "                       by the acc compiler\n"
@@ -327,8 +329,8 @@ void print_usage( char* path ) {
       "  -i <directory>       Add a directory to search in for files\n"
       "  -I <directory>       Same as -i\n"
       "  -one-column          Start column position at 1. Default is 0\n"
-      "  -tab-size <size>     Select the size of the tab character\n"
-      "  -no-assert           Do not include asserts in object file\n"
+      "  -tab-size <size>     Specify the width of the tab character\n"
+      "  -strip-asserts       Do not include asserts in object file\n"
       "                       (asserts will not be executed at run-time)\n"
       "  -E                   Do preprocessing only\n"
       "  -D <name>            Create a macro with the specified name. The\n"
