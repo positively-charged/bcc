@@ -1121,6 +1121,9 @@ struct library_link {
    bool needed;
 };
 
+enum { MAX_WORLD_VARS = 256 };
+enum { MAX_GLOBAL_VARS = 64 };
+
 struct lang_limits {
    int max_world_vars;
    int max_global_vars;

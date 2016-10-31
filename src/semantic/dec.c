@@ -155,6 +155,7 @@ static const char* get_enum_default_initz_text(
 static void confirm_dim_length( struct semantic* semantic, struct var* var );
 static bool test_var_finish( struct semantic* semantic, struct var* var );
 static bool test_external_var( struct semantic* semantic, struct var* var );
+static void test_worldglobal_var( struct semantic* semantic, struct var* var );
 static void describe_var( struct var* var );
 static bool is_auto_var( struct var* var );
 static void test_auto_var( struct semantic* semantic, struct var* var );
@@ -1577,6 +1578,9 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
          "non-map variable declared private" );
       s_bail( semantic );
    }
+   if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
+      test_worldglobal_var( semantic, var );
+   }
    return true;
 }
 
@@ -1628,6 +1632,64 @@ bool test_external_var( struct semantic* semantic, struct var* var ) {
       s_bail( semantic );
    }
    return true;
+}
+
+void test_worldglobal_var( struct semantic* semantic, struct var* var ) {
+   // Global/world declarations must be consistent.
+   struct var* prev_var = NULL;
+   if ( var->storage == STORAGE_WORLD ) {
+      if ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) {
+         if ( semantic->world_arrays[ var->index ] ) {
+            prev_var = semantic->world_arrays[ var->index ];
+         }
+         else {
+            semantic->world_arrays[ var->index ] = var;
+         }
+      }
+      else {
+         if ( semantic->world_vars[ var->index ] ) {
+            prev_var = semantic->world_vars[ var->index ];
+         }
+         else {
+            semantic->world_vars[ var->index ] = var;
+         }
+      }
+   }
+   else {
+      if ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) {
+         if ( semantic->global_arrays[ var->index ] ) {
+            prev_var = semantic->global_arrays[ var->index ];
+         }
+         else {
+            semantic->global_arrays[ var->index ] = var;
+         }
+      }
+      else {
+         if ( semantic->global_vars[ var->index ] ) {
+            prev_var = semantic->global_vars[ var->index ];
+         }
+         else {
+            semantic->global_vars[ var->index ] = var;
+         }
+      }
+   }
+   if ( prev_var ) {
+      struct type_info type;
+      s_init_type_info( &type, var->ref, var->structure, var->enumeration,
+         var->dim, var->spec, var->storage );
+      struct type_info prev_type;
+      s_init_type_info( &prev_type, prev_var->ref, prev_var->structure,
+         prev_var->enumeration, prev_var->dim, prev_var->spec,
+         prev_var->storage );
+      if ( ! s_same_type( &type, &prev_type ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+            "%s variable declaration different from previous declaration",
+            t_get_storage_name( var->storage ) );
+         s_diag( semantic, DIAG_POS, &prev_var->object.pos,
+            "previous declaration found here" );
+         s_bail( semantic );
+      }
+   }
 }
 
 void describe_var( struct var* var ) {

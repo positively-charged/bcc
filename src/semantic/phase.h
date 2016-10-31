@@ -104,6 +104,10 @@ struct semantic {
    struct func_test* topfunc_test;
    struct func_test* func_test;
    const struct lang_limits* lang_limits;
+   struct var* world_vars[ MAX_WORLD_VARS ];
+   struct var* world_arrays[ MAX_WORLD_VARS ];
+   struct var* global_vars[ MAX_GLOBAL_VARS ];
+   struct var* global_arrays[ MAX_GLOBAL_VARS ];
    struct type_info type_int;
    int depth;
    int lang;

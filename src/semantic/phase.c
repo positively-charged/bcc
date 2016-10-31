@@ -25,6 +25,7 @@ struct ns_link_retriever {
    struct ns_link* link;
 };
 
+static void init_worldglobal_vars( struct semantic* semantic );
 static void test_acs( struct semantic* semantic );
 static void test_module_acs( struct semantic* semantic, struct library* lib );
 static void test_module_item_acs( struct semantic* semantic,
@@ -108,6 +109,7 @@ void s_init( struct semantic* semantic, struct task* task ) {
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
    semantic->lang_limits = t_get_lang_limits( semantic->lib->lang );
+   init_worldglobal_vars( semantic );
    s_init_type_info_scalar( &semantic->type_int, SPEC_INT );
    semantic->depth = 0;
    semantic->retest_nss = false;
@@ -116,6 +118,17 @@ void s_init( struct semantic* semantic, struct task* task ) {
    semantic->in_localscope = false;
    semantic->strong_type = false;
    semantic->lang = semantic->lib->lang;
+}
+
+void init_worldglobal_vars( struct semantic* semantic ) {
+   for ( int i = 0; i < ARRAY_SIZE( semantic->world_vars ); ++i ) {
+      semantic->world_vars[ i ] = NULL;
+      semantic->world_arrays[ i ] = NULL;
+   }
+   for ( int i = 0; i < ARRAY_SIZE( semantic->global_vars ); ++i ) {
+      semantic->global_vars[ i ] = NULL;
+      semantic->global_arrays[ i ] = NULL;
+   }
 }
 
 int s_spec( struct semantic* semantic, int spec ) {
