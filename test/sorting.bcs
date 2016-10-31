@@ -1,45 +1,46 @@
-#include "std.acs"
+#include "zcommon.h"
 
-enum TOTAL_VALUES = 20;
-enum SORT_SIZE = 20;
-int values[ TOTAL_VALUES ];
-int values_temp[ TOTAL_VALUES ];
+namespace upmost {
+
+enum { LIST_MAX_SIZE = 20 };
 
 // Test script.
-script 1 open {
-   for ( int i = 0; i < SORT_SIZE; ++i ) {
-      values[ i ] = std::Random( 1, 9 );
+script "Main" open {
+   static int list[ LIST_MAX_SIZE ];
+   for ( int i = 0; i < list.length(); ++i ) {
+      list[ i ] = Random( 1, 9 );
    }
-   std::Print( {} ) := {
+   Print( msgbuild: {
       // Unsorted:
-      s:= "Unsorted:";
-      for ( int i = 0; i < SORT_SIZE; ++i ) {
-         s:= " ", i:= values[ i ];
+      Append( s: "Unsorted:" );
+      foreach ( auto value; list ) {
+         Append( s: " ", d: value );
       }
+      // Select sort algorithm.
+      // BSort( list );
+      // SSort( list );
+      // ISort( list );
+      MSort( list );
       // Sorted:
-      // bsort( SORT_SIZE );
-      // ssort( SORT_SIZE );
-      // isort( SORT_SIZE );
-      msort( SORT_SIZE );
-      s:= "\n";
-      s:= "Sorted:";
-      for ( int i = 0; i < SORT_SIZE; ++i ) {
-         s:= " ", i:= values[ i ];
+      Append( s: "\n" );
+      Append( s: "Sorted:" );
+      foreach ( auto value; list ) {
+         Append( s: " ", d: value );
       }
-   }
+   } );
 }
 
 // Bubble sort.
-void bsort( int size ) {
-   int left = size;
+void BSort( int[] list ) {
+   int left = list.length();
    while ( left ) {
       int i = 0;
       int k = left - 1;
       while ( i < k ) {
-         if ( values[ i ] > values[ i + 1 ] ) {
-            int temp = values[ i + 1 ];
-            values[ i + 1 ] = values[ i ];
-            values[ i ] = temp;
+         if ( list[ i ] > list[ i + 1 ] ) {
+            int temp = list[ i + 1 ];
+            list[ i + 1 ] = list[ i ];
+            list[ i ] = temp;
          }
          ++i;
       }
@@ -48,120 +49,120 @@ void bsort( int size ) {
 }
 
 // Selection sort.
-void ssort( int size ) {
+void SSort( int[] list ) {
    int sorted = 0;
-   while ( sorted < size ) {
+   while ( sorted < list.length() ) {
       int lowest = sorted;
       int i = sorted + 1;
-      while ( i < size ) {
-         if ( values[ i ] < values[ lowest ] ) {
+      while ( i < list.length() ) {
+         if ( list[ i ] < list[ lowest ] ) {
             lowest = i;
          }
          ++i;
       }
-      int temp = values[ sorted ];
-      values[ sorted ] = values[ lowest ];
-      values[ lowest ] = temp;
+      int temp = list[ sorted ];
+      list[ sorted ] = list[ lowest ];
+      list[ lowest ] = temp;
       ++sorted;
    }
 }
 
 // Insertion sort.
-void isort( int size ) {
+void ISort( int[] list ) {
    int sorted = 0;
-   while ( sorted < size ) {
-      int value = values[ sorted ];
+   while ( sorted < list.length() ) {
+      int value = list[ sorted ];
       int i = sorted;
-      while ( i && value < values[ i - 1 ] ) {
-         values[ i ] = values[ i - 1 ];
+      while ( i && value < list[ i - 1 ] ) {
+         list[ i ] = list[ i - 1 ];
          --i;
       }
-      values[ i ] = value;
+      list[ i ] = value;
       ++sorted;
    }
 }
 
 // Merge sort.
-void msort( int size ) {
-   if ( size <= TOTAL_VALUES ) {
-      msort_half( 0, size );
-   }
-   else {
-      std::Print( s: "\cgToo many values to sort for msort()" );
-   }
+void MSort( int[] list ) {
+   assert ( list.length() <= LIST_MAX_SIZE,
+      "too many values to sort for " + __FUNCTION__ + "()" );
+   MsortHalf( list, 0, list.length() );
 }
 
-void msort_half( int pos, int size ) {
-   int size_l = size / 2;
-   int size_r = size - size_l;
+private void MSortHalf( int[] list, int pos, int size ) {
+   static int temp[ LIST_MAX_SIZE ];
+   int sizeL = size / 2;
+   int sizeR = size - sizeL;
    // Sort left side.
-   if ( size_l > 1 ) {
-      msort_half( pos, size_l );
+   if ( sizeL > 1 ) {
+      MSortHalf( list, pos, sizeL );
    }
    // Sort right side.
-   if ( size_r > 1 ) {
-      msort_half( pos + size_l, size_r );
+   if ( sizeR > 1 ) {
+      MSortHalf( list, pos + sizeL, sizeR );
    }
    // Merge sides.
    int i = pos;
-   int j = pos + size_l;
+   int j = pos + sizeL;
    int k = 0;
-   while ( size_l && size_r ) {
-      if ( values[ i ] < values[ j ] ) {
-         values_temp[ k ] = values[ i ];
-         --size_l;
+   while ( sizeL && sizeR ) {
+      if ( list[ i ] < list[ j ] ) {
+         temp[ k ] = list[ i ];
+         --sizeL;
          ++i;
       }
       else {
-         values_temp[ k ] = values[ j ];
-         --size_r;
+         temp[ k ] = list[ j ];
+         --sizeR;
          ++j;
       }
       ++k;
    }
    // Add leftover elements.
-   while ( size_l ) {
-      values_temp[ k ] = values[ i ];
-      --size_l;
+   while ( sizeL ) {
+      temp[ k ] = list[ i ];
+      --sizeL;
       ++i;
       ++k;
    }
-   while ( size_r ) {
-      values_temp[ k ] = values[ j ];
-      --size_r;
+   while ( sizeR ) {
+      temp[ k ] = list[ j ];
+      --sizeR;
       ++j;
       ++k;
    }
    // Save.
    i = 0;
    while ( i < size ) {
-      values[ pos + i ] = values_temp[ i ];
+      list[ pos + i ] = temp[ i ];
       ++i;
    }
 }
 
 // Shell sort.
-void hsort( int size ) {
+void HSort( int[] list ) {
    // Figure out initial increment.
    int h = 0;
-   int h_next = 1;
+   int hNext = 1;
    do {
-      h = h_next;
-      h_next = 3 * h + 1;
-   } while ( h_next < size );
+      h = hNext;
+      hNext = 3 * h + 1;
+   } while ( hNext < list.length() );
    // Sort.
    while ( h ) {
       int sorted = h;
-      while ( sorted < size ) {
+      while ( sorted < list.length() ) {
          int i = sorted;
-         int value = values[ i ];
-         while ( i >= h && value < values[ i - h ] ) {
-            values[ i ] = values[ i - h ];
+         int value = list[ i ];
+         while ( i >= h && value < list[ i - h ] ) {
+            list[ i ] = list[ i - h ];
             i -= h;
          }
-         values[ i ] = value;
+         list[ i ] = value;
          ++sorted;
       }
       h = ( h - 1 ) / 3;
    }
+}
+
 }
