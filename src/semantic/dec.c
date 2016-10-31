@@ -1539,9 +1539,10 @@ void confirm_dim_length( struct semantic* semantic, struct var* var ) {
 bool test_var_finish( struct semantic* semantic, struct var* var ) {
    describe_var( var );
    if ( semantic->func_test != semantic->topfunc_test &&
-      ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) ) {
+      ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) &&
+      var->storage == STORAGE_LOCAL ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "%s declared inside nested function", var->desc == DESC_ARRAY ?
+         "local %s declared inside nested function", var->desc == DESC_ARRAY ?
             "array" : "struct variable" );
       s_bail( semantic );
    }
