@@ -1353,13 +1353,6 @@ void read_single_init( struct parse* parse, struct dec* dec ) {
 }
 
 void test_var( struct parse* parse, struct dec* dec ) {
-   if ( dec->private_visibility && dec->area != DEC_TOP ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
-         "private non-namespace variable" );
-      p_diag( parse, DIAG_POS, &dec->name_pos,
-         "only variables outside script/function can be made private" );
-      p_bail( parse );
-   }
    if ( dec->static_qual && ! ( dec->area == DEC_LOCAL ||
       dec->area == DEC_FOR ) ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
@@ -1444,7 +1437,6 @@ void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = alloc_var( dec );
    var->imported = parse->lib->imported;
    if ( dec->area == DEC_TOP ) {
-      var->hidden = dec->private_visibility;
       p_add_unresolved( parse, &var->object );
       list_append( &parse->lib->objects, var );
       list_append( &parse->ns_fragment->objects, var );
@@ -1494,6 +1486,7 @@ struct var* alloc_var( struct dec* dec ) {
    var->original_spec = dec->spec;
    var->storage = dec->storage.type;
    var->index = dec->storage_index.value;
+   var->hidden = dec->private_visibility;
    var->is_constant_init =
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    var->force_local_scope = dec->force_local_scope;

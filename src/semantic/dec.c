@@ -1564,6 +1564,12 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
          return false;
       }
    }
+   // Only map variables can be declared private, including static variables.
+   if ( var->hidden && var->storage != STORAGE_MAP ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "non-map variable declared private" );
+      s_bail( semantic );
+   }
    return true;
 }
 
