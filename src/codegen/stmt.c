@@ -156,7 +156,7 @@ void write_runtime_assert( struct codegen* codegen, struct assert* assert ) {
       c_pcd( codegen, PCD_PUSHNUMBER, ':' );
       c_pcd( codegen, PCD_PRINTCHARACTER );
       c_pcd( codegen, PCD_PRINTCHARACTER );
-      c_push_string( codegen, assert->message );
+      c_push_expr( codegen, assert->message );
       c_pcd( codegen, PCD_PRINTSTRING );
    }
    c_pcd( codegen, PCD_ENDLOG );

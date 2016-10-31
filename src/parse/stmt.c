@@ -755,15 +755,15 @@ void read_assert( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   struct expr_reading cond;
-   p_init_expr_reading( &cond, false, false, false, true );
-   p_read_expr( parse, &cond );
-   assert->cond = cond.output_node;
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   assert->cond = expr.output_node;
    if ( parse->tk == TK_COMMA ) {
       p_read_tk( parse );
-      p_test_tk( parse, TK_LIT_STRING );
-      assert->custom_message = parse->tk_text;
-      p_read_tk( parse );
+      p_init_expr_reading( &expr, false, false, false, true );
+      p_read_expr( parse, &expr );
+      assert->message = expr.output_node;
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
@@ -779,9 +779,8 @@ struct assert* alloc_assert( struct pos* pos ) {
    assert->next = NULL;
    assert->cond = NULL;
    assert->pos = *pos;
-   assert->custom_message = NULL;
-   assert->file = NULL;
    assert->message = NULL;
+   assert->file = NULL;
    assert->is_static = false;
    return assert;
 }

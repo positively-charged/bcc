@@ -84,7 +84,7 @@ void c_write_user_code( struct codegen* codegen ) {
 }
 
 void write_null_handler( struct codegen* codegen ) {
-   #define NULLDEREF_MSG "\\cgerror: using null reference"
+   #define NULLDEREF_MSG "\\cgerror: script attempting to use null reference"
    struct indexed_string* string = t_intern_string( codegen->task,
       NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
    string->used = true;

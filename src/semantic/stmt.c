@@ -230,11 +230,41 @@ void test_assert( struct semantic* semantic, struct assert* assert ) {
             "static-assert condition not constant" );
          s_bail( semantic );
       }
+   }
+   if ( assert->message ) {
+      struct type_info type;
+      struct expr_test test;
+      s_init_expr_test( &test, true, false );
+      s_test_expr_type( semantic, &test, &type, assert->message );
+      struct type_info required_type;
+      s_init_type_info_scalar( &required_type, SPEC_STR );
+      if ( ! s_instance_of( &required_type, &type ) ) {
+         s_type_mismatch( semantic, "argument", &type,
+            "required", &required_type, &assert->message->pos );
+         s_bail( semantic );
+      }
+      if ( assert->is_static ) {
+         if ( ! assert->message->folded ) {
+            s_diag( semantic, DIAG_POS_ERR, &assert->message->pos,
+               "static-assert message not a constant expression" );
+            s_bail( semantic );
+         }
+      }
+   }
+   // Execute static-assert.
+   if ( assert->is_static ) {
       if ( ! assert->cond->value ) {
+         struct indexed_string* string = t_lookup_string( semantic->task,
+            assert->message->value );
+         if ( ! string ) {
+            s_diag( semantic, DIAG_POS_ERR, &assert->message->pos,
+               "static-assert message not a valid string" );
+            s_bail( semantic );
+         }
          s_diag( semantic, DIAG_POS, &assert->pos,
             "assertion failure%s%s",
-            assert->custom_message ? ": " : "",
-            assert->custom_message ? assert->custom_message : "" );
+            string ? ": " : "",
+            string ? string->value : "" );
          s_bail( semantic );
       }
    }

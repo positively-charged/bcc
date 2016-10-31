@@ -1000,10 +1000,9 @@ struct assert {
    struct node node;
    struct assert* next;
    struct expr* cond;
+   struct expr* message;
    struct pos pos;
-   const char* custom_message;
    struct indexed_string* file;
-   struct indexed_string* message;
    bool is_static;
 };
 

@@ -614,13 +614,6 @@ void create_assert_strings( struct codegen* codegen ) {
          ( char* ) file, strlen( file ) );
       string->used = true;
       assert->file = string;
-      // Create custom message string. 
-      if ( assert->custom_message ) {
-         string = t_intern_string( codegen->task, assert->custom_message,
-            strlen( assert->custom_message ) );
-         string->used = true;
-         assert->message = string;
-      }
       list_next( &i );
    }
    // Create standard message-prefix string.
