@@ -254,12 +254,15 @@ void test_assert( struct semantic* semantic, struct assert* assert ) {
    // Execute static-assert.
    if ( assert->is_static ) {
       if ( ! assert->cond->value ) {
-         struct indexed_string* string = t_lookup_string( semantic->task,
-            assert->message->value );
-         if ( ! string ) {
-            s_diag( semantic, DIAG_POS_ERR, &assert->message->pos,
-               "static-assert message not a valid string" );
-            s_bail( semantic );
+         struct indexed_string* string = NULL;
+         if ( assert->message ) {
+            string = t_lookup_string( semantic->task,
+               assert->message->value );
+            if ( ! string ) {
+               s_diag( semantic, DIAG_POS_ERR, &assert->message->pos,
+                  "static-assert message not a valid string" );
+               s_bail( semantic );
+            }
          }
          s_diag( semantic, DIAG_POS, &assert->pos,
             "assertion failure%s%s",
