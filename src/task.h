@@ -1178,10 +1178,6 @@ int t_get_script_number( struct script* );
 void t_print_name( struct name* );
 void t_diag( struct task*, int flags, ... );
 void t_diag_args( struct task* task, int flags, va_list* args );
-void t_intern_diag( struct task* task, const char* file, int line,
-   const char* format, ... );
-void t_unhandlednode_diag( struct task*, const char* file, int line,
-   struct node* node );
 void t_bail( struct task* );
 void t_deinit( struct task* task );
 bool t_same_pos( struct pos*, struct pos* );

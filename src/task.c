@@ -10,10 +10,20 @@ enum {
    STRTABLE_SCRIPTNAME,
 };
 
+struct diag_msg {
+   struct str text;
+   const char* file;
+   int line;
+   int column;
+   int flags;
+};
+
 static void init_str_table( struct str_table* table );
+static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
+   va_list* args );
+static void print_diag( struct task* task, struct diag_msg* msg );
+static void log_diag( struct task* task, struct diag_msg* msg );
 static void open_logfile( struct task* task );
-void show_diag( struct task* task, int flags, va_list* args );
-void log_diag( struct task* task, int flags, va_list* args );
 static void decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 static bool identify_file( struct task* task, struct file_query* query );
@@ -287,98 +297,73 @@ void t_diag( struct task* task, int flags, ... ) {
 }
 
 void t_diag_args( struct task* task, int flags, va_list* args ) {
+   struct diag_msg msg;
+   init_diag_msg( task, &msg, flags, args );
+   print_diag( task, &msg );
    if ( task->options->acc_err ) {
-      log_diag( task, flags, args );
-   }
-   else {
-      show_diag( task, flags, args );
+      log_diag( task, &msg );
    }
 }
 
-void show_diag( struct task* task, int flags, va_list* args ) {
+void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
+   va_list* args ) {
    if ( flags & DIAG_FILE ) {
-      const char* file = NULL;
-      int line = 0;
-      int column = 0;
       struct pos* pos = va_arg( *args, struct pos* );
-      decode_pos( task, pos, &file, &line, &column );
-      printf( "%s", file );
-      if ( flags & DIAG_LINE ) {
-         printf( ":%d", line );
-         if ( flags & DIAG_COLUMN ) {
-            printf( ":%d", column );
-         }
-      }
-      printf( ": " );
+      decode_pos( task, pos, &msg->file, &msg->line, &msg->column );
    }
+   else {
+      msg->file = NULL;
+      msg->line = 0;
+      msg->column = 0;
+   }
+   str_init( &msg->text );
    if ( flags & DIAG_SYNTAX ) {
-      printf( "syntax " );
+      str_append( &msg->text, "syntax " );
    }
    else if ( flags & DIAG_INTERNAL ) {
-      printf( "internal " );
+      str_append( &msg->text, "internal " );
    }
    if ( flags & DIAG_ERR ) {
-      printf( "error: " );
+      if ( flags & DIAG_SYNTAX ) {
+         str_append( &msg->text, "syntax " );
+      }
+      str_append( &msg->text, "error: " );
    }
    else if ( flags & DIAG_WARN ) {
-      printf( "warning: " );
+      str_append( &msg->text, "warning: " );
    }
    const char* format = va_arg( *args, const char* );
-   vprintf( format, *args );
-   printf( "\n" );
+   str_append_format( &msg->text, format, args );
+   msg->flags = flags;
+}
+
+void print_diag( struct task* task, struct diag_msg* msg ) {
+   if ( msg->flags & DIAG_FILE ) {
+      printf( "%s:", msg->file );
+      if ( msg->flags & DIAG_LINE ) {
+         printf( "%d:", msg->line );
+         if ( msg->flags & DIAG_COLUMN ) {
+            printf( "%d:", msg->column );
+         }
+      }
+      printf( " " );
+   }
+   printf( "%s\n", msg->text.value );
 }
 
 // Line format: <file>:<line>: <message>
-void log_diag( struct task* task, int flags, va_list* args ) {
+void log_diag( struct task* task, struct diag_msg* msg ) {
    if ( ! task->err_file ) {
       open_logfile( task );
    }
-   if ( flags & DIAG_FILE ) {
-      const char* file = NULL;
-      int line = 0;
-      int column = 0;
-      struct pos* pos = va_arg( *args, struct pos* );
-      decode_pos( task, pos, &file, &line, &column );
-      fprintf( task->err_file, "%s:", file );
-      if ( flags & DIAG_LINE ) {
-         // For some reason, DB2 decrements the line number by one. Add one to
-         // make the number correct.
-         fprintf( task->err_file, "%d:", line + 1 );
+   if ( msg->flags & DIAG_FILE ) {
+      fprintf( task->err_file, "%s:", msg->file );
+      if ( msg->flags & DIAG_LINE ) {
+         fprintf( task->err_file, "%d:", msg->line );
       }
+      fprintf( task->err_file, " " );
    }
-   fprintf( task->err_file, " " );
-   if ( flags & DIAG_SYNTAX ) {
-      fprintf( task->err_file, "syntax " );
-   }
-   else if ( flags & DIAG_INTERNAL ) {
-      printf( "internal " );
-   }
-   if ( flags & DIAG_ERR ) {
-      fprintf( task->err_file, "error: " );
-   }
-   else if ( flags & DIAG_WARN ) {
-      fprintf( task->err_file, "warning: " );
-   }
-   const char* message = va_arg( *args, const char* );
-   vfprintf( task->err_file, message, *args );
-   fprintf( task->err_file, "\n" );
-}
-
-// TODO: Log message to file.
-void t_intern_diag( struct task* task, const char* file, int line,
-   const char* format, ... ) {
-   va_list args;
-   va_start( args, format );
-   printf( "%s:%d: internal compiler error: ", file, line );
-   vprintf( format, args );
-   printf( "\n" );
-   va_end( args );
-}
-
-void t_unhandlednode_diag( struct task* task, const char* file, int line,
-   struct node* node ) {
-   t_intern_diag( task, file, line,
-      "unhandled node type: %d", node->type );
+   fprintf( task->err_file, "%s\n", msg->text.value );
 }
 
 void open_logfile( struct task* task ) {

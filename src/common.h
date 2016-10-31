@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #if defined( _WIN32 ) || defined( _WIN64 )
 #   define OS_WINDOWS 1
@@ -36,6 +37,7 @@ void str_grow( struct str*, int length );
 void str_append( struct str*, const char* cstr );
 void str_append_sub( struct str*, const char* cstr, int length );
 void str_append_number( struct str*, int number );
+void str_append_format( struct str* str, const char* format, va_list* args );
 void str_clear( struct str* );
 
 struct list_link {
