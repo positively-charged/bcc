@@ -2,20 +2,17 @@ __bcc__ is an ACS/ACS95/BCS compiler.
 
 BCS is mostly compatible with ACS and provides many extra features, including the following:
 
-* Enumerations
 * Structures
+* Enumerations
 * Namespaces
 * Preprocessor
 * Strong types
-* References (limited)
+* References (limited support)
 * Block scoping
 * Optional function parameters
-* <code>&&</code> and <code>||</code> operators use short-circuit evaluation
-* <code>foreach</code> loop
-* <code>goto</code> statement
+* Logical-AND (`&&`) and Logical-OR (`||`) are short-circuited
+* `foreach` loop
 * Nested functions
-* Message-building functions
-* <code>?:</code> operator
-* Inline assembly
+* `?:` operator
 
-The [details](https://github.com/wormt/bcc/blob/bcs/doc/details.md) file provides an overview of the features.
+See the [details](https://github.com/wormt/bcc/blob/bcs/doc/details.md) file for an overview of the features.
