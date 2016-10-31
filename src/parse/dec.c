@@ -1374,19 +1374,6 @@ void test_var( struct parse* parse, struct dec* dec ) {
          "variable of struct type in scalar portion of storage" );
       p_bail( parse );
    }
-   // At this time, there is no good way to initialize a variable having
-   // world or global storage at runtime.
-   if ( dec->initz.specified && ( dec->storage.type == STORAGE_WORLD ||
-      dec->storage.type == STORAGE_GLOBAL ) && ( dec->area == DEC_TOP ||
-      dec->static_qual ) ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->initz.pos,
-         "initialization of %s-storage variable",
-         t_get_storage_name( dec->storage.type ) );
-      p_diag( parse, DIAG_POS, &dec->initz.pos,
-         "%s-storage variables must not be initialized in this scope",
-         t_get_storage_name( dec->storage.type ) );
-      p_bail( parse );
-   }
 }
 
 void test_storage( struct parse* parse, struct dec* dec ) {

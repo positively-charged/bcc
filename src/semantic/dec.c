@@ -1034,6 +1034,13 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
       }
    }
    var->initial_has_str = test.has_str;
+   // Global and world variables cannot be defined.
+   if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "%s variable declaration has an initializer",
+         t_get_storage_name( var->storage ) );
+      s_bail( semantic );
+   }
    return true;
 }
 
@@ -1564,7 +1571,7 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
          return false;
       }
    }
-   // Only map variables can be declared private, including static variables.
+   // Only map variables can be private, including static variables.
    if ( var->hidden && var->storage != STORAGE_MAP ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
          "non-map variable declared private" );
