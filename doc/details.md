@@ -85,7 +85,7 @@ Variables can be declared `extern`. An external variable declaration is not actu
 ```
 #library "lib1"
 
-int v;
+int v = 123;
 void F() {}
 ```
 
@@ -293,7 +293,7 @@ script "Main" open {
 <h5>Importing specific objects</h5>
 
 <pre>
-using <i>namespace</i> : [<i>alias</i> =] <i>object</i> [, ...] ;
+using <i>namespace</i> : [enum|struct] [<i>alias</i> =] <i>object</i> [, ...] ;
 </pre>
 
 If you need only a few objects from a namespace, you can import only those objects you want. You can give the imported object a different name if you like:
@@ -311,7 +311,7 @@ using Test: v, CONSTANT = C;
 
 script "Main" open {
    v = CONSTANT;
-   Test.F();
+   Test.F(); // Output: 321
 }
 ```
 
@@ -507,7 +507,7 @@ StrFuncIntIntT? func2; // Same as: str function( int, int )? func2;
 
 <h5>Type names</h5>
 
-The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: `NumberT`, `Str10_T`, `T`.
+The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: <code>Numbe<b>rT</b></code>, <code>Str10<b>_T</b></code>, <b>T</b>.
 
 <h3>Enumerations</h3>
 
@@ -547,6 +547,7 @@ enum : str {
 };
 
 script "Main" open {
+   // Output: AppleOrangePear
    Print( s: FRUIT_APPLE + FRUIT_ORANGE + FRUIT_PEAR );
 }
 
@@ -565,8 +566,8 @@ enum Fruit {
 };
 
 script "Main" open {
-   enum Fruit f = FRUIT_PEAR;
-   f = 2; // Error: Not using an enumerator.
+   enum Fruit f = FRUIT_PEAR; // Works fine. Initializer is an enumerator.
+   f = 2; // Error: value assigned not an enumerator.
 }
 ```
 
@@ -719,7 +720,7 @@ script "Main" open {
    void Greet() {
       Print( s: "Hello, World!" );
    }
-   Greet();
+   Greet(); // Output: Hello, World!
 }
 ```
 
@@ -754,10 +755,10 @@ script "Main" open {
    void ShowMsg() {
       Print( s: msg );
    }
-   msg = "Hello, World";
-   ShowMsg();
+   msg = "Hello, World!";
+   ShowMsg(); // Output: Hello, World!
    msg = "Goodbye, World!";
-   ShowMsg();
+   ShowMsg(); // Output: Goodbye, World!
 }
 ```
 
@@ -785,7 +786,7 @@ Passing around a reference to a nested function is not allowed at this time.
 
 Be aware when calling a nested function that has a lot of local variables. The compiler generates code to save and restore local variables. This might be too much a penalty for performance critical code.
 
-Calling a nested function recursively too many times will eventually crash the game.
+_Calling a nested function recursively too many times will eventually crash the game._
 
 <h4>Anonymous functions</h4>
 
@@ -800,7 +801,7 @@ script "Main" open {
          ++i;
       }
       return sum;
-   }() );
+   }() ); // Output: Sum: 55
 }
 ```
 
@@ -816,7 +817,7 @@ script "Main" open {
       }
       return sum;
    }
-   Print( s: "Sum: ", d: CalculateSum() );
+   Print( s: "Sum: ", d: CalculateSum() ); // Output: Sum: 55
 }
 ```
 
@@ -932,7 +933,7 @@ A `foreach` loop goes over every item in a collection. An array is a collection,
 ```
 script "Main" open {
    static int set[] = { 1, 2, 3 };
-   foreach ( int number; set ) {
+   foreach ( let int number; set ) {
       Print( d: number );
    }
 }
@@ -943,7 +944,7 @@ You can declare another variable before the `value` variable. This variable is c
 ```
 script "Main" open {
    static int set[] = { 1, 2, 3 };
-   foreach ( int index, number; set ) {
+   foreach ( let int index, number; set ) {
       Print( s: "set[", d: index, s: "] == ", d: number );
    }
 }
@@ -1036,7 +1037,7 @@ script "Main" open {
 __NOTE:__ At this time, due to lack of support for non-function references in the game engine, references to arrays and structure variables have the following restrictions: 
 
 * Only references to _private_ arrays and structure variables can be assigned to variables and passed to functions.
-* Array and structure variable references cannot be shared between libraries. That means you cannot pass an array reference to another library, and you cannot use an array reference in, or returned from, another library.
+* References to arrays and structure variables cannot be shared between libraries. That means you cannot pass an array reference to another library, and you cannot use an array reference in, or returned from, another library.
 
 <h4>Array references</h4>
 
@@ -1152,7 +1153,8 @@ script "Main" open {
    // `r` refers to a valid reference, so will succeed.
    int[] r2 = r!!;
    r = null;
-   // `r` no longer refers a valid reference, so prints error and terminates script.
+   // `r` no longer refers to a valid reference, so an error will be printed
+   // and the script will be terminated.
    r2 = r!!;
 }
 ```
@@ -1543,8 +1545,8 @@ To improve readability of long numbers, an underscore can be used to separate di
 
 ```
 script "Main" open {
-   Print( d: 2_000_000_000 );
-   Print( d: 0b_1101_0111_0100_0110 );
+   Print( d: 2_000_000_000 ); // Output: 2000000000
+   Print( d: 0b_1101_0111_0100_0110 ); // Output: 55110
 }
 ```
 
@@ -1608,8 +1610,8 @@ struct {
 
 script "Main" open {
    memcpy( structA, structB );
-   // The members of the `structA` structure variable will now have the same
-   // value as the members of `structB`.
+   // The members of `structA` will now have the same value as the members of
+   // the `structB` variable.
    Print( d: structA.value ); // Output: 321
 }
 ```
@@ -1777,3 +1779,7 @@ The following people have contributed to the __bcc__ project. The names are list
     </td>
   </tr>
 </table>
+
+<h2>Resources</h2>
+
+* [ACC++ Manual](https://bitbucket.org/Blzut3/acc/src/25a415a3fcc6d16395cc832db85096fe93b66777/docs/manual.odt?at=default&fileviewer=file-view-default), by Blzut3. This document describes the ACS byte code.
