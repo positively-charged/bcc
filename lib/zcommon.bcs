@@ -1472,7 +1472,7 @@ special
 -58:GetUserCVarString(int,str):str,
 -59:SetUserCVarString(int,str,str):bool,
 -60:LineAttack(int,fixed,fixed,int;str,str,fixed,int,int):void,
--61:PlaySound(int,str;int,fixed,bool,fixed):void,
+-61:PlaySound(int,str;int,fixed,bool,fixed,bool):void,
 -62:StopSound(int;int):void,
 -63:Strcmp(str,str;int):int,
 -64:Stricmp(str,str;int):int,
