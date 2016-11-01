@@ -451,7 +451,6 @@ const char* t_decode_pos_file( struct task* task, struct pos* pos ) {
 }
  
 void t_bail( struct task* task ) {
-   t_deinit( task );
    longjmp( *task->bail, 1 );
 }
 

@@ -3,6 +3,8 @@
 #include "phase.h"
 #include "cache/cache.h"
 
+static void run_phase( struct parse* parse );
+
 void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->task = task;
    // NOTE: parse->queue not initialized.
@@ -42,6 +44,21 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
 }
 
 void p_run( struct parse* parse ) {
+   bool success = false;
+   jmp_buf bail, *prev_bail = parse->task->bail;
+   if ( setjmp( bail ) == 0 ) {
+      parse->task->bail = &bail;
+      run_phase( parse );
+      success = true;
+   }
+   parse->task->bail = prev_bail;
+   p_deinit_tk( parse );
+   if ( ! success ) {
+      t_bail( parse->task );
+   }
+}
+
+void run_phase( struct parse* parse ) {
    struct library* lib = t_add_library( parse->task );
    lib->lang = ( parse->task->options->lang_specified ) ?
       parse->task->options->lang : p_determine_lang_from_file_path(
@@ -65,37 +82,6 @@ void p_run( struct parse* parse ) {
       p_read_tk( parse );
       p_read_target_lib( parse );
    }
-
-/*
-   while ( parse->tk != TK_END ) {
-      printf( "a %s %d\n", parse->tk_text, parse->tk_length );
-      p_read_tk( parse );
-   }
-   p_bail( parse );
-*/
-/*
-   struct tkque_iter iter;
-   p_examine_token_queue( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   p_next_tk( parse, &iter );
-   printf( "%s\n", parse->token->text );
-   printf( "%s == %d\n", iter.token->text, iter.token->type );
-   while ( parse->tk != TK_END ) {
-      printf( "a %s %d\n", parse->tk_text, parse->tk_length );
-      p_read_tk( parse );
-   }
-   p_bail( parse );
-return;
-*/
-   //printf( "%s\n", iter.token->text );
-   //p_next_tk( parse, &iter );
-
-   // alloc_string_indexes( parse );
 }
 
 int p_determine_lang_from_file_path( const char* path ) {
@@ -143,6 +129,5 @@ void p_unexpect_last_name( struct parse* parse, struct pos* pos,
 }
 
 void p_bail( struct parse* parse ) {
-   p_deinit_tk( parse );
    t_bail( parse->task );
 }

@@ -16,6 +16,7 @@ static bool read_options( struct options*, char** );
 static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
+static bool perform_action( struct options* options, jmp_buf* root_bail );
 static void perform_task( struct task* task );
 static void perform_selected_task( struct task* task, struct cache* cache );
 static void print_cache( struct task* task, struct cache* cache );
@@ -87,11 +88,9 @@ int main( int argc, char* argv[] ) {
    }
    jmp_buf bail;
    if ( setjmp( bail ) == 0 ) {
-      struct task task;
-      t_init( &task, &options, &bail );
-      perform_task( &task );
-      t_deinit( &task );
-      result = EXIT_SUCCESS;
+      if ( perform_action( &options, &bail ) ) {
+         result = EXIT_SUCCESS;
+      }
    }
    deinit_object_file:
    str_deinit( &compiler_dir );
@@ -352,6 +351,21 @@ void print_usage( char* path ) {
       "  -cache-print         Show the contents of the cache\n"
       "  -cache-clear         Delete all cached library files\n",
       path );
+}
+
+bool perform_action( struct options* options, jmp_buf* root_bail ) {
+   bool success = false;
+   struct task task;
+   t_init( &task, options, root_bail );
+   jmp_buf bail;
+   if ( setjmp( bail ) == 0 ) {
+      task.bail = &bail;
+      perform_task( &task );
+      success = true;
+   }
+   task.bail = root_bail;
+   t_deinit( &task );
+   return success;
 }
 
 void perform_task( struct task* task ) {
