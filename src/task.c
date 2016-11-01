@@ -353,17 +353,19 @@ void print_diag( struct task* task, struct diag_msg* msg ) {
 
 // Line format: <file>:<line>: <message>
 void log_diag( struct task* task, struct diag_msg* msg ) {
-   if ( ! task->err_file ) {
-      open_logfile( task );
-   }
-   if ( msg->flags & DIAG_FILE ) {
-      fprintf( task->err_file, "%s:", msg->file );
-      if ( msg->flags & DIAG_LINE ) {
-         fprintf( task->err_file, "%d:", msg->line );
+   if ( msg->flags & DIAG_ERR ) {
+      if ( ! task->err_file ) {
+         open_logfile( task );
       }
-      fprintf( task->err_file, " " );
+      if ( msg->flags & DIAG_FILE ) {
+         fprintf( task->err_file, "%s:", msg->file );
+         if ( msg->flags & DIAG_LINE ) {
+            fprintf( task->err_file, "%d:", msg->line );
+         }
+         fprintf( task->err_file, " " );
+      }
+      fprintf( task->err_file, "%s\n", msg->text.value );
    }
-   fprintf( task->err_file, "%s\n", msg->text.value );
 }
 
 void open_logfile( struct task* task ) {
