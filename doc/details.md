@@ -507,7 +507,7 @@ StrFuncIntIntT? func2; // Same as: str function( int, int )? func2;
 
 <h5>Type names</h5>
 
-The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: <code>Numbe<b>rT</b></code>, <code>Str10<b>_T</b></code>, <b>T</b>.
+The name of a type alias is called a <em>type name</em>. Type names must end with a lowercase letter, an underscore, or nothing at all, followed by a capital T. Some valid type names: <code>Numbe<b>rT</b></code>, <code>Str10<b>_T</b></code>, <code><b>T</b></code>.
 
 <h3>Enumerations</h3>
 
