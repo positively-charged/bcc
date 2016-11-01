@@ -100,6 +100,10 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    expr->root = &literal->node;
    expr->folded = true;
    task->dummy_expr = expr;
+
+   str_init( &task->err_file_dir );
+   str_copy( &task->err_file_dir, "", 0 );
+   t_update_err_file_dir( task, options->source_file );
 }
 
 struct ns* t_alloc_ns( struct name* name ) {
@@ -369,22 +373,16 @@ void log_diag( struct task* task, struct diag_msg* msg ) {
 }
 
 void open_logfile( struct task* task ) {
-   struct str str;
-   str_init( &str );
-   str_copy( &str, task->options->source_file,
-      strlen( task->options->source_file ) );
-   while ( str.length && str.value[ str.length - 1 ] != '/' &&
-      str.value[ str.length - 1 ] != '\\' ) {
-      str.value[ str.length - 1 ] = 0;
-      --str.length;
-   }
-   str_append( &str, "acs.err" );
-   task->err_file = fopen( str.value, "w" );
+   struct str path;
+   str_init( &path );
+   str_append( &path, task->err_file_dir.value );
+   str_append( &path, "acs.err" );
+   task->err_file = fopen( path.value, "w" );
    if ( ! task->err_file ) {
-      printf( "error: failed to load error output file: %s\n", str.value );
+      printf( "error: failed to load error output file: %s\n", path.value );
       t_bail( task );
    }
-   str_deinit( &str );
+   str_deinit( &path );
 }
 
 void decode_pos( struct task* task, struct pos* pos, const char** file,
@@ -1056,4 +1054,14 @@ struct type_alias* t_alloc_type_alias( void ) {
    alias->head_instance = false;
    alias->force_local_scope = false;
    return alias;
+}
+
+void t_update_err_file_dir( struct task* task, const char* path ) {
+   struct str* dir = &task->err_file_dir;
+   str_copy( dir, path, strlen( path ) );
+   while ( dir->length && dir->value[ dir->length - 1 ] != '/' &&
+      dir->value[ dir->length - 1 ] != '\\' ) {
+      dir->value[ dir->length - 1 ] = 0;
+      --dir->length;
+   }
 }

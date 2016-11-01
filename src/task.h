@@ -1157,6 +1157,7 @@ struct task {
    struct func* append_func;
    struct expr* dummy_expr;
    struct ns* upmost_ns;
+   struct str err_file_dir;
 };
 
 #define DIAG_NONE 0
@@ -1231,5 +1232,6 @@ struct ns_fragment* t_alloc_ns_fragment( void );
 struct type_alias* t_alloc_type_alias( void );
 char* t_intern_text( struct task* task, const char* value, int length );
 struct text_buffer* t_get_text_buffer( struct task* task, int min_free_size );
+void t_update_err_file_dir( struct task* task, const char* path );
 
 #endif

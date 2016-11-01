@@ -32,6 +32,7 @@ void p_load_main_source( struct parse* parse ) {
       parse->lib->file_pos.id = request.file->id;
       append_file( parse->lib, request.file );
       create_entry( parse, &request );
+      t_update_err_file_dir( parse->task, request.file->full_path.value );
    }
    else {
       p_diag( parse, DIAG_ERR,
