@@ -317,17 +317,6 @@ script "Main" open {
 
 <h3>Declarations</h3>
 
-When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either:
-
-```
-// These are all the same:
-script "Main" ( void ) {}
-script "Main" () {}
-script "Main" {}
-```
-
---
-
 A namespace object does not need to be declared before it can be used. In the following example, a variable, a constant, and a function are used before they are declared:
 
 ```
@@ -674,7 +663,7 @@ script "Main" open {
 
 --
 
-In a function, the magic identifier, `__FUNCTION__`, is a string literal that contains the name of the function:
+In a function, the magic identifier, `__FUNCTION__`, is a string literal that contains the name of the current function:
 
 ```
 void SomeFunc() {
@@ -894,6 +883,31 @@ void Welcome( int borderLength ) {
       append( s: "Hello there!\n" );
       CreateBorder();
    } );
+}
+```
+
+<h3>Scripts</h3>
+
+When a script has no parameters, the `void` keyword is not necessary. The parentheses are not required either:
+
+```
+// These are all the same:
+script "Main" ( void ) {}
+script "Main" () {}
+script "Main" {}
+```
+
+--
+
+In a script, the magic identifier, `__SCRIPT__`, is a string literal that contains either the name or number of the current script:
+
+```
+script 1 open {
+   Print( s: __SCRIPT__ ); // Output: 1
+}
+
+script "abc" open {
+   Print( s: __SCRIPT__ ); // Output: abc
 }
 ```
 
