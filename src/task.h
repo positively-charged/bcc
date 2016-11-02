@@ -110,7 +110,8 @@ struct node {
       NODE_MEMCPY,
       NODE_CONVERSION,
       NODE_SURE,
-      NODE_FUNCNAME
+      NODE_FUNCNAME,
+      NODE_SCRIPTID
    } type;
 };
 

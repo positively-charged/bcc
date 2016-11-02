@@ -169,6 +169,8 @@ static struct ref* find_map_ref( struct ref* ref,
 static struct ref* find_map_ref_struct( struct structure* structure );
 static void test_funcname( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
+static void test_script_id( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct name_usage* usage );
 static void select_object( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct object* object );
 static void select_constant( struct semantic* semantic, struct expr_test* test,
@@ -2320,6 +2322,9 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
    if ( object->node.type == NODE_FUNCNAME ) {
       test_funcname( semantic, test, result, usage );
    }
+   else if ( object->node.type == NODE_SCRIPTID ) {
+      test_script_id( semantic, test, result, usage );
+   }
    else {
       select_object( semantic, test, result, object );
       usage->object = &object->node;
@@ -2370,6 +2375,26 @@ void test_funcname( struct semantic* semantic, struct expr_test* test,
    struct str name;
    str_init( &name );
    t_copy_name( semantic->func_test->func->name, false, &name );
+   struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
+   string_usage->string = t_intern_string_copy( semantic->task,
+      name.value, name.length );
+   usage->object = &string_usage->node;
+   test_string_usage( semantic, test, result, string_usage );
+   str_deinit( &name );
+}
+
+void test_script_id( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct name_usage* usage ) {
+   struct str name;
+   str_init( &name );
+   if ( semantic->func_test->script->named_script ) {
+      struct indexed_string* string = t_lookup_string( semantic->task,
+         semantic->func_test->script->number->value );
+      str_append( &name, string->value );
+   }
+   else {
+      str_append_number( &name, semantic->func_test->script->number->value );
+   }
    struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
    string_usage->string = t_intern_string_copy( semantic->task,
       name.value, name.length );

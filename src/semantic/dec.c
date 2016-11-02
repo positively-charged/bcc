@@ -76,6 +76,13 @@ struct builtin_aliases {
    } funcname;
 };
 
+struct builtin_script_aliases {
+   struct {
+      struct alias alias;
+      struct object object;
+   } script_id;
+};
+
 struct value_list {
    struct value* head;
    struct value* tail;
@@ -232,7 +239,8 @@ static void init_builtin_aliases( struct semantic* semantic, struct func* func,
 static void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases );
 static void init_func_test( struct func_test* test, struct func_test* parent,
-   struct func* func, struct list* labels, struct list* funcscope_vars );
+   struct func* func, struct list* labels, struct list* funcscope_vars,
+   struct script* script );
 static void calc_param_size( struct param* param );
 static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref );
@@ -242,8 +250,12 @@ static void alloc_value_index( struct value_index_alloc*, struct multi_value*,
    struct structure*, struct dim* );
 static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
-static void test_script_number( struct semantic* semantic, struct script* script );
-static void test_script_body( struct semantic* semantic, struct script* script );
+static void test_script_number( struct semantic* semantic,
+   struct script* script );
+static void test_script_body( struct semantic* semantic,
+   struct script* script );
+static void init_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases, struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test expression.
@@ -2147,9 +2159,10 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
          "function missing body" );
       s_bail( semantic );
    }
+   s_add_scope( semantic, true );
    struct builtin_aliases builtin_aliases;
    init_builtin_aliases( semantic, func, &builtin_aliases );
-   s_add_scope( semantic, true );
+   bind_builtin_aliases( semantic, &builtin_aliases );
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
@@ -2159,12 +2172,11 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    }
    struct func_test test;
    init_func_test( &test, semantic->func_test, func, &impl->labels,
-      &impl->funcscope_vars );
+      &impl->funcscope_vars, NULL );
    if ( ! impl->nested ) {
       semantic->topfunc_test = &test;
    }
    semantic->func_test = &test;
-   bind_builtin_aliases( semantic, &builtin_aliases );
    s_test_body( semantic, &impl->body->node );
    semantic->func_test = test.parent;
    impl->returns = test.returns;
@@ -2232,14 +2244,15 @@ void bind_builtin_aliases( struct semantic* semantic,
 }
 
 void init_func_test( struct func_test* test, struct func_test* parent,
-   struct func* func, struct list* labels, struct list* funcscope_vars ) {
+   struct func* func, struct list* labels, struct list* funcscope_vars,
+   struct script* script ) {
    test->func = func;
    test->labels = labels;
    test->funcscope_vars = funcscope_vars;
    test->nested_funcs = NULL;
    test->returns = NULL;
    test->parent = parent;
-   test->script = ( func == NULL );
+   test->script = script;
 }
 
 void s_test_nested_func( struct semantic* semantic, struct func* func ) {
@@ -2281,6 +2294,11 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
    if ( script->named_script ) {
       struct indexed_string* string = t_lookup_string( semantic->task,
          script->number->value );
+      if ( ! string ) {
+         s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
+            "script name not a valid string" );
+         s_bail( semantic );
+      }
       if ( strcasecmp( string->value, "none" ) == 0 ) {
          s_diag( semantic, DIAG_POS_ERR, &script->number->pos,
             "\"%s\" is a reserved script name", string->value );
@@ -2312,6 +2330,8 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
 
 void test_script_body( struct semantic* semantic, struct script* script ) {
    s_add_scope( semantic, true );
+   struct builtin_script_aliases aliases;
+   init_builtin_script_aliases( semantic, &aliases, script );
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
@@ -2322,7 +2342,7 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
    }
    struct func_test test;
    init_func_test( &test, NULL, NULL, &script->labels,
-      &script->funcscope_vars );
+      &script->funcscope_vars, script );
    semantic->topfunc_test = &test;
    semantic->func_test = semantic->topfunc_test;
    s_test_body( semantic, script->body );
@@ -2330,6 +2350,22 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
    s_pop_scope( semantic );
+}
+
+void init_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases, struct script* script ) {
+   // __SCRIPT__ is a string that contains either the name or number of the
+   // current script.
+   t_init_object( &aliases->script_id.object, NODE_SCRIPTID );
+   aliases->script_id.object.resolved = true;
+   struct alias* alias = &aliases->script_id.alias;
+   s_init_alias( alias );
+   alias->object.pos = script->pos;
+   alias->object.resolved = true;
+   alias->target = &aliases->script_id.object;
+   alias->implicit = true;
+   struct name* name = t_extend_name( semantic->ns->body, "__script__" );
+   s_bind_local_name( semantic, name, &aliases->script_id.alias.object, true );
 }
 
 void s_calc_var_size( struct var* var ) {

@@ -46,7 +46,7 @@ struct func_test {
    struct func* nested_funcs;
    struct return_stmt* returns;
    struct func_test* parent;
-   bool script;
+   struct script* script;
 };
 
 struct stmt_test {
