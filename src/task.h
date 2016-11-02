@@ -1156,7 +1156,9 @@ struct task {
    struct name* array_name;
    struct name* str_name;
    struct func* append_func;
+   // Both `dummy_expr` and `raw0_expr` refer to the same node.
    struct expr* dummy_expr;
+   struct expr* raw0_expr;
    struct ns* upmost_ns;
    struct str err_file_dir;
 };
@@ -1175,7 +1177,6 @@ struct task {
 void t_init( struct task*, struct options*, jmp_buf* );
 void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
-int t_get_script_number( struct script* );
 void t_print_name( struct name* );
 void t_diag( struct task*, int flags, ... );
 void t_diag_args( struct task* task, int flags, va_list* args );

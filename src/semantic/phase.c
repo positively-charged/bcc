@@ -1091,10 +1091,9 @@ void match_dup_script( struct semantic* semantic, struct script* script,
    }
    // Script numbers.
    else if ( ! script->named_script && ! prev_script->named_script ) {
-      if ( t_get_script_number( script ) ==
-         t_get_script_number( prev_script ) ) {
+      if ( script->number->value == prev_script->number->value ) {
          s_diag( semantic, DIAG_POS_ERR, &script->pos,
-            "duplicate script %d", t_get_script_number( script ) );
+            "duplicate script %d", script->number->value );
          s_diag( semantic, DIAG_POS, &prev_script->pos,
             "script already found here" );
          s_bail( semantic );
@@ -1113,7 +1112,7 @@ void assign_script_numbers( struct semantic* semantic ) {
          --named_script_number;
       }
       else {
-         script->assigned_number = t_get_script_number( script );
+         script->assigned_number = script->number->value;
       }
       list_next( &i );
    }

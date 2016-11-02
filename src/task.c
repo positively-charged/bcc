@@ -100,6 +100,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    expr->root = &literal->node;
    expr->folded = true;
    task->dummy_expr = expr;
+   task->raw0_expr = expr;
 
    str_init( &task->err_file_dir );
    str_copy( &task->err_file_dir, "", 0 );
@@ -283,15 +284,6 @@ void t_init_type_members( struct task* task ) {
       func->hidden = false;
    }
 } */
-
-int t_get_script_number( struct script* script ) {
-   if ( script->number ) {
-      return script->number->value;
-   }
-   else {
-      return 0;
-   }
-}
 
 void t_diag( struct task* task, int flags, ... ) {
    va_list args;

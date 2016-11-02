@@ -252,6 +252,8 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic,
    struct script* script );
+static void test_nonzero_script_number( struct semantic* semantic,
+   struct script* script );
 static void test_script_param_list( struct semantic* semantic,
    struct script* script );
 static void test_script_body( struct semantic* semantic,
@@ -2276,6 +2278,13 @@ void s_test_script( struct semantic* semantic, struct script* script ) {
 }
 
 void test_script_number( struct semantic* semantic, struct script* script ) {
+   if ( script->number != semantic->task->raw0_expr ) {
+      test_nonzero_script_number( semantic, script );
+   }
+}
+
+void test_nonzero_script_number( struct semantic* semantic,
+   struct script* script ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, script->number );

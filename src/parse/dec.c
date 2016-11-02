@@ -1885,17 +1885,16 @@ void read_script_number( struct parse* parse, struct script* script ) {
       parse->tk == TK_SHIFT_L ) {
       p_read_tk( parse );
       // The token between the `<<` and `>>` tokens must be the digit `0`.
-      if ( parse->tk == TK_LIT_DECIMAL && parse->tk_text[ 0 ] == '0' &&
-         parse->tk_length == 1 ) {
-         p_read_tk( parse );
-         p_test_tk( parse, TK_SHIFT_R );
-         p_read_tk( parse );
-      }
-      else {
+      if ( ! ( parse->tk == TK_LIT_DECIMAL && parse->tk_text[ 0 ] == '0' &&
+         parse->tk_length == 1 ) ) {
          p_unexpect_diag( parse );
          p_unexpect_last_name( parse, NULL, "the digit `0`" );
          p_bail( parse );
       }
+      script->number = parse->task->raw0_expr;
+      p_read_tk( parse );
+      p_test_tk( parse, TK_SHIFT_R );
+      p_read_tk( parse );
    }
    else if ( parse->lang == LANG_ACS && parse->tk == TK_LIT_STRING ) {
       struct indexed_string* string = t_intern_script_name( parse->task,
