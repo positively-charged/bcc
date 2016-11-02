@@ -910,7 +910,7 @@ struct script {
       SCRIPT_FLAG_CLIENTSIDE = 0x2
    } flags;
    struct param* params;
-   struct node* body;
+   struct block* body;
    struct func* nested_funcs;
    struct call* nested_calls;
    struct list labels;

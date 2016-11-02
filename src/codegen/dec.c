@@ -119,7 +119,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
    }
    alloc_param_indexes( &record, script->params );
    alloc_funcscopevars_indexes( &record, &script->funcscope_vars );
-   c_write_stmt( codegen, script->body );
+   c_write_block( codegen, script->body );
    c_pcd( codegen, PCD_TERMINATE );
    script->size = record.size;
    codegen->func = NULL;

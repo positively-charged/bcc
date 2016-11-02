@@ -60,9 +60,9 @@ void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels ) {
    reading->block_node = NULL;
 }
 
-void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
-   bool need_block ) {
-   if ( need_block ) {
+void p_read_top_block( struct parse* parse, struct stmt_reading* reading,
+   bool explicit_block ) {
+   if ( explicit_block ) {
       read_block( parse, reading );
    }
    else {

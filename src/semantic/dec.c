@@ -2179,7 +2179,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       semantic->topfunc_test = &test;
    }
    semantic->func_test = &test;
-   s_test_body( semantic, &impl->body->node );
+   s_test_top_block( semantic, impl->body );
    semantic->func_test = test.parent;
    impl->returns = test.returns;
    if ( ! impl->nested ) {
@@ -2357,7 +2357,7 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
       &script->funcscope_vars, script );
    semantic->topfunc_test = &test;
    semantic->func_test = semantic->topfunc_test;
-   s_test_body( semantic, script->body );
+   s_test_top_block( semantic, script->body );
    script->nested_funcs = test.nested_funcs;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;

@@ -1828,7 +1828,7 @@ void p_read_func_body( struct parse* parse, struct func* func ) {
    // TODO: Remove `parse.local_vars` fields.
    struct list* prev_local_vars = parse->local_vars;
    parse->local_vars = &impl->vars;
-   p_read_top_stmt( parse, &body, true );
+   p_read_top_block( parse, &body, true );
    impl->body = body.block_node;
    parse->local_vars = prev_local_vars;
 }
@@ -2190,8 +2190,8 @@ void read_script_body( struct parse* parse, struct script* script ) {
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
    parse->local_vars = &script->vars;
-   p_read_top_stmt( parse, &body, false );
-   script->body = body.node;
+   p_read_top_block( parse, &body, false );
+   script->body = body.block_node;
    parse->local_vars = NULL;
 }
 

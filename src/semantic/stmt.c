@@ -62,18 +62,12 @@ void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->case_allowed = false;
 }
 
-void s_test_body( struct semantic* semantic, struct node* node ) {
+void s_test_top_block( struct semantic* semantic, struct block* block ) {
    struct stmt_test test;
    s_init_stmt_test( &test, NULL );
    test.manual_scope = true;
-   if ( node->type == NODE_BLOCK ) {
-      test_block( semantic, &test,
-         ( struct block* ) node );
-      check_dup_label( semantic );
-   }
-   else {
-      test_stmt( semantic, &test, node );
-   }
+   test_block( semantic, &test, block );
+   check_dup_label( semantic );
 }
 
 void test_block( struct semantic* semantic, struct stmt_test* test,

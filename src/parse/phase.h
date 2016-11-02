@@ -450,8 +450,8 @@ void p_read_stream( struct parse* parse );
 void p_test_tk( struct parse* parse, enum tk type );
 void p_test_preptk( struct parse* parse, enum tk type );
 void p_test_stream( struct parse* parse, enum tk type );
-void p_read_top_stmt( struct parse* parse, struct stmt_reading* reading,
-   bool need_block );
+void p_read_top_block( struct parse* parse, struct stmt_reading* reading,
+   bool explicit_block );
 void p_skip_block( struct parse* parse );
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );

@@ -138,7 +138,7 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
    struct type_info* result_type, struct expr* expr );
 void s_test_bool_expr( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
-void s_test_body( struct semantic* semantic, struct node* node );
+void s_test_top_block( struct semantic* semantic, struct block* block );
 void s_add_scope( struct semantic* semantic, bool func_scope );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );
