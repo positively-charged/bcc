@@ -252,6 +252,8 @@ static void alloc_value_index_struct( struct value_index_alloc*,
    struct multi_value*, struct structure* );
 static void test_script_number( struct semantic* semantic,
    struct script* script );
+static void test_script_param_list( struct semantic* semantic,
+   struct script* script );
 static void test_script_body( struct semantic* semantic,
    struct script* script );
 static void init_builtin_script_aliases( struct semantic* semantic,
@@ -2269,6 +2271,7 @@ void s_test_script( struct semantic* semantic, struct script* script ) {
    if ( script->number ) {
       test_script_number( semantic, script );
    }
+   test_script_param_list( semantic, script );
    test_script_body( semantic, script );
 }
 
@@ -2328,6 +2331,16 @@ void test_script_number( struct semantic* semantic, struct script* script ) {
    }
 }
 
+void test_script_param_list( struct semantic* semantic,
+   struct script* script ) {
+   struct param* param = script->params;
+   while ( param ) {
+      calc_param_size( param );
+      param->object.resolved = true;
+      param = param->next;
+   }
+}
+
 void test_script_body( struct semantic* semantic, struct script* script ) {
    s_add_scope( semantic, true );
    struct builtin_script_aliases aliases;
@@ -2337,7 +2350,6 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
       if ( param->name ) {
          s_bind_local_name( semantic, param->name, &param->object, true );
       }
-      param->object.resolved = true;
       param = param->next;
    }
    struct func_test test;
