@@ -11,6 +11,7 @@
    <li><a href="#enumerations">Enumerations</a></li>
    <li><a href="#structures">Structures</a></li>
    <li><a href="#functions">Functions</a></li>
+   <li><a href="#scripts">Scripts</a></li>
    <li><a href="#statements">Statements</a></li>
    <li><a href="#references">References</a></li>
    <li><a href="#strong-types">Strong Types</a></li>
