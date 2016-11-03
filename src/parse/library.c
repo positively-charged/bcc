@@ -117,12 +117,7 @@ void read_module_item_acs( struct parse* parse ) {
    else {
       switch ( parse->tk ) {
       case TK_SCRIPT:
-         if ( ! parse->lib->imported ) {
-            p_read_script( parse );
-         }
-         else {
-            p_skip_block( parse );
-         }
+         p_read_script( parse );
          break;
       case TK_HASH:
          read_pseudo_dirc( parse, false );
@@ -223,12 +218,7 @@ void read_namespace_member( struct parse* parse ) {
       p_read_dec( parse, &dec );
    }
    else if ( parse->tk == TK_SCRIPT ) {
-      if ( ! parse->lib->imported ) {
-         p_read_script( parse );
-      }
-      else {
-         p_skip_block( parse );
-      }
+      p_read_script( parse );
    }
    else if ( parse->tk == TK_NAMESPACE ) {
       read_namespace( parse );

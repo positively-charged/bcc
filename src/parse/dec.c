@@ -154,6 +154,8 @@ static void read_script_type( struct parse* parse,
 static const char* get_script_article( int type );
 static void read_script_flag( struct parse* parse,
    struct script_reading* reading );
+static void read_script_after_flag( struct parse* parse,
+   struct script_reading* reading );
 static void read_script_body( struct parse* parse,
    struct script_reading* reading );
 static struct script* add_script( struct parse* parse,
@@ -1864,7 +1866,7 @@ void p_read_script( struct parse* parse ) {
       parse->lang == LANG_BCS ) {
       read_script_flag( parse, &reading );
    }
-   read_script_body( parse, &reading );
+   read_script_after_flag( parse, &reading );
 }
 
 void init_script_reading( struct script_reading* reading, struct pos* pos ) {
@@ -2178,6 +2180,25 @@ void read_script_flag( struct parse* parse, struct script_reading* reading ) {
             p_bail( parse );
          }
       }
+   }
+}
+
+void read_script_after_flag( struct parse* parse,
+   struct script_reading* reading ) {
+   // NOTE: A script can be of the form: script 1 open <statement>. In this
+   // form, the body of the script is not a block, but we are skipping a block
+   // in the following code. This will cause the next available block to be
+   // skipped. This means a function could be skipped, because the next block
+   // might be the body of a function. Warn about this form of a script.
+   if ( parse->tk != TK_BRACE_L ) {
+      p_diag( parse, DIAG_POS | DIAG_WARN, &reading->pos,
+         "script missing braces around its body" );
+   }
+   if ( parse->lib->imported ) {
+      p_skip_block( parse );
+   }
+   else {
+      read_script_body( parse, reading );
    }
 }
 
