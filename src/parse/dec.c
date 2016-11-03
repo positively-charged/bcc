@@ -2079,6 +2079,12 @@ void read_script_type( struct parse* parse, struct script_reading* reading ) {
    }
    // Correct number of parameters need to be specified for a script type.
    if ( reading->type == SCRIPT_TYPE_CLOSED ) {
+      if ( ( parse->lang == LANG_ACS || parse->lang == LANG_ACS95 ) &&
+         ! reading->param_specified ) {
+         p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
+            "script missing parameter list" );
+         p_bail( parse );
+      }
       if ( reading->num_param > parse->lang_limits->max_script_params ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in script" );
@@ -2118,12 +2124,12 @@ void read_script_type( struct parse* parse, struct script_reading* reading ) {
       if ( parse->lang != LANG_BCS && reading->param_specified &&
          reading->num_param == 0 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
-            "parameter-list specified for %s-script", parse->tk_text );
+            "parameter list specified for %s-script", parse->tk_text );
          p_bail( parse );
       }
       if ( reading->param_specified && reading->num_param != 0 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
-            "non-empty parameter-list in %s-script", parse->tk_text );
+            "non-empty parameter list in %s-script", parse->tk_text );
          p_diag( parse, DIAG_POS, &reading->param_pos,
             "%s %s-script must have zero parameters",
             get_script_article( reading->type ), parse->tk_text );
