@@ -35,10 +35,14 @@ struct multi_value_read {
 };
 
 struct script_reading {
+   struct pos pos;
+   struct expr* number;
    struct param* param;
    struct param* param_tail;
    struct pos param_pos;
    int num_param;
+   int type;
+   int flags;
    bool param_specified;
 };
 
@@ -135,18 +139,25 @@ static void read_param_default_value( struct parse* parse,
 static void append_param( struct params* params, struct param* param );
 static void read_func_body( struct parse* parse, struct dec* dec,
    struct func* func );
-static void read_script_number( struct parse* parse, struct script* script );
+static void init_script_reading( struct script_reading* reading,
+   struct pos* pos );
+static void read_script_number( struct parse* parse,
+   struct script_reading* reading );
 static void read_script_param_paren( struct parse* parse,
-   struct script_reading* reading, struct script* script );
+   struct script_reading* reading );
 static void read_script_param_list( struct parse* parse,
    struct script_reading* reading );
 static void read_script_param( struct parse* parse,
    struct script_reading* reading );
 static void read_script_type( struct parse* parse,
-   struct script_reading* reading, struct script* script );
+   struct script_reading* reading );
 static const char* get_script_article( int type );
-static void read_script_flag( struct parse* parse, struct script* script );
-static void read_script_body( struct parse* parse, struct script* script );
+static void read_script_flag( struct parse* parse,
+   struct script_reading* reading );
+static void read_script_body( struct parse* parse,
+   struct script_reading* reading );
+static struct script* add_script( struct parse* parse,
+   struct script_reading* reading );
 static void read_special( struct parse* parse );
 static void init_special_reading( struct special_reading* reading );
 static void read_special_param_dec( struct parse* parse,
@@ -1841,46 +1852,34 @@ struct func_aspec* alloc_aspec_impl( void ) {
 }
 
 void p_read_script( struct parse* parse ) {
-   p_test_tk( parse, TK_SCRIPT );
-   struct script* script = mem_alloc( sizeof( *script ) );
-   script->node.type = NODE_SCRIPT;
-   script->pos = parse->tk_pos;
-   script->number = NULL;
-   script->type = SCRIPT_TYPE_CLOSED;
-   script->flags = 0;
-   script->params = NULL;
-   script->body = NULL;
-   script->nested_funcs = NULL;
-   script->nested_calls = NULL;
-   list_init( &script->labels );
-   list_init( &script->vars );
-   list_init( &script->funcscope_vars );
-   script->assigned_number = 0;
-   script->num_param = 0;
-   script->offset = 0;
-   script->size = 0;
-   script->named_script = false;
-   p_read_tk( parse );
    struct script_reading reading;
-   reading.param = NULL;
-   reading.param_tail = NULL;
-   reading.num_param = 0;
-   reading.param_specified = false;
-   read_script_number( parse, script );
-   read_script_param_paren( parse, &reading, script );
-   read_script_type( parse, &reading, script );
+   init_script_reading( &reading, &parse->tk_pos );
+   p_test_tk( parse, TK_SCRIPT );
+   p_read_tk( parse );
+   read_script_number( parse, &reading );
+   read_script_param_paren( parse, &reading );
+   read_script_type( parse, &reading );
    if (
       parse->lang == LANG_ACS ||
       parse->lang == LANG_BCS ) {
-      read_script_flag( parse, script );
+      read_script_flag( parse, &reading );
    }
-   read_script_body( parse, script );
-   list_append( &parse->lib->scripts, script );
-   list_append( &parse->lib->objects, script );
-   list_append( &parse->ns_fragment->scripts, script );
+   read_script_body( parse, &reading );
 }
 
-void read_script_number( struct parse* parse, struct script* script ) {
+void init_script_reading( struct script_reading* reading, struct pos* pos ) {
+   reading->pos = *pos;
+   reading->number = NULL;
+   reading->param = NULL;
+   reading->param_tail = NULL;
+   reading->num_param = 0;
+   reading->type = SCRIPT_TYPE_CLOSED;
+   reading->flags = 0;
+   reading->param_specified = false;
+}
+
+void read_script_number( struct parse* parse,
+   struct script_reading* reading ) {
    if ( ( parse->lang == LANG_ACS || parse->lang == LANG_BCS ) &&
       parse->tk == TK_SHIFT_L ) {
       p_read_tk( parse );
@@ -1891,7 +1890,7 @@ void read_script_number( struct parse* parse, struct script* script ) {
          p_unexpect_last_name( parse, NULL, "the digit `0`" );
          p_bail( parse );
       }
-      script->number = parse->task->raw0_expr;
+      reading->number = parse->task->raw0_expr;
       p_read_tk( parse );
       p_test_tk( parse, TK_SHIFT_R );
       p_read_tk( parse );
@@ -1904,7 +1903,7 @@ void read_script_number( struct parse* parse, struct script* script ) {
       struct expr* expr = t_alloc_expr();
       expr->pos = parse->tk_pos;
       expr->root = &usage->node;
-      script->number = expr;
+      reading->number = expr;
       p_read_tk( parse );
    }
    else {
@@ -1913,12 +1912,12 @@ void read_script_number( struct parse* parse, struct script* script ) {
       struct expr_reading number;
       p_init_expr_reading( &number, false, false, true, true );
       p_read_expr( parse, &number );
-      script->number = number.output_node;
+      reading->number = number.output_node;
    }
 }
 
 void read_script_param_paren( struct parse* parse,
-   struct script_reading* reading, struct script* script ) {
+   struct script_reading* reading ) {
    reading->param_pos = parse->tk_pos;
    if ( parse->tk == TK_PAREN_L ) {
       p_test_tk( parse, TK_PAREN_L );
@@ -1928,8 +1927,6 @@ void read_script_param_paren( struct parse* parse,
          parse->lang == LANG_BCS &&
          parse->tk == TK_PAREN_R ) ) {
          read_script_param_list( parse, reading );
-         script->params = reading->param;
-         script->num_param = reading->num_param;
       }
       p_test_tk( parse, TK_PAREN_R );
       p_read_tk( parse );
@@ -2026,8 +2023,7 @@ void read_script_param( struct parse* parse, struct script_reading* reading ) {
    ++reading->num_param;
 }
 
-void read_script_type( struct parse* parse, struct script_reading* reading,
-   struct script* script ) {
+void read_script_type( struct parse* parse, struct script_reading* reading ) {
    enum tk tk = parse->tk;
    // In BCS, script types are context-sensitive keywords.
    if ( parse->lang == LANG_BCS && parse->tk == TK_ID ) {
@@ -2062,26 +2058,26 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
       }
    }
    switch ( tk ) {
-   case TK_OPEN: script->type = SCRIPT_TYPE_OPEN; break;
-   case TK_RESPAWN: script->type = SCRIPT_TYPE_RESPAWN; break;
-   case TK_DEATH: script->type = SCRIPT_TYPE_DEATH; break;
-   case TK_ENTER: script->type = SCRIPT_TYPE_ENTER; break;
-   case TK_PICKUP: script->type = SCRIPT_TYPE_PICKUP; break;
-   case TK_BLUE_RETURN: script->type = SCRIPT_TYPE_BLUERETURN; break;
-   case TK_RED_RETURN: script->type = SCRIPT_TYPE_REDRETURN; break;
-   case TK_WHITE_RETURN: script->type = SCRIPT_TYPE_WHITERETURN; break;
-   case TK_LIGHTNING: script->type = SCRIPT_TYPE_LIGHTNING; break;
-   case TK_DISCONNECT: script->type = SCRIPT_TYPE_DISCONNECT; break;
-   case TK_UNLOADING: script->type = SCRIPT_TYPE_UNLOADING; break;
-   case TK_RETURN: script->type = SCRIPT_TYPE_RETURN; break;
-   case TK_EVENT: script->type = SCRIPT_TYPE_EVENT; break;
-   case TK_KILL: script->type = SCRIPT_TYPE_KILL; break;
-   case TK_REOPEN: script->type = SCRIPT_TYPE_REOPEN; break;
+   case TK_OPEN: reading->type = SCRIPT_TYPE_OPEN; break;
+   case TK_RESPAWN: reading->type = SCRIPT_TYPE_RESPAWN; break;
+   case TK_DEATH: reading->type = SCRIPT_TYPE_DEATH; break;
+   case TK_ENTER: reading->type = SCRIPT_TYPE_ENTER; break;
+   case TK_PICKUP: reading->type = SCRIPT_TYPE_PICKUP; break;
+   case TK_BLUE_RETURN: reading->type = SCRIPT_TYPE_BLUERETURN; break;
+   case TK_RED_RETURN: reading->type = SCRIPT_TYPE_REDRETURN; break;
+   case TK_WHITE_RETURN: reading->type = SCRIPT_TYPE_WHITERETURN; break;
+   case TK_LIGHTNING: reading->type = SCRIPT_TYPE_LIGHTNING; break;
+   case TK_DISCONNECT: reading->type = SCRIPT_TYPE_DISCONNECT; break;
+   case TK_UNLOADING: reading->type = SCRIPT_TYPE_UNLOADING; break;
+   case TK_RETURN: reading->type = SCRIPT_TYPE_RETURN; break;
+   case TK_EVENT: reading->type = SCRIPT_TYPE_EVENT; break;
+   case TK_KILL: reading->type = SCRIPT_TYPE_KILL; break;
+   case TK_REOPEN: reading->type = SCRIPT_TYPE_REOPEN; break;
    default: break;
    }
    // Correct number of parameters need to be specified for a script type.
-   if ( script->type == SCRIPT_TYPE_CLOSED ) {
-      if ( script->num_param > parse->lang_limits->max_script_params ) {
+   if ( reading->type == SCRIPT_TYPE_CLOSED ) {
+      if ( reading->num_param > parse->lang_limits->max_script_params ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in script" );
          p_diag( parse, DIAG_POS, &reading->param_pos,
@@ -2090,15 +2086,15 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
          p_bail( parse );
       }
    }
-   else if ( script->type == SCRIPT_TYPE_DISCONNECT ) {
+   else if ( reading->type == SCRIPT_TYPE_DISCONNECT ) {
       // A disconnect script must have a single parameter. It is the number of
       // the player who exited the game.
-      if ( script->num_param < 1 ) {
+      if ( reading->num_param < 1 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "missing player-number parameter in disconnect-script" );
          p_bail( parse );
       }
-      if ( script->num_param > 1 ) {
+      if ( reading->num_param > 1 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "too many parameters in disconnect-script" );
          p_bail( parse );
@@ -2106,8 +2102,8 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
       }
       p_read_tk( parse );
    }
-   else if ( script->type == SCRIPT_TYPE_EVENT ) {
-      if ( script->num_param != 3 ) {
+   else if ( reading->type == SCRIPT_TYPE_EVENT ) {
+      if ( reading->num_param != 3 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "incorrect number of parameters in event-script" );
          p_diag( parse, DIAG_POS, &reading->param_pos,
@@ -2118,17 +2114,17 @@ void read_script_type( struct parse* parse, struct script_reading* reading,
    }
    else {
       if ( parse->lang != LANG_BCS && reading->param_specified &&
-         script->num_param == 0 ) {
+         reading->num_param == 0 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "parameter-list specified for %s-script", parse->tk_text );
          p_bail( parse );
       }
-      if ( reading->param_specified && script->num_param != 0 ) {
+      if ( reading->param_specified && reading->num_param != 0 ) {
          p_diag( parse, DIAG_POS_ERR, &reading->param_pos,
             "non-empty parameter-list in %s-script", parse->tk_text );
          p_diag( parse, DIAG_POS, &reading->param_pos,
             "%s %s-script must have zero parameters",
-            get_script_article( script->type ), parse->tk_text );
+            get_script_article( reading->type ), parse->tk_text );
          p_bail( parse );
       }
       p_read_tk( parse );
@@ -2148,15 +2144,15 @@ const char* get_script_article( int type ) {
    }
 }
 
-void read_script_flag( struct parse* parse, struct script* script ) {
+void read_script_flag( struct parse* parse, struct script_reading* reading ) {
    // In ACS, the flags must appear in a specific order.
    if ( parse->lang == LANG_ACS ) {
       if ( parse->tk == TK_NET ) {
-         script->flags |= SCRIPT_FLAG_NET;
+         reading->flags |= SCRIPT_FLAG_NET;
          p_read_tk( parse );
       }
       if ( parse->tk == TK_CLIENTSIDE ) {
-         script->flags |= SCRIPT_FLAG_CLIENTSIDE;
+         reading->flags |= SCRIPT_FLAG_CLIENTSIDE;
          p_read_tk( parse );
       }
    }
@@ -2172,8 +2168,8 @@ void read_script_flag( struct parse* parse, struct script* script ) {
                break;
             }
          }
-         if ( ! ( script->flags & flag ) ) {
-            script->flags |= flag;
+         if ( ! ( reading->flags & flag ) ) {
+            reading->flags |= flag;
             p_read_tk( parse );
          }
          else {
@@ -2185,13 +2181,40 @@ void read_script_flag( struct parse* parse, struct script* script ) {
    }
 }
 
-void read_script_body( struct parse* parse, struct script* script ) {
+void read_script_body( struct parse* parse, struct script_reading* reading ) {
+   struct script* script = add_script( parse, reading );
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
    parse->local_vars = &script->vars;
    p_read_top_block( parse, &body, false );
    script->body = body.block_node;
    parse->local_vars = NULL;
+}
+
+struct script* add_script( struct parse* parse,
+   struct script_reading* reading ) {
+   struct script* script = mem_alloc( sizeof( *script ) );
+   script->node.type = NODE_SCRIPT;
+   script->pos = reading->pos;
+   script->number = reading->number;
+   script->type = reading->type;
+   script->flags = reading->flags;
+   script->params = reading->param;
+   script->body = NULL;
+   script->nested_funcs = NULL;
+   script->nested_calls = NULL;
+   list_init( &script->labels );
+   list_init( &script->vars );
+   list_init( &script->funcscope_vars );
+   script->assigned_number = 0;
+   script->num_param = reading->num_param;
+   script->offset = 0;
+   script->size = 0;
+   script->named_script = false;
+   list_append( &parse->lib->scripts, script );
+   list_append( &parse->lib->objects, script );
+   list_append( &parse->ns_fragment->scripts, script );
+   return script;
 }
 
 void p_read_special_list( struct parse* parse ) {
