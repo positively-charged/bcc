@@ -157,7 +157,7 @@ static void read_script_flag( struct parse* parse,
 static void read_script_after_flag( struct parse* parse,
    struct script_reading* reading );
 static void read_script_body( struct parse* parse,
-   struct script_reading* reading );
+   struct script_reading* reading, struct script* script );
 static struct script* add_script( struct parse* parse,
    struct script_reading* reading );
 static void read_special( struct parse* parse );
@@ -2185,6 +2185,7 @@ void read_script_flag( struct parse* parse, struct script_reading* reading ) {
 
 void read_script_after_flag( struct parse* parse,
    struct script_reading* reading ) {
+   struct script* script = add_script( parse, reading );
    // NOTE: A script can be of the form: script 1 open <statement>. In this
    // form, the body of the script is not a block, but we are skipping a block
    // in the following code. This will cause the next available block to be
@@ -2198,12 +2199,12 @@ void read_script_after_flag( struct parse* parse,
       p_skip_block( parse );
    }
    else {
-      read_script_body( parse, reading );
+      read_script_body( parse, reading, script );
    }
 }
 
-void read_script_body( struct parse* parse, struct script_reading* reading ) {
-   struct script* script = add_script( parse, reading );
+void read_script_body( struct parse* parse, struct script_reading* reading,
+   struct script* script ) {
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
    parse->local_vars = &script->vars;

@@ -2274,7 +2274,9 @@ void s_test_script( struct semantic* semantic, struct script* script ) {
       test_script_number( semantic, script );
    }
    test_script_param_list( semantic, script );
-   test_script_body( semantic, script );
+   if ( script->body ) {
+      test_script_body( semantic, script );
+   }
 }
 
 void test_script_number( struct semantic* semantic, struct script* script ) {

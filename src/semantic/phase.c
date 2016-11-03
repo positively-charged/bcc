@@ -73,7 +73,7 @@ static void test_objects_bodies_ns( struct semantic* semantic,
    struct ns_fragment* fragment );
 static void check_dup_scripts( struct semantic* semantic );
 static void match_dup_script( struct semantic* semantic, struct script* script,
-   struct script* prev_script );
+   struct script* prev_script, bool imported );
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
@@ -1066,15 +1066,28 @@ void check_dup_scripts( struct semantic* semantic ) {
       list_iter_t k = i;
       list_next( &k );
       while ( ! list_end( &k ) ) {
-         match_dup_script( semantic, list_data( &k ), list_data( &i ) );
+         match_dup_script( semantic, list_data( &k ), list_data( &i ), false );
          list_next( &k );
+      }
+      // Check for duplicates in an imported library.
+      list_iter_t j;
+      list_iter_init( &j, &semantic->main_lib->dynamic );
+      while ( ! list_end( &j ) ) {
+         struct library* lib = list_data( &j );
+         list_iter_init( &k, &lib->scripts );
+         while ( ! list_end( &k ) ) {
+            match_dup_script( semantic, list_data( &i ), list_data( &k ),
+               true );
+            list_next( &k );
+         }
+         list_next( &j );
       }
       list_next( &i );
    }
 }
 
 void match_dup_script( struct semantic* semantic, struct script* script,
-   struct script* prev_script ) {
+   struct script* prev_script, bool imported ) {
    // Script names.
    if ( script->named_script && prev_script->named_script ) {
       struct indexed_string* name =
@@ -1082,21 +1095,39 @@ void match_dup_script( struct semantic* semantic, struct script* script,
       struct indexed_string* prev_name =
          t_lookup_string( semantic->task, prev_script->number->value );
       if ( strcasecmp( name->value, prev_name->value ) == 0 ) {
-         s_diag( semantic, DIAG_POS_ERR, &script->pos,
-            "duplicate script \"%s\"", name->value );
-         s_diag( semantic, DIAG_POS, &prev_script->pos,
-            "script already found here" );
-         s_bail( semantic );
+         if ( imported ) {
+            s_diag( semantic, DIAG_POS | DIAG_WARN, &script->pos,
+               "script \"%s\" already found in an imported library",
+               name->value );
+            s_diag( semantic, DIAG_POS, &prev_script->pos,
+               "script in imported library found here" );
+         }
+         else {
+            s_diag( semantic, DIAG_POS_ERR, &script->pos,
+               "duplicate script \"%s\"", name->value );
+            s_diag( semantic, DIAG_POS, &prev_script->pos,
+               "script already found here" );
+            s_bail( semantic );
+         }
       }
    }
    // Script numbers.
    else if ( ! script->named_script && ! prev_script->named_script ) {
       if ( script->number->value == prev_script->number->value ) {
-         s_diag( semantic, DIAG_POS_ERR, &script->pos,
-            "duplicate script %d", script->number->value );
-         s_diag( semantic, DIAG_POS, &prev_script->pos,
-            "script already found here" );
-         s_bail( semantic );
+         if ( imported ) {
+            s_diag( semantic, DIAG_POS | DIAG_WARN, &script->pos,
+               "script %d already found in an imported library",
+               script->number->value );
+            s_diag( semantic, DIAG_POS, &prev_script->pos,
+               "script in imported library found here" );
+         }
+         else {
+            s_diag( semantic, DIAG_POS_ERR, &script->pos,
+               "duplicate script %d", script->number->value );
+            s_diag( semantic, DIAG_POS, &prev_script->pos,
+               "script already found here" );
+            s_bail( semantic );
+         }
       }
    }
 }
