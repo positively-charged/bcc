@@ -634,7 +634,7 @@ void F() {}
 
 --
 
-For a function that returns a value, it is not necessary to have a return statement at the end of the function. (In fact, as of this time, it is possible to skip the return statement entirely. It's possible, but __don't__ do this.)
+For a function that returns a value, it is not necessary to have a return statement at the end of the function. As long as the function ultimately returns a value, you can nest the return statements:
 
 ```
 // Get absolute value of number.
