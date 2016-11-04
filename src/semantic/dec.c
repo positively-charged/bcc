@@ -2181,7 +2181,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       semantic->topfunc_test = &test;
    }
    semantic->func_test = &test;
-   s_test_top_block( semantic, impl->body );
+   s_test_func_block( semantic, func, impl->body );
    semantic->func_test = test.parent;
    impl->returns = test.returns;
    if ( ! impl->nested ) {
@@ -2189,18 +2189,6 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       semantic->topfunc_test = NULL;
    }
    s_pop_scope( semantic );
-   if ( semantic->lang == LANG_ACS ) {
-      bool return_stmt_at_end = false;
-      if ( list_size( &impl->body->stmts ) > 0 ) {
-         struct node* node = list_tail( &impl->body->stmts );
-         return_stmt_at_end = ( node->type == NODE_RETURN );
-      }
-      if ( func->return_spec != SPEC_VOID && ! return_stmt_at_end ) {
-         s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
-            "function missing return statement at end of body" );
-         s_bail( semantic );
-      }
-   }
    // If `auto` is still the specifier, it means no return statements were
    // encountered. The return type is then `void`.
    if ( func->return_spec == SPEC_AUTO ) {

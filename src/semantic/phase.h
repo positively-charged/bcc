@@ -55,9 +55,16 @@ struct stmt_test {
    struct jump* jump_break;
    struct jump* jump_continue;
    struct type_info cond_type;
+   enum {
+      FLOW_GOING,
+      FLOW_BREAKING,
+      FLOW_DEAD,
+      FLOW_RESET,
+   } flow;
    bool in_loop;
    bool manual_scope;
    bool case_allowed;
+   bool found_folded_case;
 };
 
 struct expr_test {
@@ -139,6 +146,8 @@ void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
 void s_test_bool_expr( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_top_block( struct semantic* semantic, struct block* block );
+void s_test_func_block( struct semantic* semantic, struct func* func,
+   struct block* block );
 void s_add_scope( struct semantic* semantic, bool func_scope );
 void s_pop_scope( struct semantic* semantic );
 void s_test_script( struct semantic* semantic, struct script* script );

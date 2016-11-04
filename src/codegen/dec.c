@@ -145,7 +145,6 @@ void write_func( struct codegen* codegen, struct func* func ) {
    alloc_param_indexes( &record, func->params );
    alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
    c_write_block( codegen, impl->body );
-   c_pcd( codegen, PCD_RETURNVOID );
    impl->size = record.size;
    codegen->func = NULL;
    if ( impl->nested_funcs ) {
@@ -553,9 +552,6 @@ void write_one_nestedfunc( struct codegen* codegen,
    // Body:
    // -----------------------------------------------------------------------
    c_write_block( codegen, impl->body );
-   if ( func->return_spec != SPEC_VOID ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, 0 );
-   }
    impl->size = record.size;
    // Prologue (part #2):
    // -----------------------------------------------------------------------
