@@ -111,7 +111,8 @@ struct node {
       NODE_CONVERSION,
       NODE_SURE,
       NODE_FUNCNAME,
-      NODE_SCRIPTID
+      NODE_SCRIPTID,
+      NODE_DO
    } type;
 };
 
@@ -577,16 +578,20 @@ struct switch_stmt {
 
 struct while_stmt {
    struct node node;
-   enum {
-      WHILE_WHILE,
-      WHILE_UNTIL,
-      WHILE_DO_WHILE,
-      WHILE_DO_UNTIL
-   } type;
    struct cond cond;
-   struct node* body;
+   struct block* body;
    struct jump* jump_break;
    struct jump* jump_continue;
+   bool until;
+};
+
+struct do_stmt {
+   struct node node;
+   struct expr* cond;
+   struct block* body;
+   struct jump* jump_break;
+   struct jump* jump_continue;
+   bool until;
 };
 
 struct for_stmt {

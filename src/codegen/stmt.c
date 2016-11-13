@@ -23,11 +23,14 @@ static void write_string_switch( struct codegen* codegen,
    struct switch_stmt* stmt );
 static void visit_case( struct codegen* codegen, struct case_label* );
 static void visit_while( struct codegen* codegen, struct while_stmt* );
-static void write_while( struct codegen* codegen, struct while_stmt* stmt );
-static void push_cond( struct codegen* codegen, struct cond* cond );
 static void write_folded_while( struct codegen* codegen,
    struct while_stmt* stmt );
-static bool while_stmt( struct while_stmt* stmt );
+static void write_while( struct codegen* codegen, struct while_stmt* stmt );
+static void push_cond( struct codegen* codegen, struct cond* cond );
+static void visit_do( struct codegen* codegen, struct do_stmt* stmt );
+static void write_folded_do( struct codegen* codegen,
+   struct do_stmt* stmt );
+static void write_do( struct codegen* codegen, struct do_stmt* stmt );
 static void visit_for( struct codegen* codegen, struct for_stmt* );
 static void visit_foreach( struct codegen* codegen,
    struct foreach_stmt* stmt );
@@ -179,6 +182,10 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
       break;
    case NODE_WHILE:
       visit_while( codegen, ( struct while_stmt* ) node );
+      break;
+   case NODE_DO:
+      visit_do( codegen,
+         ( struct do_stmt* ) node );
       break;
    case NODE_FOR:
       visit_for( codegen, ( struct for_stmt* ) node );
@@ -441,31 +448,55 @@ void visit_while( struct codegen* codegen, struct while_stmt* stmt ) {
    }
 }
 
-void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
-   struct local_record record;
-   init_local_record( codegen, &record );
-   push_local_record( codegen, &record );
-   bool while_until = ( stmt->type == WHILE_WHILE ||
-      stmt->type == WHILE_UNTIL );
-   // Initial jump to condition for while/until loop.
-   struct c_jump* cond_jump = NULL;
-   if ( while_until ) {
-      cond_jump = c_create_jump( codegen, PCD_GOTO );
-      c_append_node( codegen, &cond_jump->node );
+void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
+   bool true_cond = ( ! stmt->until && stmt->cond.u.expr->value != 0 ) ||
+      ( stmt->until && stmt->cond.u.expr->value == 0 );
+   // A loop with a constant false condition never executes, so jump to the
+   // exit right away. Nonetheless, the loop is still written because it can be
+   // entered with a goto-statement.
+   struct c_jump* exit_jump = NULL;
+   if ( ! true_cond ) {
+      exit_jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &exit_jump->node );
    }
    // Body.
    struct c_point* body_point = c_create_point( codegen );
    c_append_node( codegen, &body_point->node );
-   c_write_stmt( codegen, stmt->body );
+   c_write_block( codegen, stmt->body );
+   // Jump to top of body. With a false condition, the loop will never
+   // execute and so this jump is not needed.
+   if ( true_cond ) {
+      struct c_jump* body_jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &body_jump->node );
+      body_jump->point = body_point;
+   }
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   if ( ! true_cond ) {
+      exit_jump->point = exit_point;
+   }
+   set_jumps_point( codegen, stmt->jump_break, exit_point );
+   set_jumps_point( codegen, stmt->jump_continue,
+      ( true_cond ) ? body_point : exit_point );
+}
+
+void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
+   struct local_record record;
+   init_local_record( codegen, &record );
+   push_local_record( codegen, &record );
+   struct c_jump* cond_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &cond_jump->node );
+   // Body.
+   struct c_point* body_point = c_create_point( codegen );
+   c_append_node( codegen, &body_point->node );
+   c_write_block( codegen, stmt->body );
    // Condition.
    struct c_point* cond_point = c_create_point( codegen );
    c_append_node( codegen, &cond_point->node );
+   cond_jump->point = cond_point;
    push_cond( codegen, &stmt->cond );
-   if ( while_until ) {
-      cond_jump->point = cond_point;
-   }
    struct c_jump* body_jump = c_create_jump( codegen,
-      ( while_stmt( stmt ) ? PCD_IFGOTO : PCD_IFNOTGOTO ) );
+      ( stmt->until ? PCD_IFNOTGOTO : PCD_IFGOTO ) );
    c_append_node( codegen, &body_jump->node );
    body_jump->point = body_point;
    struct c_point* exit_point = c_create_point( codegen );
@@ -485,9 +516,18 @@ void push_cond( struct codegen* codegen, struct cond* cond ) {
    }
 }
 
-void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
-   bool true_cond = ( while_stmt( stmt ) && stmt->cond.u.expr->value != 0 ) ||
-      ( stmt->cond.u.expr->value == 0 );
+void visit_do( struct codegen* codegen, struct do_stmt* stmt ) {
+   if ( stmt->cond->folded ) {
+      write_folded_do( codegen, stmt );
+   }
+   else {
+      write_do( codegen, stmt );
+   }
+}
+
+void write_folded_do( struct codegen* codegen, struct do_stmt* stmt ) {
+   bool true_cond = ( ! stmt->until && stmt->cond->value != 0 ) ||
+      ( stmt->until && stmt->cond->value == 0 );
    // A loop with a constant false condition never executes, so jump to the
    // exit right away. Nonetheless, the loop is still written because it can be
    // entered with a goto-statement.
@@ -499,7 +539,7 @@ void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
    // Body.
    struct c_point* body_point = c_create_point( codegen );
    c_append_node( codegen, &body_point->node );
-   c_write_stmt( codegen, stmt->body );
+   c_write_block( codegen, stmt->body );
    // Jump to top of body. With a false condition, the loop will never
    // execute and so this jump is not needed.
    if ( true_cond ) {
@@ -517,8 +557,27 @@ void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
       ( true_cond ) ? body_point : exit_point );
 }
 
-bool while_stmt( struct while_stmt* stmt ) {
-   return ( stmt->type == WHILE_WHILE || stmt->type == WHILE_DO_WHILE );
+void write_do( struct codegen* codegen, struct do_stmt* stmt ) {
+   struct local_record record;
+   init_local_record( codegen, &record );
+   push_local_record( codegen, &record );
+   // Body.
+   struct c_point* body_point = c_create_point( codegen );
+   c_append_node( codegen, &body_point->node );
+   c_write_block( codegen, stmt->body );
+   // Condition.
+   struct c_point* cond_point = c_create_point( codegen );
+   c_append_node( codegen, &cond_point->node );
+   c_push_bool_expr( codegen, stmt->cond );
+   struct c_jump* body_jump = c_create_jump( codegen,
+      ( stmt->until ? PCD_IFNOTGOTO : PCD_IFGOTO ) );
+   c_append_node( codegen, &body_jump->node );
+   body_jump->point = body_point;
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   set_jumps_point( codegen, stmt->jump_break, exit_point );
+   set_jumps_point( codegen, stmt->jump_continue, cond_point );
+   pop_local_record( codegen );
 }
 
 // for-loop layout:

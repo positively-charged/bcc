@@ -26,6 +26,8 @@ static void warn_switch_skipped_init( struct semantic* semantic,
    struct block* block );
 static void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt );
+static void test_do( struct semantic* semantic, struct stmt_test* test,
+   struct do_stmt* stmt );
 static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* stmt );
 static void test_foreach( struct semantic* semantic, struct stmt_test* test,
@@ -352,6 +354,10 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
       test_while( semantic, test,
          ( struct while_stmt* ) node );
       break;
+   case NODE_DO:
+      test_do( semantic, test,
+         ( struct do_stmt* ) node );
+      break;
    case NODE_FOR:
       test_for( semantic, test,
          ( struct for_stmt* ) node );
@@ -544,52 +550,53 @@ void warn_switch_skipped_init( struct semantic* semantic,
 
 void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
-   test->in_loop = true;
    s_add_scope( semantic, false );
-   if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
-      test_cond( semantic, &stmt->cond );
-   }
+   test->in_loop = true;
+   test_cond( semantic, &stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   test_stmt( semantic, &body, stmt->body );
+   test_block( semantic, &body, stmt->body );
    stmt->jump_break = test->jump_break;
    stmt->jump_continue = test->jump_continue;
-   if ( stmt->type == WHILE_DO_WHILE || stmt->type == WHILE_DO_UNTIL ) {
-      test_cond( semantic, &stmt->cond );
-   }
    // Flow.
-   if ( stmt->type == WHILE_WHILE || stmt->type == WHILE_UNTIL ) {
-      if ( stmt->cond.u.node->type == NODE_EXPR &&
-         stmt->cond.u.expr->folded ) {
-         if ( ( stmt->type == WHILE_WHILE && stmt->cond.u.expr->value != 0 ) ||
-            ( stmt->type == WHILE_UNTIL && stmt->cond.u.expr->value == 0 ) ) {
-            if ( body.flow != FLOW_BREAKING ) {
-               test->flow = FLOW_DEAD;
-            }
+   if ( stmt->cond.u.node->type == NODE_EXPR && stmt->cond.u.expr->folded ) {
+      if ( ( ! stmt->until && stmt->cond.u.expr->value != 0 ) ||
+         ( stmt->until && stmt->cond.u.expr->value == 0 ) ) {
+         if ( body.flow != FLOW_BREAKING ) {
+            test->flow = FLOW_DEAD;
          }
       }
    }
-   else {
-      if ( stmt->cond.u.node->type == NODE_EXPR &&
-         stmt->cond.u.expr->folded ) {
-         if ( ( stmt->type == WHILE_DO_WHILE &&
-               stmt->cond.u.expr->value != 0 ) ||
-            ( stmt->type == WHILE_DO_UNTIL &&
-               stmt->cond.u.expr->value == 0 ) ) {
-            if ( body.flow != FLOW_BREAKING ) {
-               test->flow = FLOW_DEAD;
-            }
-         }
-         else {
-            if ( body.flow == FLOW_DEAD ) {
-               test->flow = FLOW_DEAD;
-            }
+   s_pop_scope( semantic );
+}
+
+void test_do( struct semantic* semantic, struct stmt_test* test,
+   struct do_stmt* stmt ) {
+   s_add_scope( semantic, false );
+   test->in_loop = true;
+   struct stmt_test body;
+   s_init_stmt_test( &body, test );
+   test_block( semantic, &body, stmt->body );
+   stmt->jump_break = test->jump_break;
+   stmt->jump_continue = test->jump_continue;
+   s_test_bool_expr( semantic, stmt->cond );
+   // Flow.
+   if ( stmt->cond->folded ) {
+      if ( ( ! stmt->until && stmt->cond->value != 0 ) ||
+         ( stmt->until && stmt->cond->value == 0 ) ) {
+         if ( body.flow != FLOW_BREAKING ) {
+            test->flow = FLOW_DEAD;
          }
       }
       else {
          if ( body.flow == FLOW_DEAD ) {
             test->flow = FLOW_DEAD;
          }
+      }
+   }
+   else {
+      if ( body.flow == FLOW_DEAD ) {
+         test->flow = FLOW_DEAD;
       }
    }
    s_pop_scope( semantic );

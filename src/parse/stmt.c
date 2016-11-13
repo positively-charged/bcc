@@ -22,8 +22,10 @@ static void read_heavy_cond( struct parse* parse, struct heavy_cond* cond );
 static void init_cond( struct cond* cond );
 static void read_switch( struct parse* parse, struct stmt_reading* );
 static struct switch_stmt* alloc_switch_stmt( void );
-static void read_while( struct parse* parse, struct stmt_reading* );
-static void read_do( struct parse* parse, struct stmt_reading* );
+static void read_while( struct parse* parse, struct stmt_reading* reading );
+static struct while_stmt* alloc_while( void );
+static void read_do( struct parse* parse, struct stmt_reading* reading );
+static struct do_stmt* alloc_do( void );
 static void read_for( struct parse* parse, struct stmt_reading* );
 static void read_for_init( struct parse* parse, struct for_stmt* stmt );
 static void read_for_post( struct parse* parse, struct for_stmt* stmt );
@@ -396,16 +398,14 @@ struct switch_stmt* alloc_switch_stmt( void ) {
 }
 
 void read_while( struct parse* parse, struct stmt_reading* reading ) {
-   struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
-   stmt->node.type = NODE_WHILE;
-   stmt->type = WHILE_WHILE;
+   struct while_stmt* stmt = alloc_while();
    if ( parse->tk == TK_WHILE ) {
       p_read_tk( parse );
    }
    else {
       p_test_tk( parse, TK_UNTIL );
       p_read_tk( parse );
-      stmt->type = WHILE_UNTIL;
+      stmt->until = true;
    }
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
@@ -413,40 +413,57 @@ void read_while( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    read_implicit_block( parse, reading );
-   stmt->body = reading->node;
-   stmt->jump_break = NULL;
-   stmt->jump_continue = NULL;
+   stmt->body = reading->block_node;
    reading->node = &stmt->node;
 }
 
-void read_do( struct parse* parse, struct stmt_reading* reading ) {
-   p_read_tk( parse );
+struct while_stmt* alloc_while( void ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
-   stmt->type = WHILE_DO_WHILE;
-   read_implicit_block( parse, reading );
-   stmt->body = reading->node;
+   init_cond( &stmt->cond );
+   stmt->body = NULL;
    stmt->jump_break = NULL;
    stmt->jump_continue = NULL;
+   stmt->until = false;
+   return stmt;
+}
+
+void read_do( struct parse* parse, struct stmt_reading* reading ) {
+   p_test_tk( parse, TK_DO );
+   p_read_tk( parse );
+   struct do_stmt* stmt = alloc_do();
+   read_implicit_block( parse, reading );
+   stmt->body = reading->block_node;
    if ( parse->tk == TK_WHILE ) {
       p_read_tk( parse );
    }
    else {
       p_test_tk( parse, TK_UNTIL );
       p_read_tk( parse );
-      stmt->type = WHILE_DO_UNTIL;
+      stmt->until = true;
    }
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, true );
    p_read_expr( parse, &expr );
-   stmt->cond.u.expr = expr.output_node;
+   stmt->cond = expr.output_node;
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    p_test_tk( parse, TK_SEMICOLON );
    p_read_tk( parse );
    reading->node = &stmt->node;
+}
+
+struct do_stmt* alloc_do( void ) {
+   struct do_stmt* stmt = mem_alloc( sizeof( *stmt ) );
+   stmt->node.type = NODE_DO;
+   stmt->cond = NULL;
+   stmt->body = NULL;
+   stmt->jump_break = NULL;
+   stmt->jump_continue = NULL;
+   stmt->until = false;
+   return stmt;
 }
 
 void read_for( struct parse* parse, struct stmt_reading* reading ) {
