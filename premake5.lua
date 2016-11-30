@@ -14,6 +14,7 @@ solution 'bcc'
       '-Wstrict-aliasing=2',
       '-Wmissing-field-initializers',
       '-D_BSD_SOURCE',
+      '-D_DEFAULT_SOURCE',
    }
    flags {
       'Symbols',
