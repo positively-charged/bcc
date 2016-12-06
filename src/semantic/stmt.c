@@ -81,6 +81,11 @@ void s_test_func_block( struct semantic* semantic, struct func* func,
    test.manual_scope = true;
    test_block( semantic, &test, block );
    check_dup_label( semantic );
+   // If the return type of the function is still `auto`, then the function has
+   // no return statements in its body, so the return type is `void`.
+   if ( func->return_spec == SPEC_AUTO ) {
+      func->return_spec = SPEC_VOID;
+   }
    if ( semantic->lang == LANG_BCS ) {
       if ( func->return_spec != SPEC_VOID && test.flow != FLOW_DEAD ) {
          s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
