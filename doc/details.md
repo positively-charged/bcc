@@ -1761,6 +1761,14 @@ The following people have contributed to the __bcc__ project. The names are list
     </td>
   </tr>
   <tr>
+    <td><a href="https://github.com/csnxs">csnxs</a></td>
+    <td>
+      <ul>
+        <li>Fixed compilation on systems that use glibc >= 2.19</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
     <td><a href="https://github.com/Hypnotoad90">Hypnotoad</a></td>
     <td>
       <ul>
