@@ -171,6 +171,7 @@ enum tk {
    TK_BACKSLASH,
    TK_REOPEN,
    TK_LET,
+   TK_TYPEAWARE,
 
    TK_TOTAL,
 

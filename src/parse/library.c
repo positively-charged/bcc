@@ -18,10 +18,17 @@ enum pseudo_dirc {
    PSEUDODIRC_ENDREGION
 };
 
+struct ns_qual {
+   bool strong_type;
+};
+
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
 static void read_namespace( struct parse* parse );
+static void init_namespace_qualifier( struct ns_qual* qualifiers );
+static void read_namespace_qualifier( struct parse* parse,
+   struct ns_qual* qualifiers );
 static void read_namespace_name( struct parse* parse );
 static void read_namespace_path( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
@@ -97,6 +104,7 @@ void read_module_item( struct parse* parse ) {
          read_pseudo_dirc( parse, false );
          break;
       case TK_NAMESPACE:
+      case TK_TYPEAWARE:
          read_namespace( parse );
          break;
       default:
@@ -134,10 +142,14 @@ void read_module_item_acs( struct parse* parse ) {
 }
 
 void read_namespace( struct parse* parse ) {
+   struct ns_qual qualifiers;
+   init_namespace_qualifier( &qualifiers );
+   read_namespace_qualifier( parse, &qualifiers );
    struct ns_fragment* parent_fragment = parse->ns_fragment;
    p_test_tk( parse, TK_NAMESPACE );
    struct ns_fragment* fragment = t_alloc_ns_fragment();
    fragment->object.pos = parse->tk_pos;
+   fragment->strong_type = qualifiers.strong_type;
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
    list_append( &parent_fragment->fragments, fragment );
@@ -151,6 +163,18 @@ void read_namespace( struct parse* parse ) {
    p_read_tk( parse );
    parse->ns_fragment = parent_fragment;
    parse->ns = parent_fragment->ns;
+}
+
+void init_namespace_qualifier( struct ns_qual* qualifiers ) {
+   qualifiers->strong_type = false;
+}
+
+void read_namespace_qualifier( struct parse* parse,
+   struct ns_qual* qualifiers ) {
+   if ( parse->tk == TK_TYPEAWARE ) {
+      qualifiers->strong_type = true;
+      p_read_tk( parse );
+   }
 }
 
 void read_namespace_name( struct parse* parse ) {

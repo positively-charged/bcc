@@ -1042,6 +1042,7 @@ struct ns_fragment {
    struct list scripts;
    struct list fragments;
    struct list usings;
+   bool strong_type;
 };
 
 struct ns_path {

@@ -170,16 +170,17 @@ static struct token_info g_table[] = {
    ENTRY( "\\", TKF_NONE ),
    ENTRY( "reopen", TKF_KEYWORD ),
    ENTRY( "let", TKF_KEYWORD ),
+   ENTRY( "typeaware", TKF_KEYWORD ),
 };
 #undef ENTRY
 
 const struct token_info* p_get_token_info( enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 149 );
+   STATIC_ASSERT( TK_TOTAL == 150 );
    return &g_table[ tk ];
 }
 
 void p_present_token( struct str* str, enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 149 );
+   STATIC_ASSERT( TK_TOTAL == 150 );
    switch ( tk ) {
    case TK_ID:
       str_append( str,

@@ -144,6 +144,7 @@ void read_token_bcs( struct parse* parse ) {
          { "switch", TK_SWITCH },
          { "terminate", TK_TERMINATE },
          { "true", TK_TRUE },
+         { "typeaware", TK_TYPEAWARE },
          { "typedef", TK_TYPEDEF },
          { "until", TK_UNTIL },
          { "upmost", TK_UPMOST },
