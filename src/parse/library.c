@@ -216,17 +216,13 @@ void read_namespace_name( struct parse* parse ) {
       }
    }
    else {
-      parse->ns = parse->task->upmost_ns;
+      // A nameless namespace fragment is a fragment of the parent namespace.
       parse->ns_fragment->ns = parse->ns;
    }
 }
 
 void read_namespace_path( struct parse* parse ) {
-   if ( parse->tk == TK_UPMOST ) {
-      p_read_tk( parse );
-   }
-   else {
-      p_test_tk( parse, TK_ID );
+   if ( parse->tk == TK_ID ) {
       struct ns_path* head = mem_alloc( sizeof( *head ) );
       struct ns_path* tail = head;
       head->next = NULL;
