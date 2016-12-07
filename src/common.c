@@ -92,7 +92,7 @@ void* mem_realloc( void* block, size_t size ) {
    alloc = realloc( alloc, sizeof( *alloc ) + size );
    if ( ! alloc ) {
       mem_free_all();
-      printf( "error: failed to allocate memory block of %zd bytes\n", size );
+      printf( "error: failed to allocate memory block of %zu bytes\n", size );
       exit( EXIT_FAILURE );
    }
    alloc->next = g_alloc;

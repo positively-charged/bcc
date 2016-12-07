@@ -350,7 +350,7 @@ void t_create_builtins( struct task* task, int lang ) {
       ARRAY_SIZE( g_interns ) };
    if ( ARRAY_SIZE( g_funcs ) != TOTAL_IMPLS ) {
       t_diag( task, DIAG_INTERNAL | DIAG_ERR,
-         "builtin function declarations (%zd) != implementations (%zd)",
+         "builtin function declarations (%zu) != implementations (%zu)",
          ARRAY_SIZE( g_funcs ), TOTAL_IMPLS );
       t_bail( task );
    }
