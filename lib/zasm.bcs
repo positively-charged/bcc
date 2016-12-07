@@ -4,7 +4,7 @@
    #error you must #import this file
 #endif
 
-namespace upmost {
+typeaware namespace {
 
 // Instruction opcodes.
 enum {
