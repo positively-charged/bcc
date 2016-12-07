@@ -570,7 +570,7 @@ void print_entry( struct cache* cache, struct cache_entry* entry ) {
    str_deinit( &path );
    struct tm* tm_time = localtime( &entry->compile_time );
    char time_text[ 100 ];
-   strftime( time_text, sizeof( time_text ), "%F %T", tm_time );
+   strftime( time_text, sizeof( time_text ), "%Y-%m-%d %H:%M:%S", tm_time );
    printf( "  compilation-time=%s\n", time_text );
    if ( lifetime_enabled( cache ) ) {
       print_lifetime( cache, entry );
@@ -587,7 +587,7 @@ void print_lifetime( struct cache* cache, struct cache_entry* entry ) {
    time_t expire_time = entry->compile_time + lifetime_seconds( cache );
    struct tm* tm_time = localtime( &expire_time );
    char time_text[ 100 ];
-   strftime( time_text, sizeof( time_text ), "%F %T", tm_time );
+   strftime( time_text, sizeof( time_text ), "%Y-%m-%d %H:%M:%S", tm_time );
    printf( "  expiration-time=%s\n", time_text );
    time_t time_left = expire_time - cache->task->compile_time;
    if ( time_left > 0 ) {
