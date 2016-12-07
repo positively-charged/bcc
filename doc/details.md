@@ -245,14 +245,39 @@ namespace Test {
 }
 ```
 
---
+<h4>Qualifiers</h4>
 
-When in a namespace block, two special things happen: first, [strong types](#strong-types) are in effect; second, the `let` keyword is implied, so you get [block scoping](#block-scoping) by default.
+There are two namespace qualifiers: `typeaware` and `blockscoping`. You specify these when declaring a namespace block. The qualifiers affect only the namespace block that they are attached to; other blocks which are part of the same namespace are not affected. The order of the qualifiers does not matter.
 
-If you don't want to use namespaces but still want strong types and default block scoping, you can wrap your code in a namespace block for the upmost namespace. This is the same as being in the upmost namespace, but now you get to enjoy the benefits of namespace blocks:
+The `typeaware` qualifier enables [strong types](#strong-types). It tells the compiler not to implicitly cast values of a primitive type to [`raw`](#raw-type):
 
 ```
-namespace upmost {
+typeaware namespace Test {
+   script "Main" open {
+      int value1 = "abc"; // Error: initializer of wrong type.
+      str value2 = "abc"; // All good.
+   }
+}
+```
+
+The `blockscoping` qualifier enables [block scoping](#block-scoping). For every local declaration, the `let` keyword is implied, so you don't need to specify it:
+
+```
+blockscoping namespace Test {
+   script "Main" open {
+      int var = 123;
+      {
+         int var = 321;
+      }
+   }
+}
+```
+
+If you don't want to use namespaces but still want strong types and block scoping, you can wrap your code in a _nameless_ namespace block and qualify it with the desired qualifiers. The nameless namespace block will have the name of the parent namespace block; if there is no parent block, the nameless namespace block will be a part of the upmost namespace: 
+
+```
+// This namespace block is part of the upmost namespace.
+typeaware blockscoping namespace {
    // Value and variable must have the same type:
    int a = ( int ) "abc";
    script "Main" open {
@@ -413,11 +438,11 @@ script "Main" open {
 }
 ```
 
-In a namespace block, the `let` keyword is implied, so you get block scoping by default:
+In a namespace block qualified with `blockscoping`, the `let` keyword is implied, so you get block scoping by default:
 
 ```
 // In a namespace block, the `let` keyword is not necessary.
-namespace upmost {
+blockscoping namespace {
 
 script "Main" open {
    int var = 123;
@@ -438,7 +463,7 @@ script "Main" open {
 When the variable type is `auto`, the compiler will deduce the type of the variable from its initializer. The variable type will be whatever the type of the initializer is. For example, if the variable is initialized with an integer such as 123, the type of the variable will be `int`; or if the variable is initialized with a string, the type of the variable will be `str`:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 script "Main" open {
    auto number = 123;    // Same as: int number = 123;
@@ -454,7 +479,7 @@ script "Main" open {
 When an enumerator is the initializer, the base type of the enumeration will be selected as the variable type. If you want the enumeration itself to be the variable type, use `auto enum`:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 script "Main" open {
    enum FruitT { APPLE, ORANGE, PEAR };
@@ -528,7 +553,7 @@ enum {
 An enumeration has a base type. The value of every enumerator will be of the base type. By default, `int` is the base type, but you can change it. If `int` is not the base type, then you must explicitly set the value of every enumerator:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 enum : str {
    FRUIT_APPLE = "Apple",
@@ -757,7 +782,7 @@ script "Main" open {
 Nested functions can have `auto` as the return type. The compiler will deduce the return type from the returned value. If no value is returned, the return type will be `void`:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 script "Main" open {
    auto F1() {} // Same as: void F1() {}
@@ -780,18 +805,18 @@ _Calling a nested function recursively too many times will eventually crash the 
 
 <h4>Anonymous functions</h4>
 
-You can declare and call a nested function at the same time. Only the body can be specified; the nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type. Such a nested function is called an <em>anonymous function</em>:
+You can declare and call a nested function at the same time. Only the body can be specified; the nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type. Such a nested function is called an <em>anonymous function</em>. An anonymous function must be placed between parentheses:
 
 ```
 script "Main" open {
-   Print( s: "Sum: ", d: {
+   Print( s: "Sum: ", d: ( {
       int sum = 0, i = 1;
       while ( i <= 10 ) {
          sum = sum + i;
          ++i;
       }
       return sum;
-   }() ); // Output: Sum: 55
+   } )() ); // Output: Sum: 55
 }
 ```
 
@@ -968,7 +993,7 @@ script "Main" open {
 If the `key` and `value` variables are of different type, you can declare two different variables by separating them with a semicolon:
 
 ```
-namespace upmost {
+typeaware blockscoping namespace {
 
 script "Main" open {
    static fixed set[] = { 1.0, 2.0, 3.0 };
@@ -1187,14 +1212,14 @@ To be compatible with ACS, the `raw` type is introduced. The `raw` type behaves 
 * A value of `raw` type can be assigned to a variable of any primitive type, and a variable of `raw` type can accept a value of any primitive type.
 * In binary operations, when one operand is of `raw` type and the other is of primitive type, the operand of primitive type is implicitly casted to the `raw` type.
 
-Outside a namespace block, a value of primitive type gets implicitly casted to the `raw` type. In a namespace block, no such implicit casting occurs.
+A value of primitive type gets implicitly casted to `raw`. In a namespace block qualified with `typeaware`, no such implicit casting occurs.
 
 <h4>Casts</h4>
 
 You can force the compiler to treat a value of one type as a value of another type:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 script "Main" open {
    Print( d: ( int ) "abc" );
@@ -1431,7 +1456,7 @@ In binary operations, the operands must be of the same type.
 The `str` type has a function called `length()`. This function returns the length of the string:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 script "Main" open {
    // Same as: Print( d: StrLen( "Hello, World!" ) );
@@ -1446,7 +1471,7 @@ script "Main" open {
 An array has a function called `length()`. This function returns the length of the array dimension:
 
 ```
-namespace upmost {
+typeaware namespace {
 
 int a[] = { 1, 2, 3 };
 
@@ -1639,7 +1664,7 @@ script "Main" open {
 
 <h4>Keywords</h4>
 
-New keywords in BCS: `assert`, `auto`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the [goto statement](#goto).
+New keywords in BCS: `assert`, `auto`, `blockscoping`, `enum`, `extern`, `false`, `fixed`, `foreach`, `let`, `memcpy`, `msgbuild`, `namespace`, `null`, `private`, `raw`, `struct`, `true`, `typeaware`, `typedef`, `upmost`, and `using`. In ACS, the `goto` keyword is reserved but is not used; in BCS, it is used to represent the [goto statement](#goto).
 
 While the following identifiers still retain their usage, they can now also be used as function/variable names and are no longer reserved as keywords: `acs_executewait`, `acs_namedexecutewait`, `bluereturn`, `clientside`, `death`, `define`, `disconnect`, `encryptstrings`, `endregion`, `enter`, `event`, `hudmessage`, `hudmessagebold`, `import`, `include`, `kill`, `libdefine`, `library`, `lightning`, `log`, `net`, `nocompact`, `nowadauthor`, `open`, `pickup`, `redreturn`, `region`, `reopen`, `respawn`, `strparam`, `unloading`, `wadauthor`, and `whitereturn`.
 
