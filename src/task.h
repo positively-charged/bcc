@@ -1043,6 +1043,7 @@ struct ns_fragment {
    struct list fragments;
    struct list usings;
    bool strong_type;
+   bool block_scoping;
 };
 
 struct ns_path {

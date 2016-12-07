@@ -292,12 +292,9 @@ bool p_read_let( struct parse* parse ) {
       return true;
    }
    else {
-      // In namespace blocks, `let` is implied.
-      if ( p_in_explicit_namespace_fragment( parse ) ) {
-         return true;
-      }
+      // For a namespace block qualified with `blockscoping`, `let` is implied.
+      return parse->ns_fragment->block_scoping;
    }
-   return false;
 }
 
 void read_visibility( struct parse* parse, struct dec* dec ) {

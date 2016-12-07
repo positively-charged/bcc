@@ -20,6 +20,7 @@ enum pseudo_dirc {
 
 struct ns_qual {
    bool strong_type;
+   bool block_scoping;
 };
 
 static void read_module( struct parse* parse );
@@ -103,8 +104,9 @@ void read_module_item( struct parse* parse ) {
       case TK_HASH:
          read_pseudo_dirc( parse, false );
          break;
-      case TK_NAMESPACE:
       case TK_TYPEAWARE:
+      case TK_BLOCKSCOPING:
+      case TK_NAMESPACE:
          read_namespace( parse );
          break;
       default:
@@ -150,6 +152,7 @@ void read_namespace( struct parse* parse ) {
    struct ns_fragment* fragment = t_alloc_ns_fragment();
    fragment->object.pos = parse->tk_pos;
    fragment->strong_type = qualifiers.strong_type;
+   fragment->block_scoping = qualifiers.block_scoping;
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
    list_append( &parent_fragment->fragments, fragment );
@@ -167,13 +170,30 @@ void read_namespace( struct parse* parse ) {
 
 void init_namespace_qualifier( struct ns_qual* qualifiers ) {
    qualifiers->strong_type = false;
+   qualifiers->block_scoping = false;
 }
 
 void read_namespace_qualifier( struct parse* parse,
    struct ns_qual* qualifiers ) {
-   if ( parse->tk == TK_TYPEAWARE ) {
-      qualifiers->strong_type = true;
-      p_read_tk( parse );
+   while ( true ) {
+      // For now, use a simple if-statement to check for duplicates.
+      if ( ( parse->tk == TK_TYPEAWARE && qualifiers->strong_type ) ||
+         ( parse->tk == TK_BLOCKSCOPING && qualifiers->block_scoping ) ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "duplicate `%s` namespace qualifier", parse->tk_text );
+         p_bail( parse );
+      }
+      if ( parse->tk == TK_TYPEAWARE ) {
+         qualifiers->strong_type = true;
+         p_read_tk( parse );
+      }
+      else if ( parse->tk == TK_BLOCKSCOPING ) {
+         qualifiers->block_scoping = true;
+         p_read_tk( parse );
+      }
+      else {
+         break;
+      }
    }
 }
 
@@ -261,10 +281,6 @@ void read_namespace_member( struct parse* parse ) {
          "unexpected %s", p_present_token_temp( parse, parse->tk ) );
       p_bail( parse );
    }
-}
-
-bool p_in_explicit_namespace_fragment( struct parse* parse ) {
-   return ( parse->ns_fragment != parse->lib->upmost_ns_fragment );
 }
 
 void read_using( struct parse* parse, struct list* output,

@@ -173,6 +173,9 @@ enum tk {
    TK_LET,
    TK_TYPEAWARE,
 
+   // 150
+   TK_BLOCKSCOPING,
+
    TK_TOTAL,
 
    // Pseudo tokens.
@@ -525,7 +528,6 @@ bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
 void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
-bool p_in_explicit_namespace_fragment( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
 

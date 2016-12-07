@@ -134,6 +134,7 @@ struct ns_fragment* t_alloc_ns_fragment( void ) {
    list_init( &fragment->fragments );
    list_init( &fragment->usings );
    fragment->strong_type = false;
+   fragment->block_scoping = false;
    return fragment;
 }
 

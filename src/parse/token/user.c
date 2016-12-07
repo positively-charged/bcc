@@ -105,6 +105,7 @@ void read_token_bcs( struct parse* parse ) {
       } table[] = {
          { "assert", TK_ASSERT },
          { "auto", TK_AUTO },
+         { "blockscoping", TK_BLOCKSCOPING },
          { "bool", TK_BOOL },
          { "break", TK_BREAK },
          { "case", TK_CASE },
