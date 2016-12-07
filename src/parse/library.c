@@ -260,7 +260,10 @@ void read_namespace_member( struct parse* parse ) {
    else if ( parse->tk == TK_SCRIPT ) {
       p_read_script( parse );
    }
-   else if ( parse->tk == TK_NAMESPACE ) {
+   else if (
+      parse->tk == TK_NAMESPACE ||
+      parse->tk == TK_TYPEAWARE ||
+      parse->tk == TK_BLOCKSCOPING ) {
       read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
