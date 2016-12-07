@@ -11,7 +11,7 @@
 #include "luk.h"
 
 // ==========================================================================
-namespace Jm.SoloRanker {
+typeaware blockscoping namespace Jm.SoloRanker {
 // ==========================================================================
 
 using Cfg;

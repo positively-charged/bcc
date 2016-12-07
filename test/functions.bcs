@@ -1,5 +1,5 @@
 // ==========================================================================
-namespace FuncTest {
+typeaware blockscoping namespace FuncTest {
 // ==========================================================================
 
 // Compare two strings for equality, up to the specified length.

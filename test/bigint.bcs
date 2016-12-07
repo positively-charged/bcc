@@ -10,7 +10,7 @@
 #include "zcommon.h"
 
 // ==========================================================================
-namespace upmost {
+typeaware blockscoping namespace {
 // ==========================================================================
 
 script "Main" open {
@@ -24,7 +24,7 @@ script "Main" open {
 }
 
 // ==========================================================================
-namespace BigInt {
+typeaware blockscoping namespace BigInt {
 // ==========================================================================
 
 str Add( str a, str b ) {

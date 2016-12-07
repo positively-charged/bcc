@@ -6,7 +6,7 @@
 #include "rsd.h"
 
 // ==========================================================================
-namespace Jm.Rsd {
+typeaware blockscoping namespace Jm.Rsd {
 // ==========================================================================
 
 enum : fixed { RSD_TICS_IN_SECOND = 35.71 };

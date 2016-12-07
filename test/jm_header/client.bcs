@@ -6,7 +6,7 @@
 #include "client.h"
 
 // ==========================================================================
-namespace Jm.Client {
+typeaware blockscoping namespace Jm.Client {
 // ==========================================================================
 
 // Player number retrival.

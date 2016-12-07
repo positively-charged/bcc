@@ -3,7 +3,7 @@
 #include "zcommon.h"
 
 // ==========================================================================
-namespace Jm {
+typeaware blockscoping namespace Jm {
 // ==========================================================================
 
 enum Mode {
@@ -181,7 +181,7 @@ script 933 ( int player ) disconnect {
 }
 
 // ==========================================================================
-namespace Jm.Cfg {
+typeaware blockscoping namespace Jm.Cfg {
 // ==========================================================================
 
 enum { TICS_IN_SECOND = 35 };
@@ -202,7 +202,7 @@ enum {
 }
 
 // ==========================================================================
-namespace Jm.Utility {
+typeaware blockscoping namespace Jm.Utility {
 // ==========================================================================
 
 function void Init() {
@@ -298,7 +298,7 @@ function str GetMonthName( int month ) {
 }
 
 // ==========================================================================
-namespace Jm.Client {
+typeaware blockscoping namespace Jm.Client {
 // ==========================================================================
 
 // Player number retrival.
@@ -347,7 +347,7 @@ script 943 ( int player, int number, int arg1 ) clientside {
 }
 
 // ==========================================================================
-namespace Jm.MapMsg {
+typeaware blockscoping namespace Jm.MapMsg {
 // ==========================================================================
 
 using Cfg;
@@ -456,7 +456,7 @@ private function void SetPar( str par ) {
 }
 
 // ==========================================================================
-namespace Jm.Timer {
+typeaware blockscoping namespace Jm.Timer {
 // ==========================================================================
 
 using Upmost;
@@ -514,7 +514,7 @@ function int GetTics() {
 }
 
 // ==========================================================================
-namespace Jm.WhoExited {
+typeaware blockscoping namespace Jm.WhoExited {
 // ==========================================================================
 
 function void Show() {
@@ -539,7 +539,7 @@ function void ShowAndExit() {
 }
 
 // ==========================================================================
-namespace Jm.Luk {
+typeaware blockscoping namespace Jm.Luk {
 // ==========================================================================
 
 // Query delimiter.
@@ -882,7 +882,7 @@ function int InitStringTransmissionL( str key, int num ) {
 }
 
 // ==========================================================================
-namespace Jm.Hs {
+typeaware blockscoping namespace Jm.Hs {
 // ==========================================================================
 
 enum { LINE_NOTICE = 27233 };
@@ -990,7 +990,7 @@ function void ShowDetails( int showTime ) {
 }
 
 // ==========================================================================
-namespace Jm.SoloRanker {
+typeaware blockscoping namespace Jm.SoloRanker {
 // ==========================================================================
 
 using Cfg;
@@ -1304,7 +1304,7 @@ function str GetHsAuthorName() {
 }
 
 // ==========================================================================
-namespace Jm.TeamRanker {
+typeaware blockscoping namespace Jm.TeamRanker {
 // ==========================================================================
 
 using Jm.Cfg;
@@ -1645,7 +1645,7 @@ function void PrepareForSvmz() {
 }
 
 // ==========================================================================
-namespace Jm.Telepatch {
+typeaware blockscoping namespace Jm.Telepatch {
 // ==========================================================================
 
 using Cfg;
@@ -1687,7 +1687,7 @@ function void OnDisconnect( int player ) {
 }
 
 // ==========================================================================
-namespace Jm.AutoFist {
+typeaware blockscoping namespace Jm.AutoFist {
 // ==========================================================================
 
 using upmost;
@@ -1716,7 +1716,7 @@ script 997 {
 // breaks down a long string message into smaller segments that fit nicely on
 // a player's screens and shows them one at a time.
 // ==========================================================================
-namespace Jm.Rsd {
+typeaware blockscoping namespace Jm.Rsd {
 // ==========================================================================
 
 using upmost;
@@ -2031,7 +2031,7 @@ script 947 ( int holdTime ) {
 }
 
 // ==========================================================================
-namespace Jm.Svmz {
+typeaware blockscoping namespace Jm.Svmz {
 // ==========================================================================
 
 using upmost;
@@ -2339,7 +2339,7 @@ private function int GetNumAlive() {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Escapee {
+typeaware blockscoping namespace Jm.Svmz.Escapee {
 // ==========================================================================
 
 using upmost;
@@ -2374,7 +2374,7 @@ function int GetCount() {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Timer {
+typeaware blockscoping namespace Jm.Svmz.Timer {
 // ==========================================================================
 
 using upmost;
@@ -2436,7 +2436,7 @@ script 908 {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Item {
+typeaware blockscoping namespace Jm.Svmz.Item {
 // ==========================================================================
 
 using upmost;

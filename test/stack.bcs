@@ -1,7 +1,7 @@
 #include "zcommon.h"
 
 // ==========================================================================
-namespace upmost {
+typeaware blockscoping namespace {
 // ==========================================================================
 
 script "Main" open {
@@ -20,7 +20,7 @@ script "Main" open {
 }
 
 // ==========================================================================
-namespace StackTest {
+typeaware blockscoping namespace StackTest {
 // ==========================================================================
 
 struct NodeT {

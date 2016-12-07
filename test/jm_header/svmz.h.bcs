@@ -4,7 +4,7 @@
 #linklibrary "svmz"
 
 // ==========================================================================
-namespace Jm.Svmz {
+typeaware blockscoping namespace Jm.Svmz {
 // ==========================================================================
 
 extern bool Is();

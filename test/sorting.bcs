@@ -1,6 +1,6 @@
 #include "zcommon.h"
 
-namespace upmost {
+typeaware blockscoping namespace {
 
 enum { LIST_MAX_SIZE = 20 };
 

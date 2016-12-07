@@ -7,7 +7,7 @@
 #include "timer.h"
 
 // ==========================================================================
-namespace Jm.Timer {
+typeaware blockscoping namespace Jm.Timer {
 // ==========================================================================
 
 using Upmost;

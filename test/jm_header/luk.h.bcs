@@ -4,7 +4,7 @@
 #linklibrary "luk"
 
 // ==========================================================================
-namespace Jm.Luk {
+typeaware blockscoping namespace Jm.Luk {
 // ==========================================================================
 
 // RETRIEVE query types.

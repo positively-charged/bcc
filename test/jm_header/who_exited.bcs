@@ -7,7 +7,7 @@
 #include "who_exited.h"
 
 // ==========================================================================
-namespace Jm.WhoExited {
+typeaware blockscoping namespace Jm.WhoExited {
 // ==========================================================================
 
 void Show() {

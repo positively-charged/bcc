@@ -4,7 +4,7 @@
 #linklibrary "whoexit"
 
 // ==========================================================================
-namespace Jm.WhoExited {
+typeaware blockscoping namespace Jm.WhoExited {
 // ==========================================================================
 
 extern void Show();

@@ -7,7 +7,7 @@
 #include "client.h"
 
 // ==========================================================================
-namespace Jm.AutoFist {
+typeaware blockscoping namespace Jm.AutoFist {
 // ==========================================================================
 
 script 995 enter {

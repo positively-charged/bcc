@@ -7,7 +7,7 @@
 #include "utility.h"
 
 // ==========================================================================
-namespace Jm.Svmz {
+typeaware blockscoping namespace Jm.Svmz {
 // ==========================================================================
 
 using upmost;
