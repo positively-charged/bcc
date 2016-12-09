@@ -31,7 +31,7 @@ script "Main" open {
 }
 
 // Bubble sort.
-void BSort( int[] list ) {
+void BSort( int[]& list ) {
    int left = list.length();
    while ( left ) {
       int i = 0;
@@ -49,7 +49,7 @@ void BSort( int[] list ) {
 }
 
 // Selection sort.
-void SSort( int[] list ) {
+void SSort( int[]& list ) {
    int sorted = 0;
    while ( sorted < list.length() ) {
       int lowest = sorted;
@@ -68,7 +68,7 @@ void SSort( int[] list ) {
 }
 
 // Insertion sort.
-void ISort( int[] list ) {
+void ISort( int[]& list ) {
    int sorted = 0;
    while ( sorted < list.length() ) {
       int value = list[ sorted ];
@@ -83,13 +83,13 @@ void ISort( int[] list ) {
 }
 
 // Merge sort.
-void MSort( int[] list ) {
+void MSort( int[]& list ) {
    assert ( list.length() <= LIST_MAX_SIZE,
       "too many values to sort for " + __FUNCTION__ + "()" );
    MsortHalf( list, 0, list.length() );
 }
 
-private void MSortHalf( int[] list, int pos, int size ) {
+private void MSortHalf( int[]& list, int pos, int size ) {
    static int temp[ LIST_MAX_SIZE ];
    int sizeL = size / 2;
    int sizeR = size - sizeL;
@@ -140,7 +140,7 @@ private void MSortHalf( int[] list, int pos, int size ) {
 }
 
 // Shell sort.
-void HSort( int[] list ) {
+void HSort( int[]& list ) {
    // Figure out initial increment.
    int h = 0;
    int hNext = 1;
