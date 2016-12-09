@@ -805,6 +805,12 @@ _Calling a nested function recursively too many times will eventually crash the 
 
 <h4>Anonymous functions</h4>
 
+<pre>
+( function msgbuild { [<i>statements</i>] } )
+( function { [<i>statements</i>] } )
+( { [<i>statements</i>] } )
+</pre>
+
 You can declare and call a nested function at the same time. Only the body can be specified; the nested function will be implicitly defined as having no name, no parameters, and `auto` as the return type. Such a nested function is called an <em>anonymous function</em>. An anonymous function must be placed between parentheses:
 
 ```
@@ -891,12 +897,12 @@ void Welcome( int borderLength ) {
 }
 ```
 
-Anonymous functions can be used as message-building functions. The anonymous function is implicitly qualified with `msgbuild`:
+Anonymous functions can be used as message-building functions:
 
 ```
 void Welcome( int borderLength ) {
    // Create and print message.
-   Print( msgbuild: {
+   Print( msgbuild: ( function msgbuild {
       msgbuild void CreateBorder() {
          int i = 0;
          while ( i < borderLength ) {
@@ -908,7 +914,7 @@ void Welcome( int borderLength ) {
       append( s: "\n" );
       append( s: "Hello there!\n" );
       CreateBorder();
-   } );
+   } ) );
 }
 ```
 
