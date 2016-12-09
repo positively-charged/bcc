@@ -322,9 +322,6 @@ void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
       str_append( &msg->text, "internal " );
    }
    if ( flags & DIAG_ERR ) {
-      if ( flags & DIAG_SYNTAX ) {
-         str_append( &msg->text, "syntax " );
-      }
       str_append( &msg->text, "error: " );
    }
    else if ( flags & DIAG_WARN ) {
