@@ -1330,6 +1330,7 @@ void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
 void read_paren( struct parse* parse, struct expr_reading* reading ) {
    switch ( p_peek( parse ) ) {
    case TK_BRACE_L:
+   case TK_FUNCTION:
       read_anon_func( parse, reading );
       break;
    default:
@@ -1346,7 +1347,7 @@ void read_anon_func( struct parse* parse, struct expr_reading* reading ) {
    func->type = FUNC_USER;
    func->impl = impl;
    func->return_spec = SPEC_AUTO;
-   p_read_func_body( parse, func );
+   p_read_anon_func( parse, func );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
    func->object.pos = impl->body->pos;

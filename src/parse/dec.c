@@ -1853,6 +1853,19 @@ struct func_aspec* alloc_aspec_impl( void ) {
    return impl;
 }
 
+void p_read_anon_func( struct parse* parse, struct func* func ) {
+   // Read header.
+   if ( parse->tk == TK_FUNCTION ) {
+      p_read_tk( parse );
+      // Read qualifiers.
+      if ( parse->tk == TK_MSGBUILD ) {
+         func->msgbuild = true;
+         p_read_tk( parse );
+      }
+   }
+   p_read_func_body( parse, func );
+}
+
 void p_read_script( struct parse* parse ) {
    struct script_reading reading;
    init_script_reading( &reading, &parse->tk_pos );

@@ -530,5 +530,6 @@ void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
+void p_read_anon_func( struct parse* parse, struct func* func );
 
 #endif
