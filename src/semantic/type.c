@@ -12,8 +12,7 @@ static bool same_dim( struct dim* a, struct dim* b );
 static void present_extended_spec( struct structure* structure,
    struct enumeration* enumeration, int spec, struct str* string );
 static void present_spec( int spec, struct str* string );
-static void present_ref( struct ref* ref, struct str* string,
-   bool require_ampersand );
+static void present_ref( struct ref* ref, struct str* string );
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
 static bool is_array_ref_type( struct type_info* type );
@@ -257,7 +256,7 @@ void s_present_type( struct type_info* type, struct str* string ) {
    else {
       present_extended_spec( type->structure, type->enumeration, type->spec,
          string );
-      present_ref( type->ref, string, false );
+      present_ref( type->ref, string );
       present_dim( type, string );
    }
 }
@@ -319,10 +318,9 @@ void present_spec( int spec, struct str* string ) {
    }
 }
 
-void present_ref( struct ref* ref, struct str* string,
-   bool require_ampersand ) {
+void present_ref( struct ref* ref, struct str* string ) {
    if ( ref ) {
-      present_ref( ref->next, string, true );
+      present_ref( ref->next, string );
       if ( ref->type == REF_ARRAY ) {
          struct ref_array* part = ( struct ref_array* ) ref;
          for ( int i = 0; i < part->dim_count; ++i ) {
@@ -338,9 +336,7 @@ void present_ref( struct ref* ref, struct str* string,
             str_append( string, "?" );
          }
          else {
-            if ( require_ampersand ) {
-               str_append( string, "&" );
-            }
+            str_append( string, "&" );
          }
       }
       else if ( ref->type == REF_STRUCTURE ) {
@@ -373,9 +369,7 @@ void present_ref( struct ref* ref, struct str* string,
             str_append( string, "?" );
          }
          else {
-            if ( require_ampersand ) {
-               str_append( string, "&" );
-            }
+            str_append( string, "&" );
          }
       }
       else if ( ref->type == REF_NULL ) {
@@ -404,7 +398,7 @@ void present_param_list( struct param* param, struct str* string ) {
    while ( param ) {
       present_extended_spec( param->structure, param->enumeration, param->spec,
          string );
-      present_ref( param->ref, string, false );
+      present_ref( param->ref, string );
       param = param->next;
       if ( param ) {
          str_append( string, "," );

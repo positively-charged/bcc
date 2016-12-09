@@ -923,11 +923,14 @@ void read_ref( struct parse* parse, struct ref_reading* reading ) {
          p_read_tk( parse );
       }
       else if ( parse->tk == TK_QUESTION_MARK ) {
-         p_read_tk( parse );
          reading->head->nullable = true;
+         p_read_tk( parse );
       }
       else {
-         break;
+         p_unexpect_diag( parse );
+         p_unexpect_item( parse, NULL, TK_BIT_AND );
+         p_unexpect_last( parse, NULL, TK_QUESTION_MARK );
+         p_bail( parse );
       }
    }
 }
