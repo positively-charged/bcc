@@ -417,7 +417,7 @@ script 980 enter {
 
 private function void Show() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       append(
          s: "\cf", s: gName, s: " - ",
          s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
@@ -437,20 +437,19 @@ private function void Show() {
             s: SoloRanker.GetHsAuthorName()
          );
       }
-   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME,
-      1.0 );
+   } ); HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME, 1.0 );
 }
 
 // Removes the whitespace found in the par time, so it looks nicer when shown
 // in the map message.
 private function void SetPar( str par ) {
-   gPar = StrParam( msgbuild: {
+   gPar = StrParam( msgbuild: ( function msgbuild {
       foreach ( int ch; par ) {
          if ( ch != ' ' ) {
             append( c: ch );
          }
       }
-   } );
+   } ) );
 }
 
 }
@@ -1136,7 +1135,7 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: {
+   HudMessageBold( msgbuild: ( function msgbuild {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n" );
@@ -1163,7 +1162,7 @@ private function void ShowTable() {
             s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
             s: "\n\n" );
       }
-   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+   } ); HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private function void ClearTable() {
@@ -1172,7 +1171,7 @@ private function void ClearTable() {
 
 private function void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
          append( s: "\n" );
       }
@@ -1183,7 +1182,7 @@ private function void ShowIndividualTime( int tics ) {
          s: ZeroPad( minutes ), d: minutes, s: ":", 
          s: ZeroPad( seconds ), d: seconds, s: "\cu.",
          s: ZeroPad( centiseconds ), d: centiseconds );
-   }; HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+   } ); HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
 }
 
 private function void ClearIndividualTime() {
@@ -1422,7 +1421,7 @@ script 961 ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: {
+   HudMessageBold( msgbuild: ( function msgbuild {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n\n" );
@@ -1442,7 +1441,7 @@ private function void ShowTable() {
                d: gTable.spots[ i ].points );
          }
       }
-   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private function msgbuild void DrawTime() {
@@ -1460,7 +1459,7 @@ private function msgbuild void DrawTime() {
 
 private function void ShowGoals() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       if ( gPointsLeft == 0 ) {
          DrawTime();
       }
@@ -1477,7 +1476,7 @@ private function void ShowGoals() {
          // always one place taken in the score table, which will be the first.
          d: gTable.spots[ 0 ].points, s: labelColor, s: " / ", s: totalColor,
          d: gPointsTotal );
-   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 function void ClearPointsTable() {
@@ -1620,7 +1619,7 @@ private function void AnnounceCheat() {
 // Prints high score details table.
 script "TeamRanker.ShowHs" ( raw showTime ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       append( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
          s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
          s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n",
@@ -1635,7 +1634,7 @@ script "TeamRanker.ShowHs" ( raw showTime ) {
       if ( gHsUnaccountedPoints > 0 ) {
          append( s: "\cgUnaccounted \cd", d: gHsUnaccountedPoints );
       }
-   }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+   } ); HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
 }
 
 function void PrepareForSvmz() {
@@ -2313,7 +2312,7 @@ function void DisplayMinEscapeesFail() {
 
 function void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: {
+   HudMessageBold( msgbuild: ( function msgbuild {
       auto minEscapees = GetMinEscapees();
       auto numEscapees = Escapee.GetCount();
       // Change the color of the statistic to green to indicate success.
@@ -2325,7 +2324,7 @@ function void DisplayEscapeeStats() {
          append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
             d: minEscapees );
       }
-   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+   } ); HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
 }
 
 private function int GetNumAlive() {

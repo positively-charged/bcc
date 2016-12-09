@@ -289,7 +289,7 @@ void DisplayMinEscapeesFail() {
 
 void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: {
+   HudMessageBold( msgbuild: ( function msgbuild {
       auto minEscapees = GetMinEscapees();
       auto numEscapees = Escapee.GetCount();
       // Change the color of the statistic to green to indicate success.
@@ -301,7 +301,7 @@ void DisplayEscapeeStats() {
          append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
             d: minEscapees );
       }
-   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+   } ); HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
 }
 
 private int GetNumAlive() {
@@ -315,7 +315,7 @@ private int GetNumAlive() {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Escapee {
+typeaware blockscoping namespace Jm.Svmz.Escapee {
 // ==========================================================================
 
 using upmost;
@@ -350,7 +350,7 @@ int GetCount() {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Timer {
+typeaware blockscoping namespace Jm.Svmz.Timer {
 // ==========================================================================
 
 using upmost;
@@ -412,7 +412,7 @@ script 908 {
 }
 
 // ==========================================================================
-namespace Jm.Svmz.Item {
+typeaware blockscoping namespace Jm.Svmz.Item {
 // ==========================================================================
 
 using upmost;

@@ -156,7 +156,7 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
 
 private void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: {
+   HudMessageBold( msgbuild: ( function msgbuild {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n" );
@@ -183,7 +183,7 @@ private void ShowTable() {
             s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
             s: "\n\n" );
       }
-   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+   } ); HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private void ClearTable() {
@@ -192,7 +192,7 @@ private void ClearTable() {
 
 private void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
          append( s: "\n" );
       }
@@ -203,7 +203,7 @@ private void ShowIndividualTime( int tics ) {
          s: ZeroPad( minutes ), d: minutes, s: ":", 
          s: ZeroPad( seconds ), d: seconds, s: "\cu.",
          s: ZeroPad( centiseconds ), d: centiseconds );
-   }; HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+   } ); HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
 }
 
 private void ClearIndividualTime() {

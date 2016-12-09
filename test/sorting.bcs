@@ -10,7 +10,7 @@ script "Main" open {
    for ( int i = 0; i < list.length(); ++i ) {
       list[ i ] = Random( 1, 9 );
    }
-   Print( msgbuild: {
+   Print( msgbuild: ( function msgbuild {
       // Unsorted:
       Append( s: "Unsorted:" );
       foreach ( auto value; list ) {
@@ -27,7 +27,7 @@ script "Main" open {
       foreach ( auto value; list ) {
          Append( s: " ", d: value );
       }
-   } );
+   } ) );
 }
 
 // Bubble sort.

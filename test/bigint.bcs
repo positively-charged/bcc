@@ -28,9 +28,9 @@ typeaware blockscoping namespace BigInt {
 // ==========================================================================
 
 str Add( str a, str b ) {
-   return StrParam( msgbuild: {
+   return StrParam( msgbuild: ( function msgbuild {
       // Calculate sum.
-      str sum = StrParam( msgbuild: {
+      str sum = StrParam( msgbuild: ( function msgbuild {
          int i_a = a.length() - 1;
          int i_b = b.length() - 1;
          int carry = 0;
@@ -43,18 +43,18 @@ str Add( str a, str b ) {
             --i_b;
          }
          append( c: carry * '1' );
-      } );
+      } ) );
       // Output sum.
       int i = sum.length() - 1;
       while ( i >= 0 ) {
          append( c: sum[ i ] );
          --i;
       }
-   } );
+   } ) );
 }
 
 str Sub( str a, str b ) {
-   return StrParam( msgbuild: {
+   return StrParam( msgbuild: ( function msgbuild {
       // Negative.
       if ( Lt( a, b ) ) {
          append( c: '-' );
@@ -63,7 +63,7 @@ str Sub( str a, str b ) {
          b = temp_a;
       }
       // Calculate difference.
-      str diff = StrParam( msgbuild: {
+      str diff = StrParam( msgbuild: ( function msgbuild {
          int i_a = a.length() - 1;
          int i_b = b.length() - 1;
          int borrow = 0;
@@ -76,7 +76,7 @@ str Sub( str a, str b ) {
             --i_a;
             --i_b;
          }
-      } );
+      } ) );
       // Output difference.
       int i = diff.length() - 1;
       while ( i >= 1 && diff[ i ] == '0' ) {
@@ -86,7 +86,7 @@ str Sub( str a, str b ) {
          append( c: diff[ i ] );
          --i;
       }
-   } );
+   } ) );
 }
 
 bool Lt( str a, str b ) {

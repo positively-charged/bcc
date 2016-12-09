@@ -1,4 +1,3 @@
-
 #if 1
 
 #library "mapmsg"
@@ -71,7 +70,7 @@ script "MapMsg.Show" enter {
 
 private void Show() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: {
+   HudMessage( msgbuild: ( function msgbuild {
       append(
          s: "\cf", s: gName, s: " - ",
          s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
@@ -91,20 +90,19 @@ private void Show() {
             s: SoloRanker.GetHsAuthorName()
          );
       }
-   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME,
-      1.0 );
+   } ); HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME, 1.0 );
 }
 
 // Removes the whitespace found in the par time, so it looks nicer when shown
 // in the map message.
 private void SetPar( str par ) {
-   gPar = StrParam( msgbuild: {
+   gPar = StrParam( msgbuild: ( function msgbuild {
       foreach ( int ch; par ) {
          if ( ch != ' ' ) {
             append( c: ch );
          }
       }
-   } );
+   } ) );
 }
 
 }
