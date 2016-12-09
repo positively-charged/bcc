@@ -1210,23 +1210,10 @@ void read_msgbuild_format_item( struct parse* parse,
    extra->func = NULL;
    extra->call = NULL;
    item->extra = extra;
-   if ( parse->tk == TK_BRACE_L ) {
-      struct func_user* impl = t_alloc_func_user();
-      impl->nested = true;
-      struct func* func = t_alloc_func();
-      func->type = FUNC_USER;
-      func->impl = impl;
-      func->msgbuild = true;
-      p_read_func_body( parse, func );
-      func->object.pos = impl->body->pos;
-      extra->func = func;
-   }
-   else {
-      struct expr_reading value;
-      p_init_expr_reading( &value, false, false, false, true );
-      p_read_expr( parse, &value );
-      item->value = value.output_node;
-   }
+   struct expr_reading value;
+   p_init_expr_reading( &value, false, false, false, true );
+   p_read_expr( parse, &value );
+   item->value = value.output_node;
 }
 
 void read_sure( struct parse* parse, struct expr_reading* reading ) {

@@ -1818,14 +1818,7 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
 void test_msgbuild_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item ) {
    struct format_item_msgbuild* extra = item->extra;
-   if ( item->value ) {
-      test_msgbuild_arg( semantic, expr_test, item, extra ); 
-   }
-   else {
-      if ( extra->func ) {
-         s_test_nested_func( semantic, extra->func );
-      }
-   }
+   test_msgbuild_arg( semantic, expr_test, item, extra ); 
    if ( extra->func ) {
       struct func_user* impl = extra->func->impl;
       if ( impl->nested ) {
