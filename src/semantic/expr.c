@@ -2374,7 +2374,13 @@ void test_funcname( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage ) {
    struct str name;
    str_init( &name );
-   t_copy_name( semantic->func_test->func->name, false, &name );
+   if ( semantic->func_test->func->name ) {
+      t_copy_name( semantic->func_test->func->name, false, &name );
+   }
+   else {
+      // TODO: Create a nicer name.
+      str_append( &name, "" );
+   }
    struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
    string_usage->string = t_intern_string_copy( semantic->task,
       name.value, name.length );
