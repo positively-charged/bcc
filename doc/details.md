@@ -469,7 +469,7 @@ script "Main" open {
    auto number = 123;    // Same as: int number = 123;
    auto string = "abc";  // Same as: str string = "abc";
    static fixed array[] = { 1.0, 2.0, 3.0 };
-   auto r = array;       // Same as: fixed[] r = array;
+   auto r = array;       // Same as: fixed[]& r = array;
    auto f = array[ 0 ];  // Same as: fixed d = array[ 0 ];
 }
 
@@ -1082,7 +1082,7 @@ __NOTE:__ At this time, due to lack of support for non-function references in th
 <h4>Array references</h4>
 
 <pre>
-<i>element-type</i> [] <i>var</i> = <i>reference</i> ;
+<i>element-type</i> [] &amp; <i>var</i> = <i>reference</i> ;
 </pre>
 
 In C, when you specify an array, it "decays" into a pointer to the first element of the array. In BCS, something similar happens: when you specify an array, what you actually get is a reference to the array. You can then save that reference into a reference variable, or pass it to a function:
@@ -1099,7 +1099,7 @@ script "Main" open {
    PrintArray( b );
 }
 
-void PrintArray( int[] array ) {
+void PrintArray( int[]& array ) {
    foreach ( let int element; array ) {
       Print( d: element );
    }
@@ -1140,7 +1140,7 @@ void ChangeNumber( NumberT& number ) {
 <h4>Function references</h4>
  
 <pre>
-<i>return-type</i> function( [<i>parameters</i>] ) [<i>qualifiers</i>] <i>var</i> = <i>reference</i> ;
+<i>return-type</i> function( [<i>parameters</i>] ) [<i>qualifiers</i>] &amp; <i>var</i> = <i>reference</i> ;
 </pre>
 
 Similar to arrays and structure variables, when you specify a function, what you get is a reference to the function:
@@ -1152,7 +1152,7 @@ void F1() { Print( s: "F1() called" ); }
 void F2() { Print( s: "F2() called" ); }
 
 script "Main" open {
-   void function() f = F1;
+   void function()& f = F1;
    f(); // Output: F1() called
    f = F2;
    f(); // Output: F2() called
@@ -1161,7 +1161,7 @@ script "Main" open {
 
 <h4>Nullable references</h4>
 
-The _null reference_ is an invalid reference. A <em>nullable reference</em> is a reference that can either be a valid reference or the null reference. Nullable references can only be assigned to variables of nullable reference type. A nullable reference type is marked with a question mark:
+The _null reference_ is an invalid reference. A <em>nullable reference</em> is a reference that can either be a valid reference or the null reference. Nullable references can only be assigned to variables of nullable reference type. A nullable reference type is marked with a question mark (`?`) instead of an ampersand (`&`):
 
 ```
 script "Main" open {
@@ -1191,7 +1191,7 @@ script "Main" open {
    static int a[] = { 1, 2, 3 };
    int[]? r = a;
    // `r` refers to a valid reference, so will succeed.
-   int[] r2 = r!!;
+   int[]& r2 = r!!;
    r = null;
    // `r` no longer refers to a valid reference, so an error will be printed
    // and the script will be terminated.
