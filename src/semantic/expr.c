@@ -1447,8 +1447,10 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    if ( lside->folded && subscript->index->folded ) {
       struct indexed_string* string = t_lookup_string( semantic->task,
          lside->value );
-      warn_bounds_violation( semantic, subscript, "string-length",
-         string->length );
+      if ( string ) {
+         warn_bounds_violation( semantic, subscript, "string-length",
+            string->length );
+      }
    }
    result->spec = s_spec( semantic, SPEC_INT );
    result->complete = true;

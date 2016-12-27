@@ -215,6 +215,14 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
          &label->number->pos );
       s_bail( semantic );
    }
+   // For a string-based switch statement, make sure each case is a valid
+   // string.
+   if ( switch_test->cond_type.spec == SPEC_STR &&
+      ! t_lookup_string( semantic->task, label->number->value ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &label->number->pos,
+         "case value not a valid string" );
+      s_bail( semantic );
+   }
    // Check for a duplicate case.
    struct case_label* prev = NULL;
    struct case_label* curr = switch_test->switch_stmt->case_head;
