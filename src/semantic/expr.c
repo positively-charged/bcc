@@ -201,6 +201,9 @@ static bool perform_conversion( struct conversion* conv,
    struct type_info* from );
 static void unsupported_conversion( struct semantic* semantic,
    struct type_info* from, int to_spec, struct pos* pos );
+static void test_compound_literal( struct semantic* semantic,
+   struct expr_test* test, struct result* result,
+   struct compound_literal* literal );
 static void test_anon_func( struct semantic* semantic, struct result* result,
    struct func* func );
 static void test_paren( struct semantic* semantic, struct expr_test* test,
@@ -2159,6 +2162,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_conversion( semantic, test, result,
          ( struct conversion* ) node );
       break;
+   case NODE_COMPOUNDLITERAL:
+      test_compound_literal( semantic, test, result,
+         ( struct compound_literal* ) node );
+      break;
    case NODE_FUNC:
       test_anon_func( semantic, result,
          ( struct func* ) node );
@@ -2819,6 +2826,21 @@ void unsupported_conversion( struct semantic* semantic, struct type_info* from,
       to_s.value );
    str_deinit( &from_s );
    str_deinit( &to_s );
+}
+
+void test_compound_literal( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct compound_literal* literal ) {
+   if ( semantic->in_localscope ) {
+      s_test_local_var( semantic, literal->var );
+   }
+   else {
+      s_test_var( semantic, literal->var );
+      if ( ! literal->var->object.resolved ) {
+         test->undef_erred = true;
+         longjmp( test->bail, 1 );
+      }
+   }
+   select_var( semantic, result, literal->var );
 }
 
 void test_anon_func( struct semantic* semantic, struct result* result,

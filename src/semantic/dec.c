@@ -875,9 +875,11 @@ bool test_ref_func( struct semantic* semantic, struct ref_test* test,
 }
 
 bool test_var_name( struct semantic* semantic, struct var* var ) {
-   if ( semantic->in_localscope ) {
-      s_bind_local_name( semantic, var->name, &var->object,
-         var->force_local_scope );
+   if ( ! var->anon ) {
+      if ( semantic->in_localscope ) {
+         s_bind_local_name( semantic, var->name, &var->object,
+            var->force_local_scope );
+      }
    }
    return true;
 }
@@ -1024,6 +1026,12 @@ void refnotinit_var( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_object_initz( struct semantic* semantic, struct var* var ) {
+   if ( var->anon && ! ( var->dim ||
+      ( var->spec == SPEC_STRUCT && ! var->ref ) ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "compound literal not of array type or of structure type" );
+      s_bail( semantic );
+   }
    struct initz_test test;
    init_root_initz_test( &test, var );
    if ( var->initial->multi ) {

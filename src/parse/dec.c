@@ -94,6 +94,7 @@ static void init_ref_reading( struct ref_reading* reading );
 static void read_ref( struct parse* parse, struct ref_reading* reading );
 static void read_struct_ref( struct parse* parse,
    struct ref_reading* reading );
+static bool is_array_ref( struct parse* parse );
 static void read_ref_storage( struct parse* parse,
    struct ref_reading* reading );
 static void read_array_ref( struct parse* parse, struct ref_reading* reading );
@@ -260,6 +261,7 @@ void p_init_dec( struct dec* dec ) {
    dec->semicolon_absent = false;
    dec->external = false;
    dec->force_local_scope = false;
+   dec->anon = false;
 }
 
 void p_read_dec( struct parse* parse, struct dec* dec ) {
@@ -909,15 +911,22 @@ void read_ref( struct parse* parse, struct ref_reading* reading ) {
    }
    // Read array and function references.
    while ( parse->tk == TK_BRACKET_L || parse->tk == TK_FUNCTION ) {
-      switch ( parse->tk ) {
-      case TK_BRACKET_L:
-         read_array_ref( parse, reading );
-         break;
-      case TK_FUNCTION:
-         read_ref_func( parse, reading );
-         break;
-      default:
-         UNREACHABLE()
+      if ( parse->tk == TK_BRACKET_L ) {
+         if ( is_array_ref( parse ) ) {
+            read_array_ref( parse, reading );
+         }
+         else {
+            break;
+         }
+      }
+      else {
+         switch ( parse->tk ) {
+         case TK_FUNCTION:
+            read_ref_func( parse, reading );
+            break;
+         default:
+            UNREACHABLE()
+         }
       }
       if ( parse->tk == TK_BIT_AND ) {
          p_read_tk( parse );
@@ -962,6 +971,34 @@ void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
    part->storage_index = 0;
    prepend_ref( reading, &part->ref );
    p_read_tk( parse );
+}
+
+bool is_array_ref( struct parse* parse ) {
+   struct parsertk_iter iter;
+   p_init_parsertk_iter( parse, &iter );
+   p_next_tk( parse, &iter );
+   if ( parse->tk == TK_BRACKET_L && iter.token->type == TK_BRACKET_R ) {
+      p_next_tk( parse, &iter );
+      while ( true ) {
+         if ( iter.token->type == TK_BRACKET_L ) {
+            p_next_tk( parse, &iter );
+            if ( iter.token->type == TK_BRACKET_R ) {
+               p_next_tk( parse, &iter );
+            }
+            else {
+               return false;
+            }
+         }
+         else {
+            break;
+         }
+      }
+      if ( iter.token->type == TK_BIT_AND ||
+         iter.token->type == TK_QUESTION_MARK ) {
+         return true;
+      }
+   }
+   return false;
 }
 
 void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
@@ -1451,7 +1488,10 @@ void add_var( struct parse* parse, struct dec* dec ) {
       }
    }
    else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
-      list_append( dec->vars, var );
+      var->hidden = dec->static_qual;
+      if ( dec->vars ) {
+         list_append( dec->vars, var );
+      }
       if ( dec->static_qual ) {
          var->hidden = true;
          list_append( &parse->lib->vars, var );
@@ -1491,6 +1531,7 @@ struct var* alloc_var( struct dec* dec ) {
       ( dec->static_qual || dec->area == DEC_TOP ) ? true : false;
    var->force_local_scope = dec->force_local_scope;
    var->external = dec->external;
+   var->anon = dec->anon;
    return var;
 }
 
@@ -1623,6 +1664,100 @@ void read_foreach_var( struct parse* parse, struct dec* dec ) {
       dec->ref = ref.head;
    }
    read_name( parse, dec );
+}
+
+bool p_is_paren_type( struct parse* parse ) {
+   if ( parse->tk == TK_PAREN_L ) {
+      switch ( p_peek( parse ) ) {
+      case TK_RAW:
+      case TK_INT:
+      case TK_FIXED:
+      case TK_BOOL:
+      case TK_STR:
+      case TK_ENUM:
+      case TK_STRUCT:
+      case TK_TYPENAME:
+      case TK_VOID:
+      case TK_STATIC:
+         return true;
+      default:
+         break;
+      }
+   }
+   return false;
+}
+
+void p_init_paren_reading( struct parse* parse,
+   struct paren_reading* reading ) {
+   reading->var = NULL;
+   t_init_pos_id( &reading->cast.pos, ALTERN_FILENAME_COMPILER );
+   reading->cast.spec = SPEC_NONE;
+}
+
+void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
+   p_test_tk( parse, TK_PAREN_L );
+   struct dec dec;
+   p_init_dec( &dec );
+   dec.pos = parse->tk_pos;
+   dec.name = parse->task->blank_name;
+   dec.name_pos = parse->tk_pos;
+   dec.object = DECOBJ_VAR;
+   dec.private_visibility = true;
+   dec.anon = true;
+   if ( parse->local_vars ) {
+      dec.area = DEC_LOCAL;
+   }
+   else {
+      dec.area = DEC_TOP;
+   }
+   p_read_tk( parse );
+   // Qualifier, for compound literals.
+   if ( parse->tk == TK_STATIC ) {
+      read_qual( parse, &dec );
+   }
+   // Specifier.
+   struct spec_reading spec;
+   init_spec_reading( &spec, AREA_VAR );
+   read_spec( parse, &spec );
+   dec.type_pos = spec.pos;
+   dec.spec = spec.type;
+   dec.path = spec.path;
+   // Reference.
+   struct ref_reading ref;
+   init_ref_reading( &ref );
+   read_ref( parse, &ref );
+   dec.ref = ref.head;
+   // Dimension, for array literals. If a reference type is specified, then
+   // force it to be a part of an array literal, since a reference type is not
+   // used in a cast or a structure variable literal.
+   if ( parse->tk == TK_BRACKET_L || dec.ref ) {
+      p_test_tk( parse, TK_BRACKET_L );
+      read_dim( parse, &dec );
+   }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   // Compound literal.
+   if ( dec.static_qual || dec.dim || parse->tk == TK_BRACE_L ) {
+      // Inializer.
+      dec.initz.pos = parse->tk_pos;
+      dec.initz.specified = true;
+      // String-based initializer, for array literals.
+      if ( dec.dim && parse->tk == TK_LIT_STRING ) {
+         read_single_init( parse, &dec );
+      }
+      else {
+         read_multi_init( parse, &dec, NULL );
+      }
+      // Variable.
+      test_var( parse, &dec );
+      add_var( parse, &dec );
+      reading->var = dec.var;
+   }
+   // Cast.
+   else {
+      reading->cast.pos = dec.pos;
+      reading->cast.spec = dec.spec;
+   }
 }
 
 void read_func( struct parse* parse, struct dec* dec ) {

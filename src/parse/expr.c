@@ -32,8 +32,6 @@ static void read_prefix( struct parse* parse, struct expr_reading* reading );
 static void read_unary( struct parse* parse, struct expr_reading* reading );
 static void read_inc( struct parse* parse, struct expr_reading* reading );
 static struct inc* alloc_inc( struct pos pos, bool dec );
-static bool is_cast( struct parse* parse );
-static void read_cast( struct parse* parse, struct expr_reading* reading );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading );
@@ -72,6 +70,10 @@ static void read_strcpy_call( struct parse* parse,
    struct strcpy_reading* reading );
 static void read_memcpy( struct parse* parse, struct expr_reading* reading );
 static void read_paren( struct parse* parse, struct expr_reading* reading );
+static void read_compound_literal( struct parse* parse,
+   struct expr_reading* reading, struct paren_reading* paren );
+static void read_cast( struct parse* parse, struct expr_reading* reading,
+   struct paren_reading* paren );
 static void read_anon_func( struct parse* parse,
    struct expr_reading* reading );
 static void read_paren_expr( struct parse* parse,
@@ -431,13 +433,7 @@ void read_prefix( struct parse* parse, struct expr_reading* reading ) {
       }
       break;
    default:
-      if ( is_cast( parse ) ) {
-         read_cast( parse, reading );
-         return;
-      }
-      else {
-         prefix = parse->tk;
-      }
+      prefix = parse->tk;
    }
    // Read prefix operation.
    switch ( prefix ) {
@@ -500,63 +496,6 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    inc->dec = dec;
    inc->fixed = false;
    return inc;
-}
-
-bool is_cast( struct parse* parse ) {
-   if ( parse->tk == TK_PAREN_L ) {
-      switch ( p_peek( parse ) ) {
-      case TK_RAW:
-      case TK_INT:
-      case TK_FIXED:
-      case TK_BOOL:
-      case TK_STR:
-         return ( p_peek_2nd( parse ) != TK_PAREN_L );
-      default:
-         break;
-      }
-   }
-   return false;
-}
-
-// TODO: Read type information from dec.c.
-void read_cast( struct parse* parse, struct expr_reading* reading ) {
-   struct pos pos = parse->tk_pos;
-   p_test_tk( parse, TK_PAREN_L );
-   p_read_tk( parse );
-   int spec = SPEC_NONE;
-   switch ( parse->tk ) {
-   case TK_RAW:
-      spec = SPEC_RAW;
-      p_read_tk( parse );
-      break;
-   case TK_INT:
-      spec = SPEC_INT;
-      p_read_tk( parse );
-      break;
-   case TK_FIXED:
-      spec = SPEC_FIXED;
-      p_read_tk( parse );
-      break;
-   case TK_BOOL:
-      spec = SPEC_BOOL;
-      p_read_tk( parse );
-      break;
-   case TK_STR:
-      spec = SPEC_STR;
-      p_read_tk( parse );
-      break;
-   default:
-      UNREACHABLE();
-   }
-   p_test_tk( parse, TK_PAREN_R );
-   p_read_tk( parse );
-   read_prefix( parse, reading );
-   struct cast* cast = mem_alloc( sizeof( *cast ) );
-   cast->node.type = NODE_CAST;
-   cast->operand = reading->node;
-   cast->pos = pos;
-   cast->spec = spec;
-   reading->node = &cast->node;
 }
 
 void read_primary( struct parse* parse, struct expr_reading* reading ) {
@@ -1315,14 +1254,46 @@ void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
 }
 
 void read_paren( struct parse* parse, struct expr_reading* reading ) {
-   switch ( p_peek( parse ) ) {
-   case TK_BRACE_L:
-   case TK_FUNCTION:
-      read_anon_func( parse, reading );
-      break;
-   default:
-      read_paren_expr( parse, reading );
+   if ( p_is_paren_type( parse ) ) {
+      struct paren_reading paren;
+      p_init_paren_reading( parse, &paren );
+      p_read_paren_type( parse, &paren );
+      if ( paren.var ) {
+         read_compound_literal( parse, reading, &paren );
+      }
+      else {
+         read_cast( parse, reading, &paren );
+      }
    }
+   else {
+      switch ( p_peek( parse ) ) {
+      case TK_BRACE_L:
+      case TK_FUNCTION:
+         read_anon_func( parse, reading );
+         break;
+      default:
+         read_paren_expr( parse, reading );
+      }
+   }
+}
+
+void read_compound_literal( struct parse* parse, struct expr_reading* reading,
+   struct paren_reading* paren ) {
+   struct compound_literal* literal = mem_alloc( sizeof( *literal ) );
+   literal->node.type = NODE_COMPOUNDLITERAL;
+   literal->var = paren->var;
+   reading->node = &literal->node;
+}
+
+void read_cast( struct parse* parse, struct expr_reading* reading,
+   struct paren_reading* paren ) {
+   read_prefix( parse, reading );
+   struct cast* cast = mem_alloc( sizeof( *cast ) );
+   cast->node.type = NODE_CAST;
+   cast->operand = reading->node;
+   cast->pos = paren->cast.pos;
+   cast->spec = paren->cast.spec;
+   reading->node = &cast->node;
 }
 
 void read_anon_func( struct parse* parse, struct expr_reading* reading ) {

@@ -112,7 +112,8 @@ struct node {
       NODE_SURE,
       NODE_FUNCNAME,
       NODE_SCRIPTID,
-      NODE_DO
+      NODE_DO,
+      NODE_COMPOUNDLITERAL,
    } type;
 };
 
@@ -287,6 +288,11 @@ struct fixed_literal {
 struct boolean {
    struct node node;
    int value;
+};
+
+struct compound_literal {
+   struct node node;
+   struct var* var;
 };
 
 struct unary {
@@ -701,6 +707,7 @@ struct var {
    bool constant;
    bool external;
    bool head_instance;
+   bool anon;
 };
 
 struct param {
@@ -1162,6 +1169,7 @@ struct task {
    struct name* root_name;
    struct name* array_name;
    struct name* str_name;
+   struct name* blank_name;
    struct func* append_func;
    // Both `dummy_expr` and `raw0_expr` refer to the same node.
    struct expr* dummy_expr;

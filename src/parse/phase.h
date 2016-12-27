@@ -363,6 +363,7 @@ struct dec {
    bool semicolon_absent;
    bool external;
    bool force_local_scope;
+   bool anon;
 };
 
 struct stmt_reading {
@@ -379,6 +380,14 @@ struct expr_reading {
    bool skip_assign;
    bool skip_call;
    bool expect_expr;
+};
+
+struct paren_reading {
+   struct var* var;
+   struct {
+      struct pos pos;
+      int spec;
+   } cast;
 };
 
 struct parse {
@@ -531,5 +540,9 @@ void p_create_cmdline_library_links( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
 void p_read_anon_func( struct parse* parse, struct func* func );
+bool p_is_paren_type( struct parse* parse );
+void p_init_paren_reading( struct parse* parse,
+   struct paren_reading* reading );
+void p_read_paren_type( struct parse* parse, struct paren_reading* reading );
 
 #endif

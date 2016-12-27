@@ -398,23 +398,25 @@ void bind_structure( struct semantic* semantic, struct structure* structure ) {
 }
 
 void bind_var( struct semantic* semantic, struct var* var ) {
-   if ( var->name->object && var->name->object->node.type == NODE_VAR ) {
-      struct var* binded_var = ( struct var* ) var->name->object;
-      if ( binded_var->external ) {
-         if ( var->external ) {
-            return;
+   if ( ! var->anon ) {
+      if ( var->name->object && var->name->object->node.type == NODE_VAR ) {
+         struct var* binded_var = ( struct var* ) var->name->object;
+         if ( binded_var->external ) {
+            if ( var->external ) {
+               return;
+            }
+            else {
+               binded_var->name->object = NULL;
+            }
          }
          else {
-            binded_var->name->object = NULL;
+            if ( var->external ) {
+               return;
+            }
          }
       }
-      else {
-         if ( var->external ) {
-            return;
-         }
-      }
+      s_bind_name( semantic, var->name, &var->object );
    }
-   s_bind_name( semantic, var->name, &var->object );
 }
 
 void bind_func( struct semantic* semantic, struct func* func ) {

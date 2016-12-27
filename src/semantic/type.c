@@ -382,15 +382,12 @@ void present_ref( struct ref* ref, struct str* string ) {
 }
 
 void present_dim( struct type_info* type, struct str* string ) {
-   if ( type->dim ) {
-      str_append( string, " array" );
-      struct dim* dim = type->dim;
-      while ( dim ) {
-         char text[ 11 + 2 ];
-         snprintf( text, sizeof( text ), "[%d]", dim->length );
-         str_append( string, text );
-         dim = dim->next;
-      }
+   struct dim* dim = type->dim;
+   while ( dim ) {
+      char text[ 11 + 2 ];
+      snprintf( text, sizeof( text ), "[%d]", dim->length );
+      str_append( string, text );
+      dim = dim->next;
    }
 }
 

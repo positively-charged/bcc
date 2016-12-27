@@ -105,6 +105,8 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    str_init( &task->err_file_dir );
    str_copy( &task->err_file_dir, "", 0 );
    t_update_err_file_dir( task, options->source_file );
+   // TODO: Make this better.
+   task->blank_name = task->upmost_ns->body;
 }
 
 struct ns* t_alloc_ns( struct name* name ) {
@@ -860,6 +862,7 @@ struct var* t_alloc_var( void ) {
    var->constant = false;
    var->external = false;
    var->head_instance = false;
+   var->anon = false;
    return var;
 }
 

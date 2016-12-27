@@ -219,6 +219,8 @@ static void visit_conversion( struct codegen* codegen, struct result* result,
 static void visit_null( struct codegen* codegen, struct result* result );
 static void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren );
+static void visit_compound_literal( struct codegen* codegen,
+   struct result* result, struct compound_literal* literal );
 static void push_indexed( struct codegen* codegen, int storage, int index );
 static void push_element( struct codegen* codegen, int storage, int index );
 static void inc_dimtrack( struct codegen* codegen );
@@ -1988,6 +1990,10 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_paren( codegen, result,
          ( struct paren* ) node );
       break;
+   case NODE_COMPOUNDLITERAL:
+      visit_compound_literal( codegen, result,
+         ( struct compound_literal* ) node );
+      break;
    default:
       UNREACHABLE()
    }
@@ -2895,6 +2901,12 @@ void visit_null( struct codegen* codegen, struct result* result ) {
 void visit_paren( struct codegen* codegen, struct result* result,
    struct paren* paren ) {
    visit_operand( codegen, result, paren->inside );
+}
+
+void visit_compound_literal( struct codegen* codegen, struct result* result,
+   struct compound_literal* literal ) {
+   c_visit_var( codegen, literal->var );
+   visit_var( codegen, result, literal->var );
 }
 
 void push_indexed( struct codegen* codegen, int storage, int index ) {
