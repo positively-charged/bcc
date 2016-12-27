@@ -1989,15 +1989,19 @@ struct func_aspec* alloc_aspec_impl( void ) {
 }
 
 void p_read_anon_func( struct parse* parse, struct func* func ) {
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
    // Read header.
-   if ( parse->tk == TK_FUNCTION ) {
+   p_test_tk( parse, TK_FUNCTION );
+   p_read_tk( parse );
+   // Read qualifiers.
+   if ( parse->tk == TK_MSGBUILD ) {
+      func->msgbuild = true;
       p_read_tk( parse );
-      // Read qualifiers.
-      if ( parse->tk == TK_MSGBUILD ) {
-         func->msgbuild = true;
-         p_read_tk( parse );
-      }
    }
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   // Read body.
    p_read_func_body( parse, func );
 }
 

@@ -1267,7 +1267,6 @@ void read_paren( struct parse* parse, struct expr_reading* reading ) {
    }
    else {
       switch ( p_peek( parse ) ) {
-      case TK_BRACE_L:
       case TK_FUNCTION:
          read_anon_func( parse, reading );
          break;
@@ -1297,8 +1296,6 @@ void read_cast( struct parse* parse, struct expr_reading* reading,
 }
 
 void read_anon_func( struct parse* parse, struct expr_reading* reading ) {
-   p_test_tk( parse, TK_PAREN_L );
-   p_read_tk( parse );
    struct func_user* impl = t_alloc_func_user();
    impl->nested = true;
    struct func* func = t_alloc_func();
@@ -1306,8 +1303,6 @@ void read_anon_func( struct parse* parse, struct expr_reading* reading ) {
    func->impl = impl;
    func->return_spec = SPEC_AUTO;
    p_read_anon_func( parse, func );
-   p_test_tk( parse, TK_PAREN_R );
-   p_read_tk( parse );
    func->object.pos = impl->body->pos;
    reading->node = &func->object.node;
 }
