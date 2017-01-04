@@ -7,7 +7,7 @@
 #include "utility.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Utility {
+strict namespace Jm.Utility {
 // ==========================================================================
 
 void Init() {

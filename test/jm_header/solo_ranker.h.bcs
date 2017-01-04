@@ -4,7 +4,7 @@
 #linklibrary "solorank"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.SoloRanker {
+strict namespace Jm.SoloRanker {
 // ==========================================================================
 
 extern void Finish();

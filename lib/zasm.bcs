@@ -4,7 +4,9 @@
    #error you must #import this file
 #endif
 
-typeaware namespace {
+// ==========================================================================
+strict namespace {
+// ==========================================================================
 
 // Instruction opcodes.
 enum {

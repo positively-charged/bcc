@@ -4,7 +4,7 @@
 #linklibrary "telpatch"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Telepatch {
+strict namespace Jm.Telepatch {
 // ==========================================================================
 
 extern void OnDeath( int player );

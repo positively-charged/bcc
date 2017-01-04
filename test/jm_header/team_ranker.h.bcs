@@ -4,7 +4,7 @@
 #linklibrary "teamrank"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.TeamRanker {
+strict namespace Jm.TeamRanker {
 // ==========================================================================
 
 extern void ClearPointsTable();

@@ -9,7 +9,7 @@
 #include "hs.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Hs {
+strict namespace Jm.Hs {
 // ==========================================================================
 
 private enum : fixed { LINE_NOTICE_Y = 0.55 };

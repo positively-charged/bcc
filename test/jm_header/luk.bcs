@@ -6,7 +6,7 @@
 #include "luk.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Luk {
+strict namespace Jm.Luk {
 // ==========================================================================
 
 // Query delimiter.

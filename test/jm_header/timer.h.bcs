@@ -4,7 +4,7 @@
 #linklibrary "timer"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Timer {
+strict namespace Jm.Timer {
 // ==========================================================================
 
 extern void Run();

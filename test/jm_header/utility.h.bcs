@@ -4,7 +4,7 @@
 #linklibrary "utility"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Utility {
+strict namespace Jm.Utility {
 // ==========================================================================
 
 extern void Init();

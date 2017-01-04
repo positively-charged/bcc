@@ -4,7 +4,7 @@
 #linklibrary "mapmsg"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.MapMsg {
+strict namespace Jm.MapMsg {
 // ==========================================================================
 
 enum Skill {

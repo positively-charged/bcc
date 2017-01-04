@@ -3,7 +3,7 @@
 #include "zcommon.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm {
+strict namespace Jm {
 // ==========================================================================
 
 enum Mode {
@@ -181,7 +181,7 @@ script 933 ( int player ) disconnect {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Cfg {
+strict namespace Jm.Cfg {
 // ==========================================================================
 
 enum { TICS_IN_SECOND = 35 };
@@ -202,7 +202,7 @@ enum {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Utility {
+strict namespace Jm.Utility {
 // ==========================================================================
 
 function void Init() {
@@ -298,7 +298,7 @@ function str GetMonthName( int month ) {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Client {
+strict namespace Jm.Client {
 // ==========================================================================
 
 // Player number retrival.
@@ -347,7 +347,7 @@ script 943 ( int player, int number, int arg1 ) clientside {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.MapMsg {
+strict namespace Jm.MapMsg {
 // ==========================================================================
 
 using Cfg;
@@ -417,7 +417,7 @@ script 980 enter {
 
 private function void Show() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       append(
          s: "\cf", s: gName, s: " - ",
          s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
@@ -437,25 +437,25 @@ private function void Show() {
             s: SoloRanker.GetHsAuthorName()
          );
       }
-   } ); HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME, 1.0 );
+   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME, 1.0 );
 }
 
 // Removes the whitespace found in the par time, so it looks nicer when shown
 // in the map message.
 private function void SetPar( str par ) {
-   gPar = StrParam( msgbuild: ( function msgbuild {
+   gPar = StrParam( msgbuild: ( msgbuild auto() ) {
       foreach ( int ch; par ) {
          if ( ch != ' ' ) {
             append( c: ch );
          }
       }
-   } ) );
+   } );
 }
 
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Timer {
+strict namespace Jm.Timer {
 // ==========================================================================
 
 using Upmost;
@@ -513,7 +513,7 @@ function int GetTics() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.WhoExited {
+strict namespace Jm.WhoExited {
 // ==========================================================================
 
 function void Show() {
@@ -538,7 +538,7 @@ function void ShowAndExit() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Luk {
+strict namespace Jm.Luk {
 // ==========================================================================
 
 // Query delimiter.
@@ -881,7 +881,7 @@ function int InitStringTransmissionL( str key, int num ) {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Hs {
+strict namespace Jm.Hs {
 // ==========================================================================
 
 enum { LINE_NOTICE = 27233 };
@@ -989,7 +989,7 @@ function void ShowDetails( int showTime ) {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.SoloRanker {
+strict namespace Jm.SoloRanker {
 // ==========================================================================
 
 using Cfg;
@@ -1135,7 +1135,7 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( function msgbuild {
+   HudMessageBold( msgbuild: ( msgbuild auto() ) {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n" );
@@ -1162,7 +1162,7 @@ private function void ShowTable() {
             s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
             s: "\n\n" );
       }
-   } ); HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private function void ClearTable() {
@@ -1171,7 +1171,7 @@ private function void ClearTable() {
 
 private function void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
          append( s: "\n" );
       }
@@ -1182,7 +1182,7 @@ private function void ShowIndividualTime( int tics ) {
          s: ZeroPad( minutes ), d: minutes, s: ":", 
          s: ZeroPad( seconds ), d: seconds, s: "\cu.",
          s: ZeroPad( centiseconds ), d: centiseconds );
-   } ); HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+   }; HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
 }
 
 private function void ClearIndividualTime() {
@@ -1303,7 +1303,7 @@ function str GetHsAuthorName() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.TeamRanker {
+strict namespace Jm.TeamRanker {
 // ==========================================================================
 
 using Jm.Cfg;
@@ -1421,7 +1421,7 @@ script 961 ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( function msgbuild {
+   HudMessageBold( msgbuild: ( msgbuild auto() ) {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n\n" );
@@ -1441,7 +1441,7 @@ private function void ShowTable() {
                d: gTable.spots[ i ].points );
          }
       }
-   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private function msgbuild void DrawTime() {
@@ -1459,7 +1459,7 @@ private function msgbuild void DrawTime() {
 
 private function void ShowGoals() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       if ( gPointsLeft == 0 ) {
          DrawTime();
       }
@@ -1476,7 +1476,7 @@ private function void ShowGoals() {
          // always one place taken in the score table, which will be the first.
          d: gTable.spots[ 0 ].points, s: labelColor, s: " / ", s: totalColor,
          d: gPointsTotal );
-   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 function void ClearPointsTable() {
@@ -1619,7 +1619,7 @@ private function void AnnounceCheat() {
 // Prints high score details table.
 script "TeamRanker.ShowHs" ( raw showTime ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       append( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
          s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
          s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n",
@@ -1634,7 +1634,7 @@ script "TeamRanker.ShowHs" ( raw showTime ) {
       if ( gHsUnaccountedPoints > 0 ) {
          append( s: "\cgUnaccounted \cd", d: gHsUnaccountedPoints );
       }
-   } ); HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+   }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
 }
 
 function void PrepareForSvmz() {
@@ -1644,7 +1644,7 @@ function void PrepareForSvmz() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Telepatch {
+strict namespace Jm.Telepatch {
 // ==========================================================================
 
 using Cfg;
@@ -1686,7 +1686,7 @@ function void OnDisconnect( int player ) {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.AutoFist {
+strict namespace Jm.AutoFist {
 // ==========================================================================
 
 using upmost;
@@ -1715,7 +1715,7 @@ script 997 {
 // breaks down a long string message into smaller segments that fit nicely on
 // a player's screens and shows them one at a time.
 // ==========================================================================
-typeaware blockscoping namespace Jm.Rsd {
+strict namespace Jm.Rsd {
 // ==========================================================================
 
 using upmost;
@@ -2030,7 +2030,7 @@ script 947 ( int holdTime ) {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Svmz {
+strict namespace Jm.Svmz {
 // ==========================================================================
 
 using upmost;
@@ -2312,7 +2312,7 @@ function void DisplayMinEscapeesFail() {
 
 function void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( function msgbuild {
+   HudMessageBold( msgbuild: ( msgbuild auto() ) {
       auto minEscapees = GetMinEscapees();
       auto numEscapees = Escapee.GetCount();
       // Change the color of the statistic to green to indicate success.
@@ -2324,7 +2324,7 @@ function void DisplayEscapeeStats() {
          append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
             d: minEscapees );
       }
-   } ); HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
 }
 
 private function int GetNumAlive() {
@@ -2338,7 +2338,7 @@ private function int GetNumAlive() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Svmz.Escapee {
+strict namespace Jm.Svmz.Escapee {
 // ==========================================================================
 
 using upmost;
@@ -2373,7 +2373,7 @@ function int GetCount() {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Svmz.Timer {
+strict namespace Jm.Svmz.Timer {
 // ==========================================================================
 
 using upmost;
@@ -2435,7 +2435,7 @@ script 908 {
 }
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Svmz.Item {
+strict namespace Jm.Svmz.Item {
 // ==========================================================================
 
 using upmost;

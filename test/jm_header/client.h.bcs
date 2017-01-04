@@ -4,7 +4,7 @@
 #linklibrary "client"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Client {
+strict namespace Jm.Client {
 // ==========================================================================
 
 extern int GetNumber();

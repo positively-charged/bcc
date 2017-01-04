@@ -7,7 +7,7 @@
 #include "telepatch.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Telepatch {
+strict namespace Jm.Telepatch {
 // ==========================================================================
 
 using Cfg;

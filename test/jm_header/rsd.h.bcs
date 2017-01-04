@@ -6,7 +6,7 @@
 // breaks down a long string message into smaller segments that fit nicely on
 // a player's screens and shows them one at a time.
 // ==========================================================================
-typeaware blockscoping namespace Jm.Rsd {
+strict namespace Jm.Rsd {
 // ==========================================================================
 
 enum { RSD_START_SCRIPT = 945 };

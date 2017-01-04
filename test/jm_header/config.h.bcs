@@ -2,7 +2,7 @@
 #define TEST_JMHEADER_CONFIG_H
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.Cfg {
+strict namespace Jm.Cfg {
 // ==========================================================================
 
 enum { TICS_IN_SECOND = 35 };

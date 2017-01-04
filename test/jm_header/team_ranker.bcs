@@ -11,7 +11,7 @@
 #include "luk.h"
 
 // ==========================================================================
-typeaware blockscoping namespace Jm.TeamRanker {
+strict namespace Jm.TeamRanker {
 // ==========================================================================
 
 using Jm.Cfg;
@@ -129,7 +129,7 @@ script "TeamRanker.ClientQuit" ( int player ) disconnect {
 
 private void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( function msgbuild {
+   HudMessageBold( msgbuild: ( msgbuild auto() ) {
       if ( Hs.IsSet() ) {
          DrawHsTime();
          append( s: "\n\n" );
@@ -149,7 +149,7 @@ private void ShowTable() {
                d: gTable.spots[ i ].points );
          }
       }
-   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 private msgbuild void DrawTime() {
@@ -167,7 +167,7 @@ private msgbuild void DrawTime() {
 
 private void ShowGoals() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       if ( gPointsLeft == 0 ) {
          DrawTime();
       }
@@ -184,7 +184,7 @@ private void ShowGoals() {
          // always one place taken in the score table, which will be the first.
          d: gTable.spots[ 0 ].points, s: labelColor, s: " / ", s: totalColor,
          d: gPointsTotal );
-   } ); HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
 }
 
 void ClearPointsTable() {
@@ -326,7 +326,7 @@ private void AnnounceCheat() {
 // Prints high score details table.
 script "TeamRanker.ShowHs" ( raw showTime ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( function msgbuild {
+   HudMessage( msgbuild: ( msgbuild auto() ) {
       append( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
          s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
          s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n",
@@ -341,7 +341,7 @@ script "TeamRanker.ShowHs" ( raw showTime ) {
       if ( gHsUnaccountedPoints > 0 ) {
          append( s: "\cgUnaccounted \cd", d: gHsUnaccountedPoints );
       }
-   } ); HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+   }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
 }
 
 void PrepareForSvmz() {
