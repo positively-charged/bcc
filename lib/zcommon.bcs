@@ -1552,6 +1552,12 @@ special
 -203:SetTranslation(int,str):void,
 -300:GetLineX(int,fixed,fixed):fixed,
 -301:GetLineY(int,fixed,fixed):fixed,
+
+// GZDoom.
+-400:SetSectorGlow(int,int,int,int,int,int):void,
+-401:SetFogDensity(int,int):void,
+
+// ZDaemon.
 -19620:GetTeamScore(int):int,
 -19621:SetTeamScore(int,int):void,
 
