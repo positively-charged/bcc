@@ -945,7 +945,7 @@ void test_namespace( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    semantic->ns = fragment->ns;
    semantic->ns_fragment = fragment;
-   semantic->strong_type = fragment->strong_type;
+   semantic->strong_type = fragment->strict;
    struct object* object = fragment->unresolved;
    fragment->unresolved = NULL;
    fragment->unresolved_tail = NULL;
@@ -975,7 +975,7 @@ void test_nested_namespace( struct semantic* semantic,
    test_namespace( semantic, fragment );
    semantic->ns_fragment = parent_fragment;
    semantic->ns = parent_fragment->ns;
-   semantic->strong_type = parent_fragment->strong_type;
+   semantic->strong_type = parent_fragment->strict;
 }
 
 void test_namespace_object( struct semantic* semantic,
@@ -1029,7 +1029,7 @@ void test_objects_bodies_ns( struct semantic* semantic,
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
    semantic->ns = fragment->ns;
    semantic->ns_fragment = fragment;
-   semantic->strong_type = fragment->strong_type;
+   semantic->strong_type = fragment->strict;
    list_iter_t i;
    list_iter_init( &i, &fragment->scripts );
    while ( ! list_end( &i ) ) {

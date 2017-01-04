@@ -171,10 +171,7 @@ enum tk {
    TK_BACKSLASH,
    TK_REOPEN,
    TK_LET,
-   TK_TYPEAWARE,
-
-   // 150
-   TK_BLOCKSCOPING,
+   TK_STRICT,
 
    TK_TOTAL,
 

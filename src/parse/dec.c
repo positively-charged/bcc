@@ -295,8 +295,8 @@ bool p_read_let( struct parse* parse ) {
       return true;
    }
    else {
-      // For a namespace block qualified with `blockscoping`, `let` is implied.
-      return parse->ns_fragment->block_scoping;
+      // For a namespace block qualified with `strict`, `let` is implied.
+      return parse->ns_fragment->strict;
    }
 }
 

@@ -1049,8 +1049,8 @@ struct ns_fragment {
    struct list scripts;
    struct list fragments;
    struct list usings;
-   bool strong_type;
-   bool block_scoping;
+   // Enables: strong typing; block scoping of local objects.
+   bool strict;
 };
 
 struct ns_path {

@@ -19,8 +19,7 @@ enum pseudo_dirc {
 };
 
 struct ns_qual {
-   bool strong_type;
-   bool block_scoping;
+   bool strict;
 };
 
 static void read_module( struct parse* parse );
@@ -104,8 +103,7 @@ void read_module_item( struct parse* parse ) {
       case TK_HASH:
          read_pseudo_dirc( parse, false );
          break;
-      case TK_TYPEAWARE:
-      case TK_BLOCKSCOPING:
+      case TK_STRICT:
       case TK_NAMESPACE:
          read_namespace( parse );
          break;
@@ -151,8 +149,7 @@ void read_namespace( struct parse* parse ) {
    p_test_tk( parse, TK_NAMESPACE );
    struct ns_fragment* fragment = t_alloc_ns_fragment();
    fragment->object.pos = parse->tk_pos;
-   fragment->strong_type = qualifiers.strong_type;
-   fragment->block_scoping = qualifiers.block_scoping;
+   fragment->strict = qualifiers.strict;
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
    list_append( &parent_fragment->fragments, fragment );
@@ -169,31 +166,14 @@ void read_namespace( struct parse* parse ) {
 }
 
 void init_namespace_qualifier( struct ns_qual* qualifiers ) {
-   qualifiers->strong_type = false;
-   qualifiers->block_scoping = false;
+   qualifiers->strict = false;
 }
 
 void read_namespace_qualifier( struct parse* parse,
    struct ns_qual* qualifiers ) {
-   while ( true ) {
-      // For now, use a simple if-statement to check for duplicates.
-      if ( ( parse->tk == TK_TYPEAWARE && qualifiers->strong_type ) ||
-         ( parse->tk == TK_BLOCKSCOPING && qualifiers->block_scoping ) ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "duplicate `%s` namespace qualifier", parse->tk_text );
-         p_bail( parse );
-      }
-      if ( parse->tk == TK_TYPEAWARE ) {
-         qualifiers->strong_type = true;
-         p_read_tk( parse );
-      }
-      else if ( parse->tk == TK_BLOCKSCOPING ) {
-         qualifiers->block_scoping = true;
-         p_read_tk( parse );
-      }
-      else {
-         break;
-      }
+   if ( parse->tk == TK_STRICT ) {
+      qualifiers->strict = true;
+      p_read_tk( parse );
    }
 }
 
@@ -261,9 +241,8 @@ void read_namespace_member( struct parse* parse ) {
       p_read_script( parse );
    }
    else if (
-      parse->tk == TK_NAMESPACE ||
-      parse->tk == TK_TYPEAWARE ||
-      parse->tk == TK_BLOCKSCOPING ) {
+      parse->tk == TK_STRICT ||
+      parse->tk == TK_NAMESPACE ) {
       read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
