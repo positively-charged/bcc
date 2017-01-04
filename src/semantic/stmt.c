@@ -10,7 +10,8 @@ static void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label );
 static void test_default_case( struct semantic* semantic,
    struct stmt_test* test, struct case_label* label );
-static void test_assert( struct semantic* semantic, struct assert* assert );
+static void test_assert( struct semantic* semantic, struct stmt_test* test,
+   struct assert* assert );
 static void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node );
 static void test_if( struct semantic* semantic, struct stmt_test* test,
@@ -153,7 +154,7 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
          ( struct case_label* ) node );
       break;
    case NODE_ASSERT:
-      test_assert( semantic,
+      test_assert( semantic, &nested_test,
          ( struct assert* ) node );
       break;
    case NODE_USING:
@@ -297,7 +298,8 @@ void test_default_case( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_assert( struct semantic* semantic, struct assert* assert ) {
+void test_assert( struct semantic* semantic, struct stmt_test* test,
+   struct assert* assert ) {
    s_test_bool_expr( semantic, assert->cond );
    if ( assert->is_static ) {
       if ( ! assert->cond->folded ) {
@@ -344,6 +346,12 @@ void test_assert( struct semantic* semantic, struct assert* assert ) {
             string ? ": " : "",
             string ? string->value : "" );
          s_bail( semantic );
+      }
+   }
+   else {
+      // Flow.
+      if ( assert->cond->folded && ! assert->cond->value ) {
+         test->flow = FLOW_DEAD;
       }
    }
 }
