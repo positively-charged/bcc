@@ -384,6 +384,7 @@ struct expr_reading {
 
 struct paren_reading {
    struct var* var;
+   struct func* func;
    struct {
       struct pos pos;
       int spec;
@@ -539,7 +540,6 @@ void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
 bool p_read_let( struct parse* parse );
-void p_read_anon_func( struct parse* parse, struct func* func );
 bool p_is_paren_type( struct parse* parse );
 void p_init_paren_reading( struct parse* parse,
    struct paren_reading* reading );

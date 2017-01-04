@@ -126,6 +126,7 @@ static void finish_type_alias( struct parse* parse, struct dec* dec );
 static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
 static void read_func( struct parse* parse, struct dec* dec );
+static struct func* alloc_func( struct parse* parse, struct dec* dec );
 static void read_func_param_list( struct parse* parse, struct func* func );
 static struct func_aspec* alloc_aspec_impl( void );
 static void init_params( struct params* params );
@@ -1670,16 +1671,48 @@ bool p_is_paren_type( struct parse* parse ) {
    if ( parse->tk == TK_PAREN_L ) {
       switch ( p_peek( parse ) ) {
       case TK_RAW:
-      case TK_INT:
-      case TK_FIXED:
-      case TK_BOOL:
-      case TK_STR:
       case TK_ENUM:
       case TK_STRUCT:
       case TK_TYPENAME:
       case TK_VOID:
+      case TK_AUTO:
       case TK_STATIC:
+      case TK_FUNCTION:
+      case TK_MSGBUILD:
          return true;
+      case TK_INT:
+      case TK_FIXED:
+      case TK_BOOL:
+      case TK_STR:
+         {
+            // Make sure we are not dealing with a conversion call.
+            struct parsertk_iter iter;
+            p_init_parsertk_iter( parse, &iter );
+            p_next_tk( parse, &iter );
+            p_next_tk( parse, &iter );
+            if ( iter.token->type == TK_PAREN_L ) {
+               p_next_tk( parse, &iter );
+               switch ( iter.token->type ) {
+               case TK_RAW:
+               case TK_INT:
+               case TK_FIXED:
+               case TK_BOOL:
+               case TK_STR:
+               case TK_ENUM:
+               case TK_STRUCT:
+               case TK_TYPENAME:
+               case TK_VOID:
+               case TK_PAREN_R:
+                  return true;
+               default:
+                  break;
+               }
+            }
+            else {
+               return true;
+            }
+         }
+         break;
       default:
          break;
       }
@@ -1690,6 +1723,7 @@ bool p_is_paren_type( struct parse* parse ) {
 void p_init_paren_reading( struct parse* parse,
    struct paren_reading* reading ) {
    reading->var = NULL;
+   reading->func = NULL;
    t_init_pos_id( &reading->cast.pos, ALTERN_FILENAME_COMPILER );
    reading->cast.spec = SPEC_NONE;
 }
@@ -1701,7 +1735,6 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    dec.pos = parse->tk_pos;
    dec.name = parse->task->blank_name;
    dec.name_pos = parse->tk_pos;
-   dec.object = DECOBJ_VAR;
    dec.private_visibility = true;
    dec.anon = true;
    if ( parse->local_vars ) {
@@ -1711,33 +1744,56 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
       dec.area = DEC_TOP;
    }
    p_read_tk( parse );
-   // Qualifier, for compound literals.
-   if ( parse->tk == TK_STATIC ) {
-      read_qual( parse, &dec );
+   // Function keyword.
+   if ( parse->tk == TK_FUNCTION ) {
+      dec.object = DECOBJ_FUNC;
+      p_read_tk( parse );
    }
+   // Qualifier.
+   read_qual( parse, &dec );
    // Specifier.
-   struct spec_reading spec;
-   init_spec_reading( &spec, AREA_VAR );
-   read_spec( parse, &spec );
-   dec.type_pos = spec.pos;
-   dec.spec = spec.type;
-   dec.path = spec.path;
+   if ( parse->tk == TK_AUTO ) {
+      read_auto( parse, &dec );
+   }
+   else {
+      struct spec_reading spec;
+      init_spec_reading( &spec, AREA_VAR );
+      read_spec( parse, &spec );
+      dec.type_pos = spec.pos;
+      dec.spec = spec.type;
+      dec.path = spec.path;
+   }
    // Reference.
    struct ref_reading ref;
    init_ref_reading( &ref );
    read_ref( parse, &ref );
    dec.ref = ref.head;
+   struct func* func = NULL;
+   if ( dec.object == DECOBJ_FUNC || dec.spec == SPEC_AUTO ||
+      parse->tk == TK_PAREN_L ) {
+      func = alloc_func( parse, &dec );
+      p_test_tk( parse, TK_PAREN_L );
+      p_read_tk( parse );
+      read_func_param_list( parse, func );
+      p_test_tk( parse, TK_PAREN_R );
+      p_read_tk( parse );
+   }
    // Dimension, for array literals. If a reference type is specified, then
    // force it to be a part of an array literal, since a reference type is not
    // used in a cast or a structure variable literal.
-   if ( parse->tk == TK_BRACKET_L || dec.ref ) {
+   else if ( parse->tk == TK_BRACKET_L || dec.ref ) {
       p_test_tk( parse, TK_BRACKET_L );
       read_dim( parse, &dec );
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+   // Function literal.
+   if ( func ) {
+      read_func_body( parse, &dec, func );
+      reading->func = func;
+   }
    // Compound literal.
-   if ( dec.static_qual || dec.dim || parse->tk == TK_BRACE_L ) {
+   else if ( dec.static_qual || dec.dim || parse->tk == TK_BRACE_L ) {
       // Inializer.
       dec.initz.pos = parse->tk_pos;
       dec.initz.specified = true;
@@ -1762,21 +1818,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
 
 void read_func( struct parse* parse, struct dec* dec ) {
    read_name( parse, dec );
-   struct func* func = t_alloc_func();
-   func->object.pos = dec->name_pos;
-   func->type = FUNC_USER;
-   func->ref = dec->ref;
-   func->structure = dec->structure;
-   func->enumeration = dec->enumeration;
-   func->path = dec->path;
-   func->name = dec->name;
-   func->return_spec = dec->spec;
-   func->original_return_spec = dec->spec;
-   func->hidden = dec->private_visibility;
-   func->msgbuild = dec->msgbuild;
-   func->imported = parse->lib->imported;
-   func->external = dec->external;
-   func->force_local_scope = dec->force_local_scope;
+   struct func* func = alloc_func( parse, dec );
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
    read_func_param_list( parse, func );
@@ -1812,6 +1854,25 @@ void read_func( struct parse* parse, struct dec* dec ) {
    else {
       list_append( dec->vars, func );
    }
+}
+
+struct func* alloc_func( struct parse* parse, struct dec* dec ) {
+   struct func* func = t_alloc_func();
+   func->object.pos = dec->name_pos;
+   func->type = FUNC_USER;
+   func->ref = dec->ref;
+   func->structure = dec->structure;
+   func->enumeration = dec->enumeration;
+   func->path = dec->path;
+   func->name = dec->name;
+   func->return_spec = dec->spec;
+   func->original_return_spec = dec->spec;
+   func->hidden = dec->private_visibility;
+   func->msgbuild = dec->msgbuild;
+   func->imported = parse->lib->imported;
+   func->external = dec->external;
+   func->force_local_scope = dec->force_local_scope;
+   return func;
 }
 
 void read_func_param_list( struct parse* parse, struct func* func ) {
@@ -1986,23 +2047,6 @@ struct func_aspec* alloc_aspec_impl( void ) {
    impl->id = 0;
    impl->script_callable = false;
    return impl;
-}
-
-void p_read_anon_func( struct parse* parse, struct func* func ) {
-   p_test_tk( parse, TK_PAREN_L );
-   p_read_tk( parse );
-   // Read header.
-   p_test_tk( parse, TK_FUNCTION );
-   p_read_tk( parse );
-   // Read qualifiers.
-   if ( parse->tk == TK_MSGBUILD ) {
-      func->msgbuild = true;
-      p_read_tk( parse );
-   }
-   p_test_tk( parse, TK_PAREN_R );
-   p_read_tk( parse );
-   // Read body.
-   p_read_func_body( parse, func );
 }
 
 void p_read_script( struct parse* parse ) {

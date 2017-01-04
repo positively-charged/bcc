@@ -70,12 +70,12 @@ static void read_strcpy_call( struct parse* parse,
    struct strcpy_reading* reading );
 static void read_memcpy( struct parse* parse, struct expr_reading* reading );
 static void read_paren( struct parse* parse, struct expr_reading* reading );
+static void read_func_literal( struct parse* parse,
+   struct expr_reading* reading, struct paren_reading* paren );
 static void read_compound_literal( struct parse* parse,
    struct expr_reading* reading, struct paren_reading* paren );
 static void read_cast( struct parse* parse, struct expr_reading* reading,
    struct paren_reading* paren );
-static void read_anon_func( struct parse* parse,
-   struct expr_reading* reading );
 static void read_paren_expr( struct parse* parse,
    struct expr_reading* reading );
 
@@ -1258,7 +1258,10 @@ void read_paren( struct parse* parse, struct expr_reading* reading ) {
       struct paren_reading paren;
       p_init_paren_reading( parse, &paren );
       p_read_paren_type( parse, &paren );
-      if ( paren.var ) {
+      if ( paren.func ) {
+         read_func_literal( parse, reading, &paren );
+      }
+      else if ( paren.var ) {
          read_compound_literal( parse, reading, &paren );
       }
       else {
@@ -1266,14 +1269,15 @@ void read_paren( struct parse* parse, struct expr_reading* reading ) {
       }
    }
    else {
-      switch ( p_peek( parse ) ) {
-      case TK_FUNCTION:
-         read_anon_func( parse, reading );
-         break;
-      default:
-         read_paren_expr( parse, reading );
-      }
+      read_paren_expr( parse, reading );
    }
+}
+
+void read_func_literal( struct parse* parse, struct expr_reading* reading,
+   struct paren_reading* paren ) {
+   struct func_user* impl = paren->func->impl;
+   impl->nested = true;
+   reading->node = &paren->func->object.node;
 }
 
 void read_compound_literal( struct parse* parse, struct expr_reading* reading,
@@ -1293,18 +1297,6 @@ void read_cast( struct parse* parse, struct expr_reading* reading,
    cast->pos = paren->cast.pos;
    cast->spec = paren->cast.spec;
    reading->node = &cast->node;
-}
-
-void read_anon_func( struct parse* parse, struct expr_reading* reading ) {
-   struct func_user* impl = t_alloc_func_user();
-   impl->nested = true;
-   struct func* func = t_alloc_func();
-   func->type = FUNC_USER;
-   func->impl = impl;
-   func->return_spec = SPEC_AUTO;
-   p_read_anon_func( parse, func );
-   func->object.pos = impl->body->pos;
-   reading->node = &func->object.node;
 }
 
 void read_paren_expr( struct parse* parse, struct expr_reading* reading ) {
