@@ -178,7 +178,12 @@ void read_namespace_qualifier( struct parse* parse,
 }
 
 void read_namespace_name( struct parse* parse ) {
-   read_namespace_path( parse );
+   if ( parse->tk == TK_ID ||
+      // An unqualified, unnamed namespace does not do anything useful. Force
+      // an unqualified namespace to have a name.
+      ! parse->ns_fragment->strict ) {
+      read_namespace_path( parse );
+   }
    if ( parse->ns_fragment->path ) {
       struct ns_path* path = parse->ns_fragment->path;
       while ( path ) {
@@ -202,26 +207,29 @@ void read_namespace_name( struct parse* parse ) {
 }
 
 void read_namespace_path( struct parse* parse ) {
-   if ( parse->tk == TK_ID ) {
-      struct ns_path* head = mem_alloc( sizeof( *head ) );
-      struct ns_path* tail = head;
-      head->next = NULL;
-      head->text = parse->tk_text;
-      head->pos = parse->tk_pos;
-      p_read_tk( parse );
-      while ( parse->tk == TK_DOT ) {
-         p_read_tk( parse );
-         p_test_tk( parse, TK_ID );
-         struct ns_path* path = mem_alloc( sizeof( *head ) );
-         path->next = NULL;
-         path->text = parse->tk_text;
-         path->pos = parse->tk_pos;
-         tail->next = path;
-         tail = path;
-         p_read_tk( parse );
-      }
-      parse->ns_fragment->path = head;
+   if ( parse->tk != TK_ID ) {
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, "namespace name" );
+      p_bail( parse );
    }
+   struct ns_path* head = mem_alloc( sizeof( *head ) );
+   struct ns_path* tail = head;
+   head->next = NULL;
+   head->text = parse->tk_text;
+   head->pos = parse->tk_pos;
+   p_read_tk( parse );
+   while ( parse->tk == TK_DOT ) {
+      p_read_tk( parse );
+      p_test_tk( parse, TK_ID );
+      struct ns_path* path = mem_alloc( sizeof( *head ) );
+      path->next = NULL;
+      path->text = parse->tk_text;
+      path->pos = parse->tk_pos;
+      tail->next = path;
+      tail = path;
+      p_read_tk( parse );
+   }
+   parse->ns_fragment->path = head;
 }
 
 void read_namespace_member_list( struct parse* parse ) {
