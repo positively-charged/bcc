@@ -835,6 +835,7 @@ struct func_user {
       RECURSIVE_POSSIBLY
    } recursive;
    bool nested;
+   bool local;
 };
 
 struct func_intern {

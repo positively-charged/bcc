@@ -1326,9 +1326,9 @@ bool test_scalar_initz( struct semantic* semantic,
    }
    if ( expr.func && expr.func->type == FUNC_USER ) {
       struct func_user* impl = expr.func->impl;
-      if ( impl->nested ) {
+      if ( impl->local ) {
          s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-            "nested function used as an initializer" );
+            "local function used as an initializer" );
          s_bail( semantic );
       }
    }
@@ -1897,9 +1897,14 @@ bool test_func_ref( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_name( struct semantic* semantic, struct func* func ) {
-   if ( func->name && semantic->in_localscope && ! func->literal ) {
-      s_bind_local_name( semantic, func->name, &func->object,
-         func->force_local_scope );
+   if ( semantic->in_localscope ) {
+      if ( func->literal ) {
+         func->object.depth = semantic->depth;
+      }
+      else {
+         s_bind_local_name( semantic, func->name, &func->object,
+            func->force_local_scope );
+      }
    }
    return true;
 }
@@ -2260,8 +2265,10 @@ void s_test_nested_func( struct semantic* semantic, struct func* func ) {
    if ( func->type == FUNC_USER ) {
       s_test_func_body( semantic, func );
       struct func_user* impl = func->impl;
-      impl->next_nested = semantic->topfunc_test->nested_funcs;
-      semantic->topfunc_test->nested_funcs = func;
+      if ( impl->local ) {
+         impl->next_nested = semantic->topfunc_test->nested_funcs;
+         semantic->topfunc_test->nested_funcs = func;
+      }
    }
 }
 

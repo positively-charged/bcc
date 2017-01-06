@@ -866,9 +866,9 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    }
    if ( expr.func && expr.func->type == FUNC_USER ) {
       struct func_user* impl = expr.func->impl;
-      if ( impl->nested ) {
+      if ( impl->local ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
-            "returning nested function" );
+            "returning local function" );
          s_bail( semantic );
       }
    }

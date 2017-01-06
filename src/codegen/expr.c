@@ -153,7 +153,7 @@ static void visit_msgbuild_format_item( struct codegen* codegen,
    struct format_item* item );
 static void visit_user_call( struct codegen* codegen, struct result* result,
    struct call* call );
-static void call_nested_user_func( struct codegen* codegen,
+static void call_local_user_func( struct codegen* codegen,
    struct result* result, struct call* call );
 static void call_user_func( struct codegen* codegen, struct result* result,
    struct call* call );
@@ -248,7 +248,6 @@ void c_visit_expr( struct codegen* codegen, struct expr* expr ) {
    case R_VAR:
       break;
    default:
-printf( "%d\n", result.status );
       UNREACHABLE()
    }
 }
@@ -1579,15 +1578,15 @@ void visit_ded_call( struct codegen* codegen, struct result* result,
 void visit_user_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
    struct func_user* impl = call->func->impl;
-   if ( impl->nested ) {
-      call_nested_user_func( codegen, result, call );
+   if ( impl->local ) {
+      call_local_user_func( codegen, result, call );
    }
    else {
       call_user_func( codegen, result, call );
    }
 }
 
-void call_nested_user_func( struct codegen* codegen,
+void call_local_user_func( struct codegen* codegen,
    struct result* result, struct call* call ) {
    // Push ID of entry to identify return address.
    c_pcd( codegen, PCD_PUSHNUMBER, call->nested_call->id );
@@ -1853,7 +1852,7 @@ void visit_msgbuild_format_item( struct codegen* codegen,
    if ( extra->call ) {
       struct result result;
       init_result( &result, true );
-      call_nested_user_func( codegen, &result, extra->call );
+      visit_user_call( codegen, &result, extra->call );
    }
    else if ( extra->func ) {
       struct func_user* impl = extra->func->impl;
@@ -1993,6 +1992,10 @@ void visit_primary( struct codegen* codegen, struct result* result,
    case NODE_COMPOUNDLITERAL:
       visit_compound_literal( codegen, result,
          ( struct compound_literal* ) node );
+      break;
+   case NODE_FUNC:
+      visit_func( codegen, result,
+         ( struct func* ) node );
       break;
    default:
       UNREACHABLE()

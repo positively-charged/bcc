@@ -363,28 +363,34 @@ void read_object( struct parse* parse, struct dec* dec ) {
 }
 
 void read_qual( struct parse* parse, struct dec* dec ) {
-   switch ( parse->tk ) {
-   case TK_STATIC:
-      if (
-         dec->object == DECOBJ_UNDECIDED ||
-         dec->object == DECOBJ_VAR ) {
+   while (
+      parse->tk == TK_STATIC ||
+      parse->tk == TK_MSGBUILD ) {
+      if ( ( parse->tk == TK_STATIC && dec->static_qual ) ||
+         ( parse->tk == TK_MSGBUILD && dec->msgbuild ) ) {
+         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+            "duplicate `%s` %squalifier", parse->tk_text,
+            dec->object == DECOBJ_FUNC ? "function-" : "" );
+         p_bail( parse );
+      }
+      switch ( parse->tk ) {
+      case TK_STATIC:
          dec->static_qual = true;
          dec->static_qual_pos = parse->tk_pos;
-         dec->object = DECOBJ_VAR;
          p_read_tk( parse );
+         break;
+      case TK_MSGBUILD:
+         if (
+            dec->object == DECOBJ_UNDECIDED ||
+            dec->object == DECOBJ_FUNC ) {
+            dec->msgbuild = true;
+            dec->object = DECOBJ_FUNC;
+            p_read_tk( parse );
+         }
+         break;
+      default:
+         break;
       }
-      break;
-   case TK_MSGBUILD:
-      if (
-         dec->object == DECOBJ_UNDECIDED ||
-         dec->object == DECOBJ_FUNC ) {
-         dec->msgbuild = true;
-         dec->object = DECOBJ_FUNC;
-         p_read_tk( parse );
-      }
-      break;
-   default:
-      break;
    }
 }
 
@@ -1796,6 +1802,12 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
          list_append( &parse->lib->funcs, func );
          list_append( &parse->ns_fragment->funcs, func );
       }
+      else {
+         if ( ! ( ( struct func_user* ) func->impl )->local ) {
+            list_append( &parse->lib->funcs, func );
+            func->hidden = true;
+         }
+      }
       reading->func = func;
    }
    // Compound literal.
@@ -1859,6 +1871,11 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
    else {
       list_append( dec->vars, func );
+      if ( func->type == FUNC_USER &&
+         ! ( ( struct func_user* ) func->impl )->local ) {
+         list_append( &parse->lib->funcs, func );
+         func->hidden = true;
+      }
    }
 }
 
@@ -1878,7 +1895,6 @@ struct func* alloc_func( struct parse* parse, struct dec* dec ) {
    func->imported = parse->lib->imported;
    func->external = dec->external;
    func->force_local_scope = dec->force_local_scope;
-   func->literal = false;
    return func;
 }
 
@@ -2027,6 +2043,9 @@ void read_func_body( struct parse* parse, struct dec* dec,
    struct func* func ) {
    struct func_user* impl = t_alloc_func_user();
    impl->nested = ( dec->area == DEC_LOCAL );
+   if ( ! ( dec->area == DEC_TOP || dec->static_qual ) ) {
+      impl->local = true;
+   }
    func->impl = impl;
    // Only read the function body when it is needed.
    if ( ! parse->lib->imported ) {

@@ -885,6 +885,7 @@ struct func* t_alloc_func( void ) {
    func->imported = false;
    func->external = false;
    func->force_local_scope = false;
+   func->literal = false;
    return func;
 }
 
@@ -906,6 +907,7 @@ struct func_user* t_alloc_func_user( void ) {
    impl->obj_pos = 0;
    impl->recursive = RECURSIVE_UNDETERMINED;
    impl->nested = false;
+   impl->local = false;
    return impl;
 }
 

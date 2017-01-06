@@ -782,9 +782,9 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    }
    if ( rside.func && rside.func->type == FUNC_USER ) {
       struct func_user* impl = rside.func->impl;
-      if ( impl->nested ) {
+      if ( impl->local ) {
          s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-            "assigning a nested function" );
+            "assigning a local function" );
          s_bail( semantic );
       }
    }
@@ -924,9 +924,9 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    if ( middle.func && middle.func->type == FUNC_USER ) {
       struct func_user* impl = middle.func->impl;
-      if ( impl->nested ) {
+      if ( impl->local ) {
          s_diag( semantic, DIAG_POS_ERR, &cond->pos,
-            "%s a nested function", cond->middle ?
+            "%s a local function", cond->middle ?
             "middle operand" : "left operand" );
          s_bail( semantic );
       }
@@ -936,9 +936,9 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &right, cond->right );
    if ( right.func && right.func->type == FUNC_USER ) {
       struct func_user* impl = right.func->impl;
-      if ( impl->nested ) {
+      if ( impl->local ) {
          s_diag( semantic, DIAG_POS_ERR, &cond->pos,
-            "right operand a nested function" );
+            "right operand a local function" );
          s_bail( semantic );
       }
    }
@@ -1939,9 +1939,9 @@ void test_remaining_arg( struct semantic* semantic,
       }
       if ( result.func && result.func->type == FUNC_USER ) {
          struct func_user* impl = result.func->impl;
-         if ( impl->nested ) {
+         if ( impl->local ) {
             s_diag( semantic, DIAG_POS_ERR, &expr->pos,
-               "passing nested function as an argument" );
+               "passing a local function as an argument" );
             s_bail( semantic );
          }
       }
@@ -2321,6 +2321,22 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
          param = param->next;
       }
    }
+   // A nested function qualified with the `static` keyword cannot use the
+   // local-storage variables of an enclosing script or function.
+   if ( object->node.type == NODE_VAR ) {
+      struct func_test* func_test = semantic->func_test;
+      while ( func_test && ! ( func_test->func && ! (
+         ( struct func_user* ) func_test->func->impl )->local ) ) {
+         func_test = func_test->parent;
+      }
+      if ( func_test && func_test->func->object.depth >= object->depth &&
+         ( ( struct var* ) object )->storage == STORAGE_LOCAL ) {
+         s_diag( semantic, DIAG_POS, &usage->pos,
+            "local-storage variables outside a static function cannot be "
+            "used" );
+         s_bail( semantic );
+      }
+   }
    if ( object->node.type == NODE_FUNCNAME ) {
       test_funcname( semantic, test, result, usage );
    }
@@ -2582,7 +2598,7 @@ void select_func( struct semantic* semantic, struct result* result,
       result->folded = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
-      if ( ! impl->nested || func->msgbuild ) {
+      if ( ! impl->local || func->msgbuild ) {
          result->complete = true;
       }
    }
