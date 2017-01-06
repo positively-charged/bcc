@@ -2845,7 +2845,9 @@ void test_compound_literal( struct semantic* semantic, struct expr_test* test,
 
 void test_anon_func( struct semantic* semantic, struct result* result,
    struct func* func ) {
-   s_test_nested_func( semantic, func );
+   if ( semantic->in_localscope ) {
+      s_test_nested_func( semantic, func );
+   }
    select_func( semantic, result, func );
 }
 

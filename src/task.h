@@ -756,6 +756,7 @@ struct func {
    bool imported;
    bool external;
    bool force_local_scope;
+   bool literal;
 };
 
 struct func_aspec {

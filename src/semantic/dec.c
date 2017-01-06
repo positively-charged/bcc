@@ -1897,7 +1897,7 @@ bool test_func_ref( struct semantic* semantic, struct func* func ) {
 }
 
 bool test_func_name( struct semantic* semantic, struct func* func ) {
-   if ( func->name && semantic->in_localscope ) {
+   if ( func->name && semantic->in_localscope && ! func->literal ) {
       s_bind_local_name( semantic, func->name, &func->object,
          func->force_local_scope );
    }

@@ -1772,6 +1772,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    if ( dec.object == DECOBJ_FUNC || dec.spec == SPEC_AUTO ||
       parse->tk == TK_PAREN_L ) {
       func = alloc_func( parse, &dec );
+      func->literal = true;
       p_test_tk( parse, TK_PAREN_L );
       p_read_tk( parse );
       read_func_param_list( parse, func );
@@ -1790,6 +1791,11 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    // Function literal.
    if ( func ) {
       read_func_body( parse, &dec, func );
+      if ( dec.area == DEC_TOP ) {
+         p_add_unresolved( parse, &func->object );
+         list_append( &parse->lib->funcs, func );
+         list_append( &parse->ns_fragment->funcs, func );
+      }
       reading->func = func;
    }
    // Compound literal.
@@ -1872,6 +1878,7 @@ struct func* alloc_func( struct parse* parse, struct dec* dec ) {
    func->imported = parse->lib->imported;
    func->external = dec->external;
    func->force_local_scope = dec->force_local_scope;
+   func->literal = false;
    return func;
 }
 

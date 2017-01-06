@@ -1275,8 +1275,6 @@ void read_paren( struct parse* parse, struct expr_reading* reading ) {
 
 void read_func_literal( struct parse* parse, struct expr_reading* reading,
    struct paren_reading* paren ) {
-   struct func_user* impl = paren->func->impl;
-   impl->nested = true;
    reading->node = &paren->func->object.node;
 }
 
