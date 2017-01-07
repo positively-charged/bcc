@@ -21,51 +21,6 @@ module-item:
    <pseudo-directive>
    <namespace-member>
 
-special:
-   special <special-list> ;
-
-special-list:
-   <special-item>
-   <special-list> , <special-item>
-
-special-item:
-   <special-sign> <number> : <identifier> ( <special-parameter-declaration> )
-   <special-sign> <number> : <identifier> ( <special-parameter-declaration> )
-      : <special-return-type>
-
-action-special:
-   <special-item>
-   <special-item> : <decimal>
-
-extension-function:
-   - <special-item>
-
-special-parameter-declaration:
-   <decimal>
-   <decimal> , <decimal>
-   <special-parameter-list>
-   <special-parameter-list> ; <special-parameter-list>
-   ; <special-parameter-list>
-
-special-parameter-list:
-   <special-parameter-type>
-   <special-parameter-list> , <special-parameter-type>
-
-special-parameter-type:
-   raw
-   int
-   fixed
-   bool
-   str
-
-special-return-type:
-   raw
-   int
-   fixed
-   bool
-   str
-   void
-
 pseudo-directive:
    # include <string>
    # import <string>
@@ -106,12 +61,12 @@ namespace-member:
    ;
 
 using:
-   using <path> ;
+   using <path> ; // Makes every object in the namespace available.
    using <path> : <import-list> ;
 
 path:
-   upmost
-   namespace
+   upmost // Upmost namespace.
+   namespace // Current namespace.
    <identifier>
    <path> . <identifier>
 
@@ -121,12 +76,17 @@ import-list:
 
 import-item:
    enum <import-name>
+   enum <import-name> = <import-name>
    struct <import-name>
-   <import-name>
+   struct <import-name> = <import-name>
+   <type-name>
+   <type-name> = <type-name>
+   <identifier>
+   <identifier> = <identifier>
 
 import-name:
    <identifier>
-   <identifier> = <identifier>
+   <type-name> 
 
 declaration:
    <specifieronly-declaration>
@@ -141,18 +101,22 @@ specifieronly-visibility:
    E
 
 enumeration:
-   enum <enumeration-name> <enumeration-base-type> <enumeration-body>
+   enum <enumeration-name> <enumeration-base> <enumeration-body>
 
 enumeration-name:
    <identifier>
+   <type-name>
+   E
+
+enumeration-base:
+   : <enumeration-base-type>
    E
 
 enumeration-base-type:
-   : int
-   : fixed
-   : bool
-   : str
-   E
+   int
+   fixed
+   bool
+   str
 
 enumeration-body:
    { <enumerator-list> }
@@ -179,7 +143,6 @@ structure-member-list:
 
 structure-member:
    <extended-specifier> <structure-member-instance-list> ;
-   <extended-specifier> <reference> <structure-member-instance-list> ;
 
 structure-member-instance-list:
    <structure-member-instance>
@@ -192,20 +155,18 @@ structure-member-instance:
 object-declaration:
    <visibility> <variable>
    <visibility> <function>
+   private <type-alias>
+   <type-alias>
 
 visibility:
    private
-   typedef
    extern
+   static
    E
 
 variable:
-   <qualifier> <storage> <extended-specifier> <reference> <instance-list> ;
-   <qualifier> auto <auto-instance-list> ;
-
-qualifier:
-   static
-   E
+   <storage> <extended-specifier> <instance-list> ;
+   auto <auto-instance-list> ;
 
 storage:
    world
@@ -216,20 +177,29 @@ storage-index:
    <decimal-number> :
    E
 
+extended-specifier:
+   <extended-specifier-start> <reference>
+   <extended-specifier-start>
+   <specifier>
+
+extended-specifier-start:
+   <enumeration>
+   <structure>
+
 specifier:
-   void
+   <specifier-start> <reference>
+   <specifier-start>
+
+specifier-start:
+   raw
    int
    fixed
    bool
    str
+   void
    enum <path>
    struct <path>
-   <type-alias>
-
-extended-specifier:
-   <enumeration>
-   <structure>
-   <specifier>
+   <type-name>
 
 reference:
    <reference-structure>
@@ -298,45 +268,24 @@ initializer-list:
    <initializer>
    <initializer-list> , <initializer>
 
-type-alias:
-   typedef <extended-specifier> <reference> <type-alias-instance-list> ;
-   typedef <function-keyword> <function-qualifier> <extended-specifier>
-      <reference> <type-name> ( <parameter-declaration> ) ;
-
-type-alias-instance-list:
-   <type-alias-instance>
-   <type-alias-instance-list> , <type-alias-instance>
-
-type-alias-instance:
-   <type-name> <dimension-list>
-   <type-name>
-
 function:
    <function-keyword> <function-qualifier> <function-return> <identifier> (
-      <parameter-declaration> ) <block-statement>
+      <parameter-list-declaration> ) <block-statement>
 
 function-keyword:
    function
    E
 
 function-qualifier:
-   <function-qualifier-list>
+   msgbuild
    E
 
-function-qualifier-list:
-   <function-qualifier-item>
-   <function-qualifier-list> <function-qualifier-item>
-
-function-qualifier-item:
-   msgbuild
-   static
-
 function-return:
-   auto
+   <extended-specifier>
    auto enum
-   <extended-specifier> <reference>
+   auto
 
-parameter-declaration:
+parameter-list-declaration:
    <parameter-list>
    void
    E
@@ -346,23 +295,39 @@ parameter-list:
    <parameter-list> , <parameter>
 
 parameter:
-   <specifier> <reference> <parameter-initializer>
-   <specifier> <reference> <identifier> <parameter-initializer>
+   <specifier> <parameter-name> <parameter-initializer>
+
+parameter-name:
+   <identifier>
+   E
+
+type-alias:
+   typedef <extended-specifier> <type-alias-instance-list> ;
+   typedef <function-keyword> <function-qualifier> <extended-specifier>
+      <type-name> ( <parameter-list-declaration> ) ;
+
+type-alias-instance-list:
+   <type-alias-instance>
+   <type-alias-instance-list> , <type-alias-instance>
+
+type-alias-instance:
+   <type-name> <dimension-list>
+   <type-name>
 
 script:
    script <script-tag> <script-parameter-parentheses> <script-type>
-      <script-flag-list> <statement>
+      <script-flag> <statement>
 
 script-tag:
    << 0 >>
-   // Function calls are skipped because they conflict with the start of the
-   // parameter list.
+   // When reading the script number, function calls are not parsed because
+   // they conflict with the start of the parameter list.
    <expression>
 
 script-parameter-parentheses:
-   ( )
-   ( void )
    ( <script-parameter-list> )
+   ( void )
+   ( )
    E
 
 script-parameter-list:
@@ -377,6 +342,7 @@ script-parameter-type:
    raw
    int
 
+// The script types are context-sensitive keywords. 
 script-type:
    open
    respawn
@@ -393,10 +359,65 @@ script-type:
    event
    E
 
+// The script flags are context-sensitive keywords. 
 script-flag:
    <script-flag> net 
    <script-flag> clientside 
    E
+
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <special-sign> <decimal-number> : <identifier> ( <special-parameter-list> )
+      <special-return>
+
+special-sign:
+   - // If '-' is specified, the item is an extension function. Otherwise, the
+     // item is an action-special.
+   E
+
+special-parameter-list:
+   <special-parameter-list-minmax>
+   <special-parameter-list-type>
+   E
+
+special-parameter-list-minmax:
+   <decimal-number> // Maximum parameters.
+   <decimal-number> , <decimal-number> // Minimum parameters, ',',
+                                       // maximum parameters.
+
+special-parameter-list-type:
+   // Required parameters, ';', optional parameters. 
+   <special-parameter-list> ; <special-parameter-list>
+                            ; <special-parameter-list>
+
+special-parameter-list:
+   <special-parameter-type>
+   <special-parameter-list> , <special-parameter-type>
+
+special-parameter-type:
+   raw
+   int
+   fixed
+   bool
+   str
+
+special-return:
+   : <special-return-type>
+   E
+
+special-return-type:
+   raw
+   int
+   fixed
+   bool
+   str
+   void
 
 statement:
    <local-declaration>
@@ -413,8 +434,8 @@ statement:
    <return-statement>
    <goto-statement>
    <paltrans>
+   <empty-statement>
    <expression-statement>
-   ;
 
 local-declaration:
    <let> <declaration>
@@ -450,7 +471,7 @@ condition:
    <expression>
 
 condition-variable:
-   <let> <specifier> <reference> <identifier> = <initializer>
+   <let> <specifier> <identifier> = <initializer>
    <let> auto <identifier> = <initializer>
 
 heavy-condition:
@@ -498,7 +519,7 @@ foreach-item:
    <foreach-variable> , <identifier> ;
 
 foreach-variable:
-   <let> <specifier> <reference> <identifier>
+   <let> <specifier> <identifier>
    <let> auto <identifier>
 
 jump-statement:
@@ -565,60 +586,57 @@ inline-asm-args:
    <inline-asm-args> , <id>
    <inline-asm-args> , ( <expr> )
 
-expression-statement:
-   <expression> ;
+empty-statement:
+   ;
 
-expression:
-   <assign>
+expression-statement:
+   <expression-list> ;
 
 expression-list:
    <expression>
    <expression-list> , <expression>
 
+expression:
+   <assignment>
+
 assignment:
    <conditional>
-   <conditional> =   <assignment-chain>
-   <conditional> +=  <conditional>
-   <conditional> -=  <conditional>
-   <conditional> *=  <conditional>
-   <conditional> /=  <conditional>
-   <conditional> %=  <conditional>
-   <conditional> <<= <conditional>
-   <conditional> >>= <conditional>
-   <conditional> &=  <conditional>
-   <conditional> ^=  <conditional>
-   <conditional> |=  <conditional>
-
-assignment-chain:
-   <conditional>
-   <conditional> = <assignment-chain>
+   <conditional> =   <assignment>
+   <conditional> +=  <assignment>
+   <conditional> -=  <assignment>
+   <conditional> *=  <assignment>
+   <conditional> /=  <assignment>
+   <conditional> %=  <assignment>
+   <conditional> <<= <assignment>
+   <conditional> >>= <assignment>
+   <conditional> &=  <assignment>
+   <conditional> ^=  <assignment>
+   <conditional> |=  <assignment>
 
 conditional:
-   <log-or>
-   <log-or> ? <expression> : <conditional>
-   <log-or> ? : <conditional>
+   <logical-or>
+   <logical-or> ? <expression> : <conditional>
+   <logical-or> ? : <conditional>
 
-log-or:
-   <log-and>
-   <log-or> || <log-and>
-   <log-or> or <log-and>
+logical-or:
+   <logical-and>
+   <logical-or> || <logical-and>
 
-log-and:
-   <bit-or>
-   <log-and> &&  <bit-or>
-   <log-and> and <bit-or>
+logical-and:
+   <bitwise-or>
+   <logical-and> &&  <bitwise-or>
 
-bit-or:
-   <bit-xor>
-   <bit-or> | <bit-xor>
+bitwise-or:
+   <bitwise-xor>
+   <bitwise-or> | <bitwise-xor>
 
-bit-xor:
-   <bit-and>
-   <bit-xor> ^ <bit-and>
+bitwise-xor:
+   <bitwise-and>
+   <bitwise-xor> ^ <bitwise-and>
 
-bit-and:
+bitwise-and:
    <equal>
-   <bit-and> & <equal>
+   <bitwise-and> & <equal>
 
 equal:
    <less-than>
@@ -626,35 +644,45 @@ equal:
    <equal> != <less-than>
 
 less-than:
-   <bit-shift>
-   <less-than> <  <bit-shift>
-   <less-than> <= <bit-shift>
-   <less-than> >  <bit-shift>
-   <less-than> >= <bit-shift>
+   <bitwise-shift>
+   <less-than> <  <bitwise-shift>
+   <less-than> <= <bitwise-shift>
+   <less-than> >  <bitwise-shift>
+   <less-than> >= <bitwise-shift>
  
-bit-shift:
-   <add>
-   <bit-shift> << <add>
-   <bit-shift> >> <add>
+bitwise-shift:
+   <addition>
+   <bitwise-shift> << <addition>
+   <bitwise-shift> >> <addition>
 
-add:
-   <mul>
-   <add> + <mul>
-   <add> - <mul>
+addition:
+   <multiplication>
+   <addition> + <multiplication>
+   <addition> - <multiplication>
 
-mul:
+multiplication:
+   <prefix>
+   <multiplication> * <prefix>
+   <multiplication> / <prefix>
+   <multiplication> % <prefix>
+
+prefix:
    <suffix>
-   <mul> * <suffix>
-   <mul> / <suffix>
-   <mul> % <suffix>
+   ++ <prefix>
+   -- <prefix>
+   -  <prefix>
+   +  <prefix>
+   !  <prefix>
+   ~  <prefix>
 
 suffix:
-   <prefix>
+   <primary>
    <suffix> ++
    <suffix> --
    <suffix> [ <expression> ]
    <suffix> ( )
    <suffix> ( <expression-list> )
+   <suffix> ( const : <expression-list> )
    <suffix> ( <format-item-list> )
    <suffix> ( <format-item-list> ; <expression-list> )
    <suffix> . <identifier>
@@ -665,9 +693,12 @@ format-item-list:
    <format-item-list> , <format-item>
 
 format-item:
-   <format-item-array>
-   <format-item-msgbuild>
    <format-cast> : <expression>
+   <format-item-array>
+
+format-cast:
+   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
+   msgbuild
 
 format-item-array:
    a : <expression>
@@ -675,52 +706,36 @@ format-item-array:
    a : ( <expression> , <expression> )
    a : ( <expression> , <expression> , <expression> )
 
-format-item-msgbuild:
-   msgbuild : <expression>
-   msgbuild : <anonymous-function>
-
-format-cast:
-   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
-
-prefix:
-   <primary>
-   ++ <prefix>
-   -- <prefix>
-   -  <prefix>
-   +  <prefix>
-   !  <prefix>
-   ~  <prefix>
-
 primary:
+   <strcpy>
+   <memcpy>
+   <conversion>
+   <parentheses>
    <identifier>
    <number>
-   <fixed>
    <string>
    <character>
+   upmost
+   namespace
    true
    false
    null
-   upmost
-   <strcpy>
-   <memcpy>
-   <conversion-call>
-   <parentheses>
 
 strcpy:
    strcpy <strcpy-call>
 
 strcpy-call:
-   ( <strcpy-array-argument> , <expression> )
-   ( <strcpy-array-argument> , <expression> , <expression> )
+   ( <strcpy-source-argument> , <expression> )
+   ( <strcpy-source-argument> , <expression> , <expression> )
 
-strcpy-array-argument:
+strcpy-source-argument:
    <format-item-array>
    <expression>
 
 memcpy:
    memcpy <strcpy-call>
 
-conversion-call:
+conversion:
    int ( <expression> )
    fixed ( <expression> )
    bool ( <expression> )
@@ -733,15 +748,17 @@ parentheses:
    ( <expression> )
 
 cast:
-   ( <specifier> ) <prefix>
-   ( <specifier> <reference> ) <prefix>
+   ( raw ) <prefix>
+   ( int ) <prefix>
+   ( fixed ) <prefix>
+   ( bool ) <prefix>
+   ( str ) <prefix>
 
 compound-literal:
    ( <compound-literal-qualifier> <specifier> ) <braced-initializer>
-   ( <compound-literal-qualifier> <specifier> <reference> <dimension-list> )
+   ( <compound-literal-qualifier> <specifier> <dimension-list> )
       <braced-initializer>
-   ( <compound-literal-qualifier> <specifier> <reference> <dimension-list> )
-      <string>
+   ( <compound-literal-qualifier> <specifier> <dimension-list> ) <string>
 
 compound-literal-qualifier:
    static
@@ -755,111 +772,68 @@ function-literal-header:
       <parameter-declaration> )
 
 function-literal-return:
-   <specifier> <reference>
-   auto
+   <specifier>
    auto enum
+   auto
 
 identifier:
-   [a-zA-Z_]
-   <identifier> [a-zA-Z0-9_]
-
-identifier-list:
-   <identifier>
-   <identifier-list> , <identifier>
+   [a-zA-Z_][a-zA-Z0-9_]*
 
 type-name:
-   [a-zA-Z_]
-   <type-name> "_T"
-   <type-name> [a-z] "T"
+   (([a-zA-Z_][a-zA-Z0-9_]*)?[a-z_])?T
 
 number:
-   <decimal>
-   0 <octal>
-   0 <hex-start> <hex>
-   0 [bB] [01]+
+   <binary-number>
+   <octal-number>
+   <decimal-number>
+   <hexadecimal-number>
+   <fixed-point-number>
    <radix-number>
 
-octal:
-   [0-7]
-   <octal> [0-7]
+binary-number:
+   0[bB][0-1]+([_]+[0-1]+)*
 
-hex-begin:
-   x
-   X
+octal-number:
+   0[cC][0-7]+([_]+[0-7]+)*
 
-hex:
-   <hex-digit>
-   <hex> <hex-digit>
+decimal-number:
+   [0-9]+([_]+[0-9]+)*
 
-hex-digit:
-   [0-9a-fA-F]
+hexadecimal-number:
+   0[xX][0-9a-fA-F]+([_]+[0-9a-fA-F]+)*
 
-decimal:
-   0
-   <decimal-value>
-
-decimal-value:
-   [1-9]
-   <decimal-value> [0-9]
-
-fixed:
-   <decimal> . <decimal>
+fixed-point-number:
+   [0-9]+([_]+[0-9]+)*[.][0-9]+([_]+[0-9]+)*
 
 radix-number:
-   <decimal-number> r <decimal-number>
-   <decimal-number> R <decimal-number>
+   [0-9]+([_]+[0-9]+)*[rR][0-9a-zA-Z]+([_]+[0-9a-zA-Z]+)*
 
 string:
-   " <string-body> "
-   <string> " <string-body> "
+   "[^"]+"
 
-string-body:
-   <string-body> <symbol>
-   <string-body> <string-escape>
-   E
+string-escape-sequence:
+   \\n
+   \\t
+   \\0
+   \\\
+   \\"
+   \\[xX][0-9a-fA-F][0-9a-fA-F]?
+   \\c([a-v-+*!])
 
-string-escape:
-   \ n
-   \ t
-   \ 0
-   \ \
-   \ "
-   \ <hex-begin> <hex-digit>
-   \ <hex-begin> <hex-digit> <hex-digit>
-   \ c <color-code>
+character:
+   '.'
 
-color-code:
-   [a-v]
-   -
-   +
-   *
-   !
-
-char:
-   ' <symbol> '
-   ' <escape> '
-
-symbol:
-   // A unit of text such as the letter 'a', the number '0', or the punctuation
-   // mark '!'.
-
-escape:
-   \ n
-   \ t
-   \ 0
-   \ \
-   \ '
-   \ <hex-begin> <hex-digit>
-   \ <hex-begin> <hex-digit> <hex-digit>
+character-escape-sequence:
+   \\n
+   \\t
+   \\0
+   \\\\
+   \\'
+   \\[xX][0-9a-fA-F][0-9a-fA-F]
 
 comment:
-   // Comments can appear between the tokens of a rule.
-   / / <comment-body> \n
-   / * <comment-body> * /
-
-comment-body:
-   <comment-body> <symbol>
-   E
+   [/][/][^\n]+ // Single-line comment.
+   [/][*]([^*]*[*]+)+[/] // Multi-line comment.
 
 keyword:
    assert
