@@ -1,0 +1,929 @@
+BCS Grammar
+===============================================================================
+
+Special terminals:
+   E (Empty): Indicates the rule is optional
+
+-------------------------------------------------------------------------------
+
+module:
+   <module-body>
+
+module-body:
+   <module-item-list>
+   E
+
+module-item-list:
+   <module-item>
+   <module-item-list> <module-item>
+
+module-item:
+   <pseudo-directive>
+   <namespace-member>
+
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <special-sign> <number> : <identifier> ( <special-parameter-declaration> )
+   <special-sign> <number> : <identifier> ( <special-parameter-declaration> )
+      : <special-return-type>
+
+action-special:
+   <special-item>
+   <special-item> : <decimal>
+
+extension-function:
+   - <special-item>
+
+special-parameter-declaration:
+   <decimal>
+   <decimal> , <decimal>
+   <special-parameter-list>
+   <special-parameter-list> ; <special-parameter-list>
+   ; <special-parameter-list>
+
+special-parameter-list:
+   <special-parameter-type>
+   <special-parameter-list> , <special-parameter-type>
+
+special-parameter-type:
+   raw
+   int
+   fixed
+   bool
+   str
+
+special-return-type:
+   raw
+   int
+   fixed
+   bool
+   str
+   void
+
+pseudo-directive:
+   # include <string>
+   # import <string>
+   # library <string>
+   # linklibrary <string>
+   # encryptstrings
+   # define true 1
+   # define false 0
+   # define <identifier> <expression>
+   # libdefine <identifier> <expression>
+   # wadauthor
+   # nowadauthor
+   # nocompact
+
+namespace:
+   <namespace-header> { <namespace-member-list> }
+   <namespace-header> { }
+
+namespace-header:
+   strict namespace <namespace-name>
+   strict namespace
+   namespace <namespace-name>
+
+namespace-name:
+   <identifier>
+   <namespace-name> . <identifier>
+
+namespace-member-list:
+   <namespace-member>
+   <namespace-member-list> <namespace-member>
+
+namespace-member:
+   <namespace>
+   <using>
+   <declaration>
+   <script>
+   <special>
+   ;
+
+using:
+   using <path> ;
+   using <path> : <import-list> ;
+
+path:
+   upmost
+   namespace
+   <identifier>
+   <path> . <identifier>
+
+import-list:
+   <import-item>
+   <import-list> , <import-item>
+
+import-item:
+   enum <import-name>
+   struct <import-name>
+   <import-name>
+
+import-name:
+   <identifier>
+   <identifier> = <identifier>
+
+declaration:
+   <specifieronly-declaration>
+   <object-declaration>
+
+specifieronly-declaration:
+   <specifieronly-visibility> <enumeration> ;
+   <specifieronly-visibility> <structure> ;
+
+specifieronly-visibility:
+   private
+   E
+
+enumeration:
+   enum <enumeration-name> <enumeration-base-type> <enumeration-body>
+
+enumeration-name:
+   <identifier>
+   E
+
+enumeration-base-type:
+   : int
+   : fixed
+   : bool
+   : str
+   E
+
+enumeration-body:
+   { <enumerator-list> }
+   { <enumerator-list> , }
+
+enumerator-list:
+   <enumerator>
+   <enumerator-list> , <enumerator>
+
+enumerator:
+   <identifier>
+   <identifier> = <expression>
+
+structure:
+   struct <structure-name> { <structure-member-list> }
+
+structure-name:
+   <identifier>
+   E
+
+structure-member-list:
+   <structure-member>
+   <structure-member-list> <structure-member>
+
+structure-member:
+   <extended-specifier> <structure-member-instance-list> ;
+   <extended-specifier> <reference> <structure-member-instance-list> ;
+
+structure-member-instance-list:
+   <structure-member-instance>
+   <structure-member-instance-list> , <structure-member-instance>
+
+structure-member-instance:
+   <identifier>
+   <identifier> <dimension-list>
+
+object-declaration:
+   <visibility> <variable>
+   <visibility> <function>
+
+visibility:
+   private
+   typedef
+   extern
+   E
+
+variable:
+   <qualifier> <storage> <extended-specifier> <reference> <instance-list> ;
+   <qualifier> auto <auto-instance-list> ;
+
+qualifier:
+   static
+   E
+
+storage:
+   world
+   global
+   E
+
+storage-index:
+   <decimal-number> :
+   E
+
+specifier:
+   void
+   int
+   fixed
+   bool
+   str
+   enum <path>
+   struct <path>
+   <type-alias>
+
+extended-specifier:
+   <enumeration>
+   <structure>
+   <specifier>
+
+reference:
+   <reference-structure>
+   <reference-structure> <reference-list>
+   <reference-list>
+   E
+
+reference-structure:
+   <reference-storage> <reference-marker>
+
+reference-storage:
+   <reference-storage-name>
+   <reference-storage-name> : <decimal>
+   E
+
+reference-storage-name:
+   world
+   global
+
+reference-marker:
+   &
+   ?
+
+reference-list:
+   <reference-item>
+   <reference-item> <reference-list>
+
+reference-item:
+   <reference-storage> <dimension-list> <reference-marker>
+   ( <parameter-declaration> ) <function-qualifier> <reference-marker>
+
+instance-list:
+   <instance>
+   <instance-list> , <instance>
+
+instance:
+   <instance-name>
+   <instance-name> = <initializer>
+   <instance-name> <dimension-list>
+   <instance-name> <dimension-list> = <initializer>
+
+instance-name:
+   <storage-index> <identifier>
+
+auto-instance-list:
+   <auto-instance>
+   <auto-instance-list> <auto-instance>
+
+auto-instance:
+   <identifier> = <initializer>
+
+dimension-list:
+   [ ]
+   [ <expression> ]
+   <dimension-list> [ <expression> ]
+
+initializer:
+   <expression>
+   <braced-initializer>
+
+braced-initializer:
+   { <initializer-list> }
+   { <initializer-list> , }
+
+initializer-list:
+   <initializer>
+   <initializer-list> , <initializer>
+
+type-alias:
+   typedef <extended-specifier> <reference> <type-alias-instance-list> ;
+   typedef <function-keyword> <function-qualifier> <extended-specifier>
+      <reference> <type-name> ( <parameter-declaration> ) ;
+
+type-alias-instance-list:
+   <type-alias-instance>
+   <type-alias-instance-list> , <type-alias-instance>
+
+type-alias-instance:
+   <type-name> <dimension-list>
+   <type-name>
+
+function:
+   <function-keyword> <function-qualifier> <function-return> <identifier> (
+      <parameter-declaration> ) <block-statement>
+
+function-keyword:
+   function
+   E
+
+function-qualifier:
+   <function-qualifier-list>
+   E
+
+function-qualifier-list:
+   <function-qualifier-item>
+   <function-qualifier-list> <function-qualifier-item>
+
+function-qualifier-item:
+   msgbuild
+   static
+
+function-return:
+   auto
+   auto enum
+   <extended-specifier> <reference>
+
+parameter-declaration:
+   <parameter-list>
+   void
+   E
+
+parameter-list:
+   <parameter>
+   <parameter-list> , <parameter>
+
+parameter:
+   <specifier> <reference> <parameter-initializer>
+   <specifier> <reference> <identifier> <parameter-initializer>
+
+script:
+   script <script-tag> <script-parameter-parentheses> <script-type>
+      <script-flag-list> <statement>
+
+script-tag:
+   << 0 >>
+   // Function calls are skipped because they conflict with the start of the
+   // parameter list.
+   <expression>
+
+script-parameter-parentheses:
+   ( )
+   ( void )
+   ( <script-parameter-list> )
+   E
+
+script-parameter-list:
+   <script-parameter>
+   <script-parameter-list> , <script-parameter>
+
+script-parameter:
+   <script-parameter-type>
+   <script-parameter-type> <identifier>
+
+script-parameter-type:
+   raw
+   int
+
+script-type:
+   open
+   respawn
+   death
+   enter
+   pickup
+   bluereturn
+   redreturn
+   whitereturn
+   lightning
+   unloading
+   disconnect
+   return
+   event
+   E
+
+script-flag:
+   <script-flag> net 
+   <script-flag> clientside 
+   E
+
+statement:
+   <local-declaration>
+   <local-using>
+   <block-statement>
+   <if-statement>
+   <switch-statement>
+   <while-statement>
+   <do-statement>
+   <for-statement>
+   <foreach-statement>
+   <jump-statement>
+   <script-jump-statement>
+   <return-statement>
+   <goto-statement>
+   <paltrans>
+   <expression-statement>
+   ;
+
+local-declaration:
+   <let> <declaration>
+
+local-using:
+   <let> <using>
+
+let:
+   let
+   E
+
+block-statement:
+   { <block-item-list> }
+   { }
+
+block-item-list:
+   <block-item>
+   <block-item-list> <block-item>
+
+block-item:
+   <label>
+   <case-label>
+   <using>
+   <assert>
+   <statement>
+
+if-statement:
+   if ( <heavy-condition> ) <statement>
+   if ( <heavy-condition> ) <statement> else <statement>
+
+condition:
+   <condition-variable>
+   <expression>
+
+condition-variable:
+   <let> <specifier> <reference> <identifier> = <initializer>
+   <let> auto <identifier> = <initializer>
+
+heavy-condition:
+   <condition-variable>
+   <condition-variable> ; <expression>
+   <expression>
+
+switch-statement:
+   switch ( <heavy-condition> ) <statement>
+
+case-label:
+   case <expression> :
+   default :
+
+while-statement:
+   while ( <condition> ) <statement>
+   until ( <condition> ) <statement>
+
+do-statement:
+   do <statement> while ( <expression> ) ;
+   do <statement> until ( <expression> ) ;
+
+for-statement:
+   for ( <for-initialization> <for-condition> <for-post> ) <statement>
+
+for-initialization:
+   <let> <variable>
+   <expression-list> ;
+   ;
+
+for-condition:
+   <condition> ;
+   ;
+
+for-post:
+   <expression-list>
+   E
+
+foreach-statement:
+   foreach ( <foreach-item> <expression> ) <statement>
+
+foreach-item:
+   <foreach-variable> ;
+   <foreach-variable> ; <foreach-variable> ;
+   <foreach-variable> , <identifier> ;
+
+foreach-variable:
+   <let> <specifier> <reference> <identifier>
+   <let> auto <identifier>
+
+jump-statement:
+   break <jump-amount> ;
+   continue <jump-amount> ;
+
+jump-amount:
+   <number> , <number>
+   <number>
+   E
+
+script-jump-statement:
+   terminate ;
+   suspend ;
+   restart ;
+
+return-statement:
+   return <expression> ;
+   return ;
+
+goto-statement:
+   goto <identifier> ;
+
+label:
+   <identifier> :
+
+paltrans:
+   createtranslation ( <expression> )
+   createtranslation ( <expression> , <palrange-list> )
+
+palrange-list:
+   <palrange>
+   <palrange-list> , <palrange>
+
+palrange:
+   // Assignment is skipped in the second expression because it will conflict
+   // with the following assignment token.
+   <expression> : <expression> = <palrange-value>
+
+palrange-value:
+   <expression> : <expression>
+   <palrange-value-rgb>
+   % <palrange-value-rgb>
+
+palrange-value-rbg:
+   [ <expression> , <expression> , <expression> ] :
+      [ <expression> , <expression> , <expression> ]
+
+assert:
+   assert ( <expression> ) ;
+   assert ( <expression> , <string> ) ;
+   static assert ( <expression> ) ;
+   static assert ( <expression> , <string> ) ;
+
+inline-asm:
+   > <id> <nl>
+   > <id> <inline-asm-args> <nl>
+
+inline-asm-args:
+   <number>
+   <id>
+   ( <expr )
+   <inline-asm-args> , <number>
+   <inline-asm-args> , <id>
+   <inline-asm-args> , ( <expr> )
+
+expression-statement:
+   <expression> ;
+
+expression:
+   <assign>
+
+expression-list:
+   <expression>
+   <expression-list> , <expression>
+
+assignment:
+   <conditional>
+   <conditional> =   <assignment-chain>
+   <conditional> +=  <conditional>
+   <conditional> -=  <conditional>
+   <conditional> *=  <conditional>
+   <conditional> /=  <conditional>
+   <conditional> %=  <conditional>
+   <conditional> <<= <conditional>
+   <conditional> >>= <conditional>
+   <conditional> &=  <conditional>
+   <conditional> ^=  <conditional>
+   <conditional> |=  <conditional>
+
+assignment-chain:
+   <conditional>
+   <conditional> = <assignment-chain>
+
+conditional:
+   <log-or>
+   <log-or> ? <expression> : <conditional>
+   <log-or> ? : <conditional>
+
+log-or:
+   <log-and>
+   <log-or> || <log-and>
+   <log-or> or <log-and>
+
+log-and:
+   <bit-or>
+   <log-and> &&  <bit-or>
+   <log-and> and <bit-or>
+
+bit-or:
+   <bit-xor>
+   <bit-or> | <bit-xor>
+
+bit-xor:
+   <bit-and>
+   <bit-xor> ^ <bit-and>
+
+bit-and:
+   <equal>
+   <bit-and> & <equal>
+
+equal:
+   <less-than>
+   <equal> == <less-than>
+   <equal> != <less-than>
+
+less-than:
+   <bit-shift>
+   <less-than> <  <bit-shift>
+   <less-than> <= <bit-shift>
+   <less-than> >  <bit-shift>
+   <less-than> >= <bit-shift>
+ 
+bit-shift:
+   <add>
+   <bit-shift> << <add>
+   <bit-shift> >> <add>
+
+add:
+   <mul>
+   <add> + <mul>
+   <add> - <mul>
+
+mul:
+   <suffix>
+   <mul> * <suffix>
+   <mul> / <suffix>
+   <mul> % <suffix>
+
+suffix:
+   <prefix>
+   <suffix> ++
+   <suffix> --
+   <suffix> [ <expression> ]
+   <suffix> ( )
+   <suffix> ( <expression-list> )
+   <suffix> ( <format-item-list> )
+   <suffix> ( <format-item-list> ; <expression-list> )
+   <suffix> . <identifier>
+   <suffix> ! !
+
+format-item-list:
+   <format-item>
+   <format-item-list> , <format-item>
+
+format-item:
+   <format-item-array>
+   <format-item-msgbuild>
+   <format-cast> : <expression>
+
+format-item-array:
+   a : <expression>
+   a : ( <expression> )
+   a : ( <expression> , <expression> )
+   a : ( <expression> , <expression> , <expression> )
+
+format-item-msgbuild:
+   msgbuild : <expression>
+   msgbuild : <anonymous-function>
+
+format-cast:
+   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
+
+prefix:
+   <primary>
+   ++ <prefix>
+   -- <prefix>
+   -  <prefix>
+   +  <prefix>
+   !  <prefix>
+   ~  <prefix>
+
+primary:
+   <identifier>
+   <number>
+   <fixed>
+   <string>
+   <character>
+   true
+   false
+   null
+   upmost
+   <strcpy>
+   <memcpy>
+   <conversion-call>
+   <parentheses>
+
+strcpy:
+   strcpy <strcpy-call>
+
+strcpy-call:
+   ( <strcpy-array-argument> , <expression> )
+   ( <strcpy-array-argument> , <expression> , <expression> )
+
+strcpy-array-argument:
+   <format-item-array>
+   <expression>
+
+memcpy:
+   memcpy <strcpy-call>
+
+conversion-call:
+   int ( <expression> )
+   fixed ( <expression> )
+   bool ( <expression> )
+   str ( <expression> )
+
+parentheses:
+   <cast>
+   <compound-literal>
+   <function-literal>
+   ( <expression> )
+
+cast:
+   ( <specifier> ) <prefix>
+   ( <specifier> <reference> ) <prefix>
+
+compound-literal:
+   ( <compound-literal-qualifier> <specifier> ) <braced-initializer>
+   ( <compound-literal-qualifier> <specifier> <reference> <dimension-list> )
+      <braced-initializer>
+   ( <compound-literal-qualifier> <specifier> <reference> <dimension-list> )
+      <string>
+
+compound-literal-qualifier:
+   static
+   E
+
+function-literal:
+   ( <function-literal-header> ) <block-statement>
+
+function-literal-header:
+   <function-keyword> <function-qualifier> <function-literal-return> (
+      <parameter-declaration> )
+
+function-literal-return:
+   <specifier> <reference>
+   auto
+   auto enum
+
+identifier:
+   [a-zA-Z_]
+   <identifier> [a-zA-Z0-9_]
+
+identifier-list:
+   <identifier>
+   <identifier-list> , <identifier>
+
+type-name:
+   [a-zA-Z_]
+   <type-name> "_T"
+   <type-name> [a-z] "T"
+
+number:
+   <decimal>
+   0 <octal>
+   0 <hex-start> <hex>
+   0 [bB] [01]+
+   <radix-number>
+
+octal:
+   [0-7]
+   <octal> [0-7]
+
+hex-begin:
+   x
+   X
+
+hex:
+   <hex-digit>
+   <hex> <hex-digit>
+
+hex-digit:
+   [0-9a-fA-F]
+
+decimal:
+   0
+   <decimal-value>
+
+decimal-value:
+   [1-9]
+   <decimal-value> [0-9]
+
+fixed:
+   <decimal> . <decimal>
+
+radix-number:
+   <decimal-number> r <decimal-number>
+   <decimal-number> R <decimal-number>
+
+string:
+   " <string-body> "
+   <string> " <string-body> "
+
+string-body:
+   <string-body> <symbol>
+   <string-body> <string-escape>
+   E
+
+string-escape:
+   \ n
+   \ t
+   \ 0
+   \ \
+   \ "
+   \ <hex-begin> <hex-digit>
+   \ <hex-begin> <hex-digit> <hex-digit>
+   \ c <color-code>
+
+color-code:
+   [a-v]
+   -
+   +
+   *
+   !
+
+char:
+   ' <symbol> '
+   ' <escape> '
+
+symbol:
+   // A unit of text such as the letter 'a', the number '0', or the punctuation
+   // mark '!'.
+
+escape:
+   \ n
+   \ t
+   \ 0
+   \ \
+   \ '
+   \ <hex-begin> <hex-digit>
+   \ <hex-begin> <hex-digit> <hex-digit>
+
+comment:
+   // Comments can appear between the tokens of a rule.
+   / / <comment-body> \n
+   / * <comment-body> * /
+
+comment-body:
+   <comment-body> <symbol>
+   E
+
+keyword:
+   assert
+   auto
+   bool
+   break
+   case
+   const
+   continue
+   createtranslation
+   default
+   do
+   else
+   enum
+   extern
+   false
+   fixed
+   for
+   foreach
+   function
+   global
+   goto
+   if
+   int
+   let
+   memcpy
+   msgbuild
+   namespace
+   null
+   private
+   raw
+   restart
+   return
+   script
+   special
+   static
+   str
+   strcpy
+   strict
+   struct
+   suspend
+   switch
+   terminate
+   true
+   typedef
+   until
+   upmost
+   using
+   void
+   while
+   world
+
+context-sensitive-keyword:
+   bluereturn
+   clientside
+   death
+   disconnect
+   enter
+   event
+   lightning
+   net
+   open
+   pickup
+   redreturn
+   respawn
+   unloading
+   whitereturn

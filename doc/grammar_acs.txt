@@ -1,0 +1,519 @@
+ACS Grammar
+===============================================================================
+
+Special terminals:
+   E (Empty): Indicates the rule is optional
+
+-------------------------------------------------------------------------------
+
+module:
+   <module-item-list>
+   E
+
+module-item-list:
+   <module-item>
+   <module-item-list> <module-item>
+
+module-item:
+   <special>
+   <directive>
+   <variable>
+   <function>
+   <script>
+
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <special-sign> <decimal-number> : <identifier> <special-parameter-list>
+
+special-sign:
+   -
+   E
+
+special-parameter-list:
+   ( <decimal-number> )
+   ( <decimal-number> , <decimal-number> )
+
+directive:
+   # define <string> <expression>
+   # libdefine <string> <expression>
+   # include <string>
+   # import <string>
+   # library <string>
+   # encryptstrings
+   # nocompact
+   # wadauthor
+   # nowadauthor
+   # region
+   # endregion
+
+variable:
+   <qualifier> <storage> <specifier> <instance-list> ;
+
+qualifier:
+   static
+
+storage:
+   world
+   global
+   E
+
+storage-index:
+   <decimal-number> :
+   E
+
+specifier:
+   void
+   int
+   bool
+   str
+
+instance-list:
+   <instance>
+   <instance-list> , <instance>
+
+instance:
+   <instance-name>
+   <instance-name> = <initializer>
+   <instance-name> <dimension-list>
+   <instance-name> <dimension-list> = <initializer>
+
+instance-name:
+   <storage-index> <identifier>
+
+dimension-list:
+   [ <expression> ]
+   <dimension-list> [ <expression> ]
+
+initializer:
+   <expression>
+   { <initializer-list> }
+   { <initializer-list> , }
+
+initializer-list:
+   <initializer>
+   <initializer-list> , <initializer>
+
+function:
+   function <function-specifier> <identifier> ( <parameter-declaration> )
+      <block-statement>
+
+function-specifier:
+   int
+   bool
+   str
+   void
+
+parameter-declaration:
+   <parameter-list>
+   void
+
+parameter-list:
+   <parameter>
+   <parameter-list> , <parameter>
+
+parameter:
+   <parameter-specifier> <identifier>
+
+parameter-specifier:
+   int
+   bool
+   str
+
+script:
+   script <script-tag> ( <script-parameter-declaration> ) <script-type>
+      <script-flag> <statement>
+
+script-tag:
+   <string>
+   // NOTE: Function calls are skipped because they conflict with the start of
+   // the parameter list.
+   <expression>
+   << 0 >>
+
+script-parameter-declaration:
+   <script-parameter-list>
+   void
+
+script-parameter-list:
+   <script-parameter>
+   <script-parameter-list> , <script-parameter>
+
+script-parameter:
+   int <identifier>
+
+script-type:
+   open
+   respawn
+   death
+   enter
+   pickup
+   bluereturn
+   redreturn
+   whitereturn
+   lightning
+   unloading
+   disconnect
+   return
+   event
+   E
+
+script-flag:
+   net
+   net clientside
+   clientside
+   E
+
+statement:
+   <variable>
+   <case-label>
+   <block-statement>
+   <if-statement>
+   <switch-statement>
+   <while-statement>
+   <do-statement>
+   <for-statement>
+   <jump-statement>
+   <script-jump-statement>
+   <return-statement>
+   <palette-translation>
+   <expression-statement>
+   ;
+
+statement-list:
+   <statement>
+   <statement-list> <statement>
+
+block-statement:
+   { <statement-list> }
+   { }
+
+if-statement:
+   if ( <expression> ) <statement>
+   if ( <expression> ) <statement> else <statement>
+
+switch-statement:
+   switch ( <expression> ) <statement>
+
+case-label:
+   case <expression> :
+   default :
+
+while-statement:
+   while ( <expression> ) <statement>
+   until ( <expression> ) <statement>
+
+do-statement:
+   do <statement> while ( <expression> ) ;
+   do <statement> until ( <expression> ) ;
+
+for-statement:
+   for ( <for-initialization> <for-condition> <for-post> ) <statement>
+
+for-initialization:
+   <variable>
+   <expression-list> ;
+   ;
+
+for-condition:
+   <expression> ;
+
+for-post:
+   <expression-list>
+
+jump-statement:
+   break ;
+   continue ;
+
+script-jump-statement:
+   terminate ;
+   suspend ;
+   restart ;
+
+return-statement:
+   return ;
+   return <expression> ;
+
+palette-translation:
+   createtranslation ( <expression> )
+   createtranslation ( <expression> , <palette-range-list> )
+
+palette-range-list:
+   <palette-range>
+   <palette-range-list> , <palette-range>
+
+palette-range:
+   // NOTE: Assignment is skipped in the second expression because it will
+   // conflict with the following assignment token.
+   <expression> : <expression> = <palette-range-value>
+
+palette-range-value:
+   <expression> : <expression>
+   [ <expression> , <expression> , <expression> ] :
+      [ <expression> , <expression> , <expression> ]
+
+expression-statement:
+   <expression-list>
+
+expression-list:
+   <expression>
+   <expression-list> , <expression>
+
+expression:
+   <assignment>
+
+assignment:
+   <prefix>
+   <prefix>   = <logical-or>
+   <prefix>  += <logical-or>
+   <prefix>  -= <logical-or>
+   <prefix>  *= <logical-or>
+   <prefix>  /= <logical-or>
+   <prefix>  %= <logical-or>
+   <prefix> <<= <logical-or>
+   <prefix> >>= <logical-or>
+   <prefix>  &= <logical-or>
+   <prefix>  ^= <logical-or>
+   <prefix>  |= <logical-or>
+
+logical-or:
+   <logical-and>
+   <logical-or> || <logical-and>
+
+logical-and:
+   <bitwise-or>
+   <logical-and> &&  <bitwise-or>
+
+bitwise-or:
+   <bitwise-xor>
+   <bitwise-or> | <bitwise-xor>
+
+bitwise-xor:
+   <bitwise-and>
+   <bitwise-xor> ^ <bitwise-and>
+
+bitwise-and:
+   <equal>
+   <bitwise-and> & <equal>
+
+equal:
+   <less-than>
+   <equal> == <less-than>
+   <equal> != <less-than>
+
+less-than:
+   <bitwise-shift>
+   <less-than> <  <bitwise-shift>
+   <less-than> <= <bitwise-shift>
+   <less-than> >  <bitwise-shift>
+   <less-than> >= <bitwise-shift>
+ 
+bitwise-shift:
+   <addition>
+   <bitwise-shift> << <addition>
+   <bitwise-shift> >> <addition>
+
+addition:
+   <multiplication>
+   <addition> + <multiplication>
+   <addition> - <multiplication>
+
+multiplication:
+   <prefix>
+   <multiplication> * <prefix>
+   <multiplication> / <prefix>
+   <multiplication> % <prefix>
+
+prefix:
+   <suffix>
+   ++ <prefix>
+   -- <prefix>
+   -  <prefix>
+   !  <prefix>
+   ~  <prefix>
+
+suffix:
+   <primary>
+   <suffix> ++
+   <suffix> --
+   <suffix> [ <expression> ]
+   <suffix> ( <expression-list> )
+   <prefix> ( const : <expression-list> )
+   <suffix> ( <format-item-list> )
+   <suffix> ( <format-item-list> ; <expression-list> )
+   <suffix> ( )
+
+format-item-list:
+   <format-item>
+   <format-item-list> , <format-item>
+
+format-item:
+   <format-cast> : <expression>
+   <format-item-array>
+
+format-item-array:
+   a : <expression>
+   a : ( <expression> )
+   a : ( <expression> , <expression> )
+   a : ( <expression> , <expression> , <expression> )
+
+format-cast:
+   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
+
+primary:
+   <identifier>
+   <number>
+   <string>
+   <character>
+   <strcpy>
+   ( <expression> )
+   print
+   printbold
+   log
+   hudmessage
+   hudmessagebold
+   strparam
+   acs_executewait
+   acs_namedexecutewait
+
+identifier:
+   [a-zA-Z_]
+   <identifier> [a-zA-Z0-9_]
+
+identifier-list:
+   <identifier>
+   <identifier-list> , <identifier>
+
+number:
+   <decimal-number>
+   0 x <hexadecimal-number>
+   0 X <hexadecimal-number>
+   <fixed-point-number>
+   <radix-number>
+
+hexadecimal-number:
+   [0-9a-fA-F]
+   <hexadecimal-number> [0-9a-fA-F]
+
+decimal-number:
+   [1-9]+[0-9]*
+   0
+
+fixed-point-number:
+   <decimal-number> . <decimal-number>
+
+radix-number:
+   <decimal-number> _ <decimal-number>
+
+string:
+   " "
+   " <string-content> "
+
+string-content:
+   <nondoublequote-symbol>
+   <string-content> <nondoublequote-symbol>
+
+character:
+   ' <symbol> '
+   ' <escape-sequence> '
+
+symbol:
+   // A unit of text such as the letter 'a', the number '0', or the punctuation
+   // mark '!'.
+
+escape-sequence:
+   \ a
+   \ b
+   \ n
+   \ t
+   \ v
+   \ f
+   \ r
+   \ \
+   \ '
+   \ [0-9]+
+   \ x [0-9a-fA-F]+
+   \ X [0-9a-fA-F]+
+
+strcpy:
+   strcpy <strcpy-call>
+
+strcpy-call:
+   ( <format-item-array> , <expression> )
+   ( <format-item-array> , <expression> , <expression> )
+
+comment:
+   // Comments can appear between the tokens of a rule.
+   / / <comment-body> \n
+   / * <comment-body> * /
+
+comment-body:
+   <comment-body> <symbol>
+   E
+
+keyword:
+   acs_executewait
+   acs_namedexecutewait
+   bluereturn
+   bool
+   break
+   case
+   clientside
+   const
+   continue
+   createtranslation
+   death
+   default
+   define
+   disconnect
+   do
+   else
+   encryptstrings
+   endregion
+   enter
+   event
+   for
+   function
+   global
+   goto
+   hudmessage
+   hudmessagebold
+   if
+   import
+   include
+   int
+   libdefine
+   library
+   lightning
+   log
+   net
+   nocompact
+   nowadauthor
+   open
+   pickup
+   redreturn
+   region
+   respawn
+   restart
+   return
+   script
+   special
+   static
+   str
+   strcpy
+   strparam
+   suspend
+   switch
+   terminate
+   unloading
+   until
+   void
+   wadauthor
+   while
+   whitereturn
+   world
