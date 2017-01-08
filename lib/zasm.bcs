@@ -1,6 +1,6 @@
 #library
 
-#ifndef __IMPORTED__
+#ifdef __INCLUDED__
    #error you must #import this file
 #endif
 
