@@ -21,19 +21,26 @@ module-item:
    <pseudo-directive>
    <namespace-member>
 
+// The names of pseudo directives are context-sensitive keywords.
 pseudo-directive:
    # include <string>
    # import <string>
    # library <string>
    # linklibrary <string>
-   # encryptstrings
+   # define <identifier> <expression>
+   // The zcommon.acs file #defines `true` and `false`. In BCS, `true` and
+   // `false` are keywords, so a syntax error will be generated when #including
+   // the zcommon.acs file. To support the inclusion of the zcommon.acs file,
+   // ignore the #defines of `true` and `false`.
    # define true 1
    # define false 0
-   # define <identifier> <expression>
    # libdefine <identifier> <expression>
+   # encryptstrings
+   # nocompact
    # wadauthor
    # nowadauthor
-   # nocompact
+   # region
+   # endregion
 
 namespace:
    <namespace-header> { <namespace-member-list> }
@@ -252,9 +259,10 @@ auto-instance:
    <identifier> = <initializer>
 
 dimension-list:
-   [ ]
    [ <expression> ]
+   [ ]
    <dimension-list> [ <expression> ]
+   <dimension-list> [ ]
 
 initializer:
    <expression>
@@ -335,8 +343,8 @@ script-parameter-list:
    <script-parameter-list> , <script-parameter>
 
 script-parameter:
-   <script-parameter-type>
    <script-parameter-type> <identifier>
+   <script-parameter-type>
 
 script-parameter-type:
    raw
@@ -344,19 +352,21 @@ script-parameter-type:
 
 // The script types are context-sensitive keywords. 
 script-type:
-   open
-   respawn
-   death
-   enter
-   pickup
    bluereturn
-   redreturn
-   whitereturn
-   lightning
-   unloading
+   death
    disconnect
-   return
+   enter
    event
+   kill
+   lightning
+   open
+   pickup
+   redreturn
+   reopen
+   respawn
+   return
+   unloading
+   whitereturn
    E
 
 // The script flags are context-sensitive keywords. 
@@ -425,6 +435,7 @@ statement:
    <block-statement>
    <if-statement>
    <switch-statement>
+   <case-label>
    <while-statement>
    <do-statement>
    <for-statement>
@@ -433,9 +444,15 @@ statement:
    <script-jump-statement>
    <return-statement>
    <goto-statement>
-   <paltrans>
+   <label>
+   <palette-translation>
+   <assert>
    <empty-statement>
    <expression-statement>
+
+statement-list:
+   <statement>
+   <statement-list> <statement>
 
 local-declaration:
    <let> <declaration>
@@ -448,19 +465,8 @@ let:
    E
 
 block-statement:
-   { <block-item-list> }
+   { <statement-list> }
    { }
-
-block-item-list:
-   <block-item>
-   <block-item-list> <block-item>
-
-block-item:
-   <label>
-   <case-label>
-   <using>
-   <assert>
-   <statement>
 
 if-statement:
    if ( <heavy-condition> ) <statement>
@@ -546,25 +552,25 @@ goto-statement:
 label:
    <identifier> :
 
-paltrans:
+palette-translation:
    createtranslation ( <expression> )
-   createtranslation ( <expression> , <palrange-list> )
+   createtranslation ( <expression> , <palette-range-list> )
 
-palrange-list:
+palette-range-list:
    <palrange>
    <palrange-list> , <palrange>
 
-palrange:
-   // Assignment is skipped in the second expression because it will conflict
-   // with the following assignment token.
-   <expression> : <expression> = <palrange-value>
+palette-range:
+   // NOTE: Assignment is not parsed in the second expression because it will
+   // conflict with the following assignment token.
+   <expression> : <expression> = <palette-range-value>
 
-palrange-value:
+palette-range-value:
    <expression> : <expression>
-   <palrange-value-rgb>
-   % <palrange-value-rgb>
+   <palette-range-rgb>
+   % <palette-range-rgb>
 
-palrange-value-rbg:
+palette-range-rgb:
    [ <expression> , <expression> , <expression> ] :
       [ <expression> , <expression> , <expression> ]
 
@@ -624,7 +630,7 @@ logical-or:
 
 logical-and:
    <bitwise-or>
-   <logical-and> &&  <bitwise-or>
+   <logical-and> && <bitwise-or>
 
 bitwise-or:
    <bitwise-xor>
@@ -794,7 +800,7 @@ binary-number:
    0[bB][0-1]+([_]+[0-1]+)*
 
 octal-number:
-   0[cC][0-7]+([_]+[0-7]+)*
+   0[oO][0-7]+([_]+[0-7]+)*
 
 decimal-number:
    [0-9]+([_]+[0-9]+)*
@@ -809,27 +815,24 @@ radix-number:
    [0-9]+([_]+[0-9]+)*[rR][0-9a-zA-Z]+([_]+[0-9a-zA-Z]+)*
 
 string:
-   "[^"]+"
-
-string-escape-sequence:
-   \\n
-   \\t
-   \\0
-   \\\
-   \\"
-   \\[xX][0-9a-fA-F][0-9a-fA-F]?
-   \\c([a-v-+*!])
+   "([^\\"]|\\")*"
 
 character:
    '.'
+   ' <character-escape-sequence> '
 
 character-escape-sequence:
+   \\a
+   \\b
    \\n
    \\t
-   \\0
-   \\\\
+   \\v
+   \\f
+   \\r
    \\'
-   \\[xX][0-9a-fA-F][0-9a-fA-F]
+   \\\\
+   \\[oO][0-7]+
+   \\[xX][0-9a-fA-F]+
 
 comment:
    [/][/][^\n]+ // Single-line comment.
@@ -886,18 +889,31 @@ keyword:
    while
    world
 
+// These identifiers are keywords only in specific places.
 context-sensitive-keyword:
    bluereturn
    clientside
    death
+   define
    disconnect
+   encryptstrings
    enter
    event
+   import
+   include
+   kill
+   libdefine
+   library
    lightning
+   linklibrary
    net
+   nocompact
+   nowadauthor
    open
    pickup
    redreturn
+   reopen
    respawn
    unloading
+   wadauthor
    whitereturn

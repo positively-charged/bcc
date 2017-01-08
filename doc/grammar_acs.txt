@@ -4,9 +4,17 @@ ACS Grammar
 Special terminals:
    E (Empty): Indicates the rule is optional
 
+NOTE: This grammar attempts to follow closely the grammar that the acc compiler
+implements, but to simplify the development of the bcc compiler, the grammar is
+not 100% accurate. Some errors that are syntactic errors in acc are now
+semantic errors in bcc.
+
 -------------------------------------------------------------------------------
 
 module:
+   <module-body>
+
+module-body:
    <module-item-list>
    E
 
@@ -15,36 +23,18 @@ module-item-list:
    <module-item-list> <module-item>
 
 module-item:
-   <special>
    <directive>
    <variable>
    <function>
    <script>
-
-special:
-   special <special-list> ;
-
-special-list:
-   <special-item>
-   <special-list> , <special-item>
-
-special-item:
-   <special-sign> <decimal-number> : <identifier> <special-parameter-list>
-
-special-sign:
-   -
-   E
-
-special-parameter-list:
-   ( <decimal-number> )
-   ( <decimal-number> , <decimal-number> )
+   <special>
 
 directive:
-   # define <string> <expression>
-   # libdefine <string> <expression>
    # include <string>
    # import <string>
    # library <string>
+   # define <string> <expression>
+   # libdefine <string> <expression>
    # encryptstrings
    # nocompact
    # wadauthor
@@ -53,9 +43,11 @@ directive:
    # endregion
 
 variable:
-   <qualifier> <storage> <specifier> <instance-list> ;
+   <visibility> <storage> <specifier> <instance-list> ;
 
-qualifier:
+// NOTE: This rule does not actually deal with visibility. The rule is named
+// this way to be consistent with the BCS grammar. 
+visibility:
    static
 
 storage:
@@ -68,10 +60,10 @@ storage-index:
    E
 
 specifier:
-   void
    int
    bool
    str
+   void
 
 instance-list:
    <instance>
@@ -92,6 +84,9 @@ dimension-list:
 
 initializer:
    <expression>
+   <braced-initializer>
+
+braced-initializer:
    { <initializer-list> }
    { <initializer-list> , }
 
@@ -100,16 +95,16 @@ initializer-list:
    <initializer-list> , <initializer>
 
 function:
-   function <function-specifier> <identifier> ( <parameter-declaration> )
+   function <function-return> <identifier> ( <parameter-list-declaration> )
       <block-statement>
 
-function-specifier:
+function-return:
    int
    bool
    str
    void
 
-parameter-declaration:
+parameter-list-declaration:
    <parameter-list>
    void
 
@@ -126,19 +121,19 @@ parameter-specifier:
    str
 
 script:
-   script <script-tag> ( <script-parameter-declaration> ) <script-type>
+   script <script-tag> <script-parameter-parentheses> <script-type>
       <script-flag> <statement>
 
 script-tag:
    <string>
-   // NOTE: Function calls are skipped because they conflict with the start of
-   // the parameter list.
-   <expression>
    << 0 >>
+   // When reading the script number, function calls are not parsed because
+   // they conflict with the start of the parameter list.
+   <expression>
 
-script-parameter-declaration:
-   <script-parameter-list>
-   void
+script-parameter-parentheses:
+   ( <script-parameter-list> )
+   ( void )
 
 script-parameter-list:
    <script-parameter>
@@ -148,19 +143,21 @@ script-parameter:
    int <identifier>
 
 script-type:
-   open
-   respawn
-   death
-   enter
-   pickup
    bluereturn
-   redreturn
-   whitereturn
-   lightning
-   unloading
+   death
    disconnect
-   return
+   enter
    event
+   kill
+   lightning
+   open
+   pickup
+   redreturn
+   reopen
+   respawn
+   return
+   unloading
+   whitereturn
    E
 
 script-flag:
@@ -169,12 +166,32 @@ script-flag:
    clientside
    E
 
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <special-sign> <decimal-number> : <identifier> ( <special-parameter-list> )
+
+special-sign:
+   - // If '-' is specified, the item is an extension function. Otherwise, the
+     // item is an action-special.
+   E
+
+special-parameter-list:
+   <decimal-number> // Maximum parameters.
+   <decimal-number> , <decimal-number> // Minimum parameters, ',',
+                                       // maximum parameters.
+
 statement:
    <variable>
-   <case-label>
    <block-statement>
    <if-statement>
    <switch-statement>
+   <case-label>
    <while-statement>
    <do-statement>
    <for-statement>
@@ -182,8 +199,8 @@ statement:
    <script-jump-statement>
    <return-statement>
    <palette-translation>
+   <empty-statement>
    <expression-statement>
-   ;
 
 statement-list:
    <statement>
@@ -236,8 +253,8 @@ script-jump-statement:
    restart ;
 
 return-statement:
-   return ;
    return <expression> ;
+   return ;
 
 palette-translation:
    createtranslation ( <expression> )
@@ -248,14 +265,21 @@ palette-range-list:
    <palette-range-list> , <palette-range>
 
 palette-range:
-   // NOTE: Assignment is skipped in the second expression because it will
+   // NOTE: Assignment is not parsed in the second expression because it will
    // conflict with the following assignment token.
    <expression> : <expression> = <palette-range-value>
 
 palette-range-value:
    <expression> : <expression>
+   <palette-range-rgb>
+   % <palette-range-rgb>
+
+palette-range-rgb:
    [ <expression> , <expression> , <expression> ] :
       [ <expression> , <expression> , <expression> ]
+
+empty-statement:
+   ;
 
 expression-statement:
    <expression-list>
@@ -287,7 +311,7 @@ logical-or:
 
 logical-and:
    <bitwise-or>
-   <logical-and> &&  <bitwise-or>
+   <logical-and> && <bitwise-or>
 
 bitwise-or:
    <bitwise-xor>
@@ -334,6 +358,7 @@ prefix:
    ++ <prefix>
    -- <prefix>
    -  <prefix>
+   +  <prefix>
    !  <prefix>
    ~  <prefix>
 
@@ -342,11 +367,11 @@ suffix:
    <suffix> ++
    <suffix> --
    <suffix> [ <expression> ]
+   <suffix> ( )
    <suffix> ( <expression-list> )
-   <prefix> ( const : <expression-list> )
+   <suffix> ( const : <expression-list> )
    <suffix> ( <format-item-list> )
    <suffix> ( <format-item-list> ; <expression-list> )
-   <suffix> ( )
 
 format-item-list:
    <format-item>
@@ -356,21 +381,21 @@ format-item:
    <format-cast> : <expression>
    <format-item-array>
 
+format-cast:
+   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
+
 format-item-array:
    a : <expression>
    a : ( <expression> )
    a : ( <expression> , <expression> )
    a : ( <expression> , <expression> , <expression> )
 
-format-cast:
-   <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
-
 primary:
+   <strcpy>
    <identifier>
    <number>
    <string>
    <character>
-   <strcpy>
    ( <expression> )
    print
    printbold
@@ -381,80 +406,60 @@ primary:
    acs_executewait
    acs_namedexecutewait
 
-identifier:
-   [a-zA-Z_]
-   <identifier> [a-zA-Z0-9_]
-
-identifier-list:
-   <identifier>
-   <identifier-list> , <identifier>
-
-number:
-   <decimal-number>
-   0 x <hexadecimal-number>
-   0 X <hexadecimal-number>
-   <fixed-point-number>
-   <radix-number>
-
-hexadecimal-number:
-   [0-9a-fA-F]
-   <hexadecimal-number> [0-9a-fA-F]
-
-decimal-number:
-   [1-9]+[0-9]*
-   0
-
-fixed-point-number:
-   <decimal-number> . <decimal-number>
-
-radix-number:
-   <decimal-number> _ <decimal-number>
-
-string:
-   " "
-   " <string-content> "
-
-string-content:
-   <nondoublequote-symbol>
-   <string-content> <nondoublequote-symbol>
-
-character:
-   ' <symbol> '
-   ' <escape-sequence> '
-
-symbol:
-   // A unit of text such as the letter 'a', the number '0', or the punctuation
-   // mark '!'.
-
-escape-sequence:
-   \ a
-   \ b
-   \ n
-   \ t
-   \ v
-   \ f
-   \ r
-   \ \
-   \ '
-   \ [0-9]+
-   \ x [0-9a-fA-F]+
-   \ X [0-9a-fA-F]+
-
 strcpy:
    strcpy <strcpy-call>
 
 strcpy-call:
-   ( <format-item-array> , <expression> )
-   ( <format-item-array> , <expression> , <expression> )
+   ( <strcpy-source-argument> , <expression> )
+   ( <strcpy-source-argument> , <expression> , <expression> )
+
+strcpy-source-argument:
+   <format-item-array>
+
+identifier:
+   [a-zA-Z_][a-zA-Z0-9_]*
+
+number:
+   <decimal-number>
+   <hexadecimal-number>
+   <fixed-point-number>
+   <radix-number>
+
+decimal-number:
+   [0-9]+
+
+hexadecimal-number:
+   0[xX][0-9a-fA-F]*
+
+fixed-point-number:
+   [0-9]+[.][0-9]+
+
+radix-number:
+   [0-9]+[_][0-9a-zA-Z]+
+
+string:
+   "([^\\"]|\\")*"
+
+character:
+   '.'
+   ' <character-escape-sequence> '
+
+character-escape-sequence:
+   \\a
+   \\b
+   \\n
+   \\t
+   \\v
+   \\f
+   \\r
+   \\'
+   \\\\
+   \\[0-7]{1,4}
+   \\[xX][0-9a-fA-F]+
 
 comment:
-   // Comments can appear between the tokens of a rule.
-   / / <comment-body> \n
-   / * <comment-body> * /
-
-comment-body:
-   <comment-body> <symbol>
-   E
+   [/][/][^\n]+ // Single-line comment.
+   [/][*]([^*]*[*]+)+[/] // Multi-line comment.
 
 keyword:
    acs_executewait
@@ -487,6 +492,7 @@ keyword:
    import
    include
    int
+   kill
    libdefine
    library
    lightning
@@ -496,8 +502,11 @@ keyword:
    nowadauthor
    open
    pickup
+   print
+   printbold
    redreturn
    region
+   reopen
    respawn
    restart
    return

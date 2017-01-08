@@ -4,9 +4,17 @@ ACS95 Grammar
 Special terminals:
    E (Empty): Indicates the rule is optional
 
+NOTE: This grammar attempts to follow closely the grammar that the original acc
+compiler implements, but to simplify the development of the bcc compiler, the
+grammar is not 100% accurate. Some errors that are syntactic errors in the
+original acc are now semantic errors in bcc.
+
 -------------------------------------------------------------------------------
 
 module:
+   <module-body>
+
+module-body:
    <module-item-list>
    E
 
@@ -15,27 +23,14 @@ module-item-list:
    <module-item-list> <module-item>
 
 module-item:
-   <special>
    <directive>
-   <declaration>
+   <variable>
    <script>
-
-special:
-   special <special-list> ;
-
-special-list:
-   <special-item>
-   <special-list> , <special-item>
-
-special-item:
-   <decimal-number> : <identifier> ( <decimal-number> )
+   <special>
 
 directive:
-   # define <string> <expression>
    # include <string>
-
-declaration:
-   <variable>
+   # define <string> <expression>
 
 variable:
    <storage> <specifier> <instance-list> ;
@@ -71,13 +66,13 @@ script:
    script <script-tag> <script-parameter-parentheses> <statement>
 
 script-tag:
-   // Function calls are skipped because they conflict with the start of the
-   // parameter list.
+   // When reading the script number, function calls are not parsed because
+   // they conflict with the start of the parameter list.
    <expression>
 
 script-parameter-parentheses:
-   ( void )
    ( <script-parameter-list> )
+   ( void )
 
 script-parameter-list:
    <script-parameter>
@@ -86,18 +81,31 @@ script-parameter-list:
 script-parameter:
    int <identifier>
 
+special:
+   special <special-list> ;
+
+special-list:
+   <special-item>
+   <special-list> , <special-item>
+
+special-item:
+   <decimal-number> : <identifier> ( <special-parameter-list> )
+
+special-parameter-list:
+   <decimal-number> // Maximum parameters.
+
 statement:
-   <declaration>
-   <case-label>
+   <variable>
    <block-statement>
    <if-statement>
    <switch-statement>
+   <case-label>
    <while-statement>
    <do-statement>
    <jump-statement>
    <script-jump-statement>
+   <empty-statement>
    <expression-statement>
-   ;
 
 statement-list:
    <statement>
@@ -135,6 +143,9 @@ script-jump-statement:
    suspend ;
    restart ;
 
+empty-statement:
+   ;
+
 expression-statement:
    <expression-list> ;
 
@@ -160,7 +171,7 @@ logical-or:
 
 logical-and:
    <bitwise-or>
-   <logical-and> &&  <bitwise-or>
+   <logical-and> && <bitwise-or>
 
 bitwise-or:
    <bitwise-xor>
@@ -213,10 +224,10 @@ suffix:
    <primary>
    <prefix> ++
    <prefix> --
+   <prefix> ( )
    <prefix> ( <expression-list> )
    <prefix> ( const : <expression-list> )
    <prefix> ( <format-item-list> )
-   <prefix> ( )
 
 format-item-list:
    <format-item>
@@ -237,8 +248,7 @@ primary:
    printbold
 
 identifier:
-   [a-zA-Z_]
-   <identifier> [a-zA-Z0-9_]
+   [a-zA-Z_][a-zA-Z0-9_]*
 
 number:
    <decimal-number>
@@ -250,37 +260,20 @@ decimal-number:
    [0-9]+
 
 hexadecimal-number:
-   (0x|0X) [0-9a-fA-F]
-   <hexadecimal-number> [0-9a-fA-F]
+   0[xX][0-9a-fA-F]*
 
 fixed-point-number:
-   <decimal-number> . <decimal-number>
+   [0-9]+[.][0-9]+
 
 radix-number:
-   <decimal-number> _ <decimal-number>
+   [0-9]+[_][0-9a-zA-Z]+
 
 string:
-   " "
-   " <string-content> "
-
-string-content:
-   <nondoublequote-symbol>
-   <string-content> <nondoublequote-symbol>
-
-symbol:
-   // A unit of text such as the letter 'a', the number '0', or the punctuation
-   // mark '!'.
-
-nondoublequote-symbol:
-   // Any <symbol> except '"'.
+   "[^"]*"
 
 comment:
-   / / <comment-body> \n
-   / * <comment-body> * /
-
-comment-body:
-   <comment-body> <symbol>
-   E
+   [/][/][^\n]+ // Single-line comment.
+   [/][*]([^*]*[*]+)+[/] // Multi-line comment.
 
 keyword:
    break
