@@ -465,6 +465,7 @@ void expand_predef_macro( struct parse* parse, struct macro_expan* expan ) {
       expand_predef_date( parse, expan );
       break;
    case PREDEFMACRO_IMPORTED:
+   case PREDEFMACRO_INCLUDED:
       expand_predef_imported( parse, expan );
       break;
    default:
@@ -533,6 +534,7 @@ void expand_predef_date( struct parse* parse, struct macro_expan* expan ) {
    output( parse, expan, &token );
 }
 
+// Both __IMPORTED__ and __INCLUDED__ have the same body.
 void expand_predef_imported( struct parse* parse, struct macro_expan* expan ) {
    struct token token;
    p_init_token( &token );

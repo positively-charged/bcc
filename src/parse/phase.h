@@ -233,6 +233,7 @@ struct macro {
       PREDEFMACRO_TIME,
       PREDEFMACRO_DATE,
       PREDEFMACRO_IMPORTED,
+      PREDEFMACRO_INCLUDED,
    } predef;
    bool func_like;
    bool variadic;
@@ -290,6 +291,7 @@ struct source_entry {
    struct token_queue peeked;
    enum tk prev_tk;
    bool main;
+   bool imported;
    bool line_beginning;
 };
 
@@ -528,7 +530,9 @@ void p_read_target_lib( struct parse* parse );
 void p_clear_macros( struct parse* parse );
 void p_define_predef_macros( struct parse* parse );
 void p_define_imported_macro( struct parse* parse );
+void p_define_included_macro( struct parse* parse );
 void p_define_cmdline_macros( struct parse* parse );
+void p_undefine_included_macro( struct parse* parse );
 void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
 bool p_is_macro_defined( struct parse* parse, const char* name );

@@ -873,6 +873,25 @@ void p_define_imported_macro( struct parse* parse ) {
    append_macro( parse, macro );
 }
 
+// The predefined __INCLUDED__ macro is present as long as an #included file is
+// being processed. 
+void p_define_included_macro( struct parse* parse ) {
+   struct macro* macro = p_find_macro( parse, "__INCLUDED__" );
+   if ( ! macro ) {
+      macro = alloc_macro( parse );
+      macro->name = "__INCLUDED__";
+      macro->predef = PREDEFMACRO_INCLUDED;
+      append_macro( parse, macro );
+   }
+}
+
+void p_undefine_included_macro( struct parse* parse ) {
+   struct macro* macro = remove_macro( parse, "__INCLUDED__" );
+   if ( macro ) {
+      free_macro( parse, macro );
+   }
+}
+
 void p_define_predef_macros( struct parse* parse ) {
    // Macro: __LINE__
    struct macro* macro = alloc_macro( parse );

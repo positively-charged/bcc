@@ -12,7 +12,8 @@ static bool source_loading( struct parse* parse, struct request* request );
 static void open_source_file( struct parse* parse, struct request* request );
 static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
-static void create_entry( struct parse* parse, struct request* request );
+static void create_entry( struct parse* parse, struct request* request,
+   bool imported );
 static void read_token_acs( struct parse* parse, struct token* token );
 static void read_token_acs95( struct parse* parse, struct token* token );
 static void read_token( struct parse* parse, struct token* token );
@@ -31,7 +32,7 @@ void p_load_main_source( struct parse* parse ) {
       parse->lib->file = request.file;
       parse->lib->file_pos.id = request.file->id;
       append_file( parse->lib, request.file );
-      create_entry( parse, &request );
+      create_entry( parse, &request, false );
       t_update_err_file_dir( parse->task, request.file->full_path.value );
    }
    else {
@@ -52,7 +53,7 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
       parse->lib->file = file;
       parse->lib->file_pos.id = file->id;
       append_file( parse->lib, file );
-      create_entry( parse, &request );
+      create_entry( parse, &request, true );
    }
    else {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
@@ -78,7 +79,8 @@ void p_load_included_source( struct parse* parse, const char* file_path,
    p_load_source( parse, &request );
    if ( request.source ) {
       append_file( parse->lib, request.file );
-      create_entry( parse, &request );
+      create_entry( parse, &request, false );
+      p_define_included_macro( parse );
    }
    else {
       if ( request.err_loading ) {
@@ -209,7 +211,8 @@ void reset_filepos( struct source* source ) {
    source->column = 0;
 }
 
-void create_entry( struct parse* parse, struct request* request ) {
+void create_entry( struct parse* parse, struct request* request,
+   bool imported ) {
    struct source_entry* entry;
    if ( parse->source_entry_free ) {
       entry = parse->source_entry_free;
@@ -223,6 +226,7 @@ void create_entry( struct parse* parse, struct request* request ) {
    entry->macro_expan = NULL;
    p_init_token_queue( &entry->peeked, false );
    entry->main = ( entry->prev == NULL );
+   entry->imported = imported;
    entry->prev_tk = TK_NL;
    entry->line_beginning = true;
    parse->source_entry = entry;
@@ -255,6 +259,11 @@ void p_pop_source( struct parse* parse ) {
       // Free entry.
       entry->prev = parse->source_entry_free;
       parse->source_entry_free = entry;
+      // We are now back to the library file. Remove the __INCLUDED__ macro.
+      if ( parse->lang == LANG_BCS && ( parse->source_entry->main ||
+         parse->source_entry->imported ) ) {
+         p_undefine_included_macro( parse );
+      }
    }
 }
 
