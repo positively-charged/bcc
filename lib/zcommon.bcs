@@ -299,7 +299,17 @@ enum {
    APROP_DAMAGEMULTIPLIER,
    APROP_MAXSTEPHEIGHT,
    APROP_MAXDROPOFFHEIGHT,
-   APROP_DAMAGETYPE
+   APROP_DAMAGETYPE,
+
+   // Eternity.
+   APROP_COUNTER0 = 100,
+   APROP_COUNTER1,
+   APROP_COUNTER2,
+   APROP_COUNTER3,
+   APROP_COUNTER4,
+   APROP_COUNTER5,
+   APROP_COUNTER6,
+   APROP_COUNTER7
 };
 
 enum {
@@ -1202,7 +1212,7 @@ special
 37:Floor_MoveToValue(int,int,int;int,int):int,
 38:Ceiling_Waggle(int,int,int,int,int):int,
 39:Teleport_ZombieChanger(int,int):int,
-40:Ceiling_LowerByValue(int,int,int;int):int,
+40:Ceiling_LowerByValue(int,int,int;int,int):int,
 41:Ceiling_RaiseByValue(int,int,int;int):int,
 42:Ceiling_CrushAndRaise(int,int,int;int):int,
 43:Ceiling_LowerAndCrush(int,int,int;int):int,
@@ -1338,7 +1348,7 @@ special
 196:Ceiling_CrushAndRaiseA(int,int,int,int;int):int,
 197:Ceiling_CrushAndRaiseSilentA(int,int,int,int;int):int,
 198:Ceiling_RaiseByValueTimes8(int,int,int;int):int,
-199:Ceiling_LowerByValueTImes8(int,int,int;int):int,
+199:Ceiling_LowerByValueTimes8(int,int,int;int,int):int,
 200:Generic_Floor(int,int,int,int,int):int,
 201:Generic_Ceiling(int,int,int,int,int):int,
 202:Generic_Door(int,int,int,int,int):int,
@@ -1354,7 +1364,7 @@ special
 212:Sector_SetColor(int,int,int,int;int):int,
 213:Sector_SetFade(int,int,int,int):int,
 214:Sector_SetDamage(int,int,int;int,int):int,
-215:Teleport_Line(int,int):int,
+215:Teleport_Line(int,int;int):int,
 216:Sector_SetGravity(int,int,int):int,
 217:Stairs_BuildUpDoom(int,int,int,int,int):int,
 218:Sector_SetWind(int,int,int,int):int,
@@ -1412,6 +1422,7 @@ special
 270:Stairs_BuildDownDoom(int,int,int,int,int):int,
 271:Stairs_BuildUpDoomSync(int,int,int,int):int,
 272:Stairs_BuildDownDoomSync(int,int,int,int):int,
+273:Stairs_BuildUpDoomCrush(int,int,int,int,int):int,
 
 // Extension functions
 -1:GetLineUdmfInt(int,str):int,
