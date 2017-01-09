@@ -1125,7 +1125,6 @@ struct library {
    bool importable;
    bool imported;
    bool encrypt_str;
-   bool compiletime;
    bool header;
    bool wadauthor;
    bool uses_nullable_refs;

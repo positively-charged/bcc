@@ -91,8 +91,6 @@ static void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct scope* scope,
    struct name* name, struct object* object );
-static void confirm_compiletime_content( struct semantic* semantic );
-static bool is_compiletime_object( struct object* object );
 
 void s_init( struct semantic* semantic, struct task* task ) {
    semantic->task = task;
@@ -271,16 +269,6 @@ void test_bcs( struct semantic* semantic ) {
    assign_script_numbers( semantic );
    calc_map_var_size( semantic );
    calc_map_value_index( semantic );
-   if ( semantic->main_lib->compiletime ) {
-      confirm_compiletime_content( semantic );
-      if ( ! semantic->main_lib->imported ) {
-         s_diag( semantic, DIAG_FILE | DIAG_ERR, &semantic->main_lib->file_pos,
-            "compiling a compile-time only library" );
-         s_diag( semantic, DIAG_FILE, &semantic->main_lib->file_pos,
-            "a compile-time library can only be #imported" );
-         s_bail( semantic );
-      }
-   }
    // TODO: Refactor this.
    if ( ! semantic->main_lib->importable ) {
       list_iter_t i;
@@ -1408,41 +1396,6 @@ void s_diag( struct semantic* semantic, int flags, ... ) {
 
 void s_bail( struct semantic* semantic ) {
    t_bail( semantic->task );
-}
-
-// Compile-time modules can only have constant information like constants,
-// structure definitions, and builtin function definitions.
-void confirm_compiletime_content( struct semantic* semantic ) {
-/*
-   list_iter_t i;
-   list_iter_init( &i, &semantic->lib->objects );
-   while ( ! list_end( &i ) ) {
-      struct object* object = list_data( &i );
-      if ( ! is_compiletime_object( object ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &object->pos,
-            "runtime-time object found in compile-time library" );
-         s_bail( semantic );
-      }
-      list_next( &i );
-   }
-*/
-}
-
-bool is_compiletime_object( struct object* object ) {
-   if ( object->node.type == NODE_FUNC ) {
-      struct func* func = ( struct func* ) object;
-      return ( func->type != FUNC_USER );
-   }
-   else {
-      switch ( object->node.type ) {
-      case NODE_CONSTANT:
-      case NODE_ENUMERATION:
-      case NODE_STRUCTURE:
-         return true;
-      default:
-         return false;
-      }
-   }
 }
 
 struct alias* s_alloc_alias( void ) {

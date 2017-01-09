@@ -584,7 +584,6 @@ struct library* t_add_library( struct task* task ) {
    lib->encrypt_str = false;
    lib->file = NULL;
    lib->header = false;
-   lib->compiletime = false;
    lib->wadauthor = false;
    lib->uses_nullable_refs = false;
    return lib;

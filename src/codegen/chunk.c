@@ -701,7 +701,7 @@ void do_load( struct codegen* codegen ) {
    list_iter_init( &i, &codegen->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      if ( ! lib->compiletime ) {
+      if ( lib->name.length > 0 ) {
          size += lib->name.length + 1;
       }
       list_next( &i );
@@ -721,7 +721,7 @@ void do_load( struct codegen* codegen ) {
       list_iter_init( &i, &codegen->task->library_main->dynamic );
       while ( ! list_end( &i ) ) {
          struct library* lib = list_data( &i );
-         if ( ! lib->compiletime ) {
+         if ( lib->name.length > 0 ) {
             c_add_sized( codegen, lib->name.value, lib->name.length + 1 );
          }
          list_next( &i );
