@@ -2322,18 +2322,31 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
       }
    }
    // A nested function qualified with the `static` keyword cannot use the
-   // local-storage variables of an enclosing script or function.
+   // local-storage variables of, or call the local functions of, an enclosing
+   // script or function.
+   bool local_object = false;
    if ( object->node.type == NODE_VAR ) {
+      struct var* var = ( struct var* ) object;
+      local_object = ( var->storage == STORAGE_LOCAL );
+   }
+   else if ( object->node.type == NODE_FUNC ) {
+      struct func* func = ( struct func* ) object;
+      if ( func->type == FUNC_USER ) {
+         struct func_user* impl = func->impl;
+         local_object = impl->local;
+      }
+   }
+   if ( local_object ) {
       struct func_test* func_test = semantic->func_test;
       while ( func_test && ! ( func_test->func && ! (
          ( struct func_user* ) func_test->func->impl )->local ) ) {
          func_test = func_test->parent;
       }
-      if ( func_test && func_test->func->object.depth >= object->depth &&
-         ( ( struct var* ) object )->storage == STORAGE_LOCAL ) {
+      if ( func_test && func_test->func->object.depth >= object->depth ) {
          s_diag( semantic, DIAG_POS, &usage->pos,
-            "local-storage variables outside a static function cannot be "
-            "used" );
+            "%s outside a static function cannot be used",
+            object->node.type == NODE_FUNC ? "local functions" :
+            "local-storage variables" );
          s_bail( semantic );
       }
    }
