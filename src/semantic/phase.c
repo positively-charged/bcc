@@ -46,9 +46,13 @@ static void bind_func( struct semantic* semantic, struct func* func );
 static void show_private_objects( struct semantic* semantic );
 static void show_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
+static void show_structure( struct semantic* semantic,
+   struct structure* structure );
 static void hide_private_objects( struct semantic* semantic );
 static void hide_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
+static void hide_structure( struct semantic* semantic,
+   struct structure* structure );
 static void perform_usings( struct semantic* semantic );
 static void perform_namespace_usings( struct semantic* semantic,
    struct ns_fragment* fragment );
@@ -449,6 +453,10 @@ void show_private_objects( struct semantic* semantic ) {
          show_enumeration( semantic,
             ( struct enumeration* ) object );
          break;
+      case NODE_STRUCTURE:
+         show_structure( semantic,
+            ( struct structure* ) object );
+         break;
       case NODE_VAR:
          var = ( struct var* ) object;
          var->object.next_scope = var->name->object;
@@ -459,6 +467,12 @@ void show_private_objects( struct semantic* semantic ) {
          func->object.next_scope = func->name->object;
          func->name->object = &func->object;
          break;
+      case NODE_TYPE_ALIAS: {
+            struct type_alias* alias = ( struct type_alias* ) object;
+            alias->object.next_scope = alias->name->object;
+            alias->name->object = &alias->object;
+         }
+         break;
       default:
          UNREACHABLE();
       }
@@ -468,11 +482,33 @@ void show_private_objects( struct semantic* semantic ) {
 
 void show_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
+   // Enumeration.
+   if ( enumeration->name ) {
+      enumeration->object.next_scope = enumeration->name->object;
+      enumeration->name->object = &enumeration->object;
+   }
+   // Enumerators.
    struct enumerator* enumerator = enumeration->head;
    while ( enumerator ) {
       enumerator->object.next_scope = enumerator->name->object;
       enumerator->name->object = &enumerator->object;
       enumerator = enumerator->next;
+   }
+}
+
+void show_structure( struct semantic* semantic,
+   struct structure* structure ) {
+   // Structure.
+   if ( structure->name ) {
+      structure->object.next_scope = structure->name->object;
+      structure->name->object = &structure->object;
+   }
+   // Members.
+   struct structure_member* member = structure->member;
+   while ( member ) {
+      member->object.next_scope = member->name->object;
+      member->name->object = &member->object;
+      member = member->next;
    }
 }
 
@@ -493,6 +529,10 @@ void hide_private_objects( struct semantic* semantic ) {
          hide_enumeration( semantic,
             ( struct enumeration* ) object );
          break;
+      case NODE_STRUCTURE:
+         hide_structure( semantic,
+            ( struct structure* ) object );
+         break;
       case NODE_VAR:
          var = ( struct var* ) object;
          var->name->object = var->object.next_scope;
@@ -500,6 +540,11 @@ void hide_private_objects( struct semantic* semantic ) {
       case NODE_FUNC:
          func = ( struct func* ) object;
          func->name->object = func->object.next_scope;
+         break;
+      case NODE_TYPE_ALIAS: {
+            struct type_alias* alias = ( struct type_alias* ) object;
+            alias->name->object = alias->object.next_scope;
+         }
          break;
       default:
          UNREACHABLE();
@@ -510,10 +555,25 @@ void hide_private_objects( struct semantic* semantic ) {
 
 void hide_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
+   if ( enumeration->name ) {
+      enumeration->name->object = enumeration->object.next_scope;
+   }
    struct enumerator* enumerator = enumeration->head;
    while ( enumerator ) {
       enumerator->name->object = enumerator->object.next_scope;
       enumerator = enumerator->next;
+   }
+}
+
+void hide_structure( struct semantic* semantic,
+   struct structure* structure ) {
+   if ( structure->name ) {
+      structure->name->object = structure->object.next_scope;
+   }
+   struct structure_member* member = structure->member;
+   while ( member ) {
+      member->name->object = member->object.next_scope;
+      member = member->next;
    }
 }
 

@@ -195,7 +195,7 @@ void save_namespace_member( struct saver* saver, struct object* object ) {
    case NODE_STRUCTURE: {
          struct structure* structure =
             ( struct structure* ) object;
-         if ( structure->semicolon ) {
+         if ( ! structure->hidden && structure->semicolon ) {
             save_structure( saver, structure );
          }
       }
@@ -203,7 +203,7 @@ void save_namespace_member( struct saver* saver, struct object* object ) {
    case NODE_TYPE_ALIAS: {
          struct type_alias* alias =
             ( struct type_alias* ) object;
-         if ( alias->head_instance ) {
+         if ( ! alias->hidden && alias->head_instance ) {
             save_type_alias( saver, alias );
          }
       }

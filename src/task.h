@@ -202,6 +202,7 @@ struct structure {
    bool has_mandatory_ref_member;
    bool semicolon;
    bool force_local_scope;
+   bool hidden;
 };
 
 struct structure_member {
@@ -268,6 +269,7 @@ struct type_alias {
    int original_spec;
    bool head_instance;
    bool force_local_scope;
+   bool hidden;
 };
 
 struct paren {

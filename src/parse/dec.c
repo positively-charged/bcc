@@ -310,10 +310,10 @@ void read_visibility( struct parse* parse, struct dec* dec ) {
          read_enum( parse, dec );
          return;
       }
-   }
-   else if ( parse->tk == TK_TYPEDEF ) {
-      dec->type_alias = true;
-      p_read_tk( parse );
+      if ( parse->tk == TK_STRUCT ) {
+         read_struct( parse, dec );
+         return;
+      }
    }
    else if ( parse->tk == TK_EXTERN ) {
       if ( parse->lib->imported ) {
@@ -330,6 +330,10 @@ void read_visibility( struct parse* parse, struct dec* dec ) {
 }
 
 void read_object( struct parse* parse, struct dec* dec ) {
+   if ( parse->tk == TK_TYPEDEF ) {
+      dec->type_alias = true;
+      p_read_tk( parse );
+   }
    if ( parse->tk == TK_FUNCTION ) {
       dec->object = DECOBJ_FUNC;
       p_read_tk( parse );
@@ -504,6 +508,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       implicit_dec.name_pos = enumeration->object.pos;
       implicit_dec.enumeration = enumeration;
       implicit_dec.spec = SPEC_ENUM;
+      implicit_dec.private_visibility = enumeration->hidden;
       finish_type_alias( parse, &implicit_dec );
    }
    STATIC_ASSERT( DEC_TOTAL == 4 );
@@ -643,6 +648,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct structure* structure = t_alloc_structure();
    structure->object.pos = parse->tk_pos;
    structure->force_local_scope = dec->force_local_scope;
+   structure->hidden = dec->private_visibility;
    p_test_tk( parse, TK_STRUCT );
    p_read_tk( parse );
    read_struct_name( parse, dec, structure );
@@ -657,6 +663,9 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &structure->object );
       list_append( &parse->ns_fragment->objects, structure );
       list_append( &parse->lib->objects, structure );
+      if ( dec->private_visibility ) {
+         list_append( &parse->lib->private_objects, structure );
+      }
    }
    if ( dec->implicit_type_alias.specified ) {
       struct dec implicit_dec;
@@ -673,6 +682,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       implicit_dec.name_pos = structure->object.pos;
       implicit_dec.structure = structure;
       implicit_dec.spec = SPEC_STRUCT;
+      implicit_dec.private_visibility = structure->hidden;
       finish_type_alias( parse, &implicit_dec );
    }
 }
@@ -720,6 +730,9 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    dec.area = DEC_MEMBER;
    dec.name_offset = structure->body;
    dec.vars = parent_dec->vars;
+   // The private keyword applies to all of the structures declared in the
+   // declaration, including nested structures.
+   dec.private_visibility = parent_dec->private_visibility;
    read_extended_spec( parse, &dec );
    struct ref_reading ref;
    init_ref_reading( &ref );
@@ -1555,9 +1568,13 @@ void finish_type_alias( struct parse* parse, struct dec* dec ) {
    alias->spec = dec->spec;
    alias->original_spec = dec->spec;
    alias->force_local_scope = dec->force_local_scope;
+   alias->hidden = dec->private_visibility;
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &alias->object );
       list_append( &parse->ns_fragment->objects, alias );
+      if ( dec->private_visibility ) {
+         list_append( &parse->lib->private_objects, alias );
+      }
    }
    else {
       list_append( dec->vars, alias );

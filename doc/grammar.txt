@@ -96,12 +96,13 @@ import-name:
    <type-name> 
 
 declaration:
-   <specifieronly-declaration>
+   <specifier-declaration>
    <object-declaration>
 
-specifieronly-declaration:
-   <specifieronly-visibility> <enumeration> ;
-   <specifieronly-visibility> <structure> ;
+specifier-declaration:
+   <specifier-visibility> <enumeration> ;
+   <specifier-visibility> <structure> ;
+   <specifier-visibility> <type-alias> ;
 
 specifieronly-visibility:
    private
@@ -162,8 +163,6 @@ structure-member-instance:
 object-declaration:
    <visibility> <variable>
    <visibility> <function>
-   private <type-alias>
-   <type-alias>
 
 visibility:
    private
@@ -310,9 +309,9 @@ parameter-name:
    E
 
 type-alias:
-   typedef <extended-specifier> <type-alias-instance-list> ;
+   typedef <extended-specifier> <type-alias-instance-list>
    typedef <function-keyword> <function-qualifier> <extended-specifier>
-      <type-name> ( <parameter-list-declaration> ) ;
+      <type-name> ( <parameter-list-declaration> )
 
 type-alias-instance-list:
    <type-alias-instance>

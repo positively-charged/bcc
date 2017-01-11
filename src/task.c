@@ -787,6 +787,7 @@ struct structure* t_alloc_structure( void ) {
    structure->has_mandatory_ref_member = false;
    structure->semicolon = false;
    structure->force_local_scope = false;
+   structure->hidden = false;
    return structure;
 }
 
@@ -1047,6 +1048,7 @@ struct type_alias* t_alloc_type_alias( void ) {
    alias->original_spec = SPEC_NONE;
    alias->head_instance = false;
    alias->force_local_scope = false;
+   alias->hidden = false;
    return alias;
 }
 

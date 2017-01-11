@@ -10,19 +10,22 @@ struct enumeration_test {
    int value;
 };
 
-struct name_spec_test {
+struct spec_test {
    struct object* object;
+   struct object* type_alias;
    struct ref* ref;
    struct structure* structure;
    struct enumeration* enumeration;
    struct dim* dim;
    struct path* path;
    int spec;
+   bool public_spec;
 };
 
 struct ref_test {
    struct ref* ref;
    int spec;
+   bool need_public_spec;
 };
 
 struct dim_test {
@@ -63,6 +66,7 @@ struct param_list_test {
    struct ref_func* func_ref;
    struct param* params;
    struct param* prev_param;
+   bool need_public_spec;
 };
 
 struct builtin_aliases {
@@ -103,9 +107,9 @@ static bool test_struct_body( struct semantic* semantic,
 static void test_member( struct semantic* semantic,
    struct structure* structure, struct structure_member* member );
 static bool test_member_spec( struct semantic* semantic,
-   struct structure_member* member );
+   struct structure* structure, struct structure_member* member );
 static bool test_member_ref( struct semantic* semantic,
-   struct structure_member* member );
+   struct structure* structure, struct structure_member* member );
 static bool test_member_name( struct semantic* semantic,
    struct structure* structure, struct structure_member* member );
 static bool test_member_dim( struct semantic* semantic,
@@ -119,20 +123,22 @@ static bool test_typedef_name( struct semantic* semantic,
 static bool test_typedef_dim( struct semantic* semantic,
    struct type_alias* alias );
 static bool test_var_spec( struct semantic* semantic, struct var* var );
-static void init_name_spec_test( struct name_spec_test* test,
-   struct path* path, struct object* object, struct ref* ref, struct dim* dim,
-   int spec );
-static void test_name_spec( struct semantic* semantic,
-   struct name_spec_test* test );
-static void merge_type( struct semantic* semantic, struct name_spec_test* test,
+static void init_spec_test( struct spec_test* test, struct path* path,
+   struct object* object, struct ref* ref, struct structure* structure,
+   struct enumeration* enumeration, struct dim* dim, int spec );
+static void test_spec( struct semantic* semantic, struct spec_test* test );
+static void find_name_spec( struct semantic* semantic,
+   struct spec_test* test );
+static void merge_type( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias );
-static void merge_ref( struct semantic* semantic,
-   struct name_spec_test* test, struct type_alias* alias );
-static void merge_func_type( struct semantic* semantic,
-   struct name_spec_test* test, struct func* func_alias );
+static void merge_ref( struct semantic* semantic, struct spec_test* test,
+   struct type_alias* alias );
+static void merge_func_type( struct semantic* semantic, struct spec_test* test,
+   struct func* func_alias );
 static struct ref* get_last_ref_part( struct ref* ref );
 static bool test_var_ref( struct semantic* semantic, struct var* var );
-static void init_ref_test( struct ref_test* test, struct ref* ref, int spec );
+static void init_ref_test( struct ref_test* test, struct ref* ref, int spec,
+   bool need_public_spec );
 static bool test_ref( struct semantic* semantic, struct ref_test* test );
 static bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
    struct ref_struct* structure );
@@ -217,14 +223,16 @@ static bool test_func_name( struct semantic* semantic, struct func* func );
 static bool test_func_after_name( struct semantic* semantic,
    struct func* func );
 static void init_param_list_test( struct param_list_test* test,
-   struct func* func, struct ref_func* func_ref );
+   struct func* func, struct ref_func* func_ref, bool need_public_spec );
 static bool test_param_list( struct semantic* semantic,
    struct param_list_test* test );
 static void test_param( struct semantic* semantic,
    struct param_list_test* test, struct param* param );
-static bool test_param_spec( struct semantic* semantic, struct param* param );
+static bool test_param_spec( struct semantic* semantic,
+   struct param_list_test* test, struct param* param );
 static bool test_param_name( struct semantic* semantic, struct param* param );
-static bool test_param_ref( struct semantic* semantic, struct param* param );
+static bool test_param_ref( struct semantic* semantic,
+   struct param_list_test* test, struct param* param );
 static bool test_param_after_name( struct semantic* semantic,
    struct param_list_test* test, struct param* param );
 static bool test_param_default_value( struct semantic* semantic,
@@ -303,11 +311,6 @@ void s_test_enumeration( struct semantic* semantic,
          return;
       }
       enumerator = enumerator->next;
-   }
-   if ( enumeration->hidden && enumeration->name ) {
-      s_diag( semantic, DIAG_POS_ERR, &enumeration->object.pos,
-         "named enumeration declared private" );
-      s_bail( semantic );
    }
    enumeration->object.resolved = true;
 }
@@ -403,8 +406,8 @@ bool test_struct_body( struct semantic* semantic,
 void test_member( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    member->object.resolved =
-      test_member_spec( semantic, member ) &&
-      test_member_ref( semantic, member ) &&
+      test_member_spec( semantic, structure, member ) &&
+      test_member_ref( semantic, structure, member ) &&
       test_member_name( semantic, structure, member ) &&
       test_member_dim( semantic, member );
    if ( member->object.resolved ) {
@@ -417,23 +420,29 @@ void test_member( struct semantic* semantic, struct structure* structure,
    }
 }
 
-bool test_member_spec( struct semantic* semantic,
+bool test_member_spec( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
-   if ( member->spec >= SPEC_NAME ) {
-      struct name_spec_test test;
-      init_name_spec_test( &test, member->path, &member->object, member->ref,
-         member->dim, member->spec );
-      test_name_spec( semantic, &test );
-      member->ref = test.ref;
-      member->structure = test.structure;
-      member->enumeration = test.enumeration;
-      member->dim = test.dim;
-      member->spec = test.spec;
-   }
+   struct spec_test test;
+   init_spec_test( &test, member->path, &member->object, member->ref,
+      member->structure, member->enumeration, member->dim, member->spec );
+   test_spec( semantic, &test );
+   member->ref = test.ref;
+   member->structure = test.structure;
+   member->enumeration = test.enumeration;
+   member->dim = test.dim;
+   member->spec = test.spec;
+   // Void members not allowed.
    if ( member->spec == SPEC_VOID && ! member->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &member->object.pos, member->dim ?
          "array struct member has void element type" :
          "struct member has void type" );
+      s_bail( semantic );
+   }
+   // Every member of a public structure must have a public type.
+   if ( ! semantic->in_localscope && ! structure->hidden &&
+      ! test.public_spec ) {
+      s_diag( semantic, DIAG_POS_ERR, &member->object.pos,
+         "member of non-private struct has a private type" );
       s_bail( semantic );
    }
    if ( member->spec == SPEC_STRUCT ) {
@@ -457,10 +466,10 @@ bool test_member_spec( struct semantic* semantic,
    }
 }
 
-bool test_member_ref( struct semantic* semantic,
+bool test_member_ref( struct semantic* semantic, struct structure* structure,
    struct structure_member* member ) {
    struct ref_test test;
-   init_ref_test( &test, member->ref, member->spec );
+   init_ref_test( &test, member->ref, member->spec, ( ! structure->hidden ) );
    return test_ref( semantic, &test );
 }
 
@@ -495,21 +504,25 @@ void s_test_type_alias( struct semantic* semantic, struct type_alias* alias ) {
 }
 
 bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
-   if ( alias->spec >= SPEC_NAME ) {
-      struct name_spec_test test;
-      init_name_spec_test( &test, alias->path, &alias->object, alias->ref,
-         alias->dim, alias->spec );
-      test_name_spec( semantic, &test );
-      alias->ref = test.ref;
-      alias->structure = test.structure;
-      alias->enumeration = test.enumeration;
-      alias->dim = test.dim;
-      alias->spec = test.spec;
-   }
+   struct spec_test test;
+   init_spec_test( &test, alias->path, &alias->object, alias->ref,
+      alias->structure, alias->enumeration, alias->dim, alias->spec );
+   test_spec( semantic, &test );
+   alias->ref = test.ref;
+   alias->structure = test.structure;
+   alias->enumeration = test.enumeration;
+   alias->dim = test.dim;
+   alias->spec = test.spec;
    if ( alias->spec == SPEC_VOID && ! alias->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &alias->object.pos, alias->dim ?
          "array type synonym has void element type" :
          "type synonym has void type" );
+      s_bail( semantic );
+   }
+   // Public type alias must have a public type.
+   if ( ! semantic->in_localscope && ! alias->hidden && ! test.public_spec ) {
+      s_diag( semantic, DIAG_POS_ERR, &alias->object.pos,
+         "non-private type alias has a private type" );
       s_bail( semantic );
    }
    if ( alias->spec == SPEC_STRUCT ) {
@@ -525,7 +538,7 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
 
 bool test_typedef_ref( struct semantic* semantic, struct type_alias* alias ) {
    struct ref_test test;
-   init_ref_test( &test, alias->ref, alias->spec );
+   init_ref_test( &test, alias->ref, alias->spec, false );
    return test_ref( semantic, &test );
 }
 
@@ -566,21 +579,26 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
 }
 
 bool test_var_spec( struct semantic* semantic, struct var* var ) {
-   if ( var->spec >= SPEC_NAME ) {
-      struct name_spec_test test;
-      init_name_spec_test( &test, var->type_path, &var->object, var->ref,
-         var->dim, var->spec );
-      test.object = &var->object;
-      test_name_spec( semantic, &test );
-      var->ref = test.ref;
-      var->structure = test.structure;
-      var->enumeration = test.enumeration;
-      var->dim = test.dim;
-      var->spec = test.spec;
-   }
+   struct spec_test test;
+   init_spec_test( &test, var->type_path, &var->object, var->ref,
+      var->structure, var->enumeration, var->dim, var->spec );
+   test.object = &var->object;
+   test_spec( semantic, &test );
+   var->ref = test.ref;
+   var->structure = test.structure;
+   var->enumeration = test.enumeration;
+   var->dim = test.dim;
+   var->spec = test.spec;
+   // Variable must be of a valid type.
    if ( var->spec == SPEC_VOID && ! var->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos, var->dim ?
          "array has void element type" : "variable has void type" );
+      s_bail( semantic );
+   }
+   // Public (visible to a user of a library) variable must have a public type.
+   if ( ! semantic->in_localscope && ! var->hidden && ! test.public_spec ) {
+      s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
+         "non-private variable has a private type" );
       s_bail( semantic );
    }
    if ( var->spec == SPEC_STRUCT ) {
@@ -594,26 +612,73 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
    }
 }
 
-void init_name_spec_test( struct name_spec_test* test, struct path* path,
-   struct object* object, struct ref* ref, struct dim* dim, int spec ) {
+void init_spec_test( struct spec_test* test, struct path* path,
+   struct object* object, struct ref* ref, struct structure* structure,
+   struct enumeration* enumeration, struct dim* dim, int spec ) {
    test->object = object;
+   test->type_alias = NULL;
    test->ref = ref;
-   test->structure = NULL;
-   test->enumeration = NULL;
+   test->structure = structure;
+   test->enumeration = enumeration;
    test->dim = dim;
    test->path = path;
-   test->spec = spec - SPEC_NAME;
+   test->spec = spec;
+   test->public_spec = false;
 }
 
-void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
-   if ( test->spec == SPEC_ENUM ) {
+void test_spec( struct semantic* semantic, struct spec_test* test ) {
+   // Find the specifier.
+   if ( test->spec >= SPEC_NAME ) {
+      find_name_spec( semantic, test );
+   }
+   // Determine the visibility of the specifier.
+   switch ( test->spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+   case SPEC_VOID:
+      test->public_spec = true;
+      break;
+   case SPEC_ENUM:
+      test->public_spec = ( ! test->enumeration->hidden );
+      break;
+   case SPEC_STRUCT:
+      test->public_spec = ( ! test->structure->hidden );
+      break;
+   case SPEC_NAME:
+      test->public_spec = ( ( test->type_alias->node.type == NODE_FUNC &&
+         ! ( ( struct func* ) test->type_alias )->hidden ) ||
+         ( test->type_alias->node.type == NODE_TYPE_ALIAS &&
+         ! ( ( struct type_alias* ) test->type_alias )->hidden ) );
+      break;
+   default:
+      UNREACHABLE();
+   }
+   // Expand type alias.
+   if ( test->spec == SPEC_NAME ) {
+      if ( test->type_alias->node.type == NODE_FUNC ) {
+         merge_func_type( semantic, test,
+            ( struct func* ) test->type_alias );
+      }
+      else {
+         merge_type( semantic, test,
+            ( struct type_alias* ) test->type_alias );
+      }
+   }
+}
+
+void find_name_spec( struct semantic* semantic, struct spec_test* test ) {
+   int decoded_spec = test->spec - SPEC_NAME;
+   if ( decoded_spec == SPEC_ENUM ) {
       struct follower follower;
       s_init_follower( &follower, test->path, NODE_ENUMERATION );
       s_follow_path( semantic, &follower );
       test->enumeration = follower.result.enumeration;
       test->spec = SPEC_ENUM;
    }
-   else if ( test->spec == SPEC_STRUCT ) {
+   else if ( decoded_spec == SPEC_STRUCT ) {
       struct follower follower;
       s_init_follower( &follower, test->path, NODE_STRUCTURE );
       s_follow_path( semantic, &follower );
@@ -625,12 +690,10 @@ void test_name_spec( struct semantic* semantic, struct name_spec_test* test ) {
       s_init_follower( &follower, test->path, NODE_NONE );
       s_follow_path( semantic, &follower );
       struct object* object = follower.result.object;
-      if ( object->node.type == NODE_TYPE_ALIAS ) {
-         merge_type( semantic, test, ( struct type_alias* ) object );
-      }
-      else if ( object->node.type == NODE_FUNC &&
-         ( ( struct func* ) object )->type == FUNC_ALIAS ) {
-         merge_func_type( semantic, test, ( struct func* ) object );
+      if ( object->node.type == NODE_TYPE_ALIAS ||
+         ( object->node.type == NODE_FUNC &&
+         ( ( struct func* ) object )->type == FUNC_ALIAS ) ) {
+         test->type_alias = object;
       }
       else {
          struct path* path = s_last_path_part( test->path );
@@ -648,7 +711,7 @@ struct path* s_last_path_part( struct path* path ) {
    return path;
 }
 
-void merge_type( struct semantic* semantic, struct name_spec_test* test,
+void merge_type( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias ) {
    test->spec = alias->spec;
    test->structure = alias->structure;
@@ -672,7 +735,7 @@ void merge_type( struct semantic* semantic, struct name_spec_test* test,
    }
 }
 
-void merge_ref( struct semantic* semantic, struct name_spec_test* test,
+void merge_ref( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias ) {
    struct ref* ref = test->ref;
    while ( ref->next ) {
@@ -738,7 +801,7 @@ void merge_ref( struct semantic* semantic, struct name_spec_test* test,
    }
 }
 
-void merge_func_type( struct semantic* semantic, struct name_spec_test* test,
+void merge_func_type( struct semantic* semantic, struct spec_test* test,
    struct func* alias ) {
    test->spec = alias->return_spec;
    test->structure = alias->structure;
@@ -797,17 +860,17 @@ struct ref* get_last_ref_part( struct ref* ref ) {
 }
 
 bool test_var_ref( struct semantic* semantic, struct var* var ) {
-   if ( var->ref ) {
-      struct ref_test test;
-      init_ref_test( &test, var->ref, var->spec );
-      return test_ref( semantic, &test );
-   }
-   return true;
+   struct ref_test test;
+   init_ref_test( &test, var->ref, var->spec,
+      ( ! semantic->in_localscope && ! var->hidden ) );
+   return test_ref( semantic, &test );
 }
 
-void init_ref_test( struct ref_test* test, struct ref* ref, int spec ) {
+void init_ref_test( struct ref_test* test, struct ref* ref, int spec,
+   bool need_public_spec ) {
    test->ref = ref;
    test->spec = spec;
+   test->need_public_spec = need_public_spec;
 }
 
 bool test_ref( struct semantic* semantic, struct ref_test* test ) {
@@ -868,7 +931,7 @@ bool test_ref_func( struct semantic* semantic, struct ref_test* test,
    }
    s_add_scope( semantic, true );
    struct param_list_test param_test;
-   init_param_list_test( &param_test, NULL, func );
+   init_param_list_test( &param_test, NULL, func, test->need_public_spec );
    bool resolved = test_param_list( semantic, &param_test );
    s_pop_scope( semantic );
    return resolved;
@@ -1862,21 +1925,27 @@ bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
          s_bail( semantic );
       }
    }
-   if ( func->return_spec >= SPEC_NAME ) {
-      struct name_spec_test test;
-      init_name_spec_test( &test, func->path, &func->object, func->ref, NULL,
-         func->return_spec );
-      test_name_spec( semantic, &test );
-      func->ref = test.ref;
-      func->structure = test.structure;
-      func->enumeration = test.enumeration;
-      func->return_spec = test.spec;
-   }
+   struct spec_test test;
+   init_spec_test( &test, func->path, &func->object, func->ref,
+      func->structure, func->enumeration, NULL, func->return_spec );
+   test_spec( semantic, &test );
+   func->ref = test.ref;
+   func->structure = test.structure;
+   func->enumeration = test.enumeration;
+   func->return_spec = test.spec;
+   // Functions cannot return aggregate types. Aggregate types must be returned
+   // by reference.
    if ( func->return_spec == SPEC_STRUCT && ! func->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
          "function returning a struct by value" );
       s_diag( semantic, DIAG_POS, &func->object.pos,
          "a struct can only be returned by reference" );
+      s_bail( semantic );
+   }
+   // Public function must have a public return type.
+   if ( ! semantic->in_localscope && ! func->hidden && ! test.public_spec ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "non-private function has a private return type" );
       s_bail( semantic );
    }
    if ( func->return_spec == SPEC_STRUCT ) {
@@ -1892,7 +1961,7 @@ bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
 
 bool test_func_ref( struct semantic* semantic, struct func* func ) {
    struct ref_test test;
-   init_ref_test( &test, func->ref, func->return_spec );
+   init_ref_test( &test, func->ref, func->return_spec, ( ! func->hidden ) );
    return test_ref( semantic, &test );
 }
 
@@ -1912,7 +1981,8 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
 bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    s_add_scope( semantic, true );
    struct param_list_test param_test;
-   init_param_list_test( &param_test, func, NULL );
+   init_param_list_test( &param_test, func, NULL,
+      ( semantic->depth == 1 && ! func->hidden ) );
    bool resolved = test_param_list( semantic, &param_test );
    s_pop_scope( semantic );
    if ( resolved && func->external ) {
@@ -1922,7 +1992,7 @@ bool test_func_after_name( struct semantic* semantic, struct func* func ) {
 }
 
 void init_param_list_test( struct param_list_test* test, struct func* func,
-   struct ref_func* func_ref ) {
+   struct ref_func* func_ref, bool need_public_spec ) {
    test->func = func;
    test->func_ref = func_ref;
    if ( func_ref ) {
@@ -1932,6 +2002,7 @@ void init_param_list_test( struct param_list_test* test, struct func* func,
       test->params = func->params;
    }
    test->prev_param = NULL;
+   test->need_public_spec = need_public_spec;
 }
 
 bool test_param_list( struct semantic* semantic,
@@ -1966,8 +2037,8 @@ bool test_param_list( struct semantic* semantic,
 void test_param( struct semantic* semantic, struct param_list_test* test,
    struct param* param ) {
    param->object.resolved =
-      test_param_spec( semantic, param ) &&
-      test_param_ref( semantic, param ) &&
+      test_param_spec( semantic, test, param ) &&
+      test_param_ref( semantic, test, param ) &&
       test_param_name( semantic, param ) &&
       test_param_after_name( semantic, test, param );
    if ( param->object.resolved ) {
@@ -1975,20 +2046,25 @@ void test_param( struct semantic* semantic, struct param_list_test* test,
    }
 }
 
-bool test_param_spec( struct semantic* semantic, struct param* param ) {
-   if ( param->spec >= SPEC_NAME ) {
-      struct name_spec_test test;
-      init_name_spec_test( &test, param->path, &param->object, param->ref,
-         NULL, param->spec );
-      test_name_spec( semantic, &test );
-      param->ref = test.ref;
-      param->structure = test.structure;
-      param->enumeration = test.enumeration;
-      param->spec = test.spec;
-   }
+bool test_param_spec( struct semantic* semantic, struct param_list_test* test,
+   struct param* param ) {
+   struct spec_test spec_test;
+   init_spec_test( &spec_test, param->path, &param->object, param->ref,
+      param->structure, param->enumeration, NULL, param->spec );
+   test_spec( semantic, &spec_test );
+   param->ref = spec_test.ref;
+   param->structure = spec_test.structure;
+   param->enumeration = spec_test.enumeration;
+   param->spec = spec_test.spec;
    if ( param->spec == SPEC_STRUCT && ! param->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
          "struct parameter (structs can only be passed by reference)" );
+      s_bail( semantic );
+   }
+   // For a public function, every parameter type must be public.
+   if ( test->need_public_spec && ! spec_test.public_spec ) {
+      s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
+         "parameter of non-private function has a private type" );
       s_bail( semantic );
    }
    if ( param->spec == SPEC_STRUCT ) {
@@ -2002,10 +2078,11 @@ bool test_param_spec( struct semantic* semantic, struct param* param ) {
    }
 }
 
-bool test_param_ref( struct semantic* semantic, struct param* param ) {
-   struct ref_test test;
-   init_ref_test( &test, param->ref, param->spec );
-   return test_ref( semantic, &test );
+bool test_param_ref( struct semantic* semantic, struct param_list_test* test,
+   struct param* param ) {
+   struct ref_test ref_test;
+   init_ref_test( &ref_test, param->ref, param->spec, test->need_public_spec );
+   return test_ref( semantic, &ref_test );
 }
 
 bool test_param_name( struct semantic* semantic, struct param* param ) {
