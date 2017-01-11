@@ -2050,7 +2050,13 @@ bool test_param_spec( struct semantic* semantic, struct param_list_test* test,
    param->structure = spec_test.structure;
    param->enumeration = spec_test.enumeration;
    param->spec = spec_test.spec;
-   if ( param->spec == SPEC_STRUCT && ! param->ref ) {
+   // Parameter must have a valid type.
+   if ( param->spec == SPEC_VOID && ! param->ref ) {
+      s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
+         "void parameter" );
+      s_bail( semantic );
+   }
+   else if ( param->spec == SPEC_STRUCT && ! param->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &param->object.pos,
          "struct parameter (structs can only be passed by reference)" );
       s_bail( semantic );
