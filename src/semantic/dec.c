@@ -639,6 +639,8 @@ void test_spec( struct semantic* semantic, struct spec_test* test ) {
    case SPEC_BOOL:
    case SPEC_STR:
    case SPEC_VOID:
+   case SPEC_AUTO:
+   case SPEC_AUTOENUM:
       test->public_spec = true;
       break;
    case SPEC_ENUM:
