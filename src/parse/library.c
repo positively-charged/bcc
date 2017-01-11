@@ -103,13 +103,8 @@ void read_module_item( struct parse* parse ) {
       case TK_HASH:
          read_pseudo_dirc( parse, false );
          break;
-      case TK_STRICT:
-      case TK_NAMESPACE:
-         read_namespace( parse );
-         break;
       default:
          read_namespace_member( parse );
-         break;
       }
       break;
    }
@@ -380,6 +375,10 @@ struct path* p_read_path( struct parse* parse ) {
       path->upmost = true;
       p_read_tk( parse );
    }
+   else if ( parse->tk == TK_NAMESPACE ) {
+      path->current_ns = true;
+      p_read_tk( parse );
+   }
    else {
       p_test_tk( parse, TK_ID );
       path->text = parse->tk_text;
@@ -406,6 +405,7 @@ struct path* alloc_path( struct pos pos ) {
    path->text = "";
    path->pos = pos;
    path->upmost = false;
+   path->current_ns = false;
    return path;
 }
 
@@ -415,7 +415,8 @@ bool p_peek_type_path( struct parse* parse ) {
    }
    else if (
       parse->tk == TK_ID ||
-      parse->tk == TK_UPMOST ) {
+      parse->tk == TK_UPMOST ||
+      parse->tk == TK_NAMESPACE ) {
       struct parsertk_iter iter;
       p_init_parsertk_iter( parse, &iter );
       p_next_tk( parse, &iter );
@@ -450,6 +451,10 @@ struct path* p_read_type_path( struct parse* parse ) {
       struct path* path = alloc_path( parse->tk_pos );
       if ( parse->tk == TK_UPMOST ) {
          path->upmost = true;
+         p_read_tk( parse );
+      }
+      else if ( parse->tk == TK_NAMESPACE ) {
+         path->current_ns = true;
          p_read_tk( parse );
       }
       else {

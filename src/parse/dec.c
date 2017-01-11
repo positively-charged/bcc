@@ -225,6 +225,7 @@ bool is_dec_bcs( struct parse* parse ) {
          return true;
       case TK_ID:
       case TK_UPMOST:
+      case TK_NAMESPACE:
          return p_peek_type_path( parse );
       default:
          return false;
@@ -874,6 +875,7 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
          break;
       case TK_ID:
       case TK_UPMOST:
+      case TK_NAMESPACE:
       case TK_TYPENAME:
          spec->type = SPEC_NAME;
          spec->path = p_read_type_path( parse );

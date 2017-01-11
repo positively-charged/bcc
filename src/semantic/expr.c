@@ -209,6 +209,8 @@ static void test_anon_func( struct semantic* semantic, struct result* result,
 static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren );
 static void test_upmost( struct semantic* semantic, struct result* result );
+static void test_current_namespace( struct semantic* semantic,
+   struct result* result );
 static void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result );
 static bool is_value_type( struct semantic* semantic, struct result* result );
@@ -2177,6 +2179,9 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
    case NODE_UPMOST:
       test_upmost( semantic, result );
       break;
+   case NODE_CURRENTNAMESPACE:
+      test_current_namespace( semantic, result );
+      break;
    case NODE_NULL:
       result->null = true;
       result->complete = true;
@@ -2889,6 +2894,11 @@ void test_paren( struct semantic* semantic, struct expr_test* test,
 
 void test_upmost( struct semantic* semantic, struct result* result ) {
    result->object = &semantic->task->upmost_ns->object;
+}
+
+void test_current_namespace( struct semantic* semantic,
+   struct result* result ) {
+   result->object = &semantic->ns->object;
 }
 
 void init_type_info( struct semantic* semantic, struct type_info* type,

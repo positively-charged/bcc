@@ -106,6 +106,7 @@ struct node {
       NODE_NAMESPACEFRAGMENT,
       // 50
       NODE_UPMOST,
+      NODE_CURRENTNAMESPACE,
       NODE_USING,
       NODE_MEMCPY,
       NODE_CONVERSION,
@@ -146,6 +147,7 @@ struct path {
    const char* text;
    struct pos pos;
    bool upmost;
+   bool current_ns;
 };
 
 enum {

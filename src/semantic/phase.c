@@ -765,6 +765,10 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
          ns = semantic->task->upmost_ns;
          path = path->next;
       }
+      else if ( path->current_ns ) {
+         ns = semantic->ns;
+         path = path->next;
+      }
       else {
          struct object_search search;
          s_init_object_search( &search, NODE_NONE, &path->pos, path->text );
@@ -806,6 +810,9 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
    else {
       if ( path->upmost ) {
          object = &semantic->task->upmost_ns->object;
+      }
+      else if ( path->current_ns ) {
+         object = &semantic->ns->object;
       }
       else {
          struct object_search search;

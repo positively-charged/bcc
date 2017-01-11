@@ -62,6 +62,8 @@ static void read_string( struct parse* parse, struct expr_reading* reading );
 static void read_boolean( struct parse* parse, struct expr_reading* reading );
 static void read_null( struct parse* parse, struct expr_reading* reading );
 static void read_upmost( struct parse* parse, struct expr_reading* reading );
+static void read_current_namespace( struct parse* parse,
+   struct expr_reading* reading );
 static int convert_numerictoken_to_int( struct parse* parse, int base );
 static int extract_radix_literal( struct parse* parse );
 static void read_sure( struct parse* parse, struct expr_reading* reading );
@@ -563,6 +565,9 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_UPMOST:
       read_upmost( parse, reading );
       break;
+   case TK_NAMESPACE:
+      read_current_namespace( parse, reading );
+      break;
    case TK_STRCPY:
       read_strcpy( parse, reading );
       break;
@@ -653,11 +658,18 @@ void read_null( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &node;
 }
 
-
 void read_upmost( struct parse* parse, struct expr_reading* reading ) {
    static struct node node = { NODE_UPMOST };
    reading->node = &node;
    p_test_tk( parse, TK_UPMOST );
+   p_read_tk( parse );
+}
+
+void read_current_namespace( struct parse* parse,
+   struct expr_reading* reading ) {
+   static struct node node = { NODE_CURRENTNAMESPACE };
+   reading->node = &node;
+   p_test_tk( parse, TK_NAMESPACE );
    p_read_tk( parse );
 }
 
