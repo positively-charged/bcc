@@ -513,12 +513,6 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
    alias->enumeration = test.enumeration;
    alias->dim = test.dim;
    alias->spec = test.spec;
-   if ( alias->spec == SPEC_VOID && ! alias->ref ) {
-      s_diag( semantic, DIAG_POS_ERR, &alias->object.pos, alias->dim ?
-         "array type synonym has void element type" :
-         "type synonym has void type" );
-      s_bail( semantic );
-   }
    // Public type alias must have a public type.
    if ( ! semantic->in_localscope && ! alias->hidden && ! test.public_spec ) {
       s_diag( semantic, DIAG_POS_ERR, &alias->object.pos,
