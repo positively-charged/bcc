@@ -1000,7 +1000,9 @@ enum {
 enum {
    PRINTNAME_LEVELNAME = -1,
    PRINTNAME_LEVEL = -2,
-   PRINTNAME_SKILL = -3
+   PRINTNAME_SKILL = -3,
+   PRINTNAME_NEXTLEVEL = -4,
+   PRINTNAME_NEXTSECRET = -5
 };
 
 enum {
@@ -1561,6 +1563,8 @@ special
 -201:DamageActor(int,int,int,int,int,str):int,
 -202:SetActorFlag(int,str,bool):int,
 -203:SetTranslation(int,str):void,
+-204:GetActorFloorTexture(int):str,
+-205:GetActorFloorTerrain(int):str,
 -300:GetLineX(int,fixed,fixed):fixed,
 -301:GetLineY(int,fixed,fixed):fixed,
 
