@@ -317,7 +317,14 @@ int c_total_param_size( struct func* func ) {
    return size;
 }
 
+// If a library has only private functions and the FNAM chunk is missing, the
+// game engine will crash when attempting to execute the `acsprofile` command.
+// Always output the FNAM chunk if the FUNC chunk is present, even if the FNAM
+// chunk will end up being empty.
 void do_fnam( struct codegen* codegen ) {
+   if ( list_size( &codegen->funcs ) == 0 ) {
+      return;
+   }
    int count = 0;
    int size = 0;
    list_iter_t i;
@@ -329,9 +336,6 @@ void do_fnam( struct codegen* codegen ) {
          ++count;
       }
       list_next( &i );
-   }
-   if ( count == 0 ) {
-      return;
    }
    int offset =
       sizeof( int ) +
