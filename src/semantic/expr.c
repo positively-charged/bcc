@@ -804,6 +804,18 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
+   // Record the fact that the object was modified.
+   if ( lside.object ) {
+      switch ( lside.object->node.type ) {
+      case NODE_VAR: {
+            struct var* var = ( struct var* ) lside.object;
+            var->modified = true;
+         }
+         break;
+      default:
+         break;
+      }
+   }
    // To avoid the error where the user wanted equality operator but instead
    // typed in the assignment operator, suggest that assignment be wrapped in
    // parentheses.
@@ -1173,6 +1185,18 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
          "invalid %s operation", inc->dec ?
             "decrement" : "increment" );
       s_bail( semantic );
+   }
+   // Record the fact that the object is modified.
+   if ( operand.object ) {
+      switch ( operand.object->node.type ) {
+      case NODE_VAR: {
+            struct var* var = ( struct var* ) operand.object;
+            var->modified = true;
+         }
+         break;
+      default:
+         break;
+      }
    }
 }
 
@@ -2552,6 +2576,7 @@ void select_var( struct semantic* semantic, struct result* result,
       result->spec = s_spec( semantic, var->spec );
       result->modifiable = ( ! var->constant );
    }
+   result->object = &var->object;
    result->complete = true;
    result->usable = true;
    var->used = true;

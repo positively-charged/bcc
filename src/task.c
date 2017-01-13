@@ -852,6 +852,7 @@ struct var* t_alloc_var( void ) {
    var->initz_zero = false;
    var->hidden = false;
    var->used = false;
+   var->modified = false;
    var->initial_has_str = false;
    var->imported = false;
    var->is_constant_init = false;

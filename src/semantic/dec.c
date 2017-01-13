@@ -1890,7 +1890,6 @@ void s_test_foreach_var( struct semantic* semantic,
       s_bail( semantic );
    }
    s_bind_local_name( semantic, var->name, &var->object, true );
-   var->constant = true;
    var->object.resolved = resolved;
    s_calc_var_size( var );
 }

@@ -702,6 +702,7 @@ struct var {
    bool initz_zero;
    bool hidden;
    bool used;
+   bool modified;
    bool initial_has_str;
    bool imported;
    bool is_constant_init;
