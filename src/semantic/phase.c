@@ -66,11 +66,14 @@ static void search_linked_object( struct semantic* semantic,
    struct object_search* search );
 static void test_objects( struct semantic* semantic );
 static void test_all( struct semantic* semantic );
+static void test_lib( struct semantic* semantic, struct library* lib );
 static void test_namespace( struct semantic* semantic,
    struct ns_fragment* fragment );
 static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
+static void test_objects_bodies_lib( struct semantic* semantic,
+   struct library* lib );
 static void test_objects_bodies_ns( struct semantic* semantic,
    struct ns_fragment* fragment );
 static void check_dup_scripts( struct semantic* semantic );
@@ -987,13 +990,24 @@ void test_all( struct semantic* semantic ) {
    list_iter_t i;
    list_iter_init( &i, &semantic->main_lib->dynamic_bcs );
    while ( ! list_end( &i ) ) {
-      semantic->lib = list_data( &i );
-      show_private_objects( semantic );
-      test_namespace( semantic, semantic->lib->upmost_ns_fragment );
-      hide_private_objects( semantic );
+      test_lib( semantic, list_data( &i ) );
       list_next( &i );
    }
-   test_namespace( semantic, semantic->main_lib->upmost_ns_fragment );
+   test_lib( semantic, semantic->main_lib );
+}
+
+void test_lib( struct semantic* semantic, struct library* lib ) {
+   struct library* prev_lib = semantic->lib;
+   semantic->lib = lib;
+   if ( lib->imported ) {
+      show_private_objects( semantic );
+      test_namespace( semantic, lib->upmost_ns_fragment );
+      hide_private_objects( semantic );
+   }
+   else {
+      test_namespace( semantic, lib->upmost_ns_fragment );
+   }
+   semantic->lib = prev_lib;
 }
 
 void test_namespace( struct semantic* semantic,
@@ -1074,9 +1088,28 @@ void test_namespace_object( struct semantic* semantic,
 
 void test_objects_bodies( struct semantic* semantic ) {
    semantic->trigger_err = true;
-   semantic->lib = semantic->main_lib;
-   test_objects_bodies_ns( semantic,
-      semantic->task->library_main->upmost_ns_fragment );
+   list_iter_t i;
+   list_iter_init( &i, &semantic->main_lib->dynamic_bcs );
+   while ( ! list_end( &i ) ) {
+      test_objects_bodies_lib( semantic, list_data( &i ) );
+      list_next( &i );
+   }
+   test_objects_bodies_lib( semantic, semantic->main_lib );
+}
+
+void test_objects_bodies_lib( struct semantic* semantic,
+   struct library* lib ) {
+   struct library* prev_lib = semantic->lib;
+   semantic->lib = lib;
+   if ( lib->imported ) {
+      show_private_objects( semantic );
+      test_objects_bodies_ns( semantic, lib->upmost_ns_fragment );
+      hide_private_objects( semantic );
+   }
+   else {
+      test_objects_bodies_ns( semantic, lib->upmost_ns_fragment );
+   }
+   semantic->lib = prev_lib;
 }
 
 void test_objects_bodies_ns( struct semantic* semantic,
@@ -1091,13 +1124,18 @@ void test_objects_bodies_ns( struct semantic* semantic,
       s_test_script( semantic, list_data( &i ) );
       list_next( &i );
    }
-   list_iter_init( &i, &fragment->funcs );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      if ( func->type == FUNC_USER ) {
-         s_test_func_body( semantic, func );
+   // Test only the bodies of functions found in the main library. For an
+   // imported library, function bodies are stripped away during parsing, so
+   // there is nothing to test.
+   if ( semantic->lib == semantic->main_lib ) {
+      list_iter_init( &i, &fragment->funcs );
+      while ( ! list_end( &i ) ) {
+         struct func* func = list_data( &i );
+         if ( func->type == FUNC_USER ) {
+            s_test_func_body( semantic, func );
+         }
+         list_next( &i );
       }
-      list_next( &i );
    }
    list_iter_init( &i, &fragment->fragments );
    while ( ! list_end( &i ) ) {

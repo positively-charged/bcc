@@ -830,7 +830,6 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->lib = lib;
    p_load_imported_lib_source( parse, dirc, query.file );
-   lib->imported = true;
    parse->ns_fragment = lib->upmost_ns_fragment;
    parse->ns = parse->ns_fragment->ns;
    p_clear_macros( parse );
@@ -848,6 +847,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
       cache_add( parse->cache, lib );
    }
    have_lib:
+   lib->imported = true;
    // Append library.
    list_iter_init( &i, &parse->task->library_main->dynamic );
    while ( ! list_end( &i ) ) {
