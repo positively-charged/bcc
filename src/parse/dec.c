@@ -125,6 +125,7 @@ static struct var* alloc_var( struct dec* dec );
 static void finish_type_alias( struct parse* parse, struct dec* dec );
 static void read_auto_instance_list( struct parse* parse, struct dec* dec );
 static void read_foreach_var( struct parse* parse, struct dec* dec );
+static bool is_cast_spec( struct parse* parse, int spec );
 static void read_func( struct parse* parse, struct dec* dec );
 static struct func* alloc_func( struct parse* parse, struct dec* dec );
 static void read_func_param_list( struct parse* parse, struct func* func );
@@ -1830,7 +1831,8 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
       reading->func = func;
    }
    // Compound literal.
-   else if ( dec.static_qual || dec.dim || parse->tk == TK_BRACE_L ) {
+   else if ( dec.static_qual || dec.dim || parse->tk == TK_BRACE_L ||
+      ! is_cast_spec( parse, dec.spec ) ) {
       // Inializer.
       dec.initz.pos = parse->tk_pos;
       dec.initz.specified = true;
@@ -1850,6 +1852,19 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    else {
       reading->cast.pos = dec.pos;
       reading->cast.spec = dec.spec;
+   }
+}
+
+bool is_cast_spec( struct parse* parse, int spec ) {
+   switch ( spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+      return true;
+   default:
+      return false;
    }
 }
 
