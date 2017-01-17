@@ -37,7 +37,7 @@ void p_load_main_source( struct parse* parse ) {
    }
    else {
       p_diag( parse, DIAG_ERR,
-         "failed to load source file: %s (%s)",
+         "failed to load source file: \"%s\" (%s)",
          parse->task->options->source_file, strerror( errno ) );
       p_bail( parse );
    }
@@ -57,7 +57,7 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    }
    else {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
-         "failed to load library file: %s", dirc->file_path );
+         "failed to load library file: \"%s\"", dirc->file_path );
       p_bail( parse );
    }
 }
@@ -90,7 +90,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
       }
       else {
          p_diag( parse, DIAG_POS_ERR, pos,
-            "failed to load file: %s", file_path );
+            "failed to load file: \"%s\"", file_path );
          p_bail( parse );
       }
    }

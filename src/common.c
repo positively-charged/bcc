@@ -491,6 +491,12 @@ bool fs_delete_file( const char* path ) {
    return ( DeleteFileA( path ) == TRUE );
 }
 
+bool c_is_absolute_path( const char* path ) {
+   return ( ( isalpha( path[ 0 ] ) && path[ 1 ] == ':' &&
+      ( path[ 2 ] == '\\' || path[ 2 ] == '/' ) ) || path[ 0 ] == '\\' ||
+      path[ 0 ] == '/' ); 
+}
+
 #else
 
 #include <unistd.h>
@@ -579,6 +585,10 @@ const char* fs_get_tempdir( void ) {
 
 bool fs_delete_file( const char* path ) {
    return ( unlink( path ) == 0 );
+}
+
+bool c_is_absolute_path( const char* path ) {
+   return ( path[ 0 ] == '/' ); 
 }
 
 #endif

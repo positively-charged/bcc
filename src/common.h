@@ -171,5 +171,6 @@ const char* fs_get_tempdir( void );
 void fs_get_file_contents( const char* path, struct file_contents* contents );
 void fs_strip_trailing_pathsep( struct str* path );
 bool fs_delete_file( const char* path );
+bool c_is_absolute_path( const char* path );
 
 #endif

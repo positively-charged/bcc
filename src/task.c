@@ -27,6 +27,8 @@ static void open_logfile( struct task* task );
 static void decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 static bool identify_file( struct task* task, struct file_query* query );
+static bool identify_file_relative( struct task* task,
+   struct file_query* query );
 static struct file_entry* add_file( struct task* task,
    struct file_query* query );
 static struct file_entry* create_file_entry( struct task* task,
@@ -479,17 +481,33 @@ void t_find_file( struct task* task, struct file_query* query ) {
 }
 
 bool identify_file( struct task* task, struct file_query* query ) {
-   // Try path directly.
-   str_append( query->path, query->given_path );
-   if ( c_read_fileid( &query->fileid, query->path->value ) ) {
-      return true;
+   // Absolute path.
+   if ( c_is_absolute_path( query->given_path ) ) {
+      str_append( query->path, query->given_path );
+      return c_read_fileid( &query->fileid, query->path->value );
    }
+   // Relative path.
+   else {
+      return identify_file_relative( task, query );
+   }
+}
+
+bool identify_file_relative( struct task* task, struct file_query* query ) {
    // Try directory of current file.
    if ( query->offset_file ) {
-      str_copy( query->path, query->offset_file->full_path.value,
-         query->offset_file->full_path.length );
+      str_copy( query->path, query->offset_file->path.value,
+         query->offset_file->path.length );
       c_extract_dirname( query->path );
-      str_append( query->path, "/" );
+      if ( query->path->length > 0 ) {
+         str_append( query->path, OS_PATHSEP );
+      }
+      str_append( query->path, query->given_path );
+      if ( c_read_fileid( &query->fileid, query->path->value ) ) {
+         return true;
+      }
+   }
+   // Try path directly.
+   else {
       str_append( query->path, query->given_path );
       if ( c_read_fileid( &query->fileid, query->path->value ) ) {
          return true;
@@ -502,7 +520,7 @@ bool identify_file( struct task* task, struct file_query* query ) {
       char* include = list_data( &i ); 
       str_clear( query->path );
       str_append( query->path, include );
-      str_append( query->path, "/" );
+      str_append( query->path, OS_PATHSEP );
       str_append( query->path, query->given_path );
       if ( c_read_fileid( &query->fileid, query->path->value ) ) {
          return true;
@@ -529,7 +547,7 @@ struct file_entry* create_file_entry( struct task* task,
    entry->next = NULL;
    entry->file_id = query->fileid;
    str_init( &entry->path );
-   str_append( &entry->path, query->given_path );
+   str_append( &entry->path, query->path->value );
    str_init( &entry->full_path );
    c_read_full_path( query->path->value, &entry->full_path );
    entry->id = task->last_id;
