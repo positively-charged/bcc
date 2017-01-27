@@ -445,6 +445,10 @@ struct parse {
    bool main_source_deinited;
    bool variadic_macro_context;
    struct include_history_entry* include_history_entry;
+   struct {
+      struct pos pos;
+      bool included;
+   } zcommon;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );

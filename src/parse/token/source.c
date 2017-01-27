@@ -101,6 +101,21 @@ void p_load_included_source( struct parse* parse, const char* file_path,
       }
    }
    parse->source_entry->prev_tk = TK_NL;
+   // A common mistake is for the user to #include the zcommon.acs file
+   // multiple times. Error out when this happens.
+   if ( strcmp( file_path, "zcommon.acs" ) == 0 ) {
+      if ( ! parse->zcommon.included ) {
+         parse->zcommon.pos = *pos;
+         parse->zcommon.included = true;
+      }
+      else {
+         p_diag( parse, DIAG_POS_ERR, pos,
+            "#including zcommon.acs file multiple times" );
+         p_diag( parse, DIAG_POS | DIAG_NOTE, &parse->zcommon.pos,
+            "zcommon.acs file first #included here" );
+         p_bail( parse );
+      }
+   }
 }
 
 void append_file( struct library* lib, struct file_entry* file ) {
