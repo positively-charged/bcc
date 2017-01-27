@@ -2303,18 +2303,14 @@ void init_builtin_aliases( struct semantic* semantic, struct func* func,
    aliases->funcname.object.resolved = true;
    struct alias* alias = &aliases->funcname.alias;
    s_init_alias( alias );
-   alias->object.pos = impl->body->pos;
    alias->object.resolved = true;
    alias->target = &aliases->funcname.object;
-   alias->implicit = true;
    // append().
    if ( func->msgbuild ) {
       alias = &aliases->append.alias;
       s_init_alias( alias );
-      alias->object.pos = impl->body->pos;
       alias->object.resolved = true;
       alias->target = &semantic->task->append_func->object;
-      alias->implicit = true;
       aliases->append.used = true;
    }
    else {
@@ -2470,10 +2466,8 @@ void init_builtin_script_aliases( struct semantic* semantic,
    aliases->script_id.object.resolved = true;
    struct alias* alias = &aliases->script_id.alias;
    s_init_alias( alias );
-   alias->object.pos = script->pos;
    alias->object.resolved = true;
    alias->target = &aliases->script_id.object;
-   alias->implicit = true;
    struct name* name = t_extend_name( semantic->ns->body, "__script__" );
    s_bind_local_name( semantic, name, &aliases->script_id.alias.object, true );
 }

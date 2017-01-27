@@ -955,7 +955,6 @@ struct script {
 struct alias {
    struct object object;
    struct object* target;
-   bool implicit;
 };
 
 struct constant {
@@ -1201,6 +1200,7 @@ struct task {
 #define DIAG_ERR 0x10
 #define DIAG_SYNTAX 0x20
 #define DIAG_INTERNAL 0x40
+#define DIAG_NOTE 0x80
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 

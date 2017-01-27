@@ -358,6 +358,9 @@ void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    else if ( flags & DIAG_WARN ) {
       str_append( &msg->text, "warning: " );
    }
+   else if ( flags & DIAG_NOTE ) {
+      str_append( &msg->text, "note: " );
+   }
    const char* format = va_arg( *args, const char* );
    str_append_format( &msg->text, format, args );
    msg->flags = flags;

@@ -93,7 +93,6 @@ static void insert_namespace_link( struct semantic* semantic,
 static void init_ns_link_retriever( struct semantic* semantic,
    struct ns_link_retriever* retriever, struct ns* ns );
 static void next_ns_link( struct ns_link_retriever* retriever );
-static bool implicitly_declared( struct object* object );
 static void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object );
 static void add_sweep_name( struct semantic* semantic, struct scope* scope,
@@ -1341,6 +1340,8 @@ void s_bind_local_name( struct semantic* semantic, struct name* name,
       bind_block_name( semantic, name, object );
    }
    else {
+      // In ACS, an object in function scope cannot hide an object that is in
+      // global (namespace) scope.
       if ( semantic->lang == LANG_ACS && name->object &&
          name->object->depth == 0 ) {
          dupnameglobal_err( semantic, name, object );
@@ -1349,6 +1350,7 @@ void s_bind_local_name( struct semantic* semantic, struct name* name,
    }
 }
 
+// Function scope.
 void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    if ( ! name->object || name->object->depth < semantic->func_scope->depth ) {
@@ -1359,6 +1361,7 @@ void bind_func_name( struct semantic* semantic, struct name* name,
    }
 }
 
+// Local scope.
 void bind_block_name( struct semantic* semantic, struct name* name,
    struct object* object ) {
    if ( ! name->object || name->object->depth < semantic->depth ) {
@@ -1371,26 +1374,24 @@ void bind_block_name( struct semantic* semantic, struct name* name,
 
 void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   struct str str;
-   str_init( &str );
-   t_copy_name( name, false, &str );
-   if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
-      s_diag( semantic, DIAG_POS_ERR, &object->pos,
-         "duplicate struct member `%s`", str.value );
-      s_diag( semantic, DIAG_POS, &name->object->pos,
-         "struct member already found here", str.value );
+   const char* category =
+      ( object->node.type == NODE_STRUCTURE ) ? "struct" :
+      ( object->node.type == NODE_STRUCTURE_MEMBER ) ? "struct member" :
+      ( object->node.type == NODE_ENUMERATION ) ? "enum" :
+      "object";
+   struct str object_name;
+   str_init( &object_name );
+   t_copy_name( name, false, &object_name );
+   s_diag( semantic, DIAG_POS_ERR, &object->pos,
+      "duplicate %s name, `%s`", category, object_name.value );
+   if ( name->object->pos.id == INTERNALFILE_COMPILER ) {
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &name->object->pos,
+         "`%s` is the name of a builtin %s", object_name.value,
+         ( name->object->node.type == NODE_FUNC ) ? "function" : "object" );         
    }
    else {
-      s_diag( semantic, DIAG_POS_ERR, &object->pos,
-         "duplicate name `%s`", str.value );
-      if ( implicitly_declared( name->object ) ) {
-         s_diag( semantic, DIAG_POS, &object->pos,
-            "name already used implicitly by the compiler" );
-      }
-      else {
-         s_diag( semantic, DIAG_POS, &name->object->pos,
-            "name already used here" );
-      }
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &name->object->pos,
+         "`%s` is the name of this %s", object_name.value, category );
    }
    s_bail( semantic );
 }
@@ -1450,23 +1451,16 @@ void next_ns_link( struct ns_link_retriever* retriever ) {
    retriever->link = NULL;
 }
 
-bool implicitly_declared( struct object* object ) {
-   if ( object->node.type == NODE_ALIAS ) {
-      struct alias* alias = ( struct alias* ) object;
-      return alias->implicit;
-   }
-   return false;
-}
-
 void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object ) {
-   struct str str;
-   str_init( &str );
-   t_copy_name( name, false, &str );
+   struct str object_name;
+   str_init( &object_name );
+   t_copy_name( name, false, &object_name );
    s_diag( semantic, DIAG_POS_ERR, &object->pos,
-      "duplicate name `%s`", str.value );
+      "local object has the same name, `%s`, as a global object",
+      object_name.value );
    s_diag( semantic, DIAG_POS, &name->object->pos,
-      "name already used by a global object found here", str.value );
+      "`%s` is the name of this global object", object_name.value );
    s_bail( semantic );
 }
 
@@ -1513,7 +1507,6 @@ void s_init_alias( struct alias* alias ) {
    t_init_object( &alias->object, NODE_ALIAS );
    t_init_pos_id( &alias->object.pos, INTERNALFILE_COMPILER );
    alias->target = NULL;
-   alias->implicit = false;
 }
 
 void s_type_mismatch( struct semantic* semantic, const char* label_a,
