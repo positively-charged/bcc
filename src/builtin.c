@@ -382,7 +382,7 @@ void init_setup( struct setup* setup, struct task* task, int lang ) {
 
 void setup_func( struct setup* setup, int entry ) {
    struct func* func = t_alloc_func();
-   t_init_pos_id( &func->object.pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &func->object.pos, INTERNALFILE_COMPILER );
    func->object.resolved = true;
    func->name = t_extend_name( t_extend_name( setup->task->root_name, "." ),
       g_funcs[ entry ].name );
@@ -543,7 +543,7 @@ void setup_empty_string_default_value( struct setup* setup,
       struct indexed_string_usage* usage = t_alloc_indexed_string_usage();
       usage->string = string;
       struct expr* expr = t_alloc_expr();
-      t_init_pos_id( &expr->pos, ALTERN_FILENAME_COMPILER );
+      t_init_pos_id( &expr->pos, INTERNALFILE_COMPILER );
       expr->root = &usage->node;
       expr->spec = SPEC_STR;
       expr->value = string->index;

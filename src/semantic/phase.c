@@ -1511,7 +1511,7 @@ struct alias* s_alloc_alias( void ) {
 
 void s_init_alias( struct alias* alias ) {
    t_init_object( &alias->object, NODE_ALIAS );
-   t_init_pos_id( &alias->object.pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &alias->object.pos, INTERNALFILE_COMPILER );
    alias->target = NULL;
    alias->implicit = false;
 }

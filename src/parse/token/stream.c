@@ -1007,7 +1007,7 @@ void p_init_token( struct token* token ) {
    token->next = NULL;
    token->modifiable_text = NULL;
    token->text = "";
-   t_init_pos_id( &token->pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &token->pos, INTERNALFILE_COMPILER );
    token->type = TK_END;
    token->length = 0;
 }

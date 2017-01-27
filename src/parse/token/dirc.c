@@ -248,7 +248,7 @@ struct macro* alloc_macro( struct parse* parse ) {
    macro->param_tail = NULL;
    macro->body = NULL;
    macro->body_tail = NULL;
-   t_init_pos_id( &macro->pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &macro->pos, INTERNALFILE_COMPILER );
    macro->param_count = 0;
    macro->predef = PREDEFMACRO_NONE;
    macro->func_like = false;
@@ -924,7 +924,7 @@ void p_define_cmdline_macros( struct parse* parse ) {
          token->length = strlen( CMDLINEMACRO_TEXT );
          macro = alloc_macro( parse );
          macro->name = name;
-         macro->pos.id = ALTERN_FILENAME_COMMANDLINE;
+         macro->pos.id = INTERNALFILE_COMMANDLINE;
          append_token( macro, token );
          append_macro( parse, macro );
       }

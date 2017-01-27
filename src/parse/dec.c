@@ -1750,7 +1750,7 @@ void p_init_paren_reading( struct parse* parse,
    struct paren_reading* reading ) {
    reading->var = NULL;
    reading->func = NULL;
-   t_init_pos_id( &reading->cast.pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &reading->cast.pos, INTERNALFILE_COMPILER );
    reading->cast.spec = SPEC_NONE;
 }
 

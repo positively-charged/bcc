@@ -363,7 +363,7 @@ struct using_item* alloc_using_item( void ) {
    item->name = NULL;
    item->usage_name = NULL;
    item->alias = NULL;
-   t_init_pos_id( &item->pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &item->pos, INTERNALFILE_COMPILER );
    item->type = USINGITEM_OBJECT;
    return item;
 }
@@ -770,7 +770,7 @@ void p_create_cmdline_library_links( struct parse* parse ) {
    list_iter_init( &i, &parse->task->options->library_links );
    while ( ! list_end( &i ) ) {
       struct pos pos;
-      t_init_pos_id( &pos, ALTERN_FILENAME_COMMANDLINE );
+      t_init_pos_id( &pos, INTERNALFILE_COMMANDLINE );
       add_library_link( parse, list_data( &i ), &pos );
       list_next( &i );
    }

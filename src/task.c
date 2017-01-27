@@ -55,7 +55,6 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    task->empty_string = t_intern_string( task, "", 0 );
    task->library_main = NULL;
    list_init( &task->libraries );
-   list_init( &task->altern_filenames );
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
@@ -100,7 +99,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
 
    // Dummy nodes.
    struct expr* expr = t_alloc_expr();
-   expr->pos.id = ALTERN_FILENAME_COMPILER;
+   expr->pos.id = INTERNALFILE_COMPILER;
    expr->pos.line = 0;
    expr->pos.column = 0;
    expr->spec = SPEC_RAW;
@@ -767,22 +766,6 @@ struct indexed_string* t_lookup_string( struct task* task, int index ) {
    return NULL;
 }
 
-int t_add_altern_filename( struct task* task, const char* filename ) {
-   int id = ALTERN_FILENAME_INITIAL_ID;
-   list_iter_t i;
-   list_iter_init( &i, &task->altern_filenames );
-   while ( ! list_end( &i ) ) {
-      const char* added_filename = list_data( &i );
-      if ( strcmp( filename, added_filename ) == 0 ) {
-         return id;
-      }
-      --id;
-      list_next( &i );
-   }
-   list_append( &task->altern_filenames, ( void* ) filename );
-   return id;
-}
-
 struct constant* t_alloc_constant( void ) {
    struct constant* constant = mem_slot_alloc( sizeof( *constant ) );
    t_init_object( &constant->object, NODE_CONSTANT );
@@ -1096,7 +1079,7 @@ struct ref_func* t_alloc_ref_func( void ) {
 struct type_alias* t_alloc_type_alias( void ) {
    struct type_alias* alias = mem_alloc( sizeof( *alias ) );
    t_init_object( &alias->object, NODE_TYPE_ALIAS );
-   t_init_pos_id( &alias->object.pos, ALTERN_FILENAME_COMPILER );
+   t_init_pos_id( &alias->object.pos, INTERNALFILE_COMPILER );
    alias->ref = NULL;
    alias->structure = NULL;
    alias->enumeration = NULL;

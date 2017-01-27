@@ -44,13 +44,6 @@ struct include_history_entry {
    bool imported;
 };
 
-enum {
-   ALTERN_FILENAME_NONE,
-   ALTERN_FILENAME_COMPILER,
-   ALTERN_FILENAME_COMMANDLINE,
-   ALTERN_FILENAME_INITIAL_ID,
-};
-
 struct text_buffer {
    struct text_buffer* prev;
    char* start;
@@ -1183,8 +1176,6 @@ struct task {
    struct library* library_main;
    // Imported libraries come first, followed by the main library.
    struct list libraries;
-   // List of alternative filenames. Each entry is a string.
-   struct list altern_filenames;
    int last_id;
    time_t compile_time;
    struct gbuf growing_buffer;
@@ -1237,7 +1228,6 @@ struct indexed_string* t_intern_string( struct task* task,
 struct indexed_string* t_intern_string_copy( struct task* task,
    const char* value, int length );
 struct indexed_string* t_lookup_string( struct task* task, int index );
-int t_add_altern_filename( struct task* task, const char* filename );
 struct ns* t_alloc_ns( struct name* name );
 void t_append_unresolved_namespace_object( struct ns_fragment* fragment,
    struct object* object );
