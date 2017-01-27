@@ -121,7 +121,12 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail,
    add_internal_file( task, "<compiler>" );
    add_internal_file( task, "<command-line>" );
    task->compiler_dir = compiler_dir;
-   // Setup language-specific directories.
+   // Setup BCS-specific directories.
+   str_init( &task->bcs_lib_dir );
+   str_append( &task->bcs_lib_dir, compiler_dir->value );
+   str_append( &task->bcs_lib_dir, OS_PATHSEP );
+   str_append( &task->bcs_lib_dir, "lib" );
+   // Setup ACS/ACS95-specific directories.
    str_init( &task->acs_lib_dir );
    str_append( &task->acs_lib_dir, compiler_dir->value );
    str_append( &task->acs_lib_dir, OS_PATHSEP );
@@ -1128,6 +1133,8 @@ void t_update_err_file_dir( struct task* task, const char* path ) {
 
 const char* t_get_lang_lib_dir( struct task* task, int lang ) {
    switch ( lang ) {
+   case LANG_BCS:
+      return task->bcs_lib_dir.value;
    case LANG_ACS:
    case LANG_ACS95:
       return task->acs_lib_dir.value;

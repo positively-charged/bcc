@@ -1192,6 +1192,7 @@ struct task {
    struct str err_file_dir;
    struct list include_history;
    struct str* compiler_dir;
+   struct str bcs_lib_dir;
    struct str acs_lib_dir;
 };
 
