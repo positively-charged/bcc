@@ -29,9 +29,26 @@ struct file_query {
 };
 
 enum {
-   ALTERN_FILENAME_COMPILER = -1,
-   ALTERN_FILENAME_COMMANDLINE = -2,
-   ALTERN_FILENAME_INITIAL_ID = -3,
+   INTERNALFILE_NONE,
+   INTERNALFILE_COMPILER,
+   INTERNALFILE_COMMANDLINE,
+   INTERNALFILE_TOTAL,
+};
+
+struct include_history_entry {
+   struct include_history_entry* parent;
+   const char* altern_name; // Alternative file name.
+   int file_entry_id;
+   int id;
+   int line;
+   bool imported;
+};
+
+enum {
+   ALTERN_FILENAME_NONE,
+   ALTERN_FILENAME_COMPILER,
+   ALTERN_FILENAME_COMMANDLINE,
+   ALTERN_FILENAME_INITIAL_ID,
 };
 
 struct text_buffer {
@@ -1182,6 +1199,7 @@ struct task {
    struct expr* raw0_expr;
    struct ns* upmost_ns;
    struct str err_file_dir;
+   struct list include_history;
 };
 
 #define DIAG_NONE 0
@@ -1256,5 +1274,9 @@ struct type_alias* t_alloc_type_alias( void );
 char* t_intern_text( struct task* task, const char* value, int length );
 struct text_buffer* t_get_text_buffer( struct task* task, int min_free_size );
 void t_update_err_file_dir( struct task* task, const char* path );
+struct include_history_entry* t_alloc_include_history_entry(
+   struct task* task );
+struct include_history_entry* t_decode_include_history_entry(
+   struct task* task, int id );
 
 #endif

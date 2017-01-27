@@ -605,7 +605,6 @@ void read_line( struct parse* parse ) {
          "invalid line-number argument" );
       p_bail( parse );
    }
-   parse->source->line = line;
    p_read_preptk( parse );
    const char* filename = NULL;
    if ( parse->token->type == TK_LIT_STRING ) {
@@ -613,11 +612,7 @@ void read_line( struct parse* parse ) {
       p_read_preptk( parse );
    }
    p_test_preptk( parse, TK_NL );
-   parse->source->line = line;
-   if ( filename ) {
-      parse->source->file_entry_id =
-         t_add_altern_filename( parse->task, filename );
-   }
+   p_add_altern_file_name( parse, filename, line );
 }
 
 void read_undef( struct parse* parse ) {

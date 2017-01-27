@@ -41,6 +41,7 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->lang = LANG_BCS;
    parse->main_source_deinited = false;
    parse->variadic_macro_context = false;
+   parse->include_history_entry = NULL;
 }
 
 void p_run( struct parse* parse ) {

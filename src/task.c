@@ -12,20 +12,26 @@ enum {
 
 struct diag_msg {
    struct str text;
-   const char* file;
+   struct include_history_entry* file;
    int line;
    int column;
    int flags;
 };
 
 static void init_str_table( struct str_table* table );
+static void add_internal_file( struct task* task, const char* name );
 static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    va_list* args );
 static void print_diag( struct task* task, struct diag_msg* msg );
+static void print_parent_files( struct task* task, FILE* stream,
+   struct include_history_entry* entry,
+   struct include_history_entry* child_entry );
 static void log_diag( struct task* task, struct diag_msg* msg );
 static void open_logfile( struct task* task );
-static void decode_pos( struct task* task, struct pos* pos, const char** file,
-   int* line, int* column );
+static void decode_pos( struct task* task, struct pos* pos,
+   struct include_history_entry** file, int* line, int* column );
+static const char* decode_filename( struct task* task,
+   struct include_history_entry* entry );
 static bool identify_file( struct task* task, struct file_query* query );
 static bool identify_file_relative( struct task* task,
    struct file_query* query );
@@ -109,6 +115,11 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    t_update_err_file_dir( task, options->source_file );
    // TODO: Make this better.
    task->blank_name = task->upmost_ns->body;
+
+   list_init( &task->include_history );
+   add_internal_file( task, "<none>" );
+   add_internal_file( task, "<compiler>" );
+   add_internal_file( task, "<command-line>" );
 }
 
 struct ns* t_alloc_ns( struct name* name ) {
@@ -290,6 +301,24 @@ void t_init_type_members( struct task* task ) {
    }
 } */
 
+void add_internal_file( struct task* task, const char* name ) {
+   struct include_history_entry* entry = t_alloc_include_history_entry( task );
+   entry->altern_name = name;
+}
+
+struct include_history_entry* t_alloc_include_history_entry(
+   struct task* task ) {
+   struct include_history_entry* entry = mem_alloc( sizeof( *entry ) );
+   entry->parent = NULL;
+   entry->altern_name = NULL;
+   entry->file_entry_id = INTERNALFILE_NONE;
+   entry->id = list_size( &task->include_history );
+   entry->line = 0;
+   entry->imported = false;
+   list_append( &task->include_history, entry );
+   return entry;
+}
+
 void t_diag( struct task* task, int flags, ... ) {
    va_list args;
    va_start( args, flags );
@@ -337,7 +366,10 @@ void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
 
 void print_diag( struct task* task, struct diag_msg* msg ) {
    if ( msg->flags & DIAG_FILE ) {
-      printf( "%s:", msg->file );
+      if ( msg->file->parent ) {
+         print_parent_files( task, stdout, msg->file->parent, msg->file );
+      }
+      printf( "%s:", decode_filename( task, msg->file ) );
       if ( msg->flags & DIAG_LINE ) {
          printf( "%d:", msg->line );
          if ( msg->flags & DIAG_COLUMN ) {
@@ -349,6 +381,17 @@ void print_diag( struct task* task, struct diag_msg* msg ) {
    printf( "%s\n", msg->text.value );
 }
 
+void print_parent_files( struct task* task, FILE* stream,
+   struct include_history_entry* entry,
+   struct include_history_entry* child_entry ) {
+   if ( entry->parent ) {
+      print_parent_files( task, stream, entry->parent, entry );
+   }
+   fprintf( stream, "In file #%s from %s:%d:\n",
+      child_entry->imported ? "imported" : "included",
+      decode_filename( task, entry ), child_entry->line );
+}
+
 // Line format: <file>:<line>: <message>
 void log_diag( struct task* task, struct diag_msg* msg ) {
    if ( msg->flags & DIAG_ERR ) {
@@ -356,7 +399,12 @@ void log_diag( struct task* task, struct diag_msg* msg ) {
          open_logfile( task );
       }
       if ( msg->flags & DIAG_FILE ) {
-         fprintf( task->err_file, "%s:", msg->file );
+         if ( msg->file->parent ) {
+            print_parent_files( task, task->err_file, msg->file->parent,
+               msg->file );
+         }
+         fprintf( task->err_file, "%s:",
+            decode_filename( task, msg->file ) );
          if ( msg->flags & DIAG_LINE ) {
             fprintf( task->err_file, "%d:", msg->line );
          }
@@ -379,49 +427,9 @@ void open_logfile( struct task* task ) {
    str_deinit( &path );
 }
 
-void decode_pos( struct task* task, struct pos* pos, const char** file,
-   int* line, int* column ) {
-   const char* filename = "";
-   // Negative IDs indicate an alternative filename.
-   if ( pos->id < 0 ) {
-      switch ( pos->id ) {
-         int id;
-      case ALTERN_FILENAME_COMPILER:
-         filename = "<compiler>";
-         break;
-      case ALTERN_FILENAME_COMMANDLINE:
-         filename = "<command-line>";
-         break;
-      default:
-         id = ALTERN_FILENAME_INITIAL_ID;
-         list_iter_t i;
-         list_iter_init( &i, &task->altern_filenames );
-         while ( ! list_end( &i ) ) {
-            if ( id == pos->id ) {
-               filename = list_data( &i );
-               break;
-            }
-            --id;
-            list_next( &i );
-         }
-         break;
-      }
-   }
-   else {
-      struct file_entry* entry = task->file_entries;
-      while ( entry ) {
-         if ( entry->id == pos->id ) {
-            filename = entry->path.value;
-            break;
-         }
-         entry = entry->next;
-      }
-   }
-   // Instead of printing blank filenames, provide a default value.
-   if ( filename[ 0 ] == '\0' ) {
-      filename = "<no-filename>";
-   }
-   *file = filename;
+void decode_pos( struct task* task, struct pos* pos,
+   struct include_history_entry** file, int* line, int* column ) {
+   *file = t_decode_include_history_entry( task, pos->id );
    *line = pos->line;
    *column = pos->column;
    if ( task->options->one_column ) {
@@ -429,17 +437,50 @@ void decode_pos( struct task* task, struct pos* pos, const char** file,
    }
 }
 
+struct include_history_entry* t_decode_include_history_entry(
+   struct task* task, int id ) {
+   list_iter_t i;
+   list_iter_init( &i, &task->include_history );
+   while ( ! list_end( &i ) ) {
+      struct include_history_entry* entry = list_data( &i );
+      while ( entry->id == id ) {
+         return entry;
+      }
+      list_next( &i );
+   }
+   return list_head( &task->include_history );
+}
+
+const char* decode_filename( struct task* task,
+   struct include_history_entry* entry ) {
+   if ( entry->altern_name ) {
+      return entry->altern_name;
+   }
+   else {
+      struct file_entry* file_entry = task->file_entries;
+      while ( file_entry ) {
+         if ( file_entry->id == entry->file_entry_id ) {
+            return file_entry->path.value;
+         }
+         file_entry = file_entry->next;
+      }
+      return NULL;
+   }
+}
+
 void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column ) {
-   decode_pos( task, pos, file, line, column );
+   struct include_history_entry* entry;
+   decode_pos( task, pos, &entry, line, column );
+   *file = decode_filename( task, entry );
 }
 
 const char* t_decode_pos_file( struct task* task, struct pos* pos ) {
-   const char* file;
+   struct include_history_entry* file;
    int line;
    int column;
    decode_pos( task, pos, &file, &line, &column );
-   return file;
+   return decode_filename( task, file );
 }
  
 void t_bail( struct task* task ) {

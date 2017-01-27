@@ -444,6 +444,7 @@ struct parse {
    const struct lang_limits* lang_limits;
    bool main_source_deinited;
    bool variadic_macro_context;
+   struct include_history_entry* include_history_entry;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
@@ -545,5 +546,6 @@ bool p_is_paren_type( struct parse* parse );
 void p_init_paren_reading( struct parse* parse,
    struct paren_reading* reading );
 void p_read_paren_type( struct parse* parse, struct paren_reading* reading );
+void p_add_altern_file_name( struct parse* parse, const char* name, int line );
 
 #endif

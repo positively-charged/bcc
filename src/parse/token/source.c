@@ -14,6 +14,9 @@ static struct source* alloc_source( struct parse* parse );
 static void reset_filepos( struct source* source );
 static void create_entry( struct parse* parse, struct request* request,
    bool imported );
+static void create_include_history_entry( struct parse* parse, int line );
+static void create_include_history_entry_imported( struct parse* parse,
+   struct import_dirc* dirc );
 static void read_token_acs( struct parse* parse, struct token* token );
 static void read_token_acs95( struct parse* parse, struct token* token );
 static void read_token( struct parse* parse, struct token* token );
@@ -33,6 +36,7 @@ void p_load_main_source( struct parse* parse ) {
       parse->lib->file_pos.id = request.file->id;
       append_file( parse->lib, request.file );
       create_entry( parse, &request, false );
+      create_include_history_entry( parse, 0 );
       t_update_err_file_dir( parse->task, request.file->full_path.value );
    }
    else {
@@ -54,6 +58,7 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
       parse->lib->file_pos.id = file->id;
       append_file( parse->lib, file );
       create_entry( parse, &request, true );
+      create_include_history_entry_imported( parse, dirc );
    }
    else {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
@@ -80,6 +85,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
    if ( request.source ) {
       append_file( parse->lib, request.file );
       create_entry( parse, &request, false );
+      create_include_history_entry( parse, pos->line );
       p_define_included_macro( parse );
    }
    else {
@@ -237,6 +243,41 @@ void create_entry( struct parse* parse, struct request* request,
    read_initial_ch( parse );
 }
 
+void create_include_history_entry( struct parse* parse, int line ) {
+   struct include_history_entry* entry =
+      t_alloc_include_history_entry( parse->task );
+   entry->parent = parse->include_history_entry;
+   entry->file_entry_id = parse->source->file_entry_id;
+   entry->line = line;
+   parse->include_history_entry = entry;
+   parse->source->file_entry_id = entry->id;
+}
+
+void create_include_history_entry_imported( struct parse* parse,
+   struct import_dirc* dirc ) {
+   struct include_history_entry* entry =
+      t_alloc_include_history_entry( parse->task );
+   entry->parent = t_decode_include_history_entry( parse->task, dirc->pos.id );
+   entry->file_entry_id = parse->source->file_entry_id;
+   entry->line = dirc->pos.line;
+   entry->imported = true;
+   parse->include_history_entry = entry;
+   parse->source->file_entry_id = entry->id;
+}
+
+void p_add_altern_file_name( struct parse* parse,
+   const char* name, int line ) {
+   struct include_history_entry* entry =
+      t_alloc_include_history_entry( parse->task );
+   entry->parent = parse->include_history_entry->parent;
+   entry->altern_name = name;
+   entry->line = parse->include_history_entry->line;
+   entry->imported = parse->include_history_entry->imported;
+   parse->include_history_entry = entry;
+   parse->source->file_entry_id = entry->id;
+   parse->source->line = line;
+}
+
 void p_pop_source( struct parse* parse ) {
    struct source_entry* entry = parse->source_entry;
    struct source* source = entry->source;
@@ -265,6 +306,8 @@ void p_pop_source( struct parse* parse ) {
          p_undefine_included_macro( parse );
       }
    }
+   // Include history.
+   parse->include_history_entry = parse->include_history_entry->parent;
 }
 
 void p_read_source( struct parse* parse, struct token* token ) {
