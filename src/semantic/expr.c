@@ -2833,7 +2833,7 @@ void test_conversion( struct semantic* semantic, struct expr_test* test,
       unsupported_conversion( semantic, &type, conv->spec, &conv->expr->pos );
       s_bail( semantic );
    }
-   conv->spec_from = s_spec( semantic, type.spec );
+   conv->spec_from = type.spec;
    conv->from_ref = ( type.ref != NULL );
    result->spec = s_spec( semantic, conv->spec );
    result->complete = true;
