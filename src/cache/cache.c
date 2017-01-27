@@ -232,7 +232,7 @@ void cache_add( struct cache* cache, struct library* lib ) {
    while ( ! list_end( &i ) ) {
       struct import_dirc* dirc = list_data( &i );
       struct file_query query;
-      t_init_file_query( &query, cache->task->library_main->file,
+      t_init_file_query( &query, NULL, cache->task->library_main->file,
          dirc->file_path );
       t_find_file( cache->task, &query );
       if ( ! query.file ) {

@@ -44,7 +44,8 @@ static struct indexed_string* intern_string( struct task* task,
    struct str_table* table, const char* value, int length, bool copy_value );
 static void init_ref( struct ref* ref, int type );
 
-void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
+void t_init( struct task* task, struct options* options, jmp_buf* bail,
+   struct str* compiler_dir ) {
    task->options = options;
    task->err_file = NULL;
    task->bail = bail;
@@ -119,6 +120,12 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail ) {
    add_internal_file( task, "<none>" );
    add_internal_file( task, "<compiler>" );
    add_internal_file( task, "<command-line>" );
+   task->compiler_dir = compiler_dir;
+   // Setup language-specific directories.
+   str_init( &task->acs_lib_dir );
+   str_append( &task->acs_lib_dir, compiler_dir->value );
+   str_append( &task->acs_lib_dir, OS_PATHSEP );
+   str_append( &task->acs_lib_dir, "lib/acs" );
 }
 
 struct ns* t_alloc_ns( struct name* name ) {
@@ -502,13 +509,14 @@ bool t_same_pos( struct pos* a, struct pos* b ) {
       a->column == b->column );
 }
 
-void t_init_file_query( struct file_query* query,
+void t_init_file_query( struct file_query* query, const char* lang_dir,
    struct file_entry* offset_file, const char* path ) {
    query->given_path = path;
    query->path = NULL;
    // NOTE: .fileid NOT initialized.
    query->file = NULL;
    query->offset_file = offset_file;
+   query->lang_dir = lang_dir;
    query->success = false;
 }
 
@@ -569,6 +577,16 @@ bool identify_file_relative( struct task* task, struct file_query* query ) {
          return true;
       }
       list_next( &i );
+   }
+   // Try language-specific directories.
+   if ( query->lang_dir ) {
+      str_clear( query->path );
+      str_append( query->path, query->lang_dir );
+      str_append( query->path, OS_PATHSEP );
+      str_append( query->path, query->given_path );
+      if ( c_read_fileid( &query->fileid, query->path->value ) ) {
+         return true;
+      }
    }
    return false;
 }
@@ -1105,5 +1123,15 @@ void t_update_err_file_dir( struct task* task, const char* path ) {
       dir->value[ dir->length - 1 ] != '\\' ) {
       dir->value[ dir->length - 1 ] = 0;
       --dir->length;
+   }
+}
+
+const char* t_get_lang_lib_dir( struct task* task, int lang ) {
+   switch ( lang ) {
+   case LANG_ACS:
+   case LANG_ACS95:
+      return task->acs_lib_dir.value;
+   default:
+      return NULL;
    }
 }

@@ -16,7 +16,8 @@ static bool read_options( struct options*, char** );
 static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
-static bool perform_action( struct options* options, jmp_buf* root_bail );
+static bool perform_action( struct options* options, jmp_buf* root_bail,
+   struct str* compiler_dir );
 static void perform_task( struct task* task );
 static void perform_selected_task( struct task* task, struct cache* cache );
 static void print_cache( struct task* task, struct cache* cache );
@@ -88,7 +89,7 @@ int main( int argc, char* argv[] ) {
    }
    jmp_buf bail;
    if ( setjmp( bail ) == 0 ) {
-      if ( perform_action( &options, &bail ) ) {
+      if ( perform_action( &options, &bail, &compiler_dir ) ) {
          result = EXIT_SUCCESS;
       }
    }
@@ -353,10 +354,11 @@ void print_usage( char* path ) {
       path );
 }
 
-bool perform_action( struct options* options, jmp_buf* root_bail ) {
+bool perform_action( struct options* options, jmp_buf* root_bail,
+   struct str* compiler_dir ) {
    bool success = false;
    struct task task;
-   t_init( &task, options, root_bail );
+   t_init( &task, options, root_bail, compiler_dir );
    jmp_buf bail;
    if ( setjmp( bail ) == 0 ) {
       task.bail = &bail;

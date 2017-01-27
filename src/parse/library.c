@@ -791,8 +791,8 @@ void read_imported_libs( struct parse* parse ) {
 
 void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    struct file_query query;
-   t_init_file_query( &query, parse->task->library_main->file,
-      dirc->file_path );
+   t_init_file_query( &query, t_get_lang_lib_dir( parse->task, parse->lang ),
+      parse->task->library_main->file, dirc->file_path );
    t_find_file( parse->task, &query );
    if ( ! query.file ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,

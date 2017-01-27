@@ -650,7 +650,7 @@ void restore_file_map( struct restorer* restorer ) {
       restorer->file_map_size );
    for ( int i = 0; i < restorer->file_map_size; ++i ) {
       struct file_query query;
-      t_init_file_query( &query, NULL, RS( restorer, F_FILEPATH ) );
+      t_init_file_query( &query, NULL, NULL, RS( restorer, F_FILEPATH ) );
       t_find_file( restorer->task, &query );
       restorer->file_map[ i ] = query.file;
       list_append( &restorer->lib->files, query.file );

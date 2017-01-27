@@ -150,7 +150,9 @@ void p_load_source( struct parse* parse, struct request* request ) {
       str_append( &path, request->given_path );
       str_append( &path, ".bcs" );
       struct file_query query;
-      t_init_file_query( &query, request->offset_file, path.value );
+      t_init_file_query( &query,
+         t_get_lang_lib_dir( parse->task, parse->lang ), request->offset_file,
+         path.value );
       t_find_file( parse->task, &query );
       if ( query.success ) {
          request->file = query.file;
@@ -167,7 +169,8 @@ void p_load_source( struct parse* parse, struct request* request ) {
       }
    }
    struct file_query query;
-   t_init_file_query( &query, request->offset_file, request->given_path );
+   t_init_file_query( &query, t_get_lang_lib_dir( parse->task, parse->lang ),
+      request->offset_file, request->given_path );
    t_find_file( parse->task, &query );
    if ( query.success ) {
       request->file = query.file;

@@ -25,6 +25,7 @@ struct file_query {
    struct fileid fileid;
    struct file_entry* file;
    struct file_entry* offset_file;
+   const char* lang_dir;
    bool success;
 };
 
@@ -1190,6 +1191,8 @@ struct task {
    struct ns* upmost_ns;
    struct str err_file_dir;
    struct list include_history;
+   struct str* compiler_dir;
+   struct str acs_lib_dir;
 };
 
 #define DIAG_NONE 0
@@ -1204,7 +1207,8 @@ struct task {
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
-void t_init( struct task*, struct options*, jmp_buf* );
+void t_init( struct task* task, struct options* options, jmp_buf* bail,
+   struct str* compiler_dir );
 void t_copy_name( struct name*, bool full, struct str* buffer );
 int t_full_name_length( struct name* );
 void t_print_name( struct name* );
@@ -1217,7 +1221,7 @@ void t_decode_pos( struct task* task, struct pos* pos, const char** file,
    int* line, int* column );
 const char* t_decode_pos_file( struct task* task, struct pos* pos );
 void t_init_object( struct object* object, int node_type );
-void t_init_file_query( struct file_query* query,
+void t_init_file_query( struct file_query* query, const char* lang_dir,
    struct file_entry* offset_file, const char* path );
 void t_find_file( struct task* task, struct file_query* query );
 struct library* t_add_library( struct task* task );
@@ -1268,5 +1272,6 @@ struct include_history_entry* t_alloc_include_history_entry(
    struct task* task );
 struct include_history_entry* t_decode_include_history_entry(
    struct task* task, int id );
+const char* t_get_lang_lib_dir( struct task* task, int lang );
 
 #endif
