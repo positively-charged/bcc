@@ -1,0 +1,85 @@
+// ==========================================================================
+strict namespace Math {
+// ==========================================================================
+
+struct {
+   enum {
+      ERR_NONE,
+      ERR_ILLFORMED,
+      ERR_OVERFLOW,
+   } err;
+   fixed value;
+} gResult;
+
+void ParseFixed( str number ) {
+   int i = 0;
+   int value = 0;
+   // Sign.
+   int sign = 1;
+   int ch = number[ i ];
+   if ( ch == '-' ) {
+      sign = -1;
+      ++i;
+   }
+   else if ( ch == '+' ) {
+      ++i;
+   }
+   // Integral part.
+   while ( ( ch = number[ i ] ) >= '0' && ch <= '9' ) {
+      value *= 10;
+      value += ch - '0';
+      if ( ( sign == 1 && value > 32767 ) || value > 32768 ) {
+         gResult.err = ERR_OVERFLOW;
+         gResult.value = 0.0;
+         return;
+      }
+      ++i;
+   }
+   int integral_part = value;
+   value <<= 16;
+   // Fractional part.
+   bool success = false;
+   if ( ch == '.' ) {
+      ++i;
+      int divisor = 1;
+      int remainder = 0;
+      while ( ( ch = number[ i ] ) >= '0' && ch <= '9' ) {
+         if ( divisor < 65536 ) {
+            divisor *= 10;
+            int digit = ch - '0';
+            value += digit * ( 65536 / divisor );
+            remainder *= 10;
+            remainder += digit * ( 65536 % divisor );
+         }
+         ++i;
+      }
+      if ( sign == -1 && integral_part == 32768 && remainder > 0 ) {
+         gResult.err = ERR_OVERFLOW;
+         gResult.value = 0.0;
+         return;
+      }
+      value += remainder / divisor;
+   }
+   if ( ! ch ) {
+      gResult.err = ERR_NONE;
+      gResult.value = ( fixed ) ( sign * value );
+   }
+   else {
+      gResult.err = ERR_ILLFORMED;
+      gResult.value = 0.0;
+   }
+}
+
+}
+
+// ==========================================================================
+strict namespace { 
+// ==========================================================================
+
+script "Main" open {
+   Math.ParseFixed( "12.3456" );
+   Print( s: "Error: ", d: Math.gResult.err, s: "\nValue: ",
+      f: Math.gResult.value );
+}
+
+}
