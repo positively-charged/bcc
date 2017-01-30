@@ -1242,6 +1242,7 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
    result->spec = cast->spec;
    result->complete = true;
    result->usable = true;
+   result->modifiable = operand.modifiable;
    if ( operand.folded ) {
       result->value = operand.value;
       result->folded = true;
@@ -1307,7 +1308,7 @@ void invalid_cast( struct semantic* semantic, struct cast* cast,
    str_init( &operand_type_s );
    s_present_type( &operand_type, &operand_type_s );
    s_diag( semantic, DIAG_POS_ERR, &cast->pos,
-      "%s operand cannot be cast to %s",
+      "operand (`%s`) cannot be cast to specified type (`%s`)",
        operand_type_s.value, cast_type_s.value );
    str_deinit( &cast_type_s );
    str_deinit( &operand_type_s );
