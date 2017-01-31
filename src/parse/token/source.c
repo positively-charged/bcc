@@ -2335,6 +2335,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( ch == '_' ) {
          ch = read_ch( parse );
+         if ( ! isdigit( ch ) ) {
+            struct pos pos;
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "missing decimal digit after digit separator" );
+            p_bail( parse );
+         }
       }
       else if ( isalpha( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
