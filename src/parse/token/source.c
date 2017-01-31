@@ -2142,8 +2142,10 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
       }
-      // Underscores can be used to improve readability of a numeric literal
-      // by grouping digits, and are ignored.
+      // Single quotation marks can be used to improve the readability of long
+      // numeric literals by visually grouping digits. Such a single quotation
+      // mark is called a digit separator. Digit separators are ignored by the
+      // compiler. 
       else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! ( ch == '0' || ch == '1' ) ) {
@@ -2269,7 +2271,7 @@ void read_token( struct parse* parse, struct token* token ) {
       ch = read_ch( parse );
       goto fraction;
    }
-   else if ( ch == 'r' || ch == 'R' ) {
+   else if ( ch == 'r' || ch == 'R' || ch == '_' ) {
       text = temp_text( parse );
       append_ch( text, '0' );
       append_ch( text, '_' );
@@ -2308,7 +2310,12 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          goto fraction;
       }
-      else if ( ch == 'r' || ch == 'R' ) {
+      // In ACS, an underscore is used for the separator between the base and
+      // the value of a radix constant. In BCS, a single quotation mark is used
+      // for the digit separator. When both these characters appear in a radix
+      // constant, it might look confusing. To improve readability, allow 'r'
+      // and 'R' to substitute for the underscore.
+      else if ( ch == 'r' || ch == 'R' || ch == '_' ) {
          append_ch( text, '_' );
          ch = read_ch( parse );
          goto radix;
