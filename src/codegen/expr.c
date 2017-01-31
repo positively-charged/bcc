@@ -613,10 +613,11 @@ void write_logical( struct codegen* codegen, struct result* result,
    struct logical* logical ) {
    push_logical_operand( codegen, logical->lside, logical->lside_spec );
    struct c_jump* rside_jump = c_create_jump( codegen,
-      ( logical->op == LOP_OR ? PCD_IFNOTGOTO : PCD_IFGOTO ) );
+      ( logical->op == LOP_OR || logical->op == LOP_SHORTCIRCUITOR ?
+      PCD_IFNOTGOTO : PCD_IFGOTO ) );
    c_append_node( codegen, &rside_jump->node );
    c_pcd( codegen, PCD_PUSHNUMBER,
-      ( logical->op == LOP_OR ? 1 : 0 ) );
+      ( logical->op == LOP_OR || logical->op == LOP_SHORTCIRCUITOR ? 1 : 0 ) );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
    struct c_point* rside_point = c_create_point( codegen );

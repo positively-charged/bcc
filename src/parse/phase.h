@@ -172,6 +172,9 @@ enum tk {
    TK_REOPEN,
    TK_LET,
    TK_STRICT,
+   // 150
+   TK_SHORTCIRCUITOR,
+   TK_SHORTCIRCUITAND,
 
    TK_TOTAL,
 

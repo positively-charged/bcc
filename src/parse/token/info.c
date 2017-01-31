@@ -171,16 +171,19 @@ static struct token_info g_table[] = {
    ENTRY( "reopen", TKF_KEYWORD ),
    ENTRY( "let", TKF_KEYWORD ),
    ENTRY( "strict", TKF_KEYWORD ),
+   // 150
+   ENTRY( "|||", TKF_NONE ),
+   ENTRY( "&&&", TKF_NONE ),
 };
 #undef ENTRY
 
 const struct token_info* p_get_token_info( enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 150 );
+   STATIC_ASSERT( TK_TOTAL == 152 );
    return &g_table[ tk ];
 }
 
 void p_present_token( struct str* str, enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 150 );
+   STATIC_ASSERT( TK_TOTAL == 152 );
    switch ( tk ) {
    case TK_ID:
       str_append( str,

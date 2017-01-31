@@ -112,6 +112,8 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
    struct binary* bit_or = NULL;
    struct logical* log_and = NULL;
    struct logical* log_or = NULL;
+   struct logical* sc_and = NULL;
+   struct logical* sc_or = NULL;
    struct assign* assign = NULL;
 
    top:
@@ -296,6 +298,34 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
    if ( parse->tk == TK_LOG_OR ) {
       log_or = alloc_logical( LOP_OR, &parse->tk_pos );
       log_or->lside = reading->node;
+      p_read_tk( parse );
+      goto top;
+   }
+
+   // Short-circuit AND.
+   // -----------------------------------------------------------------------
+   if ( sc_and ) {
+      sc_and->rside = reading->node;
+      reading->node = &sc_and->node;
+      sc_and = NULL;
+   }
+   if ( parse->tk == TK_SHORTCIRCUITAND ) {
+      sc_and = alloc_logical( LOP_SHORTCIRCUITAND, &parse->tk_pos );
+      sc_and->lside = reading->node;
+      p_read_tk( parse );
+      goto top;
+   }
+
+   // Short-circuit OR.
+   // -----------------------------------------------------------------------
+   if ( sc_or ) {
+      sc_or->rside = reading->node;
+      reading->node = &sc_or->node;
+      sc_or = NULL;
+   }
+   if ( parse->tk == TK_SHORTCIRCUITOR ) {
+      sc_or = alloc_logical( LOP_SHORTCIRCUITOR, &parse->tk_pos );
+      sc_or->lside = reading->node;
       p_read_tk( parse );
       goto top;
    }

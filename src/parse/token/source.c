@@ -1968,8 +1968,14 @@ void read_token( struct parse* parse, struct token* token ) {
    else if ( ch == '&' ) {
       ch = read_ch( parse );
       if ( ch == '&' ) {
-         tk = TK_LOG_AND;
          ch = read_ch( parse );
+         if ( ch == '&' ) {
+            tk = TK_SHORTCIRCUITAND;
+            ch = read_ch( parse );
+         }
+         else {
+            tk = TK_LOG_AND;
+         }
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_AND;
@@ -1983,8 +1989,14 @@ void read_token( struct parse* parse, struct token* token ) {
    else if ( ch == '|' ) {
       ch = read_ch( parse );
       if ( ch == '|' ) {
-         tk = TK_LOG_OR;
          ch = read_ch( parse );
+         if ( ch == '|' ) {
+            tk = TK_SHORTCIRCUITOR;
+            ch = read_ch( parse );
+         }
+         else {
+            tk = TK_LOG_OR;
+         }
       }
       else if ( ch == '=' ) {
          tk = TK_ASSIGN_BIT_OR;
