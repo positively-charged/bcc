@@ -658,7 +658,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    }
    else {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file->id, parse->source->line,
+      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
          column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "invalid character" );
@@ -748,7 +748,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          if ( isalnum( *source_text ) || *source_text == '_' ) {
             if ( copied_text == end ) {
                struct pos pos;
-               t_init_pos( &pos, parse->source->file->id, line, column );
+               t_init_pos( &pos, parse->source->file_entry_id, line, column );
                p_diag( parse, DIAG_POS_ERR, &pos,
                   "identifier too long (maximum length is %d)",
                   MAX_IDENTIFIER_LENGTH );
@@ -816,7 +816,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
@@ -825,8 +825,8 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       else {
          if ( parse->temp_text.length == 0 ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "no digits found in hexadecimal literal" );
             p_bail( parse );
@@ -887,7 +887,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in decimal literal" );
@@ -910,7 +910,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
@@ -970,7 +970,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          }
          else if ( ! ch ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, line, column );
+            t_init_pos( &pos, parse->source->file_entry_id, line, column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "unterminated string" );
             p_bail( parse );
@@ -1014,7 +1014,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    str_clear( &parse->temp_text );
    if ( ch == '\'' || ! ch ) {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file->id, parse->source->line,
+      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
          parse->source->column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "missing character in character literal" );
@@ -1036,7 +1036,8 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    }
    if ( ch != '\'' ) {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file->id, parse->source->line, column );
+      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
+         column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "multiple characters in character literal" );
       p_bail( parse );
@@ -1059,7 +1060,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, line, column );
+         t_init_pos( &pos, parse->source->file_entry_id, line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated comment" );
          p_bail( parse );
@@ -1358,7 +1359,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
    }
    else {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file->id, parse->source->line,
+      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
          column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "invalid character" );
@@ -1413,7 +1414,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
          if ( isalnum( *source_text ) || *source_text == '_' ) {
             if ( copied_text == end ) {
                struct pos pos;
-               t_init_pos( &pos, parse->source->file->id, line, column );
+               t_init_pos( &pos, parse->source->file_entry_id, line, column );
                p_diag( parse, DIAG_POS_ERR, &pos,
                   "identifier too long (maximum length is %d)",
                   MAX_IDENTIFIER_LENGTH );
@@ -1504,7 +1505,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
@@ -1513,8 +1514,8 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
       else {
          if ( parse->temp_text.length == 0 ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "no digits found in hexadecimal literal" );
             p_bail( parse );
@@ -1575,7 +1576,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in decimal literal" );
@@ -1598,7 +1599,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, parse->source->line,
+         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
@@ -1658,7 +1659,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
          }
          else if ( ! ch ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, line, column );
+            t_init_pos( &pos, parse->source->file_entry_id, line, column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "unterminated string" );
             p_bail( parse );
@@ -1699,7 +1700,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, line, column );
+         t_init_pos( &pos, parse->source->file_entry_id, line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated comment" );
          p_bail( parse );
@@ -1821,7 +1822,7 @@ void read_token( struct parse* parse, struct token* token ) {
          struct pos pos = {
             .line = parse->source->line,
             .column = parse->source->column,
-            .id = parse->source->file->id
+            .id = parse->source->file_entry_id
          };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "missing character in character literal" );
@@ -1851,7 +1852,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       if ( ch != '\'' ) {
          struct pos pos = { parse->source->line, column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "multiple characters in character literal" );
          p_bail( parse );
@@ -2100,7 +2101,7 @@ void read_token( struct parse* parse, struct token* token ) {
          }
          else if ( ! singles[ i ] ) {
             struct pos pos = { parse->source->line, column,
-               parse->source->file->id };
+               parse->source->file_entry_id };
             p_diag( parse, DIAG_POS_ERR, &pos, "invalid character" );
             p_bail( parse );
          }
@@ -2123,7 +2124,7 @@ void read_token( struct parse* parse, struct token* token ) {
       if ( strcmp( text->value, "__VA_ARGS__" ) == 0 &&
          ! parse->variadic_macro_context ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file->id, line, column );
+         t_init_pos( &pos, parse->source->file_entry_id, line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "`__VA_ARGS__` can only appear in the body of a variadic macro" );
          p_bail( parse );
@@ -2147,8 +2148,8 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! ( ch == '0' || ch == '1' ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               parse->source->column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing binary digit after digit separator" );
             p_bail( parse );
@@ -2156,14 +2157,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in binary literal" );
          p_bail( parse );
       }
       else if ( text->length == 0 ) {
          struct pos pos = { parse->source->line, column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in binary literal" );
          p_bail( parse );
@@ -2187,8 +2188,8 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isxdigit( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               parse->source->column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing hexadecimal digit after digit separator" );
             p_bail( parse );
@@ -2196,14 +2197,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
          p_bail( parse );
       }
       else if ( text->length == 0 ) {
          struct pos pos = { parse->source->line, column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in hexadecimal literal" );
          p_bail( parse );
@@ -2226,8 +2227,8 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! ( ch >= '0' && ch <= '7' ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               parse->source->column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing octal digit after digit separator" );
             p_bail( parse );
@@ -2235,7 +2236,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( isalnum( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
          p_bail( parse );
@@ -2294,8 +2295,8 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isdigit( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               parse->source->column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing decimal digit after digit separator" );
             p_bail( parse );
@@ -2314,7 +2315,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in decimal literal" );
          p_bail( parse );
@@ -2337,14 +2338,14 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
          p_bail( parse );
       }
       else if ( text->value[ text->length - 1 ] == '.' ) {
          struct pos pos = { parse->source->line, column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "no digits found in fractional part of fixed-point literal" );
          p_bail( parse );
@@ -2366,8 +2367,8 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isalnum( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file->id, parse->source->line,
-               parse->source->column );
+            t_init_pos( &pos, parse->source->file_entry_id,
+               parse->source->line, parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing digit after digit separator" );
             p_bail( parse );
@@ -2384,7 +2385,7 @@ void read_token( struct parse* parse, struct token* token ) {
    text = temp_text( parse );
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, parse->source->file->id };
+         struct pos pos = { line, column, parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
          p_bail( parse );
@@ -2435,7 +2436,7 @@ void read_token( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, parse->source->file->id };
+         struct pos pos = { line, column, parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos, "unterminated comment" );
          p_bail( parse );
       }
@@ -2568,7 +2569,7 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    if ( ! ch ) {
       empty: ;
       struct pos pos = { parse->source->line, parse->source->column,
-         parse->source->file->id };
+         parse->source->file_entry_id };
       p_diag( parse, DIAG_POS_ERR, &pos, "empty escape sequence" );
       p_bail( parse );
    }
@@ -2600,7 +2601,7 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
       if ( i == 3 ) {
          too_many_digits: ;
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos, "too many digits" );
          p_bail( parse );
       }
@@ -2662,7 +2663,7 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
       }
       else {
          struct pos pos = { parse->source->line, slash,
-            parse->source->file->id };
+            parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos, "unknown escape sequence" );
          p_bail( parse );
       }
@@ -2674,7 +2675,7 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    // Code needs to be a valid character.
    if ( code > 127 ) {
       struct pos pos = { parse->source->line, slash,
-         parse->source->file->id };
+         parse->source->file_entry_id };
       p_diag( parse, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
       p_bail( parse );
    }
