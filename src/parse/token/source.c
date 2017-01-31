@@ -2144,7 +2144,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
       // Underscores can be used to improve readability of a numeric literal
       // by grouping digits, and are ignored.
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! ( ch == '0' || ch == '1' ) ) {
             struct pos pos;
@@ -2184,7 +2184,7 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
       }
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! isxdigit( ch ) ) {
             struct pos pos;
@@ -2223,7 +2223,7 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
       }
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! ( ch >= '0' && ch <= '7' ) ) {
             struct pos pos;
@@ -2256,10 +2256,10 @@ void read_token( struct parse* parse, struct token* token ) {
 
    zero:
    // -----------------------------------------------------------------------
-   while ( ch == '0' || ( ch == '_' && peek_ch( parse ) == '0' ) ) {
+   while ( ch == '0' || ( ch == '\'' && peek_ch( parse ) == '0' ) ) {
       ch = read_ch( parse );
    }
-   if ( isdigit( ch ) || ch == '_' ) {
+   if ( isdigit( ch ) || ch == '\'' ) {
       goto decimal_literal;
    }
    else if ( ch == '.' ) {
@@ -2291,7 +2291,7 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
       }
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! isdigit( ch ) ) {
             struct pos pos;
@@ -2333,7 +2333,7 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( text, ch );
          ch = read_ch( parse );
       }
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! isdigit( ch ) ) {
             struct pos pos;
@@ -2371,7 +2371,7 @@ void read_token( struct parse* parse, struct token* token ) {
          append_ch( &parse->temp_text, tolower( ch ) );
          ch = read_ch( parse );
       }
-      else if ( ch == '_' ) {
+      else if ( ch == '\'' ) {
          ch = read_ch( parse );
          if ( ! isalnum( ch ) ) {
             struct pos pos;
