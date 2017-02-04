@@ -619,17 +619,9 @@ assignment:
    <conditional> |=  <assignment>
 
 conditional:
-   <short-circuit-or>
-   <short-circuit-or> ? <expression> : <conditional>
-   <short-circuit-orshort-or> ? : <conditional>
-
-short-circuit-or:
-   <short-circuit-and>
-   <short-circuit-or> ||| <short-circuit-and>
-
-short-circuit-and:
    <logical-or>
-   <short-circuit-and> &&& <logical-or>
+   <logical-or> ? <expression> : <conditional>
+   <logical-or> ? : <conditional>
 
 logical-or:
    <logical-and>

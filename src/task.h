@@ -381,10 +381,8 @@ struct binary {
 struct logical {
    struct node node;
    enum {
-      LOP_SHORTCIRCUITOR,
-      LOP_SHORTCIRCUITAND,
       LOP_OR,
-      LOP_AND,
+      LOP_AND
    } op;
    struct node* lside;
    struct node* rside;

@@ -742,14 +742,8 @@ void fold_logical( struct semantic* semantic, struct logical* logical,
          UNREACHABLE();
       }
       switch ( logical->op ) {
-      case LOP_OR:
-      case LOP_SHORTCIRCUITOR:
-         l = ( l || r );
-         break;
-      case LOP_AND:
-      case LOP_SHORTCIRCUITAND:
-         l = ( l && r );
-         break;
+      case LOP_OR: l = ( l || r ); break;
+      case LOP_AND: l = ( l && r ); break;
       default:
          UNREACHABLE();
       }
