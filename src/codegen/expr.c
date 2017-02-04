@@ -63,9 +63,9 @@ static void eq_func( struct codegen* codegen, struct result* result,
    struct binary* binary );
 static void visit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
+static void write_logical_acs( struct codegen* codegen, struct result* result,
+   struct logical* logical );
 static void write_logical( struct codegen* codegen,
-   struct result* result, struct logical* logical );
-static void write_shortcircuit_logical( struct codegen* codegen,
    struct result* result, struct logical* logical );
 static void push_logical_operand( struct codegen* codegen,
    struct node* node, int spec );
@@ -589,36 +589,35 @@ void visit_logical( struct codegen* codegen,
       result->status = R_VALUE;
    }
    else {
-      switch ( logical->op ) {
-      case LOP_OR:
-      case LOP_AND:
-         write_logical( codegen, result, logical );
-         break;
-      case LOP_SHORTCIRCUITOR:
-      case LOP_SHORTCIRCUITAND:
-         write_shortcircuit_logical( codegen, result, logical );
+      switch ( codegen->lang ) {
+      case LANG_ACS:
+      case LANG_ACS95:
+         write_logical_acs( codegen, result, logical );
          break;
       default:
-         UNREACHABLE();
+         write_logical( codegen, result, logical );
+         break;
       }
    }
 }
 
-void write_logical( struct codegen* codegen, struct result* result,
+void write_logical_acs( struct codegen* codegen, struct result* result,
    struct logical* logical ) {
    push_operand( codegen, logical->lside );
    push_operand( codegen, logical->rside );
    c_pcd( codegen, logical->op == LOP_AND ? PCD_ANDLOGICAL : PCD_ORLOGICAL );
 }
 
-void write_shortcircuit_logical( struct codegen* codegen,
-   struct result* result, struct logical* logical ) {
+// Logical-or and logical-and both perform shortcircuit evaluation.
+void write_logical( struct codegen* codegen, struct result* result,
+   struct logical* logical ) {
    push_logical_operand( codegen, logical->lside, logical->lside_spec );
    struct c_jump* rside_jump = c_create_jump( codegen,
-      ( logical->op == LOP_SHORTCIRCUITOR ? PCD_IFNOTGOTO : PCD_IFGOTO ) );
+      ( logical->op == LOP_OR || logical->op == LOP_SHORTCIRCUITOR ?
+      PCD_IFNOTGOTO : PCD_IFGOTO ) );
    c_append_node( codegen, &rside_jump->node );
    c_pcd( codegen, PCD_PUSHNUMBER,
-      ( logical->op == LOP_SHORTCIRCUITOR ? 1 : 0 ) );
+      ( logical->op == LOP_OR || logical->op == LOP_SHORTCIRCUITOR ? 1 : 0 ) );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &exit_jump->node );
    struct c_point* rside_point = c_create_point( codegen );
