@@ -2168,7 +2168,7 @@ void read_token( struct parse* parse, struct token* token ) {
          struct pos pos = { parse->source->line, column,
             parse->source->file_entry_id };
          p_diag( parse, DIAG_POS_ERR, &pos,
-            "no digits found in binary literal" );
+            "binary literal has no digits" );
          p_bail( parse );
       }
       else {
@@ -2363,7 +2363,7 @@ void read_token( struct parse* parse, struct token* token ) {
             struct pos pos = { parse->source->line, column,
                parse->source->file_entry_id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
-               "no digits found in fractional part of fixed-point literal" );
+               "fixed-point literal has no digits after point" );
          }
          tk = TK_LIT_FIXED;
          goto state_finish;
