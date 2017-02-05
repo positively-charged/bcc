@@ -16,6 +16,7 @@ struct diag_msg {
    int line;
    int column;
    int flags;
+   bool include_history;
 };
 
 static void init_str_table( struct str_table* table );
@@ -23,6 +24,8 @@ static void add_internal_file( struct task* task, const char* name );
 static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    va_list* args );
 static void print_diag( struct task* task, struct diag_msg* msg );
+static void print_include_history( struct task* task, struct diag_msg* msg,
+   FILE* stream );
 static void print_parent_files( struct task* task, FILE* stream,
    struct include_history_entry* entry,
    struct include_history_entry* child_entry );
@@ -117,6 +120,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail,
    task->blank_name = task->upmost_ns->body;
 
    list_init( &task->include_history );
+   task->last_diag_file = NULL;
    add_internal_file( task, "<none>" );
    add_internal_file( task, "<compiler>" );
    add_internal_file( task, "<command-line>" );
@@ -348,16 +352,24 @@ void t_diag_args( struct task* task, int flags, va_list* args ) {
 
 void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    va_list* args ) {
+   str_init( &msg->text );
+   msg->file = NULL;
+   msg->line = 0;
+   msg->column = 0;
+   msg->flags = flags;
+   msg->include_history = false;
+   // Decode position.
    if ( flags & DIAG_FILE ) {
       struct pos* pos = va_arg( *args, struct pos* );
       decode_pos( task, pos, &msg->file, &msg->line, &msg->column );
+      if ( msg->file != task->last_diag_file ) {
+         task->last_diag_file = msg->file;
+         if ( msg->file->parent ) {
+            msg->include_history = true;
+         }
+      }
    }
-   else {
-      msg->file = NULL;
-      msg->line = 0;
-      msg->column = 0;
-   }
-   str_init( &msg->text );
+   // Append message prefix.
    if ( flags & DIAG_SYNTAX ) {
       str_append( &msg->text, "syntax " );
    }
@@ -373,16 +385,14 @@ void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    else if ( flags & DIAG_NOTE ) {
       str_append( &msg->text, "note: " );
    }
+   // Append message.
    const char* format = va_arg( *args, const char* );
    str_append_format( &msg->text, format, args );
-   msg->flags = flags;
 }
 
 void print_diag( struct task* task, struct diag_msg* msg ) {
    if ( msg->flags & DIAG_FILE ) {
-      if ( msg->file->parent ) {
-         print_parent_files( task, stdout, msg->file->parent, msg->file );
-      }
+      print_include_history( task, msg, stdout );
       printf( "%s:", decode_filename( task, msg->file ) );
       if ( msg->flags & DIAG_LINE ) {
          printf( "%d:", msg->line );
@@ -393,6 +403,13 @@ void print_diag( struct task* task, struct diag_msg* msg ) {
       printf( " " );
    }
    printf( "%s\n", msg->text.value );
+}
+
+void print_include_history( struct task* task, struct diag_msg* msg,
+   FILE* stream ) {
+   if ( msg->include_history ) {
+      print_parent_files( task, stream, msg->file->parent, msg->file );
+   }
 }
 
 void print_parent_files( struct task* task, FILE* stream,
@@ -413,10 +430,7 @@ void log_diag( struct task* task, struct diag_msg* msg ) {
          open_logfile( task );
       }
       if ( msg->flags & DIAG_FILE ) {
-         if ( msg->file->parent ) {
-            print_parent_files( task, task->err_file, msg->file->parent,
-               msg->file );
-         }
+         print_include_history( task, msg, task->err_file );
          fprintf( task->err_file, "%s:",
             decode_filename( task, msg->file ) );
          if ( msg->flags & DIAG_LINE ) {

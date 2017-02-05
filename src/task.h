@@ -1194,6 +1194,8 @@ struct task {
    struct str* compiler_dir;
    struct str bcs_lib_dir;
    struct str acs_lib_dir;
+   // The file printed in the last diagnostic.
+   struct include_history_entry* last_diag_file;
 };
 
 #define DIAG_NONE 0
