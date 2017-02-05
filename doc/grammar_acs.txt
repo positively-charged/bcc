@@ -432,7 +432,7 @@ hexadecimal-number:
    0[xX][0-9a-fA-F]*
 
 fixed-point-number:
-   [0-9]+[.][0-9]+
+   [0-9]+[.][0-9]*
 
 radix-number:
    [0-9]+[_][0-9a-zA-Z]+
