@@ -2244,14 +2244,14 @@ void read_token( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         // We consider the number zero to be a decimal literal.
          if ( text->length == 0 ) {
-            append_ch( text, '0' );
-            tk = TK_LIT_DECIMAL;
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS_ERR, &pos,
+               "octal literal has no digits" );
+            p_bail( parse );
          }
-         else {
-            tk = TK_LIT_OCTAL;
-         }
+         tk = TK_LIT_OCTAL;
          goto state_finish;
       }
    }
