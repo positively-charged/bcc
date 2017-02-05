@@ -827,9 +827,9 @@ void read_token_acs( struct parse* parse, struct token* token ) {
             struct pos pos;
             t_init_pos( &pos, parse->source->file_entry_id,
                parse->source->line, column );
-            p_diag( parse, DIAG_POS_ERR, &pos,
-               "no digits found in hexadecimal literal" );
-            p_bail( parse );
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "hexadecimal literal has no digits, will interpret it as 0x0" );
+            append_ch( &parse->temp_text, '0' );
          }
          tk = TK_LIT_HEX;
          text = parse->temp_text.value;
@@ -1516,9 +1516,9 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
             struct pos pos;
             t_init_pos( &pos, parse->source->file_entry_id,
                parse->source->line, column );
-            p_diag( parse, DIAG_POS_ERR, &pos,
-               "no digits found in hexadecimal literal" );
-            p_bail( parse );
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "hexadecimal literal has no digits, will interpret it as 0x0" );
+            append_ch( &parse->temp_text, '0' );
          }
          tk = TK_LIT_HEX;
          text = parse->temp_text.value;
@@ -2204,14 +2204,14 @@ void read_token( struct parse* parse, struct token* token ) {
             "invalid digit in hexadecimal literal" );
          p_bail( parse );
       }
-      else if ( text->length == 0 ) {
-         struct pos pos = { parse->source->line, column,
-            parse->source->file_entry_id };
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "no digits found in hexadecimal literal" );
-         p_bail( parse );
-      }
       else {
+         if ( text->length == 0 ) {
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "hexadecimal literal has no digits, will interpret it as 0x0" );
+            append_ch( text, '0' );
+         }
          tk = TK_LIT_HEX;
          goto state_finish;
       }
