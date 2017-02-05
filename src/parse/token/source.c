@@ -917,6 +917,14 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
+         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '.' ) {
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "fixed-point literal has no digits after point, will interpret "
+               "it as %s0", parse->temp_text.value );
+            append_ch( &parse->temp_text, '0' );
+         }
          tk = TK_LIT_FIXED;
          text = parse->temp_text.value;
          length = parse->temp_text.length;
@@ -1614,6 +1622,14 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
+         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '.' ) {
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "fixed-point literal has no digits after point, will interpret "
+               "it as %s0", parse->temp_text.value );
+            append_ch( &parse->temp_text, '0' );
+         }
          tk = TK_LIT_FIXED;
          text = parse->temp_text.value;
          length = parse->temp_text.length;
@@ -2379,7 +2395,9 @@ void read_token( struct parse* parse, struct token* token ) {
             struct pos pos = { parse->source->line, column,
                parse->source->file_entry_id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
-               "fixed-point literal has no digits after point" );
+               "fixed-point literal has no digits after point, will interpret "
+               "it as %s0", text->value );
+            append_ch( text, '0' );
          }
          tk = TK_LIT_FIXED;
          goto state_finish;
