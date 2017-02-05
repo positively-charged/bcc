@@ -932,6 +932,14 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
       }
       else {
+         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '_' ) {
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "radix literal has no digits after underscore, "
+               "will interpret it as %s0", parse->temp_text.value );
+            append_ch( &parse->temp_text, '0' );
+         }
          text = parse->temp_text.value;
          length = parse->temp_text.length;
          tk = TK_LIT_RADIX;
@@ -1621,6 +1629,14 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
       }
       else {
+         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '_' ) {
+            struct pos pos = { parse->source->line, column,
+               parse->source->file_entry_id };
+            p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+               "radix literal has no digits after underscore, "
+               "will interpret it as %s0", parse->temp_text.value );
+            append_ch( &parse->temp_text, '0' );
+         }
          text = parse->temp_text.value;
          length = parse->temp_text.length;
          tk = TK_LIT_RADIX;
@@ -2274,7 +2290,7 @@ void read_token( struct parse* parse, struct token* token ) {
    else if ( ch == 'r' || ch == 'R' || ch == '_' ) {
       text = temp_text( parse );
       append_ch( text, '0' );
-      append_ch( text, '_' );
+      append_ch( text, tolower( ch ) );
       ch = read_ch( parse );
       goto radix;
    }
@@ -2316,7 +2332,7 @@ void read_token( struct parse* parse, struct token* token ) {
       // constant, it might look confusing. To improve readability, allow 'r'
       // and 'R' to substitute for the underscore.
       else if ( ch == 'r' || ch == 'R' || ch == '_' ) {
-         append_ch( text, '_' );
+         append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
          goto radix;
       }
@@ -2372,9 +2388,18 @@ void read_token( struct parse* parse, struct token* token ) {
 
    radix:
    // -----------------------------------------------------------------------
+   if ( ! ( isalnum( ch ) || ch == '\'' ) ) {
+      struct pos pos = { parse->source->line, column,
+         parse->source->file_entry_id };
+      p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
+         "radix literal has no digits after %s, will interpret it as %s0",
+         ( text->value[ text->length - 1 ] == 'r' ) ? "'r'" : "underscore",
+         text->value );
+   }
+   text->value[ text->length - 1 ] = '_';
    while ( true ) {
       if ( isalnum( ch ) ) {
-         append_ch( &parse->temp_text, tolower( ch ) );
+         append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
       }
       else if ( ch == '\'' ) {
@@ -2389,6 +2414,9 @@ void read_token( struct parse* parse, struct token* token ) {
          }
       }
       else {
+         if ( text->value[ text->length - 1 ] == '_' ) {
+            append_ch( text, '0' );
+         }
          tk = TK_LIT_RADIX;
          goto state_finish;
       }
