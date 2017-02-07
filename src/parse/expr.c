@@ -585,6 +585,8 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
       read_paren( parse, reading );
       break;
    case TK_NAMESPACENAME:
+   case TK_FUNCTIONNAME:
+   case TK_SCRIPTNAME:
       read_magic_id( parse, reading );
       break;
    default:
@@ -1332,6 +1334,12 @@ void read_magic_id( struct parse* parse, struct expr_reading* reading ) {
    magic_id->name = MAGICID_NAMESPACE;
    switch ( parse->tk ) {
    case TK_NAMESPACENAME:
+      break;
+   case TK_FUNCTIONNAME:
+      magic_id->name = MAGICID_FUNCTION;
+      break;
+   case TK_SCRIPTNAME:
+      magic_id->name = MAGICID_SCRIPT;
       break;
    default:
       UNREACHABLE();

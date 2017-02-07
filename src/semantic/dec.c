@@ -74,17 +74,6 @@ struct builtin_aliases {
       struct alias alias;
       bool used;
    } append;
-   struct {
-      struct alias alias;
-      struct object object;
-   } funcname;
-};
-
-struct builtin_script_aliases {
-   struct {
-      struct alias alias;
-      struct object object;
-   } script_id;
 };
 
 struct value_list {
@@ -266,8 +255,6 @@ static void test_script_param_list( struct semantic* semantic,
    struct script* script );
 static void test_script_body( struct semantic* semantic,
    struct script* script );
-static void init_builtin_script_aliases( struct semantic* semantic,
-   struct builtin_script_aliases* aliases, struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    // Test expression.
@@ -2297,17 +2284,9 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
 // a link to a builtin namespace would be better.
 void init_builtin_aliases( struct semantic* semantic, struct func* func,
    struct builtin_aliases* aliases ) {
-   struct func_user* impl = func->impl;
-   // __FUNCTION__ is a string that is the name of the current function.
-   t_init_object( &aliases->funcname.object, NODE_FUNCNAME );
-   aliases->funcname.object.resolved = true;
-   struct alias* alias = &aliases->funcname.alias;
-   s_init_alias( alias );
-   alias->object.resolved = true;
-   alias->target = &aliases->funcname.object;
    // append().
    if ( func->msgbuild ) {
-      alias = &aliases->append.alias;
+      struct alias* alias = &aliases->append.alias;
       s_init_alias( alias );
       alias->object.resolved = true;
       alias->target = &semantic->task->append_func->object;
@@ -2320,10 +2299,8 @@ void init_builtin_aliases( struct semantic* semantic, struct func* func,
 
 void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases ) {
-   struct name* name = t_extend_name( semantic->ns->body, "__function__" );
-   s_bind_local_name( semantic, name, &aliases->funcname.alias.object, true );
    if ( aliases->append.used ) {
-      name = t_extend_name( semantic->ns->body, "append" );
+      struct name* name = t_extend_name( semantic->ns->body, "append" );
       s_bind_local_name( semantic, name, &aliases->append.alias.object, true );
    }
 }
@@ -2437,8 +2414,6 @@ void test_script_param_list( struct semantic* semantic,
 
 void test_script_body( struct semantic* semantic, struct script* script ) {
    s_add_scope( semantic, true );
-   struct builtin_script_aliases aliases;
-   init_builtin_script_aliases( semantic, &aliases, script );
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
@@ -2456,20 +2431,6 @@ void test_script_body( struct semantic* semantic, struct script* script ) {
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
    s_pop_scope( semantic );
-}
-
-void init_builtin_script_aliases( struct semantic* semantic,
-   struct builtin_script_aliases* aliases, struct script* script ) {
-   // __SCRIPT__ is a string that contains either the name or number of the
-   // current script.
-   t_init_object( &aliases->script_id.object, NODE_SCRIPTID );
-   aliases->script_id.object.resolved = true;
-   struct alias* alias = &aliases->script_id.alias;
-   s_init_alias( alias );
-   alias->object.resolved = true;
-   alias->target = &aliases->script_id.object;
-   struct name* name = t_extend_name( semantic->ns->body, "__script__" );
-   s_bind_local_name( semantic, name, &aliases->script_id.alias.object, true );
 }
 
 void s_calc_var_size( struct var* var ) {

@@ -122,11 +122,8 @@ struct node {
       NODE_MEMCPY,
       NODE_CONVERSION,
       NODE_SURE,
-      NODE_FUNCNAME,
-      NODE_SCRIPTID,
       NODE_DO,
       NODE_COMPOUNDLITERAL,
-      // 60
       NODE_MAGICID,
    } type;
 };
@@ -312,12 +309,18 @@ struct compound_literal {
    struct var* var;
 };
 
+// List of magic identifiers:
+// __NAMESPACE__ | Fully-qualified name of the current namespace.
+// __FUNCTION__  | Name of the current function.
+// __SCRIPT__    | Name or number of the current script.
 struct magic_id {
    struct node node;
    struct pos pos;
    struct indexed_string* string;
    enum {
       MAGICID_NAMESPACE,
+      MAGICID_FUNCTION,
+      MAGICID_SCRIPT,
    } name;
 };
 

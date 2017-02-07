@@ -174,6 +174,8 @@ enum tk {
    TK_STRICT,
    // 150
    TK_NAMESPACENAME,
+   TK_FUNCTIONNAME,
+   TK_SCRIPTNAME,
 
    TK_TOTAL,
 

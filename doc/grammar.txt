@@ -843,6 +843,9 @@ comment:
    [/][*]([^*]*[*]+)+[/] // Multi-line comment.
 
 keyword:
+   __function__
+   __namespace__
+   __script__
    assert
    auto
    bool
