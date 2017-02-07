@@ -15,7 +15,7 @@ strict namespace {
 
 script "Main" open {
    str a = StrParam( d: INT_MAX );
-   str b = StrParam( d: INT_MAX - 1000_000_000 );
+   str b = StrParam( d: INT_MAX - 1000'000'000 );
    Print( i: BigInt.Lt( a, b ) );
    Print( s: BigInt.Add( a, b ) );
    Print( s: BigInt.Sub( a, b ) );
