@@ -1047,6 +1047,7 @@ struct ns {
    struct list objects;
    struct list fragments;
    bool defined;
+   bool hidden;
 };
 
 struct ns_link {
@@ -1068,6 +1069,7 @@ struct ns_fragment {
    struct list usings;
    // Enables: strong typing; block scoping of local objects.
    bool strict;
+   bool hidden;
 };
 
 struct ns_path {
@@ -1113,7 +1115,6 @@ struct library {
    struct list scripts;
    struct list objects;
    struct list private_objects;
-   struct list namespaces;
    // #included/#imported libraries.
    struct list import_dircs;
    struct list dynamic;
@@ -1176,6 +1177,7 @@ struct task {
    struct library* library_main;
    // Imported libraries come first, followed by the main library.
    struct list libraries;
+   struct list namespaces;
    int last_id;
    time_t compile_time;
    struct gbuf growing_buffer;

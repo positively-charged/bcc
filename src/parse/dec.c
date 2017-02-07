@@ -491,9 +491,6 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &enumeration->object );
       list_append( &parse->ns_fragment->objects, enumeration );
       list_append( &parse->lib->objects, enumeration );
-      if ( dec->private_visibility ) {
-         list_append( &parse->lib->private_objects, enumeration );
-      }
    }
    if ( dec->implicit_type_alias.specified ) {
       struct dec implicit_dec;
@@ -665,9 +662,6 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &structure->object );
       list_append( &parse->ns_fragment->objects, structure );
       list_append( &parse->lib->objects, structure );
-      if ( dec->private_visibility ) {
-         list_append( &parse->lib->private_objects, structure );
-      }
    }
    if ( dec->implicit_type_alias.specified ) {
       struct dec implicit_dec;
@@ -1505,9 +1499,6 @@ void add_var( struct parse* parse, struct dec* dec ) {
       }
       else {
          list_append( &parse->lib->vars, var );
-         if ( var->hidden ) {
-            list_append( &parse->lib->private_objects, var );
-         }
       }
    }
    else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
@@ -1575,9 +1566,6 @@ void finish_type_alias( struct parse* parse, struct dec* dec ) {
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &alias->object );
       list_append( &parse->ns_fragment->objects, alias );
-      if ( dec->private_visibility ) {
-         list_append( &parse->lib->private_objects, alias );
-      }
    }
    else {
       list_append( dec->vars, alias );
@@ -1890,9 +1878,6 @@ void read_func( struct parse* parse, struct dec* dec ) {
       p_add_unresolved( parse, &func->object );
       list_append( &parse->ns_fragment->objects, func );
       list_append( &parse->lib->objects, func );
-      if ( func->hidden ) {
-         list_append( &parse->lib->private_objects, func );
-      }
       if ( func->type == FUNC_USER ) {
          if ( func->external ) {
             list_append( &parse->lib->external_funcs, func );

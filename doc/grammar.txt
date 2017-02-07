@@ -47,9 +47,14 @@ namespace:
    <namespace-header> { }
 
 namespace-header:
-   strict namespace <namespace-name>
-   strict namespace
-   namespace <namespace-name>
+   <namespace-visibility> strict namespace
+   <namespace-visibility> strict namespace <namespace-name>
+   <namespace-visibility> namespace <namespace-name>
+   private namespace
+
+namespace-visibility:
+   private
+   E
 
 namespace-name:
    <identifier>

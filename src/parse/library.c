@@ -19,6 +19,7 @@ enum pseudo_dirc {
 };
 
 struct ns_qual {
+   bool private_visibility;
    bool strict;
 };
 
@@ -33,6 +34,7 @@ static void read_namespace_name( struct parse* parse );
 static void read_namespace_path( struct parse* parse );
 static void read_namespace_member_list( struct parse* parse );
 static void read_namespace_member( struct parse* parse );
+static bool is_namespace( struct parse* parse );
 static void read_using( struct parse* parse, struct list* output,
    bool block_scope );
 static struct using_dirc* alloc_using( struct pos* pos );
@@ -60,26 +62,19 @@ static struct library* find_lib( struct parse* parse,
    struct file_entry* file );
 static void append_imported_lib( struct parse* parse, struct library* lib );
 static void determine_needed_library_links( struct parse* parse );
+static void determine_hidden_objects( struct parse* parse );
+static void collect_private_objects( struct parse* parse, struct library* lib,
+   struct ns_fragment* fragment );
+static bool is_private_namespace( struct ns* ns );
+static void unbind_namespaces( struct parse* parse );
 
 void p_read_target_lib( struct parse* parse ) {
    read_module( parse );
    read_imported_libs( parse );
    list_append( &parse->task->libraries, parse->task->library_main );
-   // Unbind namespaces. They will be rebinded in the semantic phase.
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->libraries );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->namespaces );
-      while ( ! list_end( &k ) ) {
-         struct ns* ns = list_data( &k );
-         ns->name->object = NULL;
-         list_next( &k );
-      }
-      list_next( &i );
-   }
    determine_needed_library_links( parse );
+   determine_hidden_objects( parse );
+   unbind_namespaces( parse );
 }
 
 void read_module( struct parse* parse ) {
@@ -144,6 +139,7 @@ void read_namespace( struct parse* parse ) {
    p_test_tk( parse, TK_NAMESPACE );
    struct ns_fragment* fragment = t_alloc_ns_fragment();
    fragment->object.pos = parse->tk_pos;
+   fragment->hidden = qualifiers.private_visibility;
    fragment->strict = qualifiers.strict;
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
@@ -161,11 +157,16 @@ void read_namespace( struct parse* parse ) {
 }
 
 void init_namespace_qualifier( struct ns_qual* qualifiers ) {
+   qualifiers->private_visibility = false;
    qualifiers->strict = false;
 }
 
 void read_namespace_qualifier( struct parse* parse,
    struct ns_qual* qualifiers ) {
+   if ( parse->tk == TK_PRIVATE ) {
+      qualifiers->private_visibility = true;
+      p_read_tk( parse );
+   }
    if ( parse->tk == TK_STRICT ) {
       qualifiers->strict = true;
       p_read_tk( parse );
@@ -176,29 +177,37 @@ void read_namespace_name( struct parse* parse ) {
    if ( parse->tk == TK_ID ||
       // An unqualified, unnamed namespace does not do anything useful. Force
       // an unqualified namespace to have a name.
-      ! parse->ns_fragment->strict ) {
+      ! ( parse->ns_fragment->strict || parse->ns_fragment->hidden ) ) {
       read_namespace_path( parse );
    }
    if ( parse->ns_fragment->path ) {
+      struct ns* ns = parse->ns;
       struct ns_path* path = parse->ns_fragment->path;
       while ( path ) {
-         struct name* name = t_extend_name( parse->ns->body, path->text );
-         if ( ! name->object ) {
-            struct ns* ns = t_alloc_ns( name );
-            ns->object.pos = path->pos;
-            ns->parent = parse->ns;
-            list_append( &parse->lib->namespaces, ns );
-            name->object = &ns->object;
+         struct name* name = t_extend_name( ns->body, path->text );
+         if ( name->object ) {
+            // NOTE: We assume that the object is a namespace, since all the
+            // other objects read will be bound during the semantic phase.
+            ns = ( struct ns* ) name->object;
          }
-         parse->ns = ( struct ns* ) name->object;
-         parse->ns_fragment->ns = parse->ns;
+         else {
+            struct ns* nested_ns = t_alloc_ns( name );
+            nested_ns->object.pos = path->pos;
+            nested_ns->parent = ns;
+            list_append( &parse->task->namespaces, nested_ns );
+            name->object = &nested_ns->object;
+            ns = nested_ns;
+         }
          path = path->next;
       }
+      parse->ns = ns;
+      parse->ns_fragment->ns = ns;
    }
    else {
       // A nameless namespace fragment is a fragment of the parent namespace.
       parse->ns_fragment->ns = parse->ns;
    }
+   list_append( &parse->ns->fragments, parse->ns_fragment );
 }
 
 void read_namespace_path( struct parse* parse ) {
@@ -234,7 +243,10 @@ void read_namespace_member_list( struct parse* parse ) {
 }
 
 void read_namespace_member( struct parse* parse ) {
-   if ( p_is_dec( parse ) ) {
+   if ( is_namespace( parse ) ) {
+      read_namespace( parse );
+   }
+   else if ( p_is_dec( parse ) ) {
       struct dec dec;
       p_init_dec( &dec );
       dec.name_offset = parse->ns->body;
@@ -242,11 +254,6 @@ void read_namespace_member( struct parse* parse ) {
    }
    else if ( parse->tk == TK_SCRIPT ) {
       p_read_script( parse );
-   }
-   else if (
-      parse->tk == TK_STRICT ||
-      parse->tk == TK_NAMESPACE ) {
-      read_namespace( parse );
    }
    else if ( parse->tk == TK_USING ) {
       read_using( parse, &parse->ns_fragment->usings, false );
@@ -262,6 +269,42 @@ void read_namespace_member( struct parse* parse ) {
          "unexpected %s", p_present_token_temp( parse, parse->tk ) );
       p_bail( parse );
    }
+}
+
+bool is_namespace( struct parse* parse ) {
+   switch ( parse->tk ) {
+   case TK_STRICT:
+      return true;
+   case TK_NAMESPACE:
+      switch ( p_peek( parse ) ) {
+      case TK_ID:
+      case TK_BRACE_L:
+         return true;
+      default:
+         break;
+      }
+      break;
+   case TK_PRIVATE:
+      switch ( p_peek( parse ) ) {
+      case TK_STRICT:
+         return true;
+      case TK_NAMESPACE:
+         switch ( p_peek_2nd( parse ) ) {
+         case TK_ID:
+         case TK_BRACE_L:
+            return true;
+         default:
+            break;
+         }
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   return false;
 }
 
 void read_using( struct parse* parse, struct list* output,
@@ -642,9 +685,6 @@ void read_define( struct parse* parse ) {
    p_add_unresolved( parse, &constant->object );
    list_append( &parse->lib->objects, constant );
    list_append( &parse->ns_fragment->objects, constant );
-   if ( hidden ) {
-      list_append( &parse->lib->private_objects, constant );
-   }
 }
 
 void read_import( struct parse* parse, struct pos* pos ) {
@@ -889,6 +929,112 @@ void determine_needed_library_links( struct parse* parse ) {
             link->needed = true;
          }
       }
+      list_next( &i );
+   }
+}
+
+void determine_hidden_objects( struct parse* parse ) {
+   // Determine private objects.
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->libraries );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      collect_private_objects( parse, lib, lib->upmost_ns_fragment );
+      list_next( &i );
+   }
+   // Determine private namespaces.
+   list_iter_init( &i, &parse->task->namespaces );
+   while ( ! list_end( &i ) ) {
+      struct ns* ns = list_data( &i );
+      ns->hidden = is_private_namespace( ns );
+      list_next( &i );
+   }
+}
+
+void collect_private_objects( struct parse* parse, struct library* lib,
+   struct ns_fragment* fragment ) {
+   list_iter_t i;
+   list_iter_init( &i, &fragment->objects );
+   while ( ! list_end( &i ) ) {
+      struct object* object = list_data( &i );
+      // Determine whether the object should be hidden.
+      bool hidden = false;
+      switch ( object->node.type ) {
+      case NODE_CONSTANT: {
+            struct constant* constant = ( struct constant* ) object;
+            constant->hidden = ( constant->hidden || fragment->hidden );
+            hidden = constant->hidden;
+         }
+         break;
+      case NODE_ENUMERATION: {
+            struct enumeration* enumeration = ( struct enumeration* ) object;
+            enumeration->hidden = ( enumeration->hidden || fragment->hidden );
+            hidden = enumeration->hidden;
+         }
+         break;
+      case NODE_STRUCTURE: {
+            struct structure* structure = ( struct structure* ) object;
+            structure->hidden = ( structure->hidden || fragment->hidden );
+            hidden = structure->hidden;
+         }
+         break;
+      case NODE_VAR: {
+            struct var* var = ( struct var* ) object;
+            var->hidden = ( var->hidden || fragment->hidden );
+            hidden = var->hidden;
+         }
+         break;
+      case NODE_FUNC: {
+            struct func* func = ( struct func* ) object;
+            func->hidden = ( func->hidden || fragment->hidden );
+            hidden = func->hidden;
+         }
+         break;
+      case NODE_TYPE_ALIAS: {
+            struct type_alias* alias = ( struct type_alias* ) object;
+            alias->hidden = ( alias->hidden || fragment->hidden );
+            hidden = alias->hidden;
+         }
+         break;
+      case NODE_NAMESPACEFRAGMENT: {
+            struct ns_fragment* nested_fragment =
+               ( struct ns_fragment* ) object;
+            nested_fragment->hidden =
+               ( nested_fragment->hidden || fragment->hidden );
+            hidden = nested_fragment->hidden;
+            collect_private_objects( parse, lib, nested_fragment );
+         }
+         break;
+      default:
+         UNREACHABLE();
+      }
+      // Add object to the hidden list.
+      if ( hidden ) {
+         list_append( &lib->private_objects, object );
+      }
+      list_next( &i );
+   }
+}
+
+bool is_private_namespace( struct ns* ns ) {
+   list_iter_t i;
+   list_iter_init( &i, &ns->fragments );
+   while ( ! list_end( &i ) ) {
+      struct ns_fragment* fragment = list_data( &i );
+      if ( ! fragment->hidden ) {
+         return false;
+      }
+      list_next( &i );
+   }
+   return true;
+}
+
+void unbind_namespaces( struct parse* parse ) {
+   list_iter_t i;
+   list_iter_init( &i, &parse->task->namespaces );
+   while ( ! list_end( &i ) ) {
+      struct ns* ns = list_data( &i );
+      ns->name->object = NULL;
       list_next( &i );
    }
 }

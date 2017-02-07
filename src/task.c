@@ -59,12 +59,14 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail,
    task->empty_string = t_intern_string( task, "", 0 );
    task->library_main = NULL;
    list_init( &task->libraries );
+   list_init( &task->namespaces );
    task->last_id = 0;
    task->compile_time = time( NULL );
    gbuf_init( &task->growing_buffer );
    list_init( &task->runtime_asserts );
    task->root_name = t_create_name();
    task->upmost_ns = t_alloc_ns( task->root_name );
+   list_append( &task->namespaces, task->upmost_ns );
 
    task->array_name = t_create_name();
    struct func_intern* impl = mem_alloc( sizeof( *impl ) );
@@ -148,6 +150,7 @@ struct ns* t_alloc_ns( struct name* name ) {
    ns->links = NULL;
    list_init( &ns->fragments );
    ns->defined = false;
+   ns->hidden = false;
    return ns;
 }
 
@@ -164,6 +167,7 @@ struct ns_fragment* t_alloc_ns_fragment( void ) {
    list_init( &fragment->fragments );
    list_init( &fragment->usings );
    fragment->strict = false;
+   fragment->hidden = false;
    return fragment;
 }
 
@@ -658,7 +662,6 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->scripts );
    list_init( &lib->objects );
    list_init( &lib->private_objects );
-   list_init( &lib->namespaces );
    list_init( &lib->files );
    list_init( &lib->import_dircs );
    list_init( &lib->dynamic );
@@ -669,8 +672,9 @@ struct library* t_add_library( struct task* task ) {
    list_init( &lib->external_funcs );
    lib->upmost_ns_fragment = t_alloc_ns_fragment();
    lib->upmost_ns_fragment->ns = task->upmost_ns;
+   list_append( &lib->upmost_ns_fragment->ns->fragments,
+      lib->upmost_ns_fragment );
    // root_name->object = &lib->upmost_ns->object;
-   list_append( &lib->namespaces, task->upmost_ns );
    lib->file_pos.line = 0;
    lib->file_pos.column = 0;
    lib->file_pos.id = 0;

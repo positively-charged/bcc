@@ -48,11 +48,13 @@ static void show_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
 static void show_structure( struct semantic* semantic,
    struct structure* structure );
+static void show_namespace( struct ns_fragment* fragment );
 static void hide_private_objects( struct semantic* semantic );
 static void hide_enumeration( struct semantic* semantic,
    struct enumeration* enumeration );
 static void hide_structure( struct semantic* semantic,
    struct structure* structure );
+static void hide_namespace( struct ns_fragment* fragment );
 static void perform_usings( struct semantic* semantic );
 static void perform_namespace_usings( struct semantic* semantic,
    struct ns_fragment* fragment );
@@ -82,12 +84,14 @@ static void match_dup_script( struct semantic* semantic, struct script* script,
 static void assign_script_numbers( struct semantic* semantic );
 static void calc_map_var_size( struct semantic* semantic );
 static void calc_map_value_index( struct semantic* semantic );
+static void bind_private_name( struct name* name, struct object* object );
 static void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object );
 static void bind_block_name( struct semantic* semantic, struct name* name,
    struct object* object );
 static void dupname_err( struct semantic* semantic, struct name* name,
    struct object* object );
+static void unbind_name( struct name* name, struct object* object );
 static void insert_namespace_link( struct semantic* semantic,
    struct ns_link* link, bool block_scope );
 static void init_ns_link_retriever( struct semantic* semantic,
@@ -312,6 +316,7 @@ void bind_names( struct semantic* semantic ) {
    }
    semantic->lib = semantic->main_lib;
    bind_namespace( semantic, semantic->lib->upmost_ns_fragment );
+   hide_private_objects( semantic );
 }
 
 void bind_namespace( struct semantic* semantic,
@@ -443,13 +448,9 @@ void show_private_objects( struct semantic* semantic ) {
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
-         struct constant* constant;
-         struct var* var;
-         struct func* func;
       case NODE_CONSTANT:
-         constant = ( struct constant* ) object;
-         constant->object.next_scope = constant->name->object;
-         constant->name->object = &constant->object;
+         bind_private_name(
+            ( ( struct constant* ) object )->name, object );
          break;
       case NODE_ENUMERATION:
          show_enumeration( semantic,
@@ -460,20 +461,20 @@ void show_private_objects( struct semantic* semantic ) {
             ( struct structure* ) object );
          break;
       case NODE_VAR:
-         var = ( struct var* ) object;
-         var->object.next_scope = var->name->object;
-         var->name->object = &var->object;
+         bind_private_name(
+            ( ( struct var* ) object )->name, object );
          break;
       case NODE_FUNC:
-         func = ( struct func* ) object;
-         func->object.next_scope = func->name->object;
-         func->name->object = &func->object;
+         bind_private_name(
+            ( ( struct func* ) object )->name, object );
          break;
-      case NODE_TYPE_ALIAS: {
-            struct type_alias* alias = ( struct type_alias* ) object;
-            alias->object.next_scope = alias->name->object;
-            alias->name->object = &alias->object;
-         }
+      case NODE_TYPE_ALIAS:
+         bind_private_name(
+            ( ( struct type_alias* ) object )->name, object );
+         break;
+      case NODE_NAMESPACEFRAGMENT:
+         show_namespace(
+            ( struct ns_fragment* ) object );
          break;
       default:
          UNREACHABLE();
@@ -486,14 +487,12 @@ void show_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
    // Enumeration.
    if ( enumeration->name ) {
-      enumeration->object.next_scope = enumeration->name->object;
-      enumeration->name->object = &enumeration->object;
+      bind_private_name( enumeration->name, &enumeration->object );
    }
    // Enumerators.
    struct enumerator* enumerator = enumeration->head;
    while ( enumerator ) {
-      enumerator->object.next_scope = enumerator->name->object;
-      enumerator->name->object = &enumerator->object;
+      bind_private_name( enumerator->name, &enumerator->object );
       enumerator = enumerator->next;
    }
 }
@@ -502,15 +501,21 @@ void show_structure( struct semantic* semantic,
    struct structure* structure ) {
    // Structure.
    if ( structure->name ) {
-      structure->object.next_scope = structure->name->object;
-      structure->name->object = &structure->object;
+      bind_private_name( structure->name, &structure->object );
    }
    // Members.
    struct structure_member* member = structure->member;
    while ( member ) {
-      member->object.next_scope = member->name->object;
-      member->name->object = &member->object;
+      bind_private_name( member->name, &member->object );
       member = member->next;
+   }
+}
+
+void show_namespace( struct ns_fragment* fragment ) {
+   // If all the fragments of a namespace are private, then the whole
+   // namespace will be hidden. Reveal the namespace again.
+   if ( fragment->ns->hidden ) {
+      bind_private_name( fragment->ns->name, &fragment->ns->object );
    }
 }
 
@@ -524,8 +529,8 @@ void hide_private_objects( struct semantic* semantic ) {
          struct var* var;
          struct func* func;
       case NODE_CONSTANT:
-         constant = ( struct constant* ) object;
-         constant->name->object = constant->object.next_scope;
+         unbind_name(
+            ( ( struct constant* ) object )->name, object );
          break;
       case NODE_ENUMERATION:
          hide_enumeration( semantic,
@@ -536,17 +541,20 @@ void hide_private_objects( struct semantic* semantic ) {
             ( struct structure* ) object );
          break;
       case NODE_VAR:
-         var = ( struct var* ) object;
-         var->name->object = var->object.next_scope;
+         unbind_name(
+            ( ( struct var* ) object )->name, object );
          break;
       case NODE_FUNC:
-         func = ( struct func* ) object;
-         func->name->object = func->object.next_scope;
+         unbind_name(
+            ( ( struct func* ) object )->name, object );
          break;
-      case NODE_TYPE_ALIAS: {
-            struct type_alias* alias = ( struct type_alias* ) object;
-            alias->name->object = alias->object.next_scope;
-         }
+      case NODE_TYPE_ALIAS:
+         unbind_name(
+            ( ( struct type_alias* ) object )->name, object );
+         break;
+      case NODE_NAMESPACEFRAGMENT:
+         hide_namespace(
+            ( struct ns_fragment* ) object );
          break;
       default:
          UNREACHABLE();
@@ -558,11 +566,11 @@ void hide_private_objects( struct semantic* semantic ) {
 void hide_enumeration( struct semantic* semantic,
    struct enumeration* enumeration ) {
    if ( enumeration->name ) {
-      enumeration->name->object = enumeration->object.next_scope;
+      unbind_name( enumeration->name, &enumeration->object );
    }
    struct enumerator* enumerator = enumeration->head;
    while ( enumerator ) {
-      enumerator->name->object = enumerator->object.next_scope;
+      unbind_name( enumerator->name, &enumerator->object );
       enumerator = enumerator->next;
    }
 }
@@ -570,12 +578,19 @@ void hide_enumeration( struct semantic* semantic,
 void hide_structure( struct semantic* semantic,
    struct structure* structure ) {
    if ( structure->name ) {
-      structure->name->object = structure->object.next_scope;
+      unbind_name( structure->name, &structure->object );
    }
    struct structure_member* member = structure->member;
    while ( member ) {
-      member->name->object = member->object.next_scope;
+      unbind_name( member->name, &member->object );
       member = member->next;
+   }
+}
+
+void hide_namespace( struct ns_fragment* fragment ) {
+   // Hide the namespace when all of its fragments are private.
+   if ( fragment->ns->hidden ) {
+      unbind_name( fragment->ns->name, &fragment->ns->object );
    }
 }
 
@@ -998,14 +1013,9 @@ void test_all( struct semantic* semantic ) {
 void test_lib( struct semantic* semantic, struct library* lib ) {
    struct library* prev_lib = semantic->lib;
    semantic->lib = lib;
-   if ( lib->imported ) {
-      show_private_objects( semantic );
-      test_namespace( semantic, lib->upmost_ns_fragment );
-      hide_private_objects( semantic );
-   }
-   else {
-      test_namespace( semantic, lib->upmost_ns_fragment );
-   }
+   show_private_objects( semantic );
+   test_namespace( semantic, lib->upmost_ns_fragment );
+   hide_private_objects( semantic );
    semantic->lib = prev_lib;
 }
 
@@ -1100,14 +1110,9 @@ void test_objects_bodies_lib( struct semantic* semantic,
    struct library* lib ) {
    struct library* prev_lib = semantic->lib;
    semantic->lib = lib;
-   if ( lib->imported ) {
-      show_private_objects( semantic );
-      test_objects_bodies_ns( semantic, lib->upmost_ns_fragment );
-      hide_private_objects( semantic );
-   }
-   else {
-      test_objects_bodies_ns( semantic, lib->upmost_ns_fragment );
-   }
+   show_private_objects( semantic );
+   test_objects_bodies_ns( semantic, lib->upmost_ns_fragment );
+   hide_private_objects( semantic );
    semantic->lib = prev_lib;
 }
 
@@ -1333,6 +1338,14 @@ void s_bind_name( struct semantic* semantic, struct name* name,
    name->object = object;
 }
 
+// Binds namespace-level private objects.
+void bind_private_name( struct name* name, struct object* object ) {
+   if ( object != name->object ) {
+      object->next_scope = name->object;
+      name->object = object;
+   }
+}
+
 // Local scope.
 void s_bind_local_name( struct semantic* semantic, struct name* name,
    struct object* object, bool block_scope ) {
@@ -1394,6 +1407,14 @@ void dupname_err( struct semantic* semantic, struct name* name,
          "`%s` is the name of this %s", object_name.value, category );
    }
    s_bail( semantic );
+}
+
+void unbind_name( struct name* name, struct object* object ) {
+   // Only unbind the object if it is binded.
+   if ( object == name->object ) {
+      name->object = object->next_scope;
+      object->next_scope = NULL;
+   }
 }
 
 void insert_namespace_link( struct semantic* semantic, struct ns_link* link,

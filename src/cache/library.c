@@ -711,7 +711,7 @@ void setup_namespaces( struct restorer* restorer ) {
             struct ns* ns = t_alloc_ns( name );
             ns->object.pos = path->pos;
             ns->parent = restorer->ns;
-            list_append( &restorer->lib->namespaces, ns );
+            list_append( &restorer->task->namespaces, ns );
             name->object = &ns->object;
          }
          restorer->ns = ( struct ns* ) name->object;
