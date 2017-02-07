@@ -185,19 +185,17 @@ void read_namespace_name( struct parse* parse ) {
       struct ns_path* path = parse->ns_fragment->path;
       while ( path ) {
          struct name* name = t_extend_name( ns->body, path->text );
-         if ( name->object ) {
-            // NOTE: We assume that the object is a namespace, since all the
-            // other objects read will be bound during the semantic phase.
-            ns = ( struct ns* ) name->object;
-         }
-         else {
+         if ( ! ( name->object &&
+            name->object->node.type == NODE_NAMESPACE ) ) {
             struct ns* nested_ns = t_alloc_ns( name );
             nested_ns->object.pos = path->pos;
             nested_ns->parent = ns;
             list_append( &parse->task->namespaces, nested_ns );
+            nested_ns->object.next_scope = name->object;
             name->object = &nested_ns->object;
-            ns = nested_ns;
          }
+         // At this point, the name should be referring to a namespace object.
+         ns = ( struct ns* ) name->object;
          path = path->next;
       }
       parse->ns = ns;
@@ -1034,7 +1032,7 @@ void unbind_namespaces( struct parse* parse ) {
    list_iter_init( &i, &parse->task->namespaces );
    while ( ! list_end( &i ) ) {
       struct ns* ns = list_data( &i );
-      ns->name->object = NULL;
+      ns->name->object = ns->name->object->next_scope;
       list_next( &i );
    }
 }

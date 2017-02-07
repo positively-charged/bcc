@@ -66,6 +66,7 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail,
    list_init( &task->runtime_asserts );
    task->root_name = t_create_name();
    task->upmost_ns = t_alloc_ns( task->root_name );
+   task->upmost_ns->name->object = &task->upmost_ns->object;
    list_append( &task->namespaces, task->upmost_ns );
 
    task->array_name = t_create_name();
