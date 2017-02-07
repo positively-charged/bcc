@@ -172,6 +172,8 @@ enum tk {
    TK_REOPEN,
    TK_LET,
    TK_STRICT,
+   // 150
+   TK_NAMESPACENAME,
 
    TK_TOTAL,
 

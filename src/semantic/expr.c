@@ -157,6 +157,8 @@ static void test_fixed_literal( struct semantic* semantic,
 static void test_string_usage( struct semantic* semantic,
    struct expr_test* test, struct result* result,
    struct indexed_string_usage* usage );
+static void test_string( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct indexed_string* string );
 static void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
@@ -215,6 +217,10 @@ static void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result );
 static bool is_value_type( struct semantic* semantic, struct result* result );
 static bool is_ref_type( struct result* result );
+static void test_magic_id( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct magic_id* magic_id );
+static void expand_magic_id( struct semantic* semantic,
+   struct magic_id* magic_id );
 
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
@@ -2213,6 +2219,10 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       result->usable = true;
       result->folded = true;
       break;
+   case NODE_MAGICID:
+      test_magic_id( semantic, test, result,
+         ( struct magic_id* ) node );
+      break;
    default:
       UNREACHABLE();
    }
@@ -2238,8 +2248,13 @@ void test_fixed_literal( struct semantic* semantic, struct result* result,
 
 void test_string_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct indexed_string_usage* usage ) {
+   test_string( semantic, test, result, usage->string );
+}
+
+void test_string( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct indexed_string* string ) {
    result->spec = s_spec( semantic, SPEC_STR );
-   result->value = usage->string->index;
+   result->value = string->index;
    result->folded = true;
    result->complete = true;
    result->usable = true;
@@ -2968,4 +2983,28 @@ bool is_value_type( struct semantic* semantic, struct result* result ) {
 bool is_ref_type( struct result* result ) {
    return ( result->ref || result->dim || result->structure || result->func ||
       result->null );
+}
+
+void test_magic_id( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct magic_id* magic_id ) {
+   expand_magic_id( semantic, magic_id );
+   test_string( semantic, test, result, magic_id->string );
+}
+
+void expand_magic_id( struct semantic* semantic, struct magic_id* magic_id ) {
+   struct str name;
+   str_init( &name );
+   switch ( magic_id->name ) {
+   case MAGICID_NAMESPACE:
+      if ( semantic->ns == semantic->task->upmost_ns ) {
+         str_append( &name, "" );
+      }
+      else {
+         t_copy_name( semantic->ns->name, true, &name );
+      }
+      break;
+   }
+   magic_id->string = t_intern_string_copy( semantic->task,
+      name.value, name.length );
+   str_deinit( &name );
 }

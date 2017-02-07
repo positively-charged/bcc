@@ -181,6 +181,8 @@ static void visit_fixed_literal( struct codegen* codegen,
    struct result* result, struct fixed_literal* literal );
 static void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage );
+static void visit_string( struct codegen* codegen,
+   struct result* result, struct indexed_string* string );
 static void visit_boolean( struct codegen* codegen, struct result* result,
    struct boolean* boolean );
 static void visit_name_usage( struct codegen* codegen, struct result* result,
@@ -199,6 +201,8 @@ static void visit_param( struct codegen* codegen, struct result* result,
    struct param* param );
 static void visit_func( struct codegen* codegen, struct result* result,
    struct func* func );
+static void visit_magic_id( struct codegen* codegen, struct result* result,
+   struct magic_id* magic_id );
 static void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call );
 static void visit_memcpy( struct codegen* codegen, struct result* result,
@@ -1997,8 +2001,12 @@ void visit_primary( struct codegen* codegen, struct result* result,
       visit_func( codegen, result,
          ( struct func* ) node );
       break;
+   case NODE_MAGICID:
+      visit_magic_id( codegen, result,
+         ( struct magic_id* ) node );
+      break;
    default:
-      UNREACHABLE()
+      UNREACHABLE();
    }
 }
 
@@ -2016,7 +2024,12 @@ void visit_fixed_literal( struct codegen* codegen, struct result* result,
 
 void visit_indexed_string_usage( struct codegen* codegen,
    struct result* result, struct indexed_string_usage* usage ) {
-   c_push_string( codegen, usage->string );
+   visit_string( codegen, result, usage->string );
+}
+
+void visit_string( struct codegen* codegen,
+   struct result* result, struct indexed_string* string ) {
+   c_push_string( codegen, string );
    result->status = R_VALUE;
 }
 
@@ -2271,6 +2284,11 @@ void visit_func( struct codegen* codegen, struct result* result,
       struct func_ext* impl = func->impl;
       c_pcd( codegen, PCD_PUSHNUMBER, -impl->id );
    }
+}
+
+void visit_magic_id( struct codegen* codegen, struct result* result,
+   struct magic_id* magic_id ) {
+   visit_string( codegen, result, magic_id->string );
 }
 
 void visit_strcpy( struct codegen* codegen, struct result* result,

@@ -126,6 +126,8 @@ struct node {
       NODE_SCRIPTID,
       NODE_DO,
       NODE_COMPOUNDLITERAL,
+      // 60
+      NODE_MAGICID,
    } type;
 };
 
@@ -308,6 +310,15 @@ struct boolean {
 struct compound_literal {
    struct node node;
    struct var* var;
+};
+
+struct magic_id {
+   struct node node;
+   struct pos pos;
+   struct indexed_string* string;
+   enum {
+      MAGICID_NAMESPACE,
+   } name;
 };
 
 struct unary {
