@@ -2457,26 +2457,11 @@ void read_token( struct parse* parse, struct token* token ) {
          goto state_finish;
       }
       else if ( ch == '\\' ) {
+         append_ch( text, ch );
          ch = read_ch( parse );
-         if ( ch == '"' ) {
+         if ( ch ) {
             append_ch( text, ch );
             ch = read_ch( parse );
-         }
-         // Color codes are not parsed.
-         else if ( ch == 'c' || ch == 'C' ) {
-            append_ch( text, '\\' );
-            append_ch( text, ch );
-            ch = read_ch( parse );
-         }
-         else {
-            if ( parse->read_flags & READF_ESCAPESEQ ) {
-               escape_ch( parse, &ch, text, true );
-            }
-            else {
-               append_ch( text, '\\' );
-               append_ch( text, ch );
-               ch = read_ch( parse );
-            }
          }
       }
       else {
