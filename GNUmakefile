@@ -1,14 +1,14 @@
 # bcc Makefile.
 
 EXE=bcc
-BUILD_DIR=build2
+BUILD_DIR=build
 CC=gcc
 INCLUDE=-Isrc -I src/parse
 OPTIONS=-Wall -Werror -Wno-unused -std=c99 -pedantic -Wstrict-aliasing \
 	-Wstrict-aliasing=2 -Wmissing-field-initializers -D_BSD_SOURCE \
 	-D_DEFAULT_SOURCE $(INCLUDE)
 
-.PHONY: pre-build release debug clean
+.PHONY: pre-build release dev clean
 
 dev: pre-build $(EXE)
 
