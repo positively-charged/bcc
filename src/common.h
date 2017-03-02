@@ -11,6 +11,8 @@
 #   define OS_WINDOWS 0
 #endif
 
+extern const char* c_version;
+
 void mem_init( void );
 void* mem_alloc( size_t );
 void* mem_realloc( void*, size_t );
@@ -83,6 +85,7 @@ struct options {
    bool preprocess;
    bool write_asserts;
    bool lang_specified;
+   bool show_version;
    struct {
       const char* dir_path;
       int lifetime;

@@ -16,6 +16,7 @@ static bool read_options( struct options*, char** );
 static void strip_rslash( char* );
 static bool source_object_files_same( struct options* );
 static void print_usage( char* );
+static void print_version( void );
 static bool perform_action( struct options* options, jmp_buf* root_bail,
    struct str* compiler_dir );
 static void perform_task( struct task* task );
@@ -47,6 +48,11 @@ int main( int argc, char* argv[] ) {
       // No need to continue when help is requested.
       if ( options.help ) {
          print_usage( argv[ 0 ] );
+         result = EXIT_SUCCESS;
+         goto deinit_mem;
+      }
+      else if ( options.show_version ) {
+         print_version();
          result = EXIT_SUCCESS;
          goto deinit_mem;
       }
@@ -117,6 +123,7 @@ void init_options( struct options* options ) {
    options->preprocess = false;
    options->write_asserts = true;
    options->lang_specified = false;
+   options->show_version = false;
    options->cache.dir_path = NULL;
    options->cache.lifetime = -1;
    options->cache.enable = false;
@@ -129,9 +136,15 @@ bool read_options( struct options* options, char** argv ) {
    // Process the help option first.
    while ( *args ) {
       char* option = *args;
-      if ( *option == '-' && strcmp( option + 1, "h" ) == 0 ) {
-         options->help = true;
-         return true;
+      if ( *option == '-' ) {
+         if ( strcmp( option + 1, "h" ) == 0 ) {
+            options->help = true;
+            return true;
+         }
+         else if ( strcmp( option + 1, "version" ) == 0 ) {
+            options->show_version = true;
+            return true;
+         }
       }
       ++args;
    }
@@ -341,6 +354,7 @@ void print_usage( char* path ) {
       "                         acs95\n"
       "                         bcs\n"
       "  -l <library>         Creates a link to the specified library\n"
+      "  -version             Show version of the compiler\n"
       "Cache options:\n"
       "  -cache               Enable caching of library files\n"
       "  -cache-dir           Store cache-related files in the specified\n"
@@ -352,6 +366,10 @@ void print_usage( char* path ) {
       "  -cache-print         Show the contents of the cache\n"
       "  -cache-clear         Delete all cached library files\n",
       path );
+}
+
+void print_version( void ) {
+   printf( "%s\n", c_version );
 }
 
 bool perform_action( struct options* options, jmp_buf* root_bail,
