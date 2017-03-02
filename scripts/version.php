@@ -16,14 +16,14 @@ define( 'EXIT_SUCCESS', 0 );
 define( 'EXIT_FAILURE', 1 );
 
 class task {
-   public $script_path;
-   public $command;
-   public $major_number;
-   public $minor_number;
-   public $patch_number;
+   private $script_path;
+   private $command;
+   private $major_number;
+   private $minor_number;
+   private $patch_number;
    // Number of compilations since the last release (public) version.
-   public $build_number;
-   public $commit;
+   private $build_number;
+   private $commit;
 
    private function __construct( $argv ) {
       $this->script_path = $argv[ 0 ];
@@ -44,6 +44,7 @@ class task {
          'bump-patch',
          'bump-build',
          'reset',
+         'start',
       ) );
       if ( count( $options ) > 0 ) {
          $this->command = key( $options );
@@ -73,6 +74,9 @@ class task {
       case 'reset':
          $this->handle_reset();
          break;
+      case 'start':
+         $this->handle_start();
+         break;
       case '':
          $this->handle_empty();
          break;
@@ -97,7 +101,8 @@ class task {
          "  --bump-minor    Bump minor number of version\n" .
          "  --bump-patch    Bump patch number of version\n" .
          "  --bump-build    Bump build number of version\n" .
-         "  --reset         Set version back to the initial version\n",
+         "  --reset         Reset to last release version\n" .
+         "  --start         Set to initial version\n",
          $this->script_path );
    }
 
@@ -123,11 +128,14 @@ class task {
       $this->decode_version( $matches[ 1 ] );
    }
 
-   private function save_version( $release_version = false ) {
+   private function save_version( $release_version = false, $commit = false ) {
       $version = $this->encode_version();
       $this->write_version_file( VERSION_FILE, $version );
       if ( $release_version ) {
          $this->write_version_file( RELEASE_VERSION_FILE, $version );
+         if ( $commit ) {
+            $this->commit( $version );
+         }
       }
    }
 
@@ -156,11 +164,6 @@ class task {
       return $version;
    }
 
-   private function is_development_version() {
-      // A nonzero build number indicates a development version.
-      return ( $this->build_number > 0 );
-   }
-
    private function decode_version( $version ) {
       $matches = array();
       $result = preg_match(
@@ -179,15 +182,32 @@ class task {
       }
    }
 
+   private function is_development_version() {
+      // A nonzero build number indicates a development version.
+      return ( $this->build_number > 0 );
+   }
+
    private function get_latest_commit_hash() {
       $code = 1;
       $lines = array();
       exec( 'git --no-pager log -n 1 --pretty="%H"', $lines, $code );
       if ( ! ( $code == 0 && count( $lines ) == 1 ) ) {
-         $this->showErr( 'could not get hash of latest commit' );
+         $this->show_err( 'failed to get hash of latest commit' );
          $this->bail();
       }
       return $lines[ 0 ];
+   }
+
+   private function commit( $version ) {
+      $code = 1;
+      $lines = array();
+      $command = sprintf( 'git commit -m "Declare version: %s" %s', $version,
+         RELEASE_VERSION_FILE );
+      exec( $command, $lines, $code );
+      if ( $code != 0 ) {
+         $this->show_err( 'failed to make a commit' );
+         $this->bail();
+      }
    }
 
    private function handle_bump_major() {
@@ -196,7 +216,7 @@ class task {
       $this->minor_number = 0;
       $this->patch_number = 0;
       $this->build_number = 0;
-      $this->save_version( true );
+      $this->save_version( true, true );
    }
 
    private function handle_bump_minor() {
@@ -204,14 +224,14 @@ class task {
       ++$this->minor_number;
       $this->patch_number = 0;
       $this->build_number = 0;
-      $this->save_version( true );
+      $this->save_version( true, true );
    }
 
    private function handle_bump_patch() {
       $this->load_version();
       ++$this->patch_number;
       $this->build_number = 0;
-      $this->save_version( true );
+      $this->save_version( true, true );
    }
 
    private function handle_bump_build() {
@@ -221,6 +241,19 @@ class task {
    }
 
    private function handle_reset() {
+      $contents = @file_get_contents( RELEASE_VERSION_FILE );
+      if ( $contents === false ) {
+         $this->show_err();
+         $this->bail();
+      }
+      $written = @file_put_contents( VERSION_FILE, $contents );
+      if ( $written === false ) {
+         $this->show_err();
+         $this->bail();
+      }
+   }
+
+   private function handle_start() {
       $this->save_version( true );
    }
 
@@ -256,6 +289,6 @@ class task {
          exit( EXIT_FAILURE );
       }
    }
-};
+}
 
 task::run( $argv );
