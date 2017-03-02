@@ -7,12 +7,11 @@ INCLUDE=-Isrc -I src/parse
 OPTIONS=-Wall -Werror -Wno-unused -std=c99 -pedantic -Wstrict-aliasing \
 	-Wstrict-aliasing=2 -Wmissing-field-initializers -D_BSD_SOURCE \
 	-D_DEFAULT_SOURCE $(INCLUDE)
+VERSION_FILE=$(BUILD_DIR)/version.c
 
-.PHONY: pre-build release dev clean
+.PHONY: all pre-build dev dev-pre-build clean
 
-dev: pre-build $(EXE)
-
-release: pre-build $(EXE)
+all: pre-build $(EXE)
 	strip $(EXE)
 
 pre-build:
@@ -26,12 +25,23 @@ pre-build:
 		mkdir $(BUILD_DIR)/cache; \
 	fi
 
+dev: dev-pre-build $(EXE)
+
+dev-pre-build: pre-build
+#	Create new development version.
+	@if ! [ -f $(VERSION_FILE) ]; then \
+		./scripts/version.php --reset; \
+	fi
+	@./scripts/version.php --bump-build
+	@$(CC) -c $(OPTIONS) -o build/version.o $(VERSION_FILE)
+
 OBJECTS=\
 	$(BUILD_DIR)/builtin.o \
 	$(BUILD_DIR)/common.o \
 	$(BUILD_DIR)/gbuf.o \
 	$(BUILD_DIR)/main.o \
 	$(BUILD_DIR)/task.o \
+	$(BUILD_DIR)/version.o \
 	$(BUILD_DIR)/parse/asm.o \
 	$(BUILD_DIR)/parse/dec.o \
 	$(BUILD_DIR)/parse/expr.o \
@@ -66,6 +76,7 @@ OBJECTS=\
 	$(BUILD_DIR)/cache/field.o \
 	$(BUILD_DIR)/cache/library.o
 
+# Compile executable.
 $(EXE): $(OBJECTS)
 	$(CC) -o $@ $^
 
@@ -104,6 +115,9 @@ $(BUILD_DIR)/task.o: \
 	src/common.h \
 	src/gbuf.h
 	$(CC) -c $(OPTIONS) -o $@ $<
+$(BUILD_DIR)/version.o: \
+	src/version.c
+	@$(CC) -c $(OPTIONS) -o $@ $<
 
 # Compile: src/parse/
 $(BUILD_DIR)/parse/asm.o: \
@@ -383,6 +397,9 @@ clean:
 				rm $$object; \
 			fi; \
 		done; \
+		if [ -f $(VERSION_FILE) ]; then \
+			rm $(VERSION_FILE); \
+		fi; \
 		rmdir \
 			$(BUILD_DIR)/parse/token \
 			$(BUILD_DIR)/parse \
