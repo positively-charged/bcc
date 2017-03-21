@@ -898,9 +898,22 @@ struct palrange {
          struct expr* green2;
          struct expr* blue2;
       } rgb;
+      struct {
+         struct expr* red;
+         struct expr* green;
+         struct expr* blue;
+      } colorisation;
+      struct {
+         struct expr* amount;
+         struct expr* red;
+         struct expr* green;
+         struct expr* blue;
+      } tint;
    } value;
    bool rgb;
    bool saturated;
+   bool colorisation;
+   bool tint;
 };
 
 struct paltrans {

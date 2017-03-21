@@ -403,10 +403,12 @@ static struct pcode pcode_info[] = {
    { PCD_STRCPYTOSCRIPTCHRANGE, 0, "" },
    { PCD_LSPEC5EX, 1, "ne" },
    { PCD_LSPEC5EXRESULT, 1, "ne" },
+   { PCD_TRANSLATIONRANGE4, 0, "" },
+   { PCD_TRANSLATIONRANGE5, 0, "" },
 };
 
 struct pcode* c_get_pcode_info( int code ) {
-   STATIC_ASSERT( PCD_TOTAL == 383 );
+   STATIC_ASSERT( PCD_TOTAL == 385 );
    if ( code < ARRAY_SIZE( pcode_info ) ) {
       return ( pcode_info + code );
    }

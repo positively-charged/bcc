@@ -176,6 +176,7 @@ enum tk {
    TK_NAMESPACENAME,
    TK_FUNCTIONNAME,
    TK_SCRIPTNAME,
+   TK_AT,
 
    TK_TOTAL,
 
@@ -381,6 +382,7 @@ struct expr_reading {
    struct pos pos;
    bool in_constant;
    bool skip_assign;
+   bool skip_subscript;
    bool skip_call;
    bool expect_expr;
 };
@@ -477,6 +479,8 @@ void p_read_top_block( struct parse* parse, struct stmt_reading* reading,
 void p_skip_block( struct parse* parse );
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_func_call, bool expect_expr );
+void p_init_palrange_expr_reading( struct expr_reading* reading,
+   bool skip_subscript );
 void p_read_expr( struct parse* parse, struct expr_reading* reading );
 bool p_is_dec( struct parse* parse );
 bool p_is_local_dec( struct parse* parse );

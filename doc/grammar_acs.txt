@@ -273,6 +273,8 @@ palette-range-value:
    <expression> : <expression>
    <palette-range-rgb>
    % <palette-range-rgb>
+   # [ <expression> , <expression> , <expression> ]
+   @ <expression> [ <expression> , <expression> , <expression> ]
 
 palette-range-rgb:
    [ <expression> , <expression> , <expression> ] :

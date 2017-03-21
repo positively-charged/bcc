@@ -88,8 +88,15 @@ void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    reading->output_node = NULL;
    reading->in_constant = in_constant;
    reading->skip_assign = skip_assign;
+   reading->skip_subscript = false;
    reading->skip_call = skip_call;
    reading->expect_expr = expect_expr;
+}
+
+void p_init_palrange_expr_reading( struct expr_reading* reading,
+   bool skip_subscript ) {
+   p_init_expr_reading( reading, false, false, false, true );
+   reading->skip_subscript = skip_subscript;
 }
 
 void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
@@ -890,6 +897,9 @@ void read_suffix( struct parse* parse, struct expr_reading* reading ) {
       // Read suffix operation.
       switch ( suffix ) {
       case TK_BRACKET_L:
+         if ( reading->skip_subscript ) {
+            return;
+         }
          read_subscript( parse, reading );
          break;
       case TK_DOT:
@@ -1318,11 +1328,16 @@ void read_cast( struct parse* parse, struct expr_reading* reading,
 void read_paren_expr( struct parse* parse, struct expr_reading* reading ) {
    struct paren* paren = mem_alloc( sizeof( *paren ) );
    paren->node.type = NODE_PAREN;
+   paren->inside = NULL;
+   p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
-   read_op( parse, reading );
+   struct expr_reading nested_expr;
+   p_init_expr_reading( &nested_expr, reading->in_constant, false, false,
+      reading->expect_expr );
+   read_op( parse, &nested_expr );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   paren->inside = reading->node;
+   paren->inside = nested_expr.node;
    reading->node = &paren->node;
 }
 

@@ -46,6 +46,10 @@ static void set_jumps_point( struct codegen* codegen, struct jump* jump,
    struct c_point* point );
 static void visit_return( struct codegen* codegen, struct return_stmt* );
 static void visit_paltrans( struct codegen* codegen, struct paltrans* );
+static void write_palrange_colorisation( struct codegen* codegen,
+   struct palrange* range );
+static void write_palrange_tint( struct codegen* codegen,
+   struct palrange* range );
 static void visit_script_jump( struct codegen* codegen, struct script_jump* );
 static void visit_label( struct codegen* codegen, struct label* );
 static void visit_goto( struct codegen* codegen, struct goto_stmt* );
@@ -1134,6 +1138,12 @@ void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
             c_pcd( codegen, PCD_TRANSLATIONRANGE2 );
          }
       }
+      else if ( range->colorisation ) {
+         write_palrange_colorisation( codegen, range );
+      }
+      else if ( range->tint ) {
+         write_palrange_tint( codegen, range );
+      }
       else {
          c_push_expr( codegen, range->value.ent.begin );
          c_push_expr( codegen, range->value.ent.end );
@@ -1142,6 +1152,23 @@ void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
       range = range->next;
    }
    c_pcd( codegen, PCD_ENDTRANSLATION );
+}
+
+void write_palrange_colorisation( struct codegen* codegen,
+   struct palrange* range ) {
+   c_push_expr( codegen, range->value.colorisation.red );
+   c_push_expr( codegen, range->value.colorisation.green );
+   c_push_expr( codegen, range->value.colorisation.blue );
+   c_pcd( codegen, PCD_TRANSLATIONRANGE4 );
+}
+
+void write_palrange_tint( struct codegen* codegen,
+   struct palrange* range ) {
+   c_push_expr( codegen, range->value.tint.amount );
+   c_push_expr( codegen, range->value.tint.red );
+   c_push_expr( codegen, range->value.tint.green );
+   c_push_expr( codegen, range->value.tint.blue );
+   c_pcd( codegen, PCD_TRANSLATIONRANGE5 );
 }
 
 void visit_script_jump( struct codegen* codegen, struct script_jump* stmt ) {

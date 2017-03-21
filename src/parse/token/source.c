@@ -646,6 +646,11 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       read_ch( parse );
       goto finish;
    }
+   else if ( ch == '@' ) {
+      tk = TK_AT;
+      read_ch( parse );
+      goto finish;
+   }
    else if ( ch == '\0' ) {
       tk = TK_END;
       goto finish;
@@ -2122,6 +2127,7 @@ void read_token( struct parse* parse, struct token* token ) {
          '~', TK_BIT_NOT,
          '?', TK_QUESTION_MARK,
          ':', TK_COLON,
+         '@', TK_AT,
          '\\', TK_BACKSLASH,
          0 };
       int i = 0;

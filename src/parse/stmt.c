@@ -37,8 +37,13 @@ static void read_return( struct parse* parse, struct stmt_reading* );
 static void read_goto( struct parse* parse, struct stmt_reading* );
 static struct goto_stmt* alloc_goto_stmt( void );
 static void read_paltrans( struct parse* parse, struct stmt_reading* );
+static void read_palrange_rgb( struct parse* parse, struct palrange* range );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
    struct expr**, struct expr** );
+static void read_palrange_colorisation( struct parse* parse,
+   struct palrange* range );
+static void read_palrange_tint( struct parse* parse,
+   struct palrange* range );
 static void read_expr_stmt( struct parse* parse,
    struct stmt_reading* reading );
 static struct label* alloc_label( const char* name, struct pos* pos );
@@ -667,6 +672,8 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
       range->next = NULL;
       range->rgb = false;
       range->saturated = false;
+      range->colorisation = false;
+      range->tint = false;
       p_read_tk( parse );
       p_init_expr_reading( &expr, false, false, false, true );
       p_read_expr( parse, &expr );
@@ -679,19 +686,19 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
       p_test_tk( parse, TK_ASSIGN );
       p_read_tk( parse );
       if ( parse->tk == TK_MOD ) {
+         p_read_tk( parse );
+         read_palrange_rgb( parse, range );
          range->saturated = true;
-         p_read_tk( parse );
       }
-      if ( parse->tk == TK_BRACKET_L || range->saturated ) {
-         read_palrange_rgb_field( parse, &range->value.rgb.red1,
-            &range->value.rgb.green1, &range->value.rgb.blue1 );
-         p_test_tk( parse, TK_COLON );
-         p_read_tk( parse );
-         read_palrange_rgb_field( parse, &range->value.rgb.red2,
-            &range->value.rgb.green2, &range->value.rgb.blue2 );
-         if ( ! range->saturated ) {
-            range->rgb = true;
-         }
+      else if ( parse->tk == TK_HASH ) {
+         read_palrange_colorisation( parse, range );
+      }
+      else if ( parse->tk == TK_AT ) {
+         read_palrange_tint( parse, range );
+      }
+      else if ( parse->tk == TK_BRACKET_L ) {
+         read_palrange_rgb( parse, range );
+         range->rgb = true;
       }
       else {
          p_init_expr_reading( &expr, false, false, false, true );
@@ -719,6 +726,15 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
+void read_palrange_rgb( struct parse* parse, struct palrange* range ) {
+   read_palrange_rgb_field( parse, &range->value.rgb.red1,
+      &range->value.rgb.green1, &range->value.rgb.blue1 );
+   p_test_tk( parse, TK_COLON );
+   p_read_tk( parse );
+   read_palrange_rgb_field( parse, &range->value.rgb.red2,
+      &range->value.rgb.green2, &range->value.rgb.blue2 );
+}
+
 void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    struct expr** g, struct expr** b ) {
    p_test_tk( parse, TK_BRACKET_L );
@@ -739,6 +755,37 @@ void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    *b = expr.output_node;
    p_test_tk( parse, TK_BRACKET_R );
    p_read_tk( parse ); 
+}
+
+void read_palrange_colorisation( struct parse* parse,
+   struct palrange* range ) {
+   p_test_tk( parse, TK_HASH );
+   p_read_tk( parse );
+   read_palrange_rgb_field( parse,
+      &range->value.colorisation.red,
+      &range->value.colorisation.green,
+      &range->value.colorisation.blue );
+   range->colorisation = true;
+}
+
+void read_palrange_tint( struct parse* parse, struct palrange* range ) {
+   p_test_tk( parse, TK_AT );
+   p_read_tk( parse );
+   // NOTE: The syntax for this range is problematic. Here, we parse an
+   // expression, followed by a left bracket. But the left bracket can be
+   // considered a part of the expression, since it marks the start of a
+   // subscript operation. At this time, skip parsing subscript operations in
+   // this range. To use a subscript operation, put the expression between
+   // parentheses.
+   struct expr_reading expr;
+   p_init_palrange_expr_reading( &expr, true );
+   p_read_expr( parse, &expr );
+   range->value.tint.amount = expr.output_node;
+   read_palrange_rgb_field( parse,
+      &range->value.tint.red,
+      &range->value.tint.green,
+      &range->value.tint.blue );
+   range->tint = true;
 }
 
 void read_expr_stmt( struct parse* parse, struct stmt_reading* reading ) {

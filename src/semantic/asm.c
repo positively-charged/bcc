@@ -60,7 +60,7 @@ void test_name( struct semantic* semantic, struct test* test ) {
 }
 
 const struct mnemonic* find_mnemonic( const char* name ) {
-   STATIC_ASSERT( PCD_TOTAL == 383 );
+   STATIC_ASSERT( PCD_TOTAL == 385 );
    static const struct mnemonic table[] = {
       { "activatorsound", PCD_ACTIVATORSOUND },
       { "activatortid", PCD_ACTIVATORTID },
@@ -418,6 +418,8 @@ const struct mnemonic* find_mnemonic( const char* name ) {
       { "translationrange1", PCD_TRANSLATIONRANGE1 },
       { "translationrange2", PCD_TRANSLATIONRANGE2 },
       { "translationrange3", PCD_TRANSLATIONRANGE3 },
+      { "translationrange4", PCD_TRANSLATIONRANGE4 },
+      { "translationrange5", PCD_TRANSLATIONRANGE5 },
       { "unaryminus", PCD_UNARYMINUS },
       { "unmorphactor", PCD_UNMORPHACTOR },
       { "useactorinventory", PCD_USEACTORINVENTORY },

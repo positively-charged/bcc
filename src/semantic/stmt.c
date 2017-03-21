@@ -51,6 +51,10 @@ static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
    bool require_fixed_type );
+static void test_palrange_colorisation( struct semantic* semantic,
+   struct palrange* range );
+static void test_palrange_tint( struct semantic* semantic,
+   struct palrange* range );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void check_dup_label( struct semantic* semantic );
@@ -929,6 +933,12 @@ void test_paltrans( struct semantic* semantic, struct stmt_test* test,
             range->value.rgb.blue2,
             range->saturated );
       }
+      else if ( range->colorisation ) {
+         test_palrange_colorisation( semantic, range );
+      }
+      else if ( range->tint ) {
+         test_palrange_tint( semantic, range );
+      }
       else {
          test_paltrans_arg( semantic, range->value.ent.begin, false );
          test_paltrans_arg( semantic, range->value.ent.end, false );
@@ -951,6 +961,20 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
          "required", &required_type, &arg->pos );
       s_bail( semantic );
    }
+}
+
+void test_palrange_colorisation( struct semantic* semantic,
+   struct palrange* range ) {
+   test_paltrans_arg( semantic, range->value.colorisation.red, false );
+   test_paltrans_arg( semantic, range->value.colorisation.green, false );
+   test_paltrans_arg( semantic, range->value.colorisation.blue, false );
+}
+
+void test_palrange_tint( struct semantic* semantic, struct palrange* range ) {
+   test_paltrans_arg( semantic, range->value.tint.amount, false );
+   test_paltrans_arg( semantic, range->value.tint.red, false );
+   test_paltrans_arg( semantic, range->value.tint.green, false );
+   test_paltrans_arg( semantic, range->value.tint.blue, false );
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
