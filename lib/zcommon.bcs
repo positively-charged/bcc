@@ -1429,6 +1429,8 @@ special
 274:Door_AnimatedClose(int,int):int,
 275:Floor_Stop(int):int,
 276:Ceiling_Stop(int):int,
+277:Sector_SetFloorGlow(int,int,int,int,int):int,
+278:Sector_SetCeilingGlow(int,int,int,int,int):int,
 
 // Extension functions
 -1:GetLineUdmfInt(int,str):int,
@@ -1573,6 +1575,17 @@ special
 -207:Floor(fixed):fixed,
 -208:Round(fixed):fixed,
 -209:Ceil(fixed):fixed,
+// TODO: This function declaration looks ugly. Make it pretty.
+-210:ScriptCall(str,str;
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,raw,
+   raw,raw,raw),
+-211:StartSlideShow(str),
 
 // Eternity.
 -300:GetLineX(int,fixed,fixed):fixed,
