@@ -1021,6 +1021,7 @@ struct param* t_alloc_param( void ) {
 struct format_item* t_alloc_format_item( void ) {
    struct format_item* item = mem_alloc( sizeof( *item ) );
    item->cast = FCAST_DECIMAL;
+   t_init_pos_id( &item->pos, INTERNALFILE_COMPILER );
    item->next = NULL;
    item->value = NULL;
    item->extra = NULL;

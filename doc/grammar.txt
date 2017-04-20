@@ -451,6 +451,7 @@ statement:
    <label>
    <palette-translation>
    <assert>
+   <buildmsg>
    <empty-statement>
    <expression-statement>
 
@@ -547,8 +548,9 @@ script-jump-statement:
    restart ;
 
 return-statement:
-   return <expression> ;
    return ;
+   return <expression> ;
+   return <buildmsg>
 
 goto-statement:
    goto <identifier> ;
@@ -585,6 +587,12 @@ assert:
    assert ( <expression> , <string> ) ;
    static assert ( <expression> ) ;
    static assert ( <expression> , <string> ) ;
+
+buildmsg-statement:
+   <buildmsg>
+
+buildmsg:
+   buildmsg ( <expression> ) <block-statement>
 
 inline-asm:
    > <id> <nl>
@@ -692,13 +700,16 @@ suffix:
    <suffix> ++
    <suffix> --
    <suffix> [ <expression> ]
-   <suffix> ( )
-   <suffix> ( <expression-list> )
-   <suffix> ( const : <expression-list> )
-   <suffix> ( <format-item-list> )
-   <suffix> ( <format-item-list> ; <expression-list> )
+   <suffix> <call>
    <suffix> . <identifier>
    <suffix> ! !
+
+call:
+   ( )
+   ( <expression-list> )
+   ( const : <expression-list> )
+   ( <format-item-list> )
+   ( <format-item-list> ; <expression-list> )
 
 format-item-list:
    <format-item>
@@ -852,6 +863,7 @@ keyword:
    auto
    bool
    break
+   buildmsg
    case
    const
    continue

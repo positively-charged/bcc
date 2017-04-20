@@ -35,7 +35,7 @@ static void read_jump( struct parse* parse, struct stmt_reading* );
 static void read_script_jump( struct parse* parse, struct stmt_reading* );
 static void read_return( struct parse* parse, struct stmt_reading* );
 static void read_goto( struct parse* parse, struct stmt_reading* );
-static struct goto_stmt* alloc_goto_stmt( void );
+static struct goto_stmt* alloc_goto_stmt( struct pos* pos );
 static void read_paltrans( struct parse* parse, struct stmt_reading* );
 static void read_palrange_rgb( struct parse* parse, struct palrange* range );
 static void read_palrange_rgb_field( struct parse* parse, struct expr**,
@@ -44,6 +44,10 @@ static void read_palrange_colorisation( struct parse* parse,
    struct palrange* range );
 static void read_palrange_tint( struct parse* parse,
    struct palrange* range );
+static void read_buildmsg_stmt( struct parse* parse,
+   struct stmt_reading* reading );
+static struct buildmsg* read_buildmsg( struct parse* parse,
+   struct stmt_reading* reading );
 static void read_expr_stmt( struct parse* parse,
    struct stmt_reading* reading );
 static struct label* alloc_label( const char* name, struct pos* pos );
@@ -253,6 +257,9 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading,
    case TK_SEMICOLON:
       p_read_tk( parse );
       break;
+   case TK_BUILDMSG:
+      read_buildmsg_stmt( parse, reading );
+      break;
    default:
       read_expr_stmt( parse, reading );
       break;
@@ -300,9 +307,11 @@ void read_label( struct parse* parse, struct stmt_reading* reading ) {
 struct label* alloc_label( const char* name, struct pos* pos ) {
    struct label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_GOTO_LABEL;
-   label->point = NULL;
    label->pos = *pos;
    label->name = name;
+   label->buildmsg = NULL;
+   label->point = NULL;
+   list_init( &label->users );
    return label;
 }
 
@@ -615,26 +624,34 @@ void read_script_jump( struct parse* parse, struct stmt_reading* reading ) {
 }
 
 void read_return( struct parse* parse, struct stmt_reading* reading ) {
+   p_test_tk( parse, TK_RETURN );
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
    stmt->return_value = NULL;
+   stmt->buildmsg = NULL;
    stmt->next = NULL;
    stmt->epilogue_jump = NULL;
    stmt->pos = parse->tk_pos;
    p_read_tk( parse );
-   if ( parse->tk != TK_SEMICOLON ) {
-      struct expr_reading expr;
-      p_init_expr_reading( &expr, false, false, false, true );
-      p_read_expr( parse, &expr );
-      stmt->return_value = expr.output_node;
+   if ( parse->tk == TK_BUILDMSG ) {
+      stmt->buildmsg = read_buildmsg( parse, reading );
+      stmt->return_value = stmt->buildmsg->expr;
    }
-   p_test_tk( parse, TK_SEMICOLON );
-   p_read_tk( parse );
+   else {
+      if ( parse->tk != TK_SEMICOLON ) {
+         struct expr_reading expr;
+         p_init_expr_reading( &expr, false, false, false, true );
+         p_read_expr( parse, &expr );
+         stmt->return_value = expr.output_node;
+      }
+      p_test_tk( parse, TK_SEMICOLON );
+      p_read_tk( parse );
+   }
    reading->node = &stmt->node;
 }
 
 void read_goto( struct parse* parse, struct stmt_reading* reading ) {
-   struct goto_stmt* stmt = alloc_goto_stmt();
+   struct goto_stmt* stmt = alloc_goto_stmt( &parse->tk_pos );
    p_test_tk( parse, TK_GOTO );
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
@@ -646,12 +663,15 @@ void read_goto( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct goto_stmt* alloc_goto_stmt( void ) {
+struct goto_stmt* alloc_goto_stmt( struct pos* pos ) {
    struct goto_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_GOTO;
    stmt->obj_pos = 0;
    stmt->label = NULL;
    stmt->label_name = NULL;
+   stmt->pos = *pos;
+   t_init_pos_id( &stmt->label_name_pos, INTERNALFILE_COMPILER );
+   stmt->buildmsg = NULL;
    return stmt;
 }
 
@@ -786,6 +806,33 @@ void read_palrange_tint( struct parse* parse, struct palrange* range ) {
       &range->value.tint.green,
       &range->value.tint.blue );
    range->tint = true;
+}
+
+static void read_buildmsg_stmt( struct parse* parse,
+   struct stmt_reading* reading ) {
+   struct buildmsg_stmt* stmt = mem_alloc( sizeof( *stmt ) );
+   stmt->node.type = NODE_BUILDMSG;
+   stmt->buildmsg = read_buildmsg( parse, reading );
+   reading->node = &stmt->node;
+}
+
+static struct buildmsg* read_buildmsg( struct parse* parse,
+   struct stmt_reading* reading ) {
+   p_test_tk( parse, TK_BUILDMSG );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   struct expr_reading expr;
+   p_init_expr_reading( &expr, false, false, false, true );
+   p_read_expr( parse, &expr );
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
+   read_block( parse, reading );
+   struct buildmsg* buildmsg = mem_alloc( sizeof( *buildmsg ) );
+   buildmsg->expr = expr.output_node;
+   buildmsg->block = reading->block_node;
+   list_init( &buildmsg->usages );
+   return buildmsg;
 }
 
 void read_expr_stmt( struct parse* parse, struct stmt_reading* reading ) {

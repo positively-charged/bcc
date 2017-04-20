@@ -53,6 +53,12 @@ static void write_palrange_tint( struct codegen* codegen,
 static void visit_script_jump( struct codegen* codegen, struct script_jump* );
 static void visit_label( struct codegen* codegen, struct label* );
 static void visit_goto( struct codegen* codegen, struct goto_stmt* );
+static void visit_buildmsg_stmt( struct codegen* codegen,
+   struct buildmsg_stmt* stmt );
+static void write_msgbuild_block( struct codegen* codegen,
+   struct buildmsg* buildmsg );
+static void write_multi_usage_msgbuild_block( struct codegen* codegen,
+   struct buildmsg* buildmsg );
 static void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt );
 
 void c_write_block( struct codegen* codegen, struct block* stmt ) {
@@ -212,6 +218,10 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
       break;
    case NODE_PALTRANS:
       visit_paltrans( codegen, ( struct paltrans* ) node );
+      break;
+   case NODE_BUILDMSG:
+      visit_buildmsg_stmt( codegen,
+         ( struct buildmsg_stmt* ) node );
       break;
    case NODE_EXPR_STMT:
       visit_expr_stmt( codegen,
@@ -1096,19 +1106,22 @@ void set_jumps_point( struct codegen* codegen, struct jump* jump,
 }
 
 void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
-   if ( codegen->func->nested_func ) {
-      if ( stmt->return_value ) {
-         c_push_initz_expr( codegen, codegen->func->func->ref,
-            stmt->return_value );
+   // Push return value.
+   if ( stmt->return_value ) {
+      c_push_initz_expr( codegen, codegen->func->func->ref,
+         stmt->return_value );
+      if ( stmt->buildmsg ) {
+         write_msgbuild_block( codegen, stmt->buildmsg );
       }
+   }
+   // Exit.
+   if ( codegen->func->nested_func ) {
       struct c_jump* epilogue_jump = c_create_jump( codegen, PCD_GOTO );
       c_append_node( codegen, &epilogue_jump->node );
       stmt->epilogue_jump = epilogue_jump;
    }
    else {
       if ( stmt->return_value ) {
-         c_push_initz_expr( codegen, codegen->func->func->ref,
-            stmt->return_value );
          c_pcd( codegen, PCD_RETURNVAL );
       }
       else {
@@ -1199,6 +1212,66 @@ void visit_goto( struct codegen* codegen, struct goto_stmt* stmt ) {
       stmt->label->point = c_create_point( codegen );
    }
    jump->point = stmt->label->point;
+}
+
+static void visit_buildmsg_stmt( struct codegen* codegen,
+   struct buildmsg_stmt* stmt ) {
+   c_visit_expr( codegen, stmt->buildmsg->expr );
+   write_msgbuild_block( codegen, stmt->buildmsg );
+}
+
+static void write_msgbuild_block( struct codegen* codegen,
+   struct buildmsg* buildmsg ) {
+   // When a message-building block is used more than once in the same
+   // expression, instead of duplicating the block code, use a goto instruction
+   // to enter the block. Single-usage blocks are inlined at the call site.
+   if ( list_size( &buildmsg->usages ) > 1 ) {
+      write_multi_usage_msgbuild_block( codegen, buildmsg );
+   }
+}
+
+static void write_multi_usage_msgbuild_block( struct codegen* codegen,
+   struct buildmsg* buildmsg ) {
+   struct c_jump* exit_jump = c_create_jump( codegen, PCD_GOTO );
+   c_append_node( codegen, &exit_jump->node );
+   struct c_point* enter_point = c_create_point( codegen );
+   c_append_node( codegen, &enter_point->node );
+   c_write_block( codegen, buildmsg->block );
+   // Create jumps into the message-building block.
+   unsigned int entry_number = 0;
+   list_iter_t i;
+   list_iter_init( &i, &buildmsg->usages );
+   while ( ! list_end( &i ) ) {
+      struct buildmsg_usage* usage = list_data( &i );
+      c_seek_node( codegen, &usage->point->node );
+      c_pcd( codegen, PCD_PUSHNUMBER, entry_number );
+      struct c_jump* jump = c_create_jump( codegen, PCD_GOTO );
+      c_append_node( codegen, &jump->node );
+      jump->point = enter_point;
+      struct c_point* return_point = c_create_point( codegen );
+      c_append_node( codegen, &return_point->node );
+      usage->point = return_point;
+      ++entry_number;
+      list_next( &i );
+   }
+   c_seek_node( codegen, codegen->node_tail );
+   // Create return table.
+   struct c_sortedcasejump* return_table = c_create_sortedcasejump( codegen );
+   c_append_node( codegen, &return_table->node );
+   entry_number = 0;
+   list_iter_init( &i, &buildmsg->usages );
+   while ( ! list_end( &i ) ) {
+      struct buildmsg_usage* usage = list_data( &i );
+      struct c_casejump* entry = c_create_casejump( codegen, entry_number,
+         usage->point );
+      c_append_casejump( return_table, entry );
+      ++entry_number;
+      list_next( &i );
+   }
+   // Exit.
+   struct c_point* exit_point = c_create_point( codegen );
+   c_append_node( codegen, &exit_point->node );
+   exit_jump->point = exit_point;
 }
 
 void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt ) {

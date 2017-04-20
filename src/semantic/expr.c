@@ -130,11 +130,8 @@ static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
 static void test_int_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct expr* arg );
-static void test_msgbuild_format_item( struct semantic* semantic,
-   struct expr_test* expr_test, struct format_item* item );
-static void test_msgbuild_arg( struct semantic* semantic,
-   struct expr_test* expr_test, struct format_item* item,
-   struct format_item_msgbuild* extra );
+static void test_buildmsg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call* call );
 static void add_nested_call( struct func* func, struct call* call );
 static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test );
@@ -146,6 +143,8 @@ static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    const char* where, int number );
 static void present_func( struct call_test* test, struct str* msg );
 static void test_call_func( struct semantic* semantic, struct call_test* test,
+   struct call* call );
+static void test_call_ded( struct semantic* semantic, struct call_test* test,
    struct call* call );
 static void test_sure( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct sure* sure );
@@ -221,6 +220,7 @@ static void expand_magic_id( struct semantic* semantic,
 
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
+   test->buildmsg = NULL;
    test->name_offset = NULL;
    test->var = NULL;
    test->func = NULL;
@@ -1729,12 +1729,17 @@ void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
 void test_call_format_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test, struct call* call ) {
    if ( test->format_param ) {
-      if ( ! call->format_item ) {
+      if ( call->format_item ) {
+         test_format_item_list( semantic, expr_test, call->format_item );
+      }
+      else if ( expr_test->buildmsg ) {
+         test_buildmsg( semantic, expr_test, call );
+      }
+      else {
          s_diag( semantic, DIAG_POS_ERR, &call->pos,
-            "function call missing format argument" );
+            "function call missing message argument" );
          s_bail( semantic );
       }
-      test_format_item_list( semantic, expr_test, call->format_item );
    }
    else {
       if ( call->format_item ) {
@@ -1750,9 +1755,6 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
          test_array_format_item( semantic, test, item );
-      }
-      else if ( item->cast == FCAST_MSGBUILD ) {
-         test_msgbuild_format_item( semantic, test, item );
       }
       else {
          test_format_item( semantic, test, item );
@@ -1850,41 +1852,18 @@ void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
    }
 }
 
-void test_msgbuild_format_item( struct semantic* semantic,
-   struct expr_test* expr_test, struct format_item* item ) {
-   struct format_item_msgbuild* extra = item->extra;
-   test_msgbuild_arg( semantic, expr_test, item, extra ); 
-   if ( extra->func ) {
-      struct func_user* impl = extra->func->impl;
-      if ( impl->nested ) {
-         struct call* call = t_alloc_call();
-         call->func = extra->func;
-         ++impl->usage;
-         add_nested_call( extra->func, call ); 
-         extra->call = call;
-      }
-   }
-}
-
-void test_msgbuild_arg( struct semantic* semantic, struct expr_test* expr_test,
-   struct format_item* item, struct format_item_msgbuild* extra ) {
-   struct expr_test nested;
-   s_init_expr_test( &nested, true, false );
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, expr_test, &nested, &root, item->value );
-   struct type_info type;
-   init_type_info( semantic, &type, &root );
-   s_decay( semantic, &type );
-   struct type_info required_type;
-   s_init_type_info_func( &required_type,
-      NULL, NULL, NULL, NULL, SPEC_VOID, 0, 0, true );
-   if ( ! s_instance_of( &required_type, &type ) ) {
-      s_type_mismatch( semantic, "argument", &type,
-         "required", &required_type, &item->value->pos );
-      s_bail( semantic );
-   }
-   extra->func = root.func;
+static void test_buildmsg( struct semantic* semantic,
+   struct expr_test* expr_test, struct call* call ) {
+   struct buildmsg_usage* usage = mem_alloc( sizeof( *usage ) );
+   usage->buildmsg = expr_test->buildmsg;
+   usage->point = NULL;
+   list_append( &expr_test->buildmsg->usages, usage );
+   struct format_item* item = t_alloc_format_item();
+   item->cast = FCAST_BUILDMSG;
+   struct format_item_buildmsg* extra = mem_alloc( sizeof( *extra ) );
+   extra->usage = usage;
+   item->extra = extra;
+   call->format_item = item;
 }
 
 void add_nested_call( struct func* func, struct call* call ) {
@@ -2044,26 +2023,8 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
          s_bail( semantic );
       }
    }
-   // Latent function cannot be called in a function.
    else if ( test->func->type == FUNC_DED ) {
-      struct func_ded* impl = test->func->impl;
-      if ( impl->latent ) {
-         if ( semantic->func_test->func ) {
-            s_diag( semantic, DIAG_POS_ERR, &call->pos,
-               "calling latent function inside a function" );
-            // Show educational note to user.
-            if ( semantic->func_test->func ) {
-               struct str str;
-               str_init( &str );
-               t_copy_name( test->func->name, false, &str );
-               s_diag( semantic, DIAG_FILE, &call->pos,
-                  "waiting functions like `%s` can only be called inside a "
-                  "script", str.value );
-               str_deinit( &str );
-            }
-            s_bail( semantic );
-         }
-      }
+      test_call_ded( semantic, test, call );
    }
    // Message-building function can only be called when building a message.
    if ( test->func->msgbuild && ! ( semantic->func_test->func &&
@@ -2097,6 +2058,35 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
       if ( ! supported ) {
          s_diag( semantic, DIAG_POS_ERR, &call->pos,
             "constant-calling an unsupported function" );
+         s_bail( semantic );
+      }
+   }
+}
+
+static void test_call_ded( struct semantic* semantic, struct call_test* test,
+   struct call* call ) {
+   struct func_ded* impl = test->func->impl;
+   // Latent functions cannot be called inside functions or message-building
+   // blocks.
+   if ( semantic->func_test && impl->latent ) {
+      if ( s_in_msgbuild_block( semantic ) ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
+            "calling a latent function inside a message-building block" );
+         s_bail( semantic );
+      }
+      else if ( semantic->func_test->func ) {
+         s_diag( semantic, DIAG_POS_ERR, &call->pos,
+            "calling a latent function inside a function" );
+         // Show educational note to user.
+         if ( semantic->func_test->func ) {
+            struct str str;
+            str_init( &str );
+            t_copy_name( test->func->name, false, &str );
+            s_diag( semantic, DIAG_FILE, &call->pos,
+               "waiting functions like `%s` can only be called inside a "
+               "script", str.value );
+            str_deinit( &str );
+         }
          s_bail( semantic );
       }
    }

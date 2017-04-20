@@ -52,6 +52,7 @@ struct func_test {
 struct stmt_test {
    struct stmt_test* parent;
    struct switch_stmt* switch_stmt;
+   struct buildmsg* buildmsg;
    struct jump* jump_break;
    struct jump* jump_continue;
    struct type_info cond_type;
@@ -69,6 +70,7 @@ struct stmt_test {
 
 struct expr_test {
    jmp_buf bail;
+   struct buildmsg* buildmsg;
    struct name* name_offset;
    struct var* var;
    struct func* func;
@@ -110,6 +112,7 @@ struct semantic {
    struct sweep* free_sweep;
    struct func_test* topfunc_test;
    struct func_test* func_test;
+   struct buildmsg* enclosing_buildmsg;
    const struct lang_limits* lang_limits;
    struct var* world_vars[ MAX_WORLD_VARS ];
    struct var* world_arrays[ MAX_WORLD_VARS ];
@@ -212,5 +215,6 @@ struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node );
 bool s_is_enumerator( struct type_info* type );
 bool s_is_null( struct type_info* type );
+bool s_in_msgbuild_block( struct semantic* semantic );
 
 #endif

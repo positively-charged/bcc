@@ -110,6 +110,7 @@ void read_token_bcs( struct parse* parse ) {
          { "auto", TK_AUTO },
          { "bool", TK_BOOL },
          { "break", TK_BREAK },
+         { "buildmsg", TK_BUILDMSG },
          { "case", TK_CASE },
          { "const", TK_CONST },
          { "continue", TK_CONTINUE },

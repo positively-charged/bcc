@@ -125,6 +125,7 @@ struct node {
       NODE_DO,
       NODE_COMPOUNDLITERAL,
       NODE_MAGICID,
+      NODE_BUILDMSG,
    } type;
 };
 
@@ -560,6 +561,7 @@ struct script_jump {
 struct return_stmt {
    struct node node;
    struct expr* return_value;
+   struct buildmsg* buildmsg;
    struct return_stmt* next;
    struct c_jump* epilogue_jump;
    struct pos pos;
@@ -647,6 +649,22 @@ struct foreach_stmt {
    struct node* body;
    struct jump* jump_break;
    struct jump* jump_continue;
+};
+
+struct buildmsg {
+   struct expr* expr;
+   struct block* block;
+   struct list usages;
+};
+
+struct buildmsg_usage {
+   struct buildmsg* buildmsg;
+   struct c_point* point;
+};
+
+struct buildmsg_stmt {
+   struct node node;
+   struct buildmsg* buildmsg;
 };
 
 struct expr_stmt {
@@ -819,7 +837,7 @@ struct format_item {
       FCAST_NAME,
       FCAST_STRING,
       FCAST_HEX,
-      FCAST_MSGBUILD,
+      FCAST_BUILDMSG,
       FCAST_TOTAL
    } cast;
    struct pos pos;
@@ -833,9 +851,8 @@ struct format_item_array {
    struct expr* length;
 };
 
-struct format_item_msgbuild {
-   struct func* func;
-   struct call* call;
+struct format_item_buildmsg {
+   struct buildmsg_usage* usage;
 };
 
 // Format functions are dedicated functions and have their first parameter
@@ -925,9 +942,12 @@ struct paltrans {
 
 struct label {
    struct node node;
-   struct c_point* point;
    struct pos pos;
    const char* name;
+   struct buildmsg* buildmsg;
+   struct c_point* point;
+   // goto statements that use this label.
+   struct list users;
 };
 
 struct goto_stmt {
@@ -935,7 +955,9 @@ struct goto_stmt {
    int obj_pos;
    struct label* label;
    const char* label_name;
+   struct pos pos;
    struct pos label_name_pos;
+   struct buildmsg* buildmsg;
 };
 
 struct script {

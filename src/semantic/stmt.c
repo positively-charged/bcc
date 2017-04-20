@@ -2,8 +2,23 @@
 
 #include "phase.h"
 
+enum builtin_aliases_user {
+   BUILTINALIASESUSER_BUILDMSG,
+};
+
+struct builtin_aliases {
+   struct {
+      struct alias alias;
+      bool used;
+   } append;
+};
+
 static void test_block( struct semantic* semantic, struct stmt_test* test,
-   struct block* block );
+   struct builtin_aliases* builtin_aliases, struct block* block );
+static void init_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases, enum builtin_aliases_user user );
+static void bind_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases );
 static void test_block_item( struct semantic* semantic, struct stmt_test* test,
    struct node* node );
 static void test_case( struct semantic* semantic, struct stmt_test* test,
@@ -37,6 +52,9 @@ static void test_jump( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
 static void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
+static void diag_leave( struct semantic* semantic, struct pos* pos,
+   bool entering );
+static void diag_early_leave( struct semantic* semantic, struct pos* pos );
 static void test_continue( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt );
 static void test_script_jump( struct semantic* semantic,
@@ -47,6 +65,8 @@ static void test_return_value( struct semantic* semantic,
    struct stmt_test* test, struct return_stmt* stmt );
 static void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt );
+static void test_label( struct semantic* semantic, struct stmt_test* test,
+   struct label* label );
 static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt );
 static void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
@@ -55,13 +75,23 @@ static void test_palrange_colorisation( struct semantic* semantic,
    struct palrange* range );
 static void test_palrange_tint( struct semantic* semantic,
    struct palrange* range );
+static void test_buildmsg_stmt( struct semantic* semantic,
+   struct stmt_test* test, struct buildmsg_stmt* stmt );
+static void test_buildmsg_block( struct semantic* semantic,
+   struct stmt_test* test, struct buildmsg* buildmsg );
+static bool in_msgbuild_block_range( struct stmt_test* start,
+   struct stmt_test* end );
+static struct buildmsg* find_buildmsg( struct stmt_test* start,
+   struct stmt_test* end );
 static void test_expr_stmt( struct semantic* semantic,
    struct expr_stmt* stmt );
 static void check_dup_label( struct semantic* semantic );
+static void test_goto_in_msgbuild_block( struct semantic* semantic );
 
 void s_init_stmt_test( struct stmt_test* test, struct stmt_test* parent ) {
    test->parent = parent;
    test->switch_stmt = NULL;
+   test->buildmsg = NULL;
    test->jump_break = NULL;
    test->jump_continue = NULL;
    test->flow = FLOW_GOING;
@@ -75,8 +105,9 @@ void s_test_top_block( struct semantic* semantic, struct block* block ) {
    struct stmt_test test;
    s_init_stmt_test( &test, NULL );
    test.manual_scope = true;
-   test_block( semantic, &test, block );
+   test_block( semantic, &test, NULL, block );
    check_dup_label( semantic );
+   test_goto_in_msgbuild_block( semantic );
 }
 
 void s_test_func_block( struct semantic* semantic, struct func* func,
@@ -84,8 +115,9 @@ void s_test_func_block( struct semantic* semantic, struct func* func,
    struct stmt_test test;
    s_init_stmt_test( &test, NULL );
    test.manual_scope = true;
-   test_block( semantic, &test, block );
+   test_block( semantic, &test, NULL, block );
    check_dup_label( semantic );
+   test_goto_in_msgbuild_block( semantic );
    // If the return type of the function is still `auto`, then the function has
    // no return statements in its body, so the return type is `void`.
    if ( func->return_spec == SPEC_AUTO ) {
@@ -113,9 +145,12 @@ void s_test_func_block( struct semantic* semantic, struct func* func,
 }
 
 void test_block( struct semantic* semantic, struct stmt_test* test,
-   struct block* block ) {
+   struct builtin_aliases* builtin_aliases, struct block* block ) {
    if ( ! test->manual_scope ) {
       s_add_scope( semantic, false );
+   }
+   if ( builtin_aliases ) {
+      bind_builtin_aliases( semantic, builtin_aliases );
    }
    list_iter_t i;
    list_iter_init( &i, &block->stmts );
@@ -125,6 +160,31 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
    }
    if ( ! test->manual_scope ) {
       s_pop_scope( semantic );
+   }
+}
+
+// THOUGHT: Instead of creating an alias for each builtin object, maybe making
+// a link to a builtin namespace would be better.
+static void init_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases, enum builtin_aliases_user user ) {
+   // append().
+   if ( user == BUILTINALIASESUSER_BUILDMSG ) {
+      struct alias* alias = &aliases->append.alias;
+      s_init_alias( alias );
+      alias->object.resolved = true;
+      alias->target = &semantic->task->append_func->object;
+      aliases->append.used = true;
+   }
+   else {
+      aliases->append.used = false;
+   }
+}
+
+void bind_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases ) {
+   if ( aliases->append.used ) {
+      struct name* name = t_extend_name( semantic->ns->body, "append" );
+      s_bind_local_name( semantic, name, &aliases->append.alias.object, true );
    }
 }
 
@@ -364,7 +424,7 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
-      test_block( semantic, test,
+      test_block( semantic, test, NULL,
          ( struct block* ) node );
       break;
    case NODE_IF:
@@ -407,9 +467,17 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
       test_goto( semantic, test,
          ( struct goto_stmt* ) node );
       break;
+   case NODE_GOTO_LABEL:
+      test_label( semantic, test,
+         ( struct label* ) node );
+      break;
    case NODE_PALTRANS:
       test_paltrans( semantic, test,
          ( struct paltrans* ) node );
+      break;
+   case NODE_BUILDMSG:
+      test_buildmsg_stmt( semantic, test,
+         ( struct buildmsg_stmt* ) node );
       break;
    case NODE_EXPR_STMT:
       test_expr_stmt( semantic,
@@ -418,8 +486,6 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
    case NODE_INLINE_ASM:
       p_test_inline_asm( semantic, test,
          ( struct inline_asm* ) node );
-      break;
-   case NODE_GOTO_LABEL:
       break;
    default:
       UNREACHABLE();
@@ -580,7 +646,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
    test_cond( semantic, &stmt->cond );
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   test_block( semantic, &body, stmt->body );
+   test_block( semantic, &body, NULL, stmt->body );
    stmt->jump_break = test->jump_break;
    stmt->jump_continue = test->jump_continue;
    // Flow.
@@ -601,7 +667,7 @@ void test_do( struct semantic* semantic, struct stmt_test* test,
    test->in_loop = true;
    struct stmt_test body;
    s_init_stmt_test( &body, test );
-   test_block( semantic, &body, stmt->body );
+   test_block( semantic, &body, NULL, stmt->body );
    stmt->jump_break = test->jump_break;
    stmt->jump_continue = test->jump_continue;
    s_test_bool_expr( semantic, stmt->cond );
@@ -748,10 +814,6 @@ void test_jump( struct semantic* semantic, struct stmt_test* test,
       break;
    case JUMP_CONTINUE:
       test_continue( semantic, test, stmt );
-      break;
-   default:
-      // TODO: Internal compiler error.
-      break;
    }
 }
 
@@ -766,9 +828,27 @@ void test_break( struct semantic* semantic, struct stmt_test* test,
          "break outside loop or switch" );
       s_bail( semantic );
    }
+   if ( in_msgbuild_block_range( test, target ) ) {
+      diag_early_leave( semantic, &stmt->pos );
+      s_bail( semantic );
+   }
    stmt->next = target->jump_break;
    target->jump_break = stmt;
    test->flow = FLOW_BREAKING;
+}
+
+static void diag_leave( struct semantic* semantic, struct pos* pos,
+   bool entering ) {
+   s_diag( semantic, DIAG_POS_ERR, pos,
+      "%s a message-building block %s",
+      entering ? "entering" : "leaving",
+      entering ? "late" : "early" );
+   s_diag( semantic, DIAG_FILE | DIAG_NOTE, pos,
+      "a message-building block must run from start to finish" );
+}
+
+static void diag_early_leave( struct semantic* semantic, struct pos* pos ) {
+   diag_leave( semantic, pos, false );
 }
 
 void test_continue( struct semantic* semantic, struct stmt_test* test,
@@ -782,6 +862,10 @@ void test_continue( struct semantic* semantic, struct stmt_test* test,
          "continue outside loop" );
       s_bail( semantic );
    }
+   if ( in_msgbuild_block_range( test, target ) ) {
+      diag_early_leave( semantic, &stmt->pos );
+      s_bail( semantic );
+   }
    stmt->next = target->jump_continue;
    target->jump_continue = stmt;
    test->flow = FLOW_DEAD;
@@ -793,7 +877,11 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
    STATIC_ASSERT( ARRAY_SIZE( names ) == SCRIPT_JUMP_TOTAL );
    if ( ! semantic->func_test->script ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
-         "`%s` outside script", names[ stmt->type ] );
+         "%s statement outside script", names[ stmt->type ] );
+      s_bail( semantic );
+   }
+   if ( s_in_msgbuild_block( semantic ) ) {
+      diag_early_leave( semantic, &stmt->pos );
       s_bail( semantic );
    }
 }
@@ -819,6 +907,10 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
          s_bail( semantic );
       }
    }
+   if ( s_in_msgbuild_block( semantic ) ) {
+      diag_early_leave( semantic, &stmt->pos );
+      s_bail( semantic );
+   }
    stmt->next = semantic->func_test->returns;
    semantic->func_test->returns = stmt;
    test->flow = FLOW_DEAD;
@@ -830,7 +922,11 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
+   expr.buildmsg = stmt->buildmsg;
    s_test_expr_type( semantic, &expr, &type, stmt->return_value );
+   if ( stmt->buildmsg ) {
+      test_buildmsg_block( semantic, test, stmt->buildmsg );
+   }
    if ( func->return_spec == SPEC_VOID && ! func->ref ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
          "returning a value from void function" );
@@ -889,12 +985,14 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
+   stmt->buildmsg = semantic->enclosing_buildmsg;
    list_iter_t i;
    list_iter_init( &i, semantic->func_test->labels );
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       if ( strcmp( label->name, stmt->label_name ) == 0 ) {
          stmt->label = label;
+         list_append( &label->users, stmt ); 
          break;
       }
       list_next( &i );
@@ -904,6 +1002,11 @@ void test_goto( struct semantic* semantic, struct stmt_test* test,
          "label `%s` not found", stmt->label_name );
       s_bail( semantic );
    }
+}
+
+static void test_label( struct semantic* semantic, struct stmt_test* test,
+   struct label* label ) {
+   label->buildmsg = semantic->enclosing_buildmsg;
 }
 
 void test_paltrans( struct semantic* semantic, struct stmt_test* test,
@@ -977,6 +1080,55 @@ void test_palrange_tint( struct semantic* semantic, struct palrange* range ) {
    test_paltrans_arg( semantic, range->value.tint.blue, false );
 }
 
+static void test_buildmsg_stmt( struct semantic* semantic,
+   struct stmt_test* test, struct buildmsg_stmt* stmt ) {
+   test->buildmsg = stmt->buildmsg;
+   struct expr_test expr_test;
+   s_init_expr_test( &expr_test, false, false );
+   expr_test.buildmsg = stmt->buildmsg;
+   s_test_expr( semantic, &expr_test, stmt->buildmsg->expr );
+   test_buildmsg_block( semantic, test, stmt->buildmsg );
+}
+
+static void test_buildmsg_block( struct semantic* semantic,
+   struct stmt_test* test, struct buildmsg* buildmsg ) {
+   struct buildmsg* prev = semantic->enclosing_buildmsg;
+   semantic->enclosing_buildmsg = buildmsg;
+   struct stmt_test block_test;
+   s_init_stmt_test( &block_test, test );
+   block_test.buildmsg = buildmsg;
+   struct builtin_aliases aliases;
+   init_builtin_aliases( semantic, &aliases, BUILTINALIASESUSER_BUILDMSG );
+   test_block( semantic, &block_test, &aliases, buildmsg->block );
+   if ( ! list_size( &buildmsg->usages ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &buildmsg->block->pos,
+         "unused message-building block" );
+      s_bail( semantic );
+   }
+   semantic->enclosing_buildmsg = prev;
+}
+
+bool s_in_msgbuild_block( struct semantic* semantic ) {
+   return ( semantic->enclosing_buildmsg != NULL );
+}
+
+static bool in_msgbuild_block_range( struct stmt_test* start,
+   struct stmt_test* end ) {
+   return ( find_buildmsg( start, end ) != NULL );
+}
+
+static struct buildmsg* find_buildmsg( struct stmt_test* start,
+   struct stmt_test* end ) {
+   struct stmt_test* test = start;
+   while ( test != end ) {
+      if ( test->buildmsg ) {
+         return test->buildmsg;
+      }
+      test = test->parent;
+   }
+   return NULL;
+}
+
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
    list_iter_t i;
    list_iter_init( &i, &stmt->expr_list );
@@ -1021,5 +1173,24 @@ void check_dup_label( struct semantic* semantic ) {
          }
          list_next( &k );
       }
+   }
+}
+
+static void test_goto_in_msgbuild_block( struct semantic* semantic ) {
+   list_iter_t i;
+   list_iter_init( &i, semantic->func_test->labels );
+   while ( ! list_end( &i ) ) {
+      struct label* label = list_data( &i );
+      list_iter_t k;
+      list_iter_init( &k, &label->users );
+      while ( ! list_end( &k ) ) {
+         struct goto_stmt* stmt = list_data( &k );
+         if ( stmt->buildmsg != label->buildmsg ) {
+            diag_leave( semantic, &stmt->pos, ( stmt->buildmsg == NULL ) );
+            s_bail( semantic );
+         }
+         list_next( &k );
+      }
+      list_next( &i );
    }
 }

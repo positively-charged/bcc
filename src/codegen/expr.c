@@ -1767,7 +1767,7 @@ void visit_format_item( struct codegen* codegen, struct format_item* item ) {
       if ( item->cast == FCAST_ARRAY ) {
          visit_array_format_item( codegen, item );
       }
-      else if ( item->cast == FCAST_MSGBUILD ) {
+      else if ( item->cast == FCAST_BUILDMSG ) {
          visit_msgbuild_format_item( codegen, item );
       }
       else {
@@ -1852,20 +1852,15 @@ void visit_array_format_item( struct codegen* codegen,
 
 void visit_msgbuild_format_item( struct codegen* codegen,
    struct format_item* item ) {
-   struct format_item_msgbuild* extra = item->extra;
-   if ( extra->call ) {
-      struct result result;
-      init_result( &result, true );
-      visit_user_call( codegen, &result, extra->call );
-   }
-   else if ( extra->func ) {
-      struct func_user* impl = extra->func->impl;
-      c_pcd( codegen, PCD_CALLDISCARD, impl->index );
+   struct format_item_buildmsg* extra = item->extra;
+   // Inline the message-building block if it only has a single user.
+   if ( list_size( &extra->usage->buildmsg->usages ) == 1 ) {
+      c_write_block( codegen, extra->usage->buildmsg->block );
    }
    else {
-      c_push_expr( codegen, item->value );
-      c_pcd( codegen, PCD_CALLSTACK );
-      c_pcd( codegen, PCD_DROP );
+      struct c_point* jump_point = c_create_point( codegen );
+      c_append_node( codegen, &jump_point->node );
+      extra->usage->point = jump_point;
    }
 }
 

@@ -69,13 +69,6 @@ struct param_list_test {
    bool need_public_spec;
 };
 
-struct builtin_aliases {
-   struct {
-      struct alias alias;
-      bool used;
-   } append;
-};
-
 struct value_list {
    struct value* head;
    struct value* tail;
@@ -231,10 +224,6 @@ static void default_value_mismatch( struct semantic* semantic,
    struct type_info* type, struct pos* pos );
 static int get_param_number( struct func* func, struct param* target );
 static bool test_external_func( struct semantic* semantic, struct func* func );
-static void init_builtin_aliases( struct semantic* semantic, struct func* func,
-   struct builtin_aliases* aliases );
-static void bind_builtin_aliases( struct semantic* semantic,
-   struct builtin_aliases* aliases );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script );
@@ -2248,9 +2237,6 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       s_bail( semantic );
    }
    s_add_scope( semantic, true );
-   struct builtin_aliases builtin_aliases;
-   init_builtin_aliases( semantic, func, &builtin_aliases );
-   bind_builtin_aliases( semantic, &builtin_aliases );
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
@@ -2277,31 +2263,6 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    // encountered. The return type is then `void`.
    if ( func->return_spec == SPEC_AUTO ) {
       func->return_spec = SPEC_VOID;
-   }
-}
-
-// THOUGHT: Instead of creating an alias for each builtin object, maybe making
-// a link to a builtin namespace would be better.
-void init_builtin_aliases( struct semantic* semantic, struct func* func,
-   struct builtin_aliases* aliases ) {
-   // append().
-   if ( func->msgbuild ) {
-      struct alias* alias = &aliases->append.alias;
-      s_init_alias( alias );
-      alias->object.resolved = true;
-      alias->target = &semantic->task->append_func->object;
-      aliases->append.used = true;
-   }
-   else {
-      aliases->append.used = false;
-   }
-}
-
-void bind_builtin_aliases( struct semantic* semantic,
-   struct builtin_aliases* aliases ) {
-   if ( aliases->append.used ) {
-      struct name* name = t_extend_name( semantic->ns->body, "append" );
-      s_bind_local_name( semantic, name, &aliases->append.alias.object, true );
    }
 }
 

@@ -54,8 +54,6 @@ static void read_format_cast( struct parse* parse, struct format_cast* cast );
 static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
-static void read_msgbuild_format_item( struct parse* parse,
-   struct format_item* item );
 static void read_id( struct parse* parse, struct expr_reading* reading );
 static void read_literal( struct parse* parse, struct expr_reading* reading );
 static void read_string( struct parse* parse, struct expr_reading* reading );
@@ -1041,12 +1039,8 @@ struct format_item* read_format_item_list( struct parse* parse ) {
 }
 
 struct format_item* read_format_item( struct parse* parse ) {
-   struct format_item* item = mem_alloc( sizeof( *item ) );
-   item->cast = FCAST_DECIMAL;
+   struct format_item* item = t_alloc_format_item();
    item->pos = parse->tk_pos;
-   item->next = NULL;
-   item->value = NULL;
-   item->extra = NULL;
    struct format_cast cast;
    init_format_cast( &cast );
    read_format_cast( parse, &cast );
@@ -1062,9 +1056,6 @@ struct format_item* read_format_item( struct parse* parse ) {
          extra->length = field.length;
          item->extra = extra;
       }
-   }
-   else if ( item->cast == FCAST_MSGBUILD ) {
-      read_msgbuild_format_item( parse, item );
    }
    else {
       struct expr_reading value;
@@ -1094,28 +1085,23 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
       }
       break;
    default:
-      if ( parse->tk == TK_MSGBUILD ) {
-         cast->type = FCAST_MSGBUILD;
+      switch ( parse->tk_text[ 0 ] ) {
+      case 'a': cast->type = FCAST_ARRAY; break;
+      case 'b': cast->type = FCAST_BINARY; break;
+      case 'c': cast->type = FCAST_CHAR; break;
+      case 'd': cast->type = FCAST_DECIMAL; break;
+      case 'f': cast->type = FCAST_FIXED; break;
+      case 'i': cast->type = FCAST_RAW; break;
+      case 'k': cast->type = FCAST_KEY; break;
+      case 'l': cast->type = FCAST_LOCAL_STRING; break;
+      case 'n': cast->type = FCAST_NAME; break;
+      case 's': cast->type = FCAST_STRING; break;
+      case 'x': cast->type = FCAST_HEX; break;
+      default:
+         cast->unknown = true;
       }
-      else {
-         switch ( parse->tk_text[ 0 ] ) {
-         case 'a': cast->type = FCAST_ARRAY; break;
-         case 'b': cast->type = FCAST_BINARY; break;
-         case 'c': cast->type = FCAST_CHAR; break;
-         case 'd': cast->type = FCAST_DECIMAL; break;
-         case 'f': cast->type = FCAST_FIXED; break;
-         case 'i': cast->type = FCAST_RAW; break;
-         case 'k': cast->type = FCAST_KEY; break;
-         case 'l': cast->type = FCAST_LOCAL_STRING; break;
-         case 'n': cast->type = FCAST_NAME; break;
-         case 's': cast->type = FCAST_STRING; break;
-         case 'x': cast->type = FCAST_HEX; break;
-         default:
-            cast->unknown = true;
-         }
-         if ( parse->tk_length != 1 ) {
-            cast->unknown = true;
-         }
+      if ( parse->tk_length != 1 ) {
+         cast->unknown = true;
       }
    }
    if ( cast->unknown ) {
@@ -1169,18 +1155,6 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-}
-
-void read_msgbuild_format_item( struct parse* parse,
-   struct format_item* item ) {
-   struct format_item_msgbuild* extra = mem_alloc( sizeof( *extra ) );
-   extra->func = NULL;
-   extra->call = NULL;
-   item->extra = extra;
-   struct expr_reading value;
-   p_init_expr_reading( &value, false, false, false, true );
-   p_read_expr( parse, &value );
-   item->value = value.output_node;
 }
 
 void read_sure( struct parse* parse, struct expr_reading* reading ) {
