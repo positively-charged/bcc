@@ -197,7 +197,6 @@ static void present_ref_element( struct initz_pres* pres, struct dim* dim,
 static void refnotinit( struct semantic* semantic, struct initz_pres* pres,
    struct pos* pos );
 static void calc_dim_size( struct dim*, struct structure* );
-static bool test_func_qual( struct semantic* semantic, struct func* func );
 static bool test_func_return_spec( struct semantic* semantic,
    struct func* func );
 static bool test_func_ref( struct semantic* semantic, struct func* func );
@@ -790,7 +789,6 @@ void merge_func_type( struct semantic* semantic, struct spec_test* test,
    func->params = alias->params;
    func->min_param = alias->min_param;
    func->max_param = alias->max_param;
-   func->msgbuild = alias->msgbuild;
    if ( test->ref ) {
       struct ref* ref = test->ref;
       struct ref* prev_ref = NULL;
@@ -1872,21 +1870,10 @@ void s_test_foreach_var( struct semantic* semantic,
 
 void s_test_func( struct semantic* semantic, struct func* func ) {
    func->object.resolved =
-      test_func_qual( semantic, func ) &&
       test_func_return_spec( semantic, func ) &&
       test_func_ref( semantic, func ) &&
       test_func_name( semantic, func ) &&
       test_func_after_name( semantic, func );
-}
-
-bool test_func_qual( struct semantic* semantic, struct func* func ) {
-   if ( func->msgbuild && ! ( func->type == FUNC_USER ||
-      func->type == FUNC_ALIAS ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
-         "message-building qualifier specified for non-user function" );
-      s_bail( semantic );
-   }
-   return true;
 }
 
 bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
@@ -2193,12 +2180,12 @@ bool test_external_func( struct semantic* semantic, struct func* func ) {
          struct type_info type;
          s_init_type_info_func( &type, func->ref, func->structure,
             func->enumeration, func->params, func->return_spec,
-            func->min_param, func->max_param, func->msgbuild );
+            func->min_param, func->max_param );
          struct type_info other_type;
          s_init_type_info_func( &other_type, other_func->ref,
             other_func->structure, other_func->enumeration, other_func->params,
             other_func->return_spec, other_func->min_param,
-            other_func->max_param, other_func->msgbuild );
+            other_func->max_param );
          if ( ! s_same_type( &type, &other_type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
                "external function declaration different from %s",

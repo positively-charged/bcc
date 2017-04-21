@@ -137,7 +137,7 @@ enum tk {
    TK_FOREACH,
    TK_PRIVATE,
    TK_MEMCPY,
-   TK_MSGBUILD,
+   TK_BUILDMSG,
    TK_NULL,
    // 120
    TK_SPECIAL,
@@ -177,7 +177,6 @@ enum tk {
    TK_FUNCTIONNAME,
    TK_SCRIPTNAME,
    TK_AT,
-   TK_BUILDMSG,
 
    TK_TOTAL,
 
@@ -363,7 +362,6 @@ struct dec {
    } implicit_type_alias;
    bool private_visibility;
    bool static_qual;
-   bool msgbuild;
    bool type_alias;
    bool semicolon_absent;
    bool external;

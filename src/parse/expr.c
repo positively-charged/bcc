@@ -1115,8 +1115,7 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
 }
 
 bool peek_format_cast( struct parse* parse ) {
-   return ( ( parse->tk == TK_ID || parse->tk == TK_MSGBUILD ) &&
-      p_peek( parse ) == TK_COLON );
+   return ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON );
 }
 
 void init_array_field( struct array_field* field ) {

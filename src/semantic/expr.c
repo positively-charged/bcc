@@ -2026,13 +2026,6 @@ void test_call_func( struct semantic* semantic, struct call_test* test,
    else if ( test->func->type == FUNC_DED ) {
       test_call_ded( semantic, test, call );
    }
-   // Message-building function can only be called when building a message.
-   if ( test->func->msgbuild && ! ( semantic->func_test->func &&
-      semantic->func_test->func->msgbuild ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &call->pos,
-         "calling message-building function where no message is being built" );
-      s_bail( semantic );
-   }
    // Determine if any function being tested is called recursively.
    struct func_test* func_test = semantic->func_test;
    while ( func_test && func_test->func != test->func ) {
@@ -2597,7 +2590,7 @@ void select_func( struct semantic* semantic, struct result* result,
       result->folded = true;
       struct func_user* impl = func->impl;
       ++impl->usage;
-      if ( ! impl->local || func->msgbuild ) {
+      if ( ! impl->local ) {
          result->complete = true;
       }
    }
@@ -2890,8 +2883,7 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
          s_init_type_info_func( type, result->func->ref,
             result->func->structure, result->func->enumeration,
             result->func->params, result->func->return_spec,
-            result->func->min_param, result->func->max_param,
-            result->func->msgbuild );
+            result->func->min_param, result->func->max_param );
          break;
       case FUNC_ASPEC:
       case FUNC_EXT:

@@ -131,7 +131,6 @@ void read_token_bcs( struct parse* parse ) {
          { "int", TK_INT },
          { "let", TK_LET },
          { "memcpy", TK_MEMCPY },
-         { "msgbuild", TK_MSGBUILD },
          { "namespace", TK_NAMESPACE },
          { "null", TK_NULL },
          { "private", TK_PRIVATE },

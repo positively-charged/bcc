@@ -44,7 +44,7 @@ enum {
    F_LINE,
    F_MAXPARAM,
    F_MINPARAM,
-   F_MSGBUILD,
+   F_UPMOST,
    F_NAME,
    F_NAMEPOS,
    F_NAMESPACE,
@@ -75,7 +75,6 @@ enum {
    F_VAR,
    // 50
    F_UNREACHABLE,
-   F_UPMOST
 };
 
 struct saver {
@@ -374,7 +373,6 @@ void save_ref( struct saver* saver, struct ref* ref ) {
             save_param_list( saver, func->params );
             WV( saver, F_MINPARAM, &func->min_param );
             WV( saver, F_MAXPARAM, &func->max_param );
-            WV( saver, F_MSGBUILD, &func->msgbuild );
          }
          break;
       default:
@@ -449,7 +447,6 @@ void save_func( struct saver* saver, struct func* func ) {
    save_ref( saver, func->ref );
    WV( saver, F_MINPARAM, &func->min_param );
    WV( saver, F_MAXPARAM, &func->max_param );
-   WV( saver, F_MSGBUILD, &func->msgbuild );
    WF( saver, F_END );
 }
 
@@ -967,7 +964,6 @@ struct ref* restore_specific_ref( struct restorer* restorer, int type ) {
          func->params = restore_param_list( restorer );
          RV( restorer, F_MINPARAM, &func->min_param );
          RV( restorer, F_MAXPARAM, &func->max_param );
-         RV( restorer, F_MSGBUILD, &func->msgbuild );
          return &func->ref;
       }
    default:
@@ -1073,7 +1069,6 @@ void restore_func( struct restorer* restorer ) {
    func->ref = restore_ref( restorer );
    RV( restorer, F_MINPARAM, &func->min_param );
    RV( restorer, F_MAXPARAM, &func->max_param );
-   RV( restorer, F_MSGBUILD, &func->msgbuild );
    func->imported = true;
    RF( restorer, F_END );
    list_append( &restorer->lib->objects, func );

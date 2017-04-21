@@ -222,7 +222,6 @@ bool is_dec_bcs( struct parse* parse ) {
       case TK_PRIVATE:
       case TK_EXTERN:
       case TK_TYPENAME:
-      case TK_MSGBUILD:
          return true;
       case TK_ID:
       case TK_UPMOST:
@@ -259,7 +258,6 @@ void p_init_dec( struct dec* dec ) {
    dec->implicit_type_alias.specified = false;
    dec->private_visibility = false;
    dec->static_qual = false;
-   dec->msgbuild = false;
    dec->type_alias = false;
    dec->semicolon_absent = false;
    dec->external = false;
@@ -370,10 +368,8 @@ void read_object( struct parse* parse, struct dec* dec ) {
 
 void read_qual( struct parse* parse, struct dec* dec ) {
    while (
-      parse->tk == TK_STATIC ||
-      parse->tk == TK_MSGBUILD ) {
-      if ( ( parse->tk == TK_STATIC && dec->static_qual ) ||
-         ( parse->tk == TK_MSGBUILD && dec->msgbuild ) ) {
+      parse->tk == TK_STATIC ) {
+      if ( parse->tk == TK_STATIC && dec->static_qual ) {
          p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
             "duplicate `%s` %squalifier", parse->tk_text,
             dec->object == DECOBJ_FUNC ? "function-" : "" );
@@ -384,15 +380,6 @@ void read_qual( struct parse* parse, struct dec* dec ) {
          dec->static_qual = true;
          dec->static_qual_pos = parse->tk_pos;
          p_read_tk( parse );
-         break;
-      case TK_MSGBUILD:
-         if (
-            dec->object == DECOBJ_UNDECIDED ||
-            dec->object == DECOBJ_FUNC ) {
-            dec->msgbuild = true;
-            dec->object = DECOBJ_FUNC;
-            p_read_tk( parse );
-         }
          break;
       default:
          break;
@@ -1053,11 +1040,6 @@ void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
    }
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
-   // Read function qualifier.
-   if ( parse->tk == TK_MSGBUILD ) {
-      part->msgbuild = true;
-      p_read_tk( parse );
-   }
    // Done.
    prepend_ref( reading, &part->ref );
 }
@@ -1692,7 +1674,6 @@ bool p_is_paren_type( struct parse* parse ) {
       case TK_AUTO:
       case TK_STATIC:
       case TK_FUNCTION:
-      case TK_MSGBUILD:
          return true;
       case TK_INT:
       case TK_FIXED:
@@ -1910,7 +1891,6 @@ struct func* alloc_func( struct parse* parse, struct dec* dec ) {
    func->return_spec = dec->spec;
    func->original_return_spec = dec->spec;
    func->hidden = dec->private_visibility;
-   func->msgbuild = dec->msgbuild;
    func->imported = parse->lib->imported;
    func->external = dec->external;
    func->force_local_scope = dec->force_local_scope;

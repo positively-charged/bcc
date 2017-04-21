@@ -136,7 +136,7 @@ static struct token_info g_table[] = {
    ENTRY( "foreach", TKF_KEYWORD ),
    ENTRY( "private", TKF_KEYWORD ),
    ENTRY( "memcpy", TKF_KEYWORD ),
-   ENTRY( "msgbuild", TKF_KEYWORD ),
+   ENTRY( "buildmsg", TKF_KEYWORD ),
    ENTRY( "null", TKF_KEYWORD ),
    // 120
    ENTRY( "special", TKF_KEYWORD ),
@@ -176,17 +176,16 @@ static struct token_info g_table[] = {
    ENTRY( "__FUNCTION__", TKF_KEYWORD ),
    ENTRY( "__SCRIPT__", TKF_KEYWORD ),
    ENTRY( "@", TKF_NONE ),
-   ENTRY( "buildmsg", TKF_KEYWORD ),
 };
 #undef ENTRY
 
 const struct token_info* p_get_token_info( enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 155 );
+   STATIC_ASSERT( TK_TOTAL == 154 );
    return &g_table[ tk ];
 }
 
 void p_present_token( struct str* str, enum tk tk ) {
-   STATIC_ASSERT( TK_TOTAL == 155 );
+   STATIC_ASSERT( TK_TOTAL == 154 );
    switch ( tk ) {
    case TK_ID:
       str_append( str,

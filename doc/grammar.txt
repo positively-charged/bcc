@@ -240,7 +240,7 @@ reference-list:
 
 reference-item:
    <reference-storage> <dimension-list> <reference-marker>
-   ( <parameter-declaration> ) <function-qualifier> <reference-marker>
+   ( <parameter-declaration> ) <reference-marker>
 
 instance-list:
    <instance>
@@ -281,15 +281,11 @@ initializer-list:
    <initializer-list> , <initializer>
 
 function:
-   <function-keyword> <function-qualifier> <function-return> <identifier> (
+   <function-keyword> <function-return> <identifier> (
       <parameter-list-declaration> ) <block-statement>
 
 function-keyword:
    function
-   E
-
-function-qualifier:
-   msgbuild
    E
 
 function-return:
@@ -315,8 +311,8 @@ parameter-name:
 
 type-alias:
    typedef <extended-specifier> <type-alias-instance-list>
-   typedef <function-keyword> <function-qualifier> <extended-specifier>
-      <type-name> ( <parameter-list-declaration> )
+   typedef <function-keyword> <extended-specifier> <type-name> (
+      <parameter-list-declaration> )
 
 type-alias-instance-list:
    <type-alias-instance>
@@ -721,7 +717,6 @@ format-item:
 
 format-cast:
    <identifier> // Valid values: b, c, d, f, i, k, l, n, s, x
-   msgbuild
 
 format-item-array:
    a : <expression>
@@ -791,8 +786,7 @@ function-literal:
    ( <function-literal-header> ) <block-statement>
 
 function-literal-header:
-   <function-keyword> <function-qualifier> <function-literal-return> (
-      <parameter-declaration> )
+   <function-keyword> <function-literal-return> ( <parameter-declaration> )
 
 function-literal-return:
    <specifier>
@@ -884,7 +878,6 @@ keyword:
    int
    let
    memcpy
-   msgbuild
    namespace
    null
    private

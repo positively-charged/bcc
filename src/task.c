@@ -969,7 +969,6 @@ struct func* t_alloc_func( void ) {
    func->min_param = 0;
    func->max_param = 0;
    func->hidden = false;
-   func->msgbuild = false;
    func->imported = false;
    func->external = false;
    func->force_local_scope = false;
@@ -1118,7 +1117,6 @@ struct ref_func* t_alloc_ref_func( void ) {
    func->params = NULL;
    func->min_param = 0;
    func->max_param = 0;
-   func->msgbuild = false;
    return func;
 }
 

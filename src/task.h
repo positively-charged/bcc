@@ -266,7 +266,6 @@ struct ref_func {
    struct param* params;
    int min_param;
    int max_param;
-   bool msgbuild;
 };
 
 struct type_alias {
@@ -800,7 +799,6 @@ struct func {
    int min_param;
    int max_param;
    bool hidden;
-   bool msgbuild;
    bool imported;
    bool external;
    bool force_local_scope;

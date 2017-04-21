@@ -50,8 +50,7 @@ void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
 
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
-   struct param* params, int return_spec, int min_param, int max_param,
-   bool msgbuild ) {
+   struct param* params, int return_spec, int min_param, int max_param ) {
    s_init_type_info( type, ref, structure, enumeration, NULL, return_spec,
       STORAGE_LOCAL );
    // NOTE: At this time, I don't see where in the compiler a distinction needs
@@ -64,7 +63,6 @@ void s_init_type_info_func( struct type_info* type, struct ref* ref,
    func->params = params;
    func->min_param = min_param;
    func->max_param = max_param;
-   func->msgbuild = msgbuild;
    type->ref = &func->ref;
    type->implicit_ref = true;
 }
@@ -189,9 +187,7 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       param_a = param_a->next;
       param_b = param_b->next;
    }
-   return
-      ( param_a == NULL && param_b == NULL ) &&
-      ( a->msgbuild == b->msgbuild );
+   return ( param_a == NULL && param_b == NULL );
 }
 
 bool same_spec( int a, int b ) {
@@ -361,10 +357,6 @@ void present_ref( struct ref* ref, struct str* string ) {
          str_append( string, "(" );
          present_param_list( func->params, string );
          str_append( string, ")" );
-         if ( func->msgbuild ) {
-            str_append( string, " " );
-            str_append( string, "msgbuild" );
-         }
          if ( ref->nullable ) {
             str_append( string, "?" );
          }
