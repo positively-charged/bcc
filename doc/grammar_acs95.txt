@@ -33,7 +33,7 @@ directive:
    # define <string> <expression>
 
 variable:
-   <storage> <specifier> <instance-list> ;
+   <storage> <specifier> ;
 
 storage:
    world

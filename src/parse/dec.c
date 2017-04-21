@@ -887,10 +887,12 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
 }
 
 void read_after_spec( struct parse* parse, struct dec* dec ) {
-   struct ref_reading ref;
-   init_ref_reading( &ref );
-   read_ref( parse, &ref );
-   dec->ref = ref.head;
+   if ( parse->lang == LANG_BCS ) {
+      struct ref_reading ref;
+      init_ref_reading( &ref );
+      read_ref( parse, &ref );
+      dec->ref = ref.head;
+   }
    read_after_ref( parse, dec );
 }
 
@@ -1108,8 +1110,8 @@ void read_instance( struct parse* parse, struct dec* dec ) {
          parse->lang == LANG_ACS ||
          parse->lang == LANG_BCS ) {
          read_dim( parse, dec );
+         read_var_init( parse, dec );
       }
-      read_var_init( parse, dec );
       test_var( parse, dec );
       add_var( parse, dec );
    }
