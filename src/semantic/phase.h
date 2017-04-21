@@ -47,6 +47,7 @@ struct func_test {
    struct return_stmt* returns;
    struct func_test* parent;
    struct script* script;
+   struct buildmsg* enclosing_buildmsg;
 };
 
 struct stmt_test {
@@ -112,7 +113,6 @@ struct semantic {
    struct sweep* free_sweep;
    struct func_test* topfunc_test;
    struct func_test* func_test;
-   struct buildmsg* enclosing_buildmsg;
    const struct lang_limits* lang_limits;
    struct var* world_vars[ MAX_WORLD_VARS ];
    struct var* world_arrays[ MAX_WORLD_VARS ];

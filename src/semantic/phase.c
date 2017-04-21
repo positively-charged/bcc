@@ -114,7 +114,6 @@ void s_init( struct semantic* semantic, struct task* task ) {
    semantic->free_sweep = NULL;
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
-   semantic->enclosing_buildmsg = NULL;
    semantic->lang_limits = t_get_lang_limits( semantic->lib->lang );
    init_worldglobal_vars( semantic );
    s_init_type_info_scalar( &semantic->type_int, SPEC_INT );

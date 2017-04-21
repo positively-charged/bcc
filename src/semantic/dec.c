@@ -2263,6 +2263,7 @@ void init_func_test( struct func_test* test, struct func_test* parent,
    test->returns = NULL;
    test->parent = parent;
    test->script = script;
+   test->enclosing_buildmsg = NULL;
 }
 
 void s_test_nested_func( struct semantic* semantic, struct func* func ) {

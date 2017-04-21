@@ -985,7 +985,7 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
 
 void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
-   stmt->buildmsg = semantic->enclosing_buildmsg;
+   stmt->buildmsg = semantic->func_test->enclosing_buildmsg;
    list_iter_t i;
    list_iter_init( &i, semantic->func_test->labels );
    while ( ! list_end( &i ) ) {
@@ -1006,7 +1006,7 @@ void test_goto( struct semantic* semantic, struct stmt_test* test,
 
 static void test_label( struct semantic* semantic, struct stmt_test* test,
    struct label* label ) {
-   label->buildmsg = semantic->enclosing_buildmsg;
+   label->buildmsg = semantic->func_test->enclosing_buildmsg;
 }
 
 void test_paltrans( struct semantic* semantic, struct stmt_test* test,
@@ -1092,8 +1092,8 @@ static void test_buildmsg_stmt( struct semantic* semantic,
 
 static void test_buildmsg_block( struct semantic* semantic,
    struct stmt_test* test, struct buildmsg* buildmsg ) {
-   struct buildmsg* prev = semantic->enclosing_buildmsg;
-   semantic->enclosing_buildmsg = buildmsg;
+   struct buildmsg* prev = semantic->func_test->enclosing_buildmsg;
+   semantic->func_test->enclosing_buildmsg = buildmsg;
    struct stmt_test block_test;
    s_init_stmt_test( &block_test, test );
    block_test.buildmsg = buildmsg;
@@ -1105,11 +1105,11 @@ static void test_buildmsg_block( struct semantic* semantic,
          "unused message-building block" );
       s_bail( semantic );
    }
-   semantic->enclosing_buildmsg = prev;
+   semantic->func_test->enclosing_buildmsg = prev;
 }
 
 bool s_in_msgbuild_block( struct semantic* semantic ) {
-   return ( semantic->enclosing_buildmsg != NULL );
+   return ( semantic->func_test->enclosing_buildmsg != NULL );
 }
 
 static bool in_msgbuild_block_range( struct stmt_test* start,
