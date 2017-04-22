@@ -1636,10 +1636,10 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
          return false;
       }
    }
-   // Only map variables can be private, including static variables.
+   // Only map variables can be private.
    if ( var->hidden && var->storage != STORAGE_MAP ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
-         "non-map variable declared private" );
+         "%s variable declared private", t_get_storage_name( var->storage ) );
       s_bail( semantic );
    }
    if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {

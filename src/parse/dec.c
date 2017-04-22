@@ -330,6 +330,12 @@ void read_dec( struct parse* parse, struct dec* dec ) {
    default:
       read_visibility( parse, dec );
    }
+   // Private visibility applies only to map objects.
+   if ( dec->private_visibility && dec->area != DEC_TOP ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->pos,
+         "only namespace-level objects can be declared private" );
+      p_bail( parse );
+   }
 }
 
 void read_enum( struct parse* parse, struct dec* dec ) {
@@ -1516,7 +1522,6 @@ void add_var( struct parse* parse, struct dec* dec ) {
       }
    }
    else if ( dec->area == DEC_LOCAL || dec->area == DEC_FOR ) {
-      var->hidden = dec->static_qual;
       if ( dec->vars ) {
          list_append( dec->vars, var );
       }
