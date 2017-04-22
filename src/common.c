@@ -290,6 +290,31 @@ void list_append_head( struct list* list, void* data ) {
    ++list->size;
 }
 
+void list_iterate( struct list* list, struct list_iter* iter ) {
+   iter->prev = NULL;
+   iter->link = list->head;
+}
+
+bool list_end( struct list_iter* iter ) {
+   return ( iter->link == NULL );
+}
+
+void list_next( struct list_iter* iter ) {
+   if ( iter->link ) {
+      iter->prev = iter->link;
+      iter->link = iter->link->next;
+   }
+}
+
+void* list_data( struct list_iter* iter ) {
+   if ( iter->link ) {
+      return iter->link->data;
+   }
+   else {
+      return NULL;
+   }
+}
+
 void list_merge( struct list* receiver, struct list* giver ) {
    if ( giver->head ) {
       if ( receiver->head ) {

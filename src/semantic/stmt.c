@@ -152,8 +152,8 @@ void test_block( struct semantic* semantic, struct stmt_test* test,
    if ( builtin_aliases ) {
       bind_builtin_aliases( semantic, builtin_aliases );
    }
-   list_iter_t i;
-   list_iter_init( &i, &block->stmts );
+   struct list_iter i;
+   list_iterate( &block->stmts, &i );
    while ( ! list_end( &i ) ) {
       test_block_item( semantic, test, list_data( &i ) );
       list_next( &i );
@@ -613,8 +613,8 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
 void warn_switch_skipped_init( struct semantic* semantic,
    struct block* block ) {
    struct var* last_var = NULL;
-   list_iter_t i;
-   list_iter_init( &i, &block->stmts );
+   struct list_iter i;
+   list_iterate( &block->stmts, &i );
    while ( ! list_end( &i ) ) {
       struct node* node = list_data( &i );
       if ( node->type == NODE_VAR ) {
@@ -698,8 +698,8 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    test->in_loop = true;
    s_add_scope( semantic, false );
    // Initialization.
-   list_iter_t i;
-   list_iter_init( &i, &stmt->init );
+   struct list_iter i;
+   list_iterate( &stmt->init, &i );
    while ( ! list_end( &i ) ) {
       struct node* node = list_data( &i );
       if ( node->type == NODE_EXPR ) {
@@ -730,7 +730,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
       test_cond( semantic, &stmt->cond );
    }
    // Post expressions.
-   list_iter_init( &i, &stmt->post );
+   list_iterate( &stmt->post, &i );
    while ( ! list_end( &i ) ) {
       struct expr_test expr;
       s_init_expr_test( &expr, false, false );
@@ -990,8 +990,8 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
 void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
    stmt->buildmsg = semantic->func_test->enclosing_buildmsg;
-   list_iter_t i;
-   list_iter_init( &i, semantic->func_test->labels );
+   struct list_iter i;
+   list_iterate( semantic->func_test->labels, &i );
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       if ( strcmp( label->name, stmt->label_name ) == 0 ) {
@@ -1134,8 +1134,8 @@ static struct buildmsg* find_buildmsg( struct stmt_test* start,
 }
 
 void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
-   list_iter_t i;
-   list_iter_init( &i, &stmt->expr_list );
+   struct list_iter i;
+   list_iterate( &stmt->expr_list, &i );
    bool require_assign = ( list_size( &stmt->expr_list ) > 1 );
    struct expr* first_expr = list_head( &stmt->expr_list );
    while ( ! list_end( &i ) ) {
@@ -1160,12 +1160,12 @@ void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
 }
 
 void check_dup_label( struct semantic* semantic ) {
-   list_iter_t i;
-   list_iter_init( &i, semantic->func_test->labels );
+   struct list_iter i;
+   list_iterate( semantic->func_test->labels, &i );
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
       list_next( &i );
-      list_iter_t k = i;
+      struct list_iter k = i;
       while ( ! list_end( &k ) ) {
          struct label* other_label = list_data( &k );
          if ( strcmp( label->name, other_label->name ) == 0 ) {
@@ -1181,12 +1181,12 @@ void check_dup_label( struct semantic* semantic ) {
 }
 
 static void test_goto_in_msgbuild_block( struct semantic* semantic ) {
-   list_iter_t i;
-   list_iter_init( &i, semantic->func_test->labels );
+   struct list_iter i;
+   list_iterate( semantic->func_test->labels, &i );
    while ( ! list_end( &i ) ) {
       struct label* label = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &label->users );
+      struct list_iter k;
+      list_iterate( &label->users, &k );
       while ( ! list_end( &k ) ) {
          struct goto_stmt* stmt = list_data( &k );
          if ( stmt->buildmsg != label->buildmsg ) {

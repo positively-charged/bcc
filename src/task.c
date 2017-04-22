@@ -472,8 +472,8 @@ void decode_pos( struct task* task, struct pos* pos,
 
 struct include_history_entry* t_decode_include_history_entry(
    struct task* task, int id ) {
-   list_iter_t i;
-   list_iter_init( &i, &task->include_history );
+   struct list_iter i;
+   list_iterate( &task->include_history, &i );
    while ( ! list_end( &i ) ) {
       struct include_history_entry* entry = list_data( &i );
       while ( entry->id == id ) {
@@ -589,8 +589,8 @@ bool identify_file_relative( struct task* task, struct file_query* query ) {
       }
    }
    // Try user-specified directories.
-   list_iter_t i;
-   list_iter_init( &i, &task->options->includes );
+   struct list_iter i;
+   list_iterate( &task->options->includes, &i );
    while ( ! list_end( &i ) ) {
       char* include = list_data( &i ); 
       str_clear( query->path );

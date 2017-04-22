@@ -119,8 +119,8 @@ void p_load_included_source( struct parse* parse, const char* file_path,
 }
 
 void append_file( struct library* lib, struct file_entry* file ) {
-   list_iter_t i;
-   list_iter_init( &i, &lib->files );
+   struct list_iter i;
+   list_iterate( &lib->files, &i );
    while ( ! list_end( &i ) ) {
       if ( list_data( &i ) == file ) {
          return;

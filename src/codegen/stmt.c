@@ -65,8 +65,8 @@ void c_write_block( struct codegen* codegen, struct block* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
-   list_iter_t i;
-   list_iter_init( &i, &stmt->stmts );
+   struct list_iter i;
+   list_iterate( &stmt->stmts, &i );
    while ( ! list_end( &i ) ) {
       write_block_item( codegen, list_data( &i ) );
       list_next( &i );
@@ -619,8 +619,8 @@ void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
-   list_iter_t i;
-   list_iter_init( &i, &stmt->init );
+   struct list_iter i;
+   list_iterate( &stmt->init, &i );
    while ( ! list_end( &i ) ) {
       struct node* node = list_data( &i );
       switch ( node->type ) {
@@ -663,7 +663,7 @@ void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    if ( list_size( &stmt->post ) ) {
       post_point = c_create_point( codegen );
       c_append_node( codegen, &post_point->node );
-      list_iter_init( &i, &stmt->post );
+      list_iterate( &stmt->post, &i );
       while ( ! list_end( &i ) ) {
          struct node* node = list_data( &i );
          if ( node->type == NODE_EXPR ) {
@@ -1239,8 +1239,8 @@ static void write_multi_usage_msgbuild_block( struct codegen* codegen,
    c_write_block( codegen, buildmsg->block );
    // Create jumps into the message-building block.
    unsigned int entry_number = 0;
-   list_iter_t i;
-   list_iter_init( &i, &buildmsg->usages );
+   struct list_iter i;
+   list_iterate( &buildmsg->usages, &i );
    while ( ! list_end( &i ) ) {
       struct buildmsg_usage* usage = list_data( &i );
       c_seek_node( codegen, &usage->point->node );
@@ -1259,7 +1259,7 @@ static void write_multi_usage_msgbuild_block( struct codegen* codegen,
    struct c_sortedcasejump* return_table = c_create_sortedcasejump( codegen );
    c_append_node( codegen, &return_table->node );
    entry_number = 0;
-   list_iter_init( &i, &buildmsg->usages );
+   list_iterate( &buildmsg->usages, &i );
    while ( ! list_end( &i ) ) {
       struct buildmsg_usage* usage = list_data( &i );
       struct c_casejump* entry = c_create_casejump( codegen, entry_number,
@@ -1275,8 +1275,8 @@ static void write_multi_usage_msgbuild_block( struct codegen* codegen,
 }
 
 void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt ) {
-   list_iter_t i;
-   list_iter_init( &i, &stmt->expr_list );
+   struct list_iter i;
+   list_iterate( &stmt->expr_list, &i );
    while ( ! list_end( &i ) ) {
       c_visit_expr( codegen, list_data( &i ) );
       list_next( &i );

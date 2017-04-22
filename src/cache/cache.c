@@ -219,8 +219,8 @@ void cache_add( struct cache* cache, struct library* lib ) {
       entry->dependency = NULL;
    }
    // Update entry.
-   list_iter_t i;
-   list_iter_init( &i, &lib->files );
+   struct list_iter i;
+   list_iterate( &lib->files, &i );
    while ( ! list_end( &i ) ) {
       struct file_entry* file = list_data( &i );
       struct cache_dependency* dep = cache_alloc_dependency( cache,
@@ -228,7 +228,7 @@ void cache_add( struct cache* cache, struct library* lib ) {
       cache_append_dependency( entry, dep );
       list_next( &i );
    }
-   list_iter_init( &i, &lib->import_dircs );
+   list_iterate( &lib->import_dircs, &i );
    while ( ! list_end( &i ) ) {
       struct import_dirc* dirc = list_data( &i );
       struct file_query query;

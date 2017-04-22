@@ -46,14 +46,14 @@ void c_write_user_code( struct codegen* codegen ) {
       write_null_handler( codegen );
    }
    // Scripts.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->scripts );
+   struct list_iter i;
+   list_iterate( &codegen->task->library_main->scripts, &i );
    while ( ! list_end( &i ) ) {
       write_script( codegen, list_data( &i ) );
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   list_iterate( &codegen->task->library_main->funcs, &i );
    while ( ! list_end( &i ) ) {
       write_func( codegen, list_data( &i ) );
       list_next( &i );
@@ -101,8 +101,8 @@ void write_null_handler( struct codegen* codegen ) {
 
 void c_write_user_code_acs( struct codegen* codegen ) {
    // Scripts.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->scripts );
+   struct list_iter i;
+   list_iterate( &codegen->task->library_main->scripts, &i );
    while ( ! list_end( &i ) ) {
       write_script( codegen, list_data( &i ) );
       list_next( &i );
@@ -179,8 +179,8 @@ void alloc_param_indexes( struct func_record* func, struct param* param ) {
 
 void alloc_funcscopevars_indexes( struct func_record* func,
    struct list* vars ) {
-   list_iter_t i;
-   list_iter_init( &i, vars );
+   struct list_iter i;
+   list_iterate( vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_LOCAL ) {

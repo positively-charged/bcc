@@ -487,8 +487,8 @@ void print_acc_stats_acs( struct task* task, struct parse* parse,
    );
    int closed_scripts = 0;
    int open_scripts = 0;
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->scripts );
+   struct list_iter i;
+   list_iterate( &task->library_main->scripts, &i );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       switch ( script->type ) {
@@ -511,7 +511,7 @@ void print_acc_stats_acs( struct task* task, struct parse* parse,
    }
    int map_vars = 0;
    int world_vars = 0;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iterate( &task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       switch ( var->storage ) {
@@ -545,12 +545,12 @@ void print_acc_stats_bcs( struct task* task, struct parse* parse,
    // confusion. We, instead, have two counts: one for functions in the library
    // being compiled, and another for imported functions.
    int imported_funcs = 0;
-   list_iter_t i;
-   list_iter_init( &i, &task->library_main->dynamic );
+   struct list_iter i;
+   list_iterate( &task->library_main->dynamic, &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
+      struct list_iter k;
+      list_iterate( &lib->funcs, &k );
       while ( ! list_end( &k ) ) {
          struct func* func = list_data( &k );
          struct func_user* impl = func->impl;
@@ -576,7 +576,7 @@ void print_acc_stats_bcs( struct task* task, struct parse* parse,
       list_size( &task->library_main->scripts ) == 1 ? "" : "s"
    );
    int script_counts[ SCRIPT_TYPE_TOTAL ] = { 0 };
-   list_iter_init( &i, &task->library_main->scripts );
+   list_iterate( &task->library_main->scripts, &i );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       ++script_counts[ script->type ];
@@ -593,7 +593,7 @@ void print_acc_stats_bcs( struct task* task, struct parse* parse,
    int world_arrays = 0;
    int global_vars = 0;
    int global_arrays = 0;
-   list_iter_init( &i, &task->library_main->vars );
+   list_iterate( &task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       switch ( var->storage ) {

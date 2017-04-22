@@ -14,7 +14,7 @@ static void clarify_funcs( struct codegen* codegen );
 static void setup_shary( struct codegen* codegen );
 static void setup_diminfo( struct codegen* codegen );
 static int append_dim( struct codegen* codegen, struct dim* dim );
-static bool same_dim( struct dim* dim, list_iter_t i );
+static bool same_dim( struct dim* dim, struct list_iter i );
 static void setup_data( struct codegen* codegen );
 static void patch_initz( struct codegen* codegen );
 static void patch_initz_list( struct codegen* codegen, struct list* vars );
@@ -85,8 +85,8 @@ void publish_acs95( struct codegen* codegen ) {
    // Write scripts and strings.
    c_write_user_code_acs( codegen );
    int string_offset = c_tell( codegen );
-   list_iter_t i;
-   list_iter_init( &i, &codegen->used_strings );
+   struct list_iter i;
+   list_iterate( &codegen->used_strings, &i );
    while ( ! list_end( &i ) ) {
       struct indexed_string* string = list_data( &i );
       // Plus one for the NUL character.
@@ -101,7 +101,7 @@ void publish_acs95( struct codegen* codegen ) {
    // Write script entries.
    int dir_offset = c_tell( codegen );
    c_add_int( codegen, list_size( &codegen->task->library_main->scripts ) );
-   list_iter_init( &i, &codegen->task->library_main->scripts );
+   list_iterate( &codegen->task->library_main->scripts, &i );
    while ( ! list_end( &i ) ) {
       struct script* script = list_data( &i );
       int number = script->assigned_number + ( script->type * 1000 );
@@ -112,7 +112,7 @@ void publish_acs95( struct codegen* codegen ) {
    }
    // Write string entries.
    c_add_int( codegen, list_size( &codegen->used_strings ) );
-   list_iter_init( &i, &codegen->used_strings );
+   list_iterate( &codegen->used_strings, &i );
    while ( ! list_end( &i ) ) {
       struct indexed_string* string = list_data( &i );
       c_add_int( codegen, string_offset );
@@ -163,8 +163,8 @@ void publish( struct codegen* codegen ) {
 void clarify_vars( struct codegen* codegen ) {
    int count = 0;
    // Variables.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   struct list_iter i;
+   list_iterate( &codegen->task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ! var->hidden ) {
@@ -174,11 +174,11 @@ void clarify_vars( struct codegen* codegen ) {
       list_next( &i );
    }
    // Imported variables.
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
+   list_iterate( &codegen->task->library_main->dynamic, &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->vars );
+      struct list_iter k;
+      list_iterate( &lib->vars, &k );
       while ( ! list_end( &k ) ) {
          struct var* var = list_data( &k );
          if ( var->storage == STORAGE_MAP && var->used ) {
@@ -190,7 +190,7 @@ void clarify_vars( struct codegen* codegen ) {
       list_next( &i );
    }
    // External variables.
-   list_iter_init( &i, &codegen->task->library_main->external_vars );
+   list_iterate( &codegen->task->library_main->external_vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->imported && var->used ) {
@@ -203,7 +203,7 @@ void clarify_vars( struct codegen* codegen ) {
    ++count;
    // Store in the shared array those private arrays and private
    // structure-variables whose address is taken.
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iterate( &codegen->task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && ( var->desc == DESC_ARRAY ||
@@ -220,7 +220,7 @@ void clarify_vars( struct codegen* codegen ) {
       ++count;
    }
    // Hidden variables.
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   list_iterate( &codegen->task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->storage == STORAGE_MAP && var->hidden && ! var->addr_taken ) {
@@ -285,12 +285,12 @@ void clarify_funcs( struct codegen* codegen ) {
       list_append( &codegen->funcs, func );
    }
    // Imported functions.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->dynamic );
+   struct list_iter i;
+   list_iterate( &codegen->task->library_main->dynamic, &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
-      list_iter_t k;
-      list_iter_init( &k, &lib->funcs );
+      struct list_iter k;
+      list_iterate( &lib->funcs, &k );
       while ( ! list_end( &k ) ) {
          struct func* func = list_data( &k );
          struct func_user* impl = func->impl;
@@ -302,7 +302,7 @@ void clarify_funcs( struct codegen* codegen ) {
       list_next( &i );
    }
    // External functions.
-   list_iter_init( &i, &codegen->task->library_main->external_funcs );
+   list_iterate( &codegen->task->library_main->external_funcs, &i );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
@@ -312,7 +312,7 @@ void clarify_funcs( struct codegen* codegen ) {
       list_next( &i );
    }
    // Functions.
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   list_iterate( &codegen->task->library_main->funcs, &i );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
@@ -321,7 +321,7 @@ void clarify_funcs( struct codegen* codegen ) {
       list_next( &i );
    }
    // Hidden functions.
-   list_iter_init( &i, &codegen->task->library_main->funcs );
+   list_iterate( &codegen->task->library_main->funcs, &i );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( func->hidden ) {
@@ -365,8 +365,8 @@ void setup_shary( struct codegen* codegen ) {
 void setup_diminfo( struct codegen* codegen ) {
    codegen->shary.diminfo_offset = codegen->shary.size;
    // Variables.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->library_main->vars );
+   struct list_iter i;
+   list_iterate( &codegen->task->library_main->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->dim && var->addr_taken ) {
@@ -375,7 +375,7 @@ void setup_diminfo( struct codegen* codegen ) {
       list_next( &i );
    }
    // Structures.
-   list_iter_init( &i, &codegen->task->library_main->objects );
+   list_iterate( &codegen->task->library_main->objects, &i );
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       if ( object->node.type == NODE_STRUCTURE ) {
@@ -395,8 +395,8 @@ void setup_diminfo( struct codegen* codegen ) {
 
 int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
    int offset = codegen->shary.diminfo_offset;
-   list_iter_t i;
-   list_iter_init( &i, &codegen->shary.dims );
+   struct list_iter i;
+   list_iterate( &codegen->shary.dims, &i );
    while ( ! list_end( &i ) ) {
       if ( same_dim( candidate_dim, i ) ) {
          return offset;
@@ -413,7 +413,7 @@ int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
    return offset;
 }
 
-bool same_dim( struct dim* dim, list_iter_t i ) {
+bool same_dim( struct dim* dim, struct list_iter i ) {
    while ( dim != NULL && ! list_end( &i ) &&
       t_dim_size( dim ) == t_dim_size( list_data( &i ) ) ) {
       list_next( &i );
@@ -424,8 +424,8 @@ bool same_dim( struct dim* dim, list_iter_t i ) {
 
 void setup_data( struct codegen* codegen ) {
    codegen->shary.data_offset = codegen->shary.size;
-   list_iter_t i;
-   list_iter_init( &i, &codegen->shary.vars );
+   struct list_iter i;
+   list_iterate( &codegen->shary.vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       var->index = codegen->shary.size;
@@ -441,8 +441,8 @@ void patch_initz( struct codegen* codegen ) {
 }
 
 void patch_initz_list( struct codegen* codegen, struct list* vars ) {
-   list_iter_t i;
-   list_iter_init( &i, vars );
+   struct list_iter i;
+   list_iterate( vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       struct value* value = var->value;
@@ -566,8 +566,8 @@ void assign_indexes( struct codegen* codegen ) {
    // are allocated.
    int index = 0;
    // Variables.
-   list_iter_t i;
-   list_iter_init( &i, &codegen->vars );
+   struct list_iter i;
+   list_iterate( &codegen->vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       var->index = index;
@@ -575,7 +575,7 @@ void assign_indexes( struct codegen* codegen ) {
       list_next( &i );
    }
    // Imported variables.
-   list_iter_init( &i, &codegen->imported_vars );
+   list_iterate( &codegen->imported_vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       var->index = index;
@@ -593,7 +593,7 @@ void assign_indexes( struct codegen* codegen ) {
    }
    // Functions.
    index = 0;
-   list_iter_init( &i, &codegen->funcs );
+   list_iterate( &codegen->funcs, &i );
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       struct func_user* impl = func->impl;
@@ -604,8 +604,8 @@ void assign_indexes( struct codegen* codegen ) {
 }
 
 void create_assert_strings( struct codegen* codegen ) {
-   list_iter_t i;
-   list_iter_init( &i, &codegen->task->runtime_asserts );
+   struct list_iter i;
+   list_iterate( &codegen->task->runtime_asserts, &i );
    while ( ! list_end( &i ) ) {
       struct assert* assert = list_data( &i );
       // Create file string.

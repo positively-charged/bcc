@@ -1915,8 +1915,8 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
 void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    struct param* param = test->params;
-   list_iter_t i;
-   list_iter_init( &i, &test->call->args );
+   struct list_iter i;
+   list_iterate( &test->call->args, &i );
    while ( ! list_end( &i ) ) {
       test_remaining_arg( semantic, expr_test, test, param, list_data( &i ) );
       if ( param ) {

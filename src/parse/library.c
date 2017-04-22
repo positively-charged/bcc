@@ -731,8 +731,8 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
       p_bail( parse );
    }
    // Each library must have a unique name.
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->libraries );
+   struct list_iter i;
+   list_iterate( &parse->task->libraries, &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       if ( lib != parse->lib &&
@@ -778,8 +778,8 @@ void add_library_link( struct parse* parse, const char* name,
    struct pos* pos ) {
    test_library_name( parse, pos, name, strlen( name ) );
    struct library_link* link = NULL;
-   list_iter_t i;
-   list_iter_init( &i, &parse->lib->links );
+   struct list_iter i;
+   list_iterate( &parse->lib->links, &i );
    while ( ! list_end( &i ) ) {
       struct library_link* other_link = list_data( &i );
       if ( strcmp( other_link->name, name ) == 0 ) {
@@ -804,8 +804,8 @@ void add_library_link( struct parse* parse, const char* name,
 }
 
 void p_create_cmdline_library_links( struct parse* parse ) {
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->options->library_links );
+   struct list_iter i;
+   list_iterate( &parse->task->options->library_links, &i );
    while ( ! list_end( &i ) ) {
       struct pos pos;
       t_init_pos_id( &pos, INTERNALFILE_COMMANDLINE );
@@ -819,8 +819,8 @@ void p_add_unresolved( struct parse* parse, struct object* object ) {
 }
 
 void read_imported_libs( struct parse* parse ) {
-   list_iter_t i;
-   list_iter_init( &i, &parse->lib->import_dircs );
+   struct list_iter i;
+   list_iterate( &parse->lib->import_dircs, &i );
    while ( ! list_end( &i ) ) {
       import_lib( parse, list_data( &i ) );
       list_next( &i );
@@ -839,8 +839,8 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
    // See if the library is already loaded.
    struct library* lib = NULL;
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->libraries );
+   struct list_iter i;
+   list_iterate( &parse->task->libraries, &i );
    while ( ! list_end( &i ) ) {
       lib = list_data( &i );
       if ( lib->file == query.file ) {
@@ -887,7 +887,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    have_lib:
    lib->imported = true;
    // Append library.
-   list_iter_init( &i, &parse->task->library_main->dynamic );
+   list_iterate( &parse->task->library_main->dynamic, &i );
    while ( ! list_end( &i ) ) {
       struct library* another_lib = list_data( &i );
       if ( lib == another_lib ) {
@@ -907,15 +907,15 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
 }
 
 void determine_needed_library_links( struct parse* parse ) {
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->library_main->links );
+   struct list_iter i;
+   list_iterate( &parse->task->library_main->links, &i );
    while ( ! list_end( &i ) ) {
       struct library_link* link = list_data( &i );
       // Ignore a self-referential link.
       if ( strcmp( link->name, parse->task->library_main->name.value ) != 0 ) {
          // If a library is #imported, a link for it is not necessary.
-         list_iter_t k;
-         list_iter_init( &k, &parse->task->library_main->dynamic );
+         struct list_iter k;
+         list_iterate( &parse->task->library_main->dynamic, &k );
          while ( ! list_end( &k ) ) {
             struct library* lib = list_data( &k );
             if ( strcmp( link->name, lib->name.value ) == 0 ) {
@@ -933,15 +933,15 @@ void determine_needed_library_links( struct parse* parse ) {
 
 void determine_hidden_objects( struct parse* parse ) {
    // Determine private objects.
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->libraries );
+   struct list_iter i;
+   list_iterate( &parse->task->libraries, &i );
    while ( ! list_end( &i ) ) {
       struct library* lib = list_data( &i );
       collect_private_objects( parse, lib, lib->upmost_ns_fragment );
       list_next( &i );
    }
    // Determine private namespaces.
-   list_iter_init( &i, &parse->task->namespaces );
+   list_iterate( &parse->task->namespaces, &i );
    while ( ! list_end( &i ) ) {
       struct ns* ns = list_data( &i );
       ns->hidden = is_private_namespace( ns );
@@ -951,8 +951,8 @@ void determine_hidden_objects( struct parse* parse ) {
 
 void collect_private_objects( struct parse* parse, struct library* lib,
    struct ns_fragment* fragment ) {
-   list_iter_t i;
-   list_iter_init( &i, &fragment->objects );
+   struct list_iter i;
+   list_iterate( &fragment->objects, &i );
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       // Determine whether the object should be hidden.
@@ -1015,8 +1015,8 @@ void collect_private_objects( struct parse* parse, struct library* lib,
 }
 
 bool is_private_namespace( struct ns* ns ) {
-   list_iter_t i;
-   list_iter_init( &i, &ns->fragments );
+   struct list_iter i;
+   list_iterate( &ns->fragments, &i );
    while ( ! list_end( &i ) ) {
       struct ns_fragment* fragment = list_data( &i );
       if ( ! fragment->hidden ) {
@@ -1028,8 +1028,8 @@ bool is_private_namespace( struct ns* ns ) {
 }
 
 void unbind_namespaces( struct parse* parse ) {
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->namespaces );
+   struct list_iter i;
+   list_iterate( &parse->task->namespaces, &i );
    while ( ! list_end( &i ) ) {
       struct ns* ns = list_data( &i );
       ns->name->object = ns->name->object->next_scope;

@@ -911,8 +911,8 @@ void p_define_predef_macros( struct parse* parse ) {
 }
 
 void p_define_cmdline_macros( struct parse* parse ) {
-   list_iter_t i;
-   list_iter_init( &i, &parse->task->options->defines );
+   struct list_iter i;
+   list_iterate( &parse->task->options->defines, &i );
    while ( ! list_end( &i ) ) {
       const char* name = list_data( &i );
       struct macro* macro = p_find_macro( parse, name );

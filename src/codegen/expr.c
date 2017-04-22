@@ -1478,8 +1478,8 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
    // that are zero because the engine will provide those.
    int count = 0;
    int arg_number = 0;
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    while ( ! list_end( &i ) ) {
       struct expr* arg = list_data( &i );
       bool skippable_arg = (
@@ -1494,7 +1494,7 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
    }
    // Push arguments.
    arg_number = 0;
-   list_iter_init( &i, &call->args );
+   list_iterate( &call->args, &i );
    while ( ! list_end( &i ) && arg_number < count ) {
       c_push_expr( codegen, list_data( &i ) );
       ++arg_number;
@@ -1536,8 +1536,8 @@ void visit_aspec_call( struct codegen* codegen, struct result* result,
 
 void visit_ext_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    while ( ! list_end( &i ) ) {
       c_push_expr( codegen, list_data( &i ) );
       list_next( &i );
@@ -1551,8 +1551,8 @@ void visit_ded_call( struct codegen* codegen, struct result* result,
    struct call* call ) {
    // Push arguments.
    struct param* param = call->func->params;
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    while ( ! list_end( &i ) ) {
       c_push_expr( codegen, list_data( &i ) );
       if ( param ) {
@@ -1622,8 +1622,8 @@ void call_user_func( struct codegen* codegen, struct result* result,
 void write_call_args( struct codegen* codegen, struct call* call ) {
    struct param* param = call->func->params;
    // Push arguments.
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    while ( ! list_end( &i ) ) {
       push_arg( codegen, param, list_data( &i ) );
       param = param->next;
@@ -1691,8 +1691,8 @@ void visit_sample_call( struct codegen* codegen, struct result* result,
       ! operand.safe ) {
       write_null_check( codegen );
    }
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    // TODO: Use common code to push arguments for function and function
    // reference.
    struct param* param = call->ref_func->params;
@@ -1744,8 +1744,8 @@ void call_format( struct codegen* codegen, struct result* result,
    if ( call->func->min_param > 0 ) {
       c_pcd( codegen, PCD_MOREHUDMESSAGE );
       int count = 0;
-      list_iter_t i;
-      list_iter_init( &i, &call->args );
+      struct list_iter i;
+      list_iterate( &call->args, &i );
       while ( ! list_end( &i ) ) {
          if ( count == call->func->min_param ) {
             c_pcd( codegen, PCD_OPTHUDMESSAGE );
@@ -1888,8 +1888,8 @@ void visit_internal_call( struct codegen* codegen, struct result* result,
 
 void write_executewait( struct codegen* codegen, struct call* call,
    bool named_impl ) {
-   list_iter_t i;
-   list_iter_init( &i, &call->args );
+   struct list_iter i;
+   list_iterate( &call->args, &i );
    c_push_expr( codegen, list_data( &i ) );
    c_pcd( codegen, PCD_DUP );
    list_next( &i );

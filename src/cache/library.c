@@ -140,8 +140,8 @@ void save_file_map( struct saver* saver ) {
    WF( saver, F_FILEMAP );
    int size = list_size( &saver->lib->files );
    WV( saver, F_SIZE, &size );
-   list_iter_t i;
-   list_iter_init( &i, &saver->lib->files );
+   struct list_iter i;
+   list_iterate( &saver->lib->files, &i );
    while ( ! list_end( &i ) ) {
       struct file_entry* file = list_data( &i );
       WS( saver, F_FILEPATH, file->full_path.value );
@@ -164,8 +164,8 @@ void save_namespace( struct saver* saver, struct ns_fragment* fragment ) {
       }
    }
    // Save members.
-   list_iter_t i;
-   list_iter_init( &i, &fragment->objects );
+   struct list_iter i;
+   list_iterate( &fragment->objects, &i );
    while ( ! list_end( &i ) ) {
       save_namespace_member( saver, list_data( &i ) );
       list_next( &i );
@@ -534,8 +534,8 @@ void save_pos( struct saver* saver, struct pos* pos ) {
 }
 
 int map_file( struct saver* saver, int id ) {
-   list_iter_t i;
-   list_iter_init( &i, &saver->lib->files );
+   struct list_iter i;
+   list_iterate( &saver->lib->files, &i );
    int map_id = 0;
    while ( ! list_end( &i ) ) {
       struct file_entry* file = list_data( &i );
