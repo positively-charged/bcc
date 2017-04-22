@@ -484,8 +484,11 @@ void p_read_expr( struct parse* parse, struct expr_reading* reading );
 bool p_is_dec( struct parse* parse );
 bool p_is_local_dec( struct parse* parse );
 void p_init_dec( struct dec* dec );
+void p_init_for_dec( struct parse* parse, struct dec* dec,
+   struct list* vars );
 void p_read_dec( struct parse* parse, struct dec* dec );
 void p_read_local_dec( struct parse* parse, struct dec* dec );
+void p_read_for_var( struct parse* parse, struct dec* dec );
 void p_init_stmt_reading( struct stmt_reading* reading, struct list* labels );
 enum tk p_peek( struct parse* parse );
 enum tk p_peek_2nd( struct parse* parse );

@@ -520,11 +520,8 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
 void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
    if ( p_is_local_dec( parse ) ) {
       struct dec dec;
-      p_init_dec( &dec );
-      dec.area = DEC_FOR;
-      dec.name_offset = parse->ns->body;
-      dec.vars = &stmt->init;
-      p_read_local_dec( parse, &dec );
+      p_init_for_dec( parse, &dec, &stmt->init );
+      p_read_for_var( parse, &dec );
    }
    else {
       while ( true ) {

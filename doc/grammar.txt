@@ -109,7 +109,7 @@ specifier-declaration:
    <specifier-visibility> <structure> ;
    <specifier-visibility> <type-alias> ;
 
-specifieronly-visibility:
+specifier-visibility:
    private
    E
 
@@ -155,7 +155,7 @@ structure-member-list:
    <structure-member-list> <structure-member>
 
 structure-member:
-   <extended-specifier> <structure-member-instance-list> ;
+   <extended-specifier> <reference> <structure-member-instance-list> ;
 
 structure-member-instance-list:
    <structure-member-instance>
@@ -176,8 +176,8 @@ visibility:
    E
 
 variable:
-   <storage> <extended-specifier> <instance-list> ;
-   auto <auto-instance-list> ;
+   <storage> <extended-specifier> <reference> <instance-list> ;
+   <auto> <auto-instance-list> ;
 
 storage:
    world
@@ -188,20 +188,16 @@ storage-index:
    <decimal-number> :
    E
 
-extended-specifier:
-   <extended-specifier-start> <reference>
-   <extended-specifier-start>
-   <specifier>
+auto:
+   auto
+   auto enum
 
-extended-specifier-start:
+extended-specifier:
    <enumeration>
    <structure>
+   <specifier>
 
 specifier:
-   <specifier-start> <reference>
-   <specifier-start>
-
-specifier-start:
    raw
    int
    fixed
@@ -289,9 +285,8 @@ function-keyword:
    E
 
 function-return:
-   <extended-specifier>
-   auto enum
-   auto
+   <extended-specifier> <reference>
+   <auto>
 
 parameter-list-declaration:
    <parameter-list>
@@ -310,8 +305,8 @@ parameter-name:
    E
 
 type-alias:
-   typedef <extended-specifier> <type-alias-instance-list>
-   typedef <function-keyword> <extended-specifier> <type-name> (
+   typedef <extended-specifier> <reference> <type-alias-instance-list>
+   typedef <function-keyword> <function-return> <type-name> (
       <parameter-list-declaration> )
 
 type-alias-instance-list:

@@ -56,12 +56,8 @@ struct special_reading {
 };
 
 static bool is_dec_bcs( struct parse* parse );
-static void read_visibility( struct parse* parse, struct dec* dec );
-static void read_object( struct parse* parse, struct dec* dec );
-static void read_qual( struct parse* parse, struct dec* dec );
-static void read_auto( struct parse* parse, struct dec* dec );
-static void read_storage( struct parse* parse, struct dec* dec );
-static void read_extended_spec( struct parse* parse, struct dec* dec );
+static void read_local_var( struct parse* parse, struct dec* dec );
+static void read_dec( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* dec );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
@@ -83,6 +79,14 @@ static void read_struct_body( struct parse* parse, struct dec* dec,
 void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
+static void read_typedef( struct parse* parse, struct dec* dec );
+static void read_visibility( struct parse* parse, struct dec* dec );
+static bool is_private_read( struct dec* dec );
+static void read_object( struct parse* parse, struct dec* dec );
+static void read_var_object( struct parse* parse, struct dec* dec );
+static void read_storage( struct parse* parse, struct dec* dec );
+static void read_auto( struct parse* parse, struct dec* dec );
+static void read_extended_spec( struct parse* parse, struct dec* dec );
 static bool is_spec( struct parse* parse );
 static void init_spec_reading( struct spec_reading* spec, int area );
 static void read_spec( struct parse* parse, struct spec_reading* spec );
@@ -265,18 +269,16 @@ void p_init_dec( struct dec* dec ) {
    dec->anon = false;
 }
 
+void p_init_for_dec( struct parse* parse, struct dec* dec,
+   struct list* vars ) {
+   p_init_dec( dec );
+   dec->area = DEC_FOR;
+   dec->name_offset = parse->ns->body;
+   dec->vars = vars;
+}
+
 void p_read_dec( struct parse* parse, struct dec* dec ) {
-   dec->pos = parse->tk_pos;
-   switch ( parse->tk ) {
-   case TK_ENUM:
-      read_enum( parse, dec );
-      break;
-   case TK_STRUCT:
-      read_struct( parse, dec );
-      break;
-   default:
-      read_visibility( parse, dec );
-   }
+   read_dec( parse, dec );
 }
 
 bool p_is_local_dec( struct parse* parse ) {
@@ -286,6 +288,15 @@ bool p_is_local_dec( struct parse* parse ) {
 void p_read_local_dec( struct parse* parse, struct dec* dec ) {
    dec->force_local_scope = p_read_let( parse );
    p_read_dec( parse, dec );
+}
+
+void p_read_for_var( struct parse* parse, struct dec* dec ) {
+   read_local_var( parse, dec );
+}
+
+static void read_local_var( struct parse* parse, struct dec* dec ) {
+   dec->force_local_scope = p_read_let( parse );
+   read_var_object( parse, dec );
 }
 
 // Returns whether `let` is specified.
@@ -300,135 +311,24 @@ bool p_read_let( struct parse* parse ) {
    }
 }
 
-void read_visibility( struct parse* parse, struct dec* dec ) {
-   // At this time, visibility can be specified only for variables, functions,
-   // and unnamed enumerations.
+void read_dec( struct parse* parse, struct dec* dec ) {
+   dec->pos = parse->tk_pos;
    if ( parse->tk == TK_PRIVATE ) {
       dec->private_visibility = true;
       p_read_tk( parse );
-      if ( parse->tk == TK_ENUM ) {
-         read_enum( parse, dec );
-         return;
-      }
-      if ( parse->tk == TK_STRUCT ) {
-         read_struct( parse, dec );
-         return;
-      }
    }
-   else if ( parse->tk == TK_EXTERN ) {
-      if ( parse->lib->imported ) {
-         p_skip_semicolon( parse );
-         return;
-      }
-      else {
-         dec->external = true;
-         dec->storage.type = STORAGE_MAP;
-         p_read_tk( parse );
-      }
-   }
-   read_object( parse, dec );
-}
-
-void read_object( struct parse* parse, struct dec* dec ) {
-   if ( parse->tk == TK_TYPEDEF ) {
-      dec->type_alias = true;
-      p_read_tk( parse );
-   }
-   if ( parse->tk == TK_FUNCTION ) {
-      dec->object = DECOBJ_FUNC;
-      p_read_tk( parse );
-   }
-   else {
-      switch ( parse->lang ) {
-      case LANG_ACS:
-      case LANG_ACS95:
-         dec->object = DECOBJ_VAR;
-         break;
-      default:
-         break;
-      }
-   }
-   if ( dec->type_alias ) {
-      read_extended_spec( parse, dec );
-      read_after_spec( parse, dec );
-   }
-   else {
-      read_qual( parse, dec );
-      if ( parse->tk == TK_AUTO ) {
-         read_auto( parse, dec );
-         read_after_ref( parse, dec );
-      }
-      else {
-         read_storage( parse, dec );
-         read_extended_spec( parse, dec );
-         read_after_spec( parse, dec );
-      }
-   }
-}
-
-void read_qual( struct parse* parse, struct dec* dec ) {
-   while (
-      parse->tk == TK_STATIC ) {
-      if ( parse->tk == TK_STATIC && dec->static_qual ) {
-         p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
-            "duplicate `%s` %squalifier", parse->tk_text,
-            dec->object == DECOBJ_FUNC ? "function-" : "" );
-         p_bail( parse );
-      }
-      switch ( parse->tk ) {
-      case TK_STATIC:
-         dec->static_qual = true;
-         dec->static_qual_pos = parse->tk_pos;
-         p_read_tk( parse );
-         break;
-      default:
-         break;
-      }
-   }
-}
-
-void read_auto( struct parse* parse, struct dec* dec ) {
-   p_test_tk( parse, TK_AUTO );
-   dec->spec = SPEC_AUTO;
-   p_read_tk( parse );
-   if ( parse->tk == TK_ENUM ) {
-      dec->spec = SPEC_AUTOENUM;
-      p_read_tk( parse );
-   }
-}
-
-void read_storage( struct parse* parse, struct dec* dec ) {
    switch ( parse->tk ) {
-   case TK_WORLD:
-   case TK_GLOBAL:
-      dec->storage.type = ( parse->tk == TK_WORLD ) ? STORAGE_WORLD :
-         STORAGE_GLOBAL;
-      dec->storage.pos = parse->tk_pos;
-      dec->storage.specified = true;
-      dec->object = DECOBJ_VAR;
-      p_read_tk( parse );
+   case TK_ENUM:
+      read_enum( parse, dec );
+      break;
+   case TK_STRUCT:
+      read_struct( parse, dec );
+      break;
+   case TK_TYPEDEF:
+      read_typedef( parse, dec );
       break;
    default:
-      break;
-   }
-}
-
-void read_extended_spec( struct parse* parse, struct dec* dec ) {
-   if ( is_enum_def( parse ) ) {
-      read_enum_def( parse, dec );
-   }
-   else if ( is_struct_def( parse ) ) {
-      read_struct_def( parse, dec );
-   }
-   else {
-      struct spec_reading spec;
-      init_spec_reading( &spec, dec->object == DECOBJ_FUNC ?
-         AREA_FUNCRETURN : dec->area == DEC_MEMBER ?
-         AREA_MEMBER : AREA_VAR );
-      read_spec( parse, &spec );
-      dec->type_pos = spec.pos;
-      dec->spec = spec.type;
-      dec->path = spec.path;
+      read_visibility( parse, dec );
    }
 }
 
@@ -496,12 +396,6 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
       implicit_dec.spec = SPEC_ENUM;
       implicit_dec.private_visibility = enumeration->hidden;
       finish_type_alias( parse, &implicit_dec );
-   }
-   STATIC_ASSERT( DEC_TOTAL == 4 );
-   if ( dec->area == DEC_FOR ) {
-      p_diag( parse, DIAG_POS_ERR, &dec->type_pos,
-         "enum in for-loop initialization" );
-      p_bail( parse );
    }
 }
 
@@ -765,6 +659,138 @@ struct structure_member* create_structure_member( struct dec* dec ) {
    return member;
 }
 
+static void read_typedef( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_TYPEDEF );
+   p_read_tk( parse );
+   dec->type_alias = true;
+   if ( parse->tk == TK_FUNCTION ) {
+      dec->object = DECOBJ_FUNC;
+      p_read_tk( parse );
+   }
+   read_extended_spec( parse, dec );
+   read_after_spec( parse, dec );
+}
+
+void read_visibility( struct parse* parse, struct dec* dec ) {
+   if ( ! is_private_read( dec ) ) {
+      if ( parse->tk == TK_EXTERN ) {
+         if ( parse->lib->imported ) {
+            p_skip_semicolon( parse );
+            return;
+         }
+         else {
+            dec->external = true;
+            dec->storage.type = STORAGE_MAP;
+            p_read_tk( parse );
+         }
+      }
+      else if ( parse->tk == TK_STATIC ) {
+         dec->static_qual = true;
+         dec->static_qual_pos = parse->tk_pos;
+         p_read_tk( parse );
+      }
+   }
+   read_object( parse, dec );
+}
+
+static bool is_private_read( struct dec* dec ) {
+   return dec->private_visibility;
+}
+
+void read_object( struct parse* parse, struct dec* dec ) {
+   // Function keyword.
+   if ( parse->tk == TK_FUNCTION ) {
+      dec->object = DECOBJ_FUNC;
+      p_read_tk( parse );
+   }
+   else {
+      switch ( parse->lang ) {
+      case LANG_ACS:
+      case LANG_ACS95:
+         dec->object = DECOBJ_VAR;
+         break;
+      default:
+         break;
+      }
+   }
+   // Storage.
+   switch ( dec->object ) {
+   case DECOBJ_VAR:
+   case DECOBJ_UNDECIDED:
+      read_storage( parse, dec );
+      break;
+   case DECOBJ_FUNC:
+      break;
+   }
+   // Type specifier.
+   if ( parse->tk == TK_AUTO ) {
+      read_auto( parse, dec );
+      read_after_ref( parse, dec );
+   }
+   else {
+      read_extended_spec( parse, dec );
+      read_after_spec( parse, dec );
+   }
+}
+
+static void read_var_object( struct parse* parse, struct dec* dec ) {
+   dec->object = DECOBJ_VAR;
+   read_storage( parse, dec );
+   if ( parse->tk == TK_AUTO ) {
+      read_auto( parse, dec );
+      read_after_ref( parse, dec );
+   }
+   else {
+      read_extended_spec( parse, dec );
+      read_after_spec( parse, dec );
+   }
+}
+
+void read_storage( struct parse* parse, struct dec* dec ) {
+   switch ( parse->tk ) {
+   case TK_WORLD:
+   case TK_GLOBAL:
+      dec->storage.type = ( parse->tk == TK_WORLD ) ?
+         STORAGE_WORLD : STORAGE_GLOBAL;
+      dec->storage.pos = parse->tk_pos;
+      dec->storage.specified = true;
+      dec->object = DECOBJ_VAR;
+      p_read_tk( parse );
+      break;
+   default:
+      break;
+   }
+}
+
+void read_auto( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_AUTO );
+   dec->spec = SPEC_AUTO;
+   p_read_tk( parse );
+   if ( parse->tk == TK_ENUM ) {
+      dec->spec = SPEC_AUTOENUM;
+      p_read_tk( parse );
+   }
+}
+
+void read_extended_spec( struct parse* parse, struct dec* dec ) {
+   if ( is_enum_def( parse ) ) {
+      read_enum_def( parse, dec );
+   }
+   else if ( is_struct_def( parse ) ) {
+      read_struct_def( parse, dec );
+   }
+   else {
+      struct spec_reading spec;
+      init_spec_reading( &spec, dec->object == DECOBJ_FUNC ?
+         AREA_FUNCRETURN : dec->area == DEC_MEMBER ?
+         AREA_MEMBER : AREA_VAR );
+      read_spec( parse, &spec );
+      dec->type_pos = spec.pos;
+      dec->spec = spec.type;
+      dec->path = spec.path;
+   }
+}
+
 bool is_spec( struct parse* parse ) {
    switch ( parse->tk ) {
    case TK_RAW:
@@ -879,7 +905,7 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
       subject = "struct-member type";
       break;
    default:
-      subject = "object type";
+      subject = "variable type";
       break;
    }
    p_unexpect_diag( parse );
@@ -887,6 +913,7 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
 }
 
 void read_after_spec( struct parse* parse, struct dec* dec ) {
+   // Reference.
    if ( parse->lang == LANG_BCS ) {
       struct ref_reading ref;
       init_ref_reading( &ref );
@@ -1047,6 +1074,8 @@ void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
 }
 
 void read_after_ref( struct parse* parse, struct dec* dec ) {
+   // We reached a point where we can determine whether to read a variable or
+   // a function.
    if ( dec->object == DECOBJ_UNDECIDED ) {
       if ( is_name( parse, dec ) && p_peek( parse ) == TK_PAREN_L ) {
          dec->object = DECOBJ_FUNC;
@@ -1055,6 +1084,7 @@ void read_after_ref( struct parse* parse, struct dec* dec ) {
          dec->object = DECOBJ_VAR;
       }
    }
+   // Read object-specific details.
    if ( dec->object == DECOBJ_FUNC ) {
       read_func( parse, dec );
    }
@@ -1585,12 +1615,7 @@ struct var* p_read_cond_var( struct parse* parse ) {
    dec.name_offset = parse->ns->body;
    dec.force_local_scope = p_read_let( parse );
    if ( parse->tk == TK_AUTO ) {
-      dec.spec = SPEC_AUTO;
-      p_read_tk( parse );
-      if ( parse->tk == TK_ENUM ) {
-         dec.spec = SPEC_AUTOENUM;
-         p_read_tk( parse );
-      }
+      read_auto( parse, &dec );
    }
    else {
       struct spec_reading spec;
@@ -1643,12 +1668,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
 void read_foreach_var( struct parse* parse, struct dec* dec ) {
    dec->force_local_scope = p_read_let( parse );
    if ( parse->tk == TK_AUTO ) {
-      dec->spec = SPEC_AUTO;
-      p_read_tk( parse );
-      if ( parse->tk == TK_ENUM ) {
-         dec->spec = SPEC_AUTOENUM;
-         p_read_tk( parse );
-      }
+      read_auto( parse, dec );
    }
    else {
       struct spec_reading spec;
@@ -1746,8 +1766,12 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
       dec.object = DECOBJ_FUNC;
       p_read_tk( parse );
    }
-   // Qualifier.
-   read_qual( parse, &dec );
+   // Static.
+   if ( parse->tk == TK_STATIC ) {
+      dec.static_qual = true;
+      dec.static_qual_pos = parse->tk_pos;
+      p_read_tk( parse );
+   }
    // Specifier.
    if ( parse->tk == TK_AUTO ) {
       read_auto( parse, &dec );
@@ -1878,6 +1902,11 @@ void read_func( struct parse* parse, struct dec* dec ) {
          list_append( &parse->lib->funcs, func );
          func->hidden = true;
       }
+   }
+   if ( dec->static_qual && ! dec->area == DEC_LOCAL ) {
+      p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
+         "only a nested function can be static-qualified" );
+      p_bail( parse );
    }
 }
 

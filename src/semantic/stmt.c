@@ -710,14 +710,18 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
       else if ( node->type == NODE_VAR ) {
          s_test_local_var( semantic, ( struct var* ) node );
       }
-      else if ( node->type == NODE_STRUCTURE ) {
-         struct structure* structure = ( struct structure* ) node;
-         s_diag( semantic, DIAG_POS_ERR, &structure->object.pos,
-            "struct in for-loop initialization" );
+      else if (
+         node->type == NODE_STRUCTURE ||
+         node->type == NODE_ENUMERATION ) {
+         struct object* object = ( struct object* ) node;
+         s_diag( semantic, DIAG_POS_ERR, &object->pos,
+            "%s declared in for-loop initialization",
+            node->type == NODE_STRUCTURE ? "struct" : "enum" );
          s_bail( semantic );
       }
       else {
          UNREACHABLE();
+         s_bail( semantic );
       }
       list_next( &i );
    }
