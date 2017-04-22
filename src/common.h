@@ -81,20 +81,27 @@ struct list_iter {
    struct list_link* link;
 };
 
-#define list_size( list ) ( ( list )->size )
-#define list_head( list ) ( ( list )->head->data )
-#define list_tail( list ) ( ( list )->tail->data )
-
-void list_init( struct list* );
-void list_append( struct list*, void* );
-void list_append_head( struct list*, void* );
+void list_init( struct list* list );
+int list_size( struct list* list );
+void* list_head( struct list* list );
+void* list_tail( struct list* list );
+void list_append( struct list*, void* data );
+void list_prepend( struct list*, void* data );
 void list_iterate( struct list* list, struct list_iter* iter );
 bool list_end( struct list_iter* iter );
 void list_next( struct list_iter* iter );
 void* list_data( struct list_iter* iter );
+void list_insert_after( struct list* list,
+   struct list_iter* iter, void* data );
+void list_insert_before( struct list* list,
+   struct list_iter* iter, void* data );
+// Updates the data at the specified node and returns the old data.
+void* list_replace( struct list* list,
+   struct list_iter* iter, void* data );
 void list_merge( struct list* receiver, struct list* giver );
+// Removes the first node of the list and returns the data of the removed node.
 void* list_shift( struct list* list );
-void list_deinit( struct list* );
+void list_deinit( struct list* list );
 
 // --------------------------------------------------------------------------
 

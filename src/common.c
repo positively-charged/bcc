@@ -259,16 +259,38 @@ void str_clear( struct str* str ) {
 // Singly linked list
 // ==========================================================================
 
+static struct list_link* alloc_list_link( void* data );
+
 void list_init( struct list* list ) {
    list->head = NULL;
    list->tail = NULL;
    list->size = 0;
 }
 
+int list_size( struct list* list ) {
+   return list->size;
+}
+
+void* list_head( struct list* list ) {
+   if ( list->head ) {
+      return list->head->data;
+   }
+   else {
+      return NULL;
+   }
+}
+
+void* list_tail( struct list* list ) {
+   if ( list->tail ) {
+      return list->tail->data;
+   }
+   else {
+      return NULL;
+   }
+}
+
 void list_append( struct list* list, void* data ) {
-   struct list_link* link = mem_slot_alloc( sizeof( *link ) );
-   link->data = data;
-   link->next = NULL;
+   struct list_link* link = alloc_list_link( data );
    if ( list->head ) {
       list->tail->next = link;
    }
@@ -279,9 +301,15 @@ void list_append( struct list* list, void* data ) {
    ++list->size;
 }
 
-void list_append_head( struct list* list, void* data ) {
+static struct list_link* alloc_list_link( void* data ) {
    struct list_link* link = mem_slot_alloc( sizeof( *link ) );
    link->data = data;
+   link->next = NULL;
+   return link;
+}
+
+void list_prepend( struct list* list, void* data ) {
+   struct list_link* link = alloc_list_link( data );
    link->next = list->head;
    list->head = link;
    if ( ! list->tail ) {
@@ -313,6 +341,48 @@ void* list_data( struct list_iter* iter ) {
    else {
       return NULL;
    }
+}
+
+void list_insert_after( struct list* list,
+   struct list_iter* iter, void* data ) {
+   if ( iter->link ) {
+      struct list_link* link = alloc_list_link( data );
+      link->next = iter->link->next;
+      iter->link->next = link;
+      if ( ! link->next ) {
+         list->tail = link;
+      }
+      ++list->size;
+   }
+   else {
+      list_append( list, data );
+   }
+}
+
+void list_insert_before( struct list* list,
+   struct list_iter* iter, void* data ) {
+   if ( iter->prev ) {
+      struct list_link* link = alloc_list_link( data );
+      link->next = iter->link;
+      iter->prev->next = link;
+      if ( ! link->next ) {
+         list->tail = link;
+      }
+      ++list->size;
+   }
+   else {
+      list_prepend( list, data );
+   }
+}
+
+void* list_replace( struct list* list,
+   struct list_iter* iter, void* data ) {
+   void* replaced_data = NULL;
+   if ( iter->link ) {
+      replaced_data = iter->link->data;
+      iter->link->data = data;
+   }
+   return replaced_data;
 }
 
 void list_merge( struct list* receiver, struct list* giver ) {
