@@ -107,8 +107,8 @@ void p_diag( struct parse* parse, int flags, ... ) {
 }
 
 void p_unexpect_diag( struct parse* parse ) {
-   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->token->pos,
-      "unexpected %s", p_present_token_temp( parse, parse->token->type ) );
+   p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &parse->tk_pos,
+      "unexpected %s", p_present_token_temp( parse, parse->tk ) );
 }
 
 void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
@@ -117,7 +117,7 @@ void p_unexpect_item( struct parse* parse, struct pos* pos, enum tk tk ) {
 
 void p_unexpect_name( struct parse* parse, struct pos* pos,
    const char* subject ) {
-   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->token->pos ),
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
       "expecting %s here, or", subject );
 }
 
@@ -127,7 +127,7 @@ void p_unexpect_last( struct parse* parse, struct pos* pos, enum tk tk ) {
 
 void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject ) {
-   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->token->pos ),
+   p_diag( parse, DIAG_POS, ( pos ? pos : &parse->tk_pos ),
       "expecting %s here", subject );
 }
 
