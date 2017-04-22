@@ -236,7 +236,7 @@ reference-list:
 
 reference-item:
    <reference-storage> <dimension-list> <reference-marker>
-   ( <parameter-declaration> ) <reference-marker>
+   ( <parameter-list-declaration> ) <reference-marker>
 
 instance-list:
    <instance>
@@ -768,12 +768,12 @@ cast:
    ( str ) <prefix>
 
 compound-literal:
-   ( <compound-literal-qualifier> <specifier> ) <braced-initializer>
-   ( <compound-literal-qualifier> <specifier> <dimension-list> )
+   ( <compound-literal-static> <specifier> ) <braced-initializer>
+   ( <compound-literal-static> <specifier> <dimension-list> )
       <braced-initializer>
-   ( <compound-literal-qualifier> <specifier> <dimension-list> ) <string>
+   ( <compound-literal-static> <specifier> <dimension-list> ) <string>
 
-compound-literal-qualifier:
+compound-literal-static:
    static
    E
 
@@ -781,12 +781,16 @@ function-literal:
    ( <function-literal-header> ) <block-statement>
 
 function-literal-header:
-   <function-keyword> <function-literal-return> ( <parameter-declaration> )
+   <function-literal-static> <function-keyword> <function-literal-return> (
+      <parameter-list-declaration> )
+
+function-literal-static:
+   static
+   E
 
 function-literal-return:
    <specifier>
-   auto enum
-   auto
+   <auto>
 
 identifier:
    [a-zA-Z_][a-zA-Z0-9_]*

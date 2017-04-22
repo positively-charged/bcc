@@ -1766,15 +1766,15 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
       dec.area = DEC_TOP;
    }
    p_read_tk( parse );
-   // Function keyword.
-   if ( parse->tk == TK_FUNCTION ) {
-      dec.object = DECOBJ_FUNC;
-      p_read_tk( parse );
-   }
    // Static.
    if ( parse->tk == TK_STATIC ) {
       dec.static_qual = true;
       dec.static_qual_pos = parse->tk_pos;
+      p_read_tk( parse );
+   }
+   // Function keyword.
+   if ( parse->tk == TK_FUNCTION ) {
+      dec.object = DECOBJ_FUNC;
       p_read_tk( parse );
    }
    // Specifier.
