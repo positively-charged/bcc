@@ -1189,6 +1189,7 @@ struct library {
    bool imported;
    bool encrypt_str;
    bool header;
+   // Only applies to main module.
    bool wadauthor;
    bool uses_nullable_refs;
 };

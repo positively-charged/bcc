@@ -23,6 +23,7 @@ struct ns_qual {
    bool strict;
 };
 
+static void read_main_module( struct parse* parse );
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
 static void read_module_item_acs( struct parse* parse );
@@ -54,6 +55,10 @@ static void test_library_name( struct parse* parse, struct pos* pos,
 static void read_linklibrary( struct parse* parse, struct pos* pos );
 static void add_library_link( struct parse* parse, const char* name,
    struct pos* pos );
+static void read_wadauthor( struct parse* parse, struct pos* pos,
+   bool wadauthor );
+static bool in_main_module( struct parse* parse );
+static void finish_wadauthor( struct parse* parse );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
 static struct library* get_previously_processed_lib( struct parse* parse,
@@ -69,12 +74,17 @@ static bool is_private_namespace( struct ns* ns );
 static void unbind_namespaces( struct parse* parse );
 
 void p_read_target_lib( struct parse* parse ) {
-   read_module( parse );
+   read_main_module( parse );
    read_imported_libs( parse );
    list_append( &parse->task->libraries, parse->task->library_main );
    determine_needed_library_links( parse );
    determine_hidden_objects( parse );
    unbind_namespaces( parse );
+}
+
+static void read_main_module( struct parse* parse ) {
+   read_module( parse );
+   finish_wadauthor( parse );
 }
 
 void read_module( struct parse* parse ) {
@@ -604,8 +614,7 @@ void read_pseudo_dirc( struct parse* parse, bool first_object ) {
       break;
    case TK_WADAUTHOR:
    case TK_NOWADAUTHOR:
-      parse->lib->wadauthor = ( dirc == TK_WADAUTHOR );
-      p_read_tk( parse );
+      read_wadauthor( parse, &pos, ( dirc == TK_WADAUTHOR ) );
       break;
    case TK_REGION:
    case TK_ENDREGION:
@@ -811,6 +820,53 @@ void p_create_cmdline_library_links( struct parse* parse ) {
       t_init_pos_id( &pos, INTERNALFILE_COMMANDLINE );
       add_library_link( parse, list_data( &i ), &pos );
       list_next( &i );
+   }
+}
+
+static void read_wadauthor( struct parse* parse, struct pos* pos,
+   bool wadauthor ) {
+   if ( in_main_module( parse ) ) {
+      bool enabled = ( wadauthor == true );
+      if ( parse->wadauthor.specified &&
+         ! ( parse->wadauthor.enabled == enabled ) ) {
+         p_diag( parse, DIAG_POS | DIAG_WARN, pos,
+            "overriding previous wadauthor directive" );
+         p_diag( parse, DIAG_POS | DIAG_NOTE, &parse->wadauthor.pos,
+            "previous wadauthor directive found here" );
+      }
+      parse->wadauthor.specified = true;
+      parse->wadauthor.enabled = enabled;
+      parse->wadauthor.pos = *pos;
+   }
+   p_read_tk( parse );
+}
+
+static bool in_main_module( struct parse* parse ) {
+   return ( parse->lib == parse->task->library_main );
+}
+
+// NOTE: Applies to main module only.
+static void finish_wadauthor( struct parse* parse ) {
+   if ( parse->wadauthor.specified ) {
+      parse->lib->wadauthor = parse->wadauthor.enabled;
+      if ( parse->lib->importable ) {
+         if ( parse->lib->wadauthor ) {
+            p_diag( parse, DIAG_POS | DIAG_WARN, &parse->wadauthor.pos,
+               "#wadauthor has no effect in libraries" );
+         }
+      }
+      else {
+         if ( ( parse->lib->lang == LANG_BCS && ! parse->lib->wadauthor ) ||
+            ( parse->lib->lang == LANG_ACS && parse->lib->wadauthor ) ) {
+            p_diag( parse, DIAG_POS | DIAG_NOTE, &parse->wadauthor.pos,
+               "#%s is enabled by default, so you don't need to specify it",
+               parse->lib->wadauthor ? "wadauthor" : "nowadauthor" );
+         }
+      }
+   }
+   // For libraries, #wadauthor functionality is disabled.
+   if ( parse->lib->importable && parse->lib->wadauthor ) {
+      parse->lib->wadauthor = false;
    }
 }
 

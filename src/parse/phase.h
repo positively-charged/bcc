@@ -454,6 +454,11 @@ struct parse {
       struct pos pos;
       bool included;
    } zcommon;
+   struct {
+      struct pos pos;
+      bool specified;
+      bool enabled;
+   } wadauthor;
 };
 
 void p_init( struct parse* parse, struct task* task, struct cache* cache );

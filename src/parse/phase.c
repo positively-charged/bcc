@@ -44,6 +44,9 @@ void p_init( struct parse* parse, struct task* task, struct cache* cache ) {
    parse->include_history_entry = NULL;
    t_init_pos_id( &parse->zcommon.pos, INTERNALFILE_COMPILER );
    parse->zcommon.included = false;
+   t_init_pos_id( &parse->wadauthor.pos, INTERNALFILE_COMPILER );
+   parse->wadauthor.specified = false;
+   parse->wadauthor.enabled = false;
 }
 
 void p_run( struct parse* parse ) {
