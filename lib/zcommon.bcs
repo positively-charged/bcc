@@ -1535,6 +1535,8 @@ special
 -97:SetMusicVolume(fixed):void,
 -98:CheckProximity(str,str,fixed;int,int,int):bool,
 -99:CheckActorState(int,str;bool):bool,
+
+// Zandronum.
 -100:ResetMap():bool,
 -101:PlayerIsSpectator(int):bool,
 -102:ConsolePlayerNumber():int,
@@ -1565,6 +1567,9 @@ special
 -127:SystemTime():int,
 -128:GetTimeProperty(int,int;bool):int,
 -129:Strftime(int,str;bool):str,
+-130:SetDeadSpectator(int,bool):bool,
+
+// ZDoom/GZDoom.
 -200:CheckClass(str):bool,
 -201:DamageActor(int,int,int,int,int,str):int,
 -202:SetActorFlag(int,str,bool):int,
