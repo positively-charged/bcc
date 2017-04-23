@@ -1781,19 +1781,19 @@ void read_token( struct parse* parse, struct token* token ) {
    enum tk tk = TK_END;
    struct str* text = NULL;
 
-   state_space:
+   whitespace:
    // -----------------------------------------------------------------------
    switch ( ch ) {
    case ' ':
    case '\t':
-      goto space;
+      goto spacetab;
    case '\n':
       goto newline;
    default:
-      goto state_token;
+      goto graph;
    }
 
-   space:
+   spacetab:
    // -----------------------------------------------------------------------
    line = parse->source->line;
    column = parse->source->column;
@@ -1802,7 +1802,7 @@ void read_token( struct parse* parse, struct token* token ) {
    }
    length = parse->source->column - column;
    tk = TK_HORZSPACE;
-   goto state_finish;
+   goto finish;
 
    newline:
    // -----------------------------------------------------------------------
@@ -1810,15 +1810,27 @@ void read_token( struct parse* parse, struct token* token ) {
    column = parse->source->column;
    tk = TK_NL;
    ch = read_ch( parse );
-   goto state_finish;
+   goto finish;
 
-   state_token:
+   // The chain of if-statements is ordered based on a likelihood of a token
+   // being used. Identifier tokens are one of the most common, so look for
+   // them first.
+   graph:
    // -----------------------------------------------------------------------
    line = parse->source->line;
    column = parse->source->column;
-   // Identifier:
    if ( isalpha( ch ) || ch == '_' ) {
-      goto id;
+      goto identifier;
+   }
+   else if ( ch == '(' ) {
+      tk = TK_PAREN_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ')' ) {
+      tk = TK_PAREN_R;
+      read_ch( parse );
+      goto finish;
    }
    else if ( isdigit( ch ) ) {
       if ( ch == '0' ) {
@@ -1826,96 +1838,67 @@ void read_token( struct parse* parse, struct token* token ) {
          switch ( ch ) {
          case 'b':
          case 'B':
-            goto binary_literal;
+            goto binary;
          case 'x':
          case 'X':
-            goto hex_literal;
+            goto hexadecimal;
          case 'o':
          case 'O':
             ch = read_ch( parse );
-            goto octal_literal;
+            goto octal;
          case '.':
             text = temp_text( parse );
             append_ch( text, '0' );
             append_ch( text, '.' );
             ch = read_ch( parse );
-            goto fraction;
+            goto fixedpoint;
          default:
             goto zero;
          }
       }
       else {
-         goto decimal_literal;
+         goto decimal;
       }
+   }
+   else if ( ch == ',' ) {
+      tk = TK_COMMA;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ';' ) {
+      tk = TK_SEMICOLON;
+      read_ch( parse );
+      goto finish;
    }
    else if ( ch == '"' ) {
       ch = read_ch( parse );
-      goto state_string;
+      goto string;
    }
-   else if ( ch == '\'' ) {
-      text = temp_text( parse );
-      ch = read_ch( parse );
-      if ( ch == '\'' || ! ch ) {
-         struct pos pos = {
-            .line = parse->source->line,
-            .column = parse->source->column,
-            .id = parse->source->file_entry_id
-         };
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "missing character in character literal" );
-         p_bail( parse );
-      }
-      if ( ch == '\\' ) {
-         if ( parse->read_flags & READF_ESCAPESEQ ) {
-            ch = read_ch( parse );
-            if ( ch == '\'' ) {
-               append_ch( text, ch );
-               ch = read_ch( parse );
-            }
-            else {
-               escape_ch( parse, &ch, text, false );
-            }
-         }
-         else {
-            append_ch( text, ch );
-            ch = read_ch( parse );
-            append_ch( text, ch );
-            ch = read_ch( parse );
-         }
-      }
-      else  {
-         append_ch( text, ch );
-         ch = read_ch( parse );
-      }
-      if ( ch != '\'' ) {
-         struct pos pos = { parse->source->line, column,
-            parse->source->file_entry_id };
-         p_diag( parse, DIAG_POS_ERR, &pos,
-            "multiple characters in character literal" );
-         p_bail( parse );
-      }
-      ch = read_ch( parse );
-      tk = TK_LIT_CHAR;
-      goto state_finish;
+   else if ( ch == ':' ) {
+      tk = TK_COLON;
+      read_ch( parse );
+      goto finish;
    }
-   else if ( ch == '/' ) {
+   else if ( ch == '#' ) {
       ch = read_ch( parse );
-      if ( ch == '=' ) {
-         tk = TK_ASSIGN_DIV;
+      if ( ch == '#' ) {
+         tk = TK_HASHHASH;
          ch = read_ch( parse );
-         goto state_finish;
-      }
-      else if ( ch == '/' ) {
-         goto state_comment;
-      }
-      else if ( ch == '*' ) {
-         ch = read_ch( parse );
-         goto state_comment_m;
       }
       else {
-         tk = TK_SLASH;
-         goto state_finish;
+         tk = TK_HASH;
       }
+      goto finish;
+   }
+   else if ( ch == '{' ) {
+      tk = TK_BRACE_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '}' ) {
+      tk = TK_BRACE_R;
+      read_ch( parse );
+      goto finish;
    }
    else if ( ch == '=' ) {
       ch = read_ch( parse );
@@ -1926,7 +1909,29 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_ASSIGN;
       }
-      goto state_finish;
+      goto finish;
+   }
+   else if ( ch == '[' ) {
+      tk = TK_BRACKET_L;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == ']' ) {
+      tk = TK_BRACKET_R;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '.' ) {
+      ch = read_ch( parse );
+      if ( ch == '.' && peek_ch( parse ) == '.' ) {
+         read_ch( parse );
+         ch = read_ch( parse );
+         tk = TK_ELLIPSIS;
+      }
+      else {
+         tk = TK_DOT;
+      }
+      goto finish;
    }
    else if ( ch == '+' ) {
       ch = read_ch( parse );
@@ -1941,7 +1946,7 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_PLUS;
       }
-      goto state_finish;
+      goto finish;
    }
    else if ( ch == '-' ) {
       ch = read_ch( parse );
@@ -1956,7 +1961,33 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_MINUS;
       }
-      goto state_finish;
+      goto finish;
+   }
+   else if ( ch == '!' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_NEQ;
+         ch = read_ch( parse );
+      }
+      else {
+         tk = TK_LOG_NOT;
+      }
+      goto finish;
+   }
+   else if ( ch == '&' ) {
+      ch = read_ch( parse );
+      if ( ch == '&' ) {
+         tk = TK_LOG_AND;
+         ch = read_ch( parse );
+      }
+      else if ( ch == '=' ) {
+         tk = TK_ASSIGN_BIT_AND;
+         ch = read_ch( parse );
+      }
+      else {
+         tk = TK_BIT_AND;
+      }
+      goto finish;
    }
    else if ( ch == '<' ) {
       ch = read_ch( parse );
@@ -1977,7 +2008,7 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_LT;
       }
-      goto state_finish;
+      goto finish;
    }
    else if ( ch == '>' ) {
       ch = read_ch( parse );
@@ -1990,32 +2021,17 @@ void read_token( struct parse* parse, struct token* token ) {
          if ( ch == '=' ) {
             tk = TK_ASSIGN_SHIFT_R;
             ch = read_ch( parse );
-            goto state_finish;
+            goto finish;
          }
          else {
             tk = TK_SHIFT_R;
-            goto state_finish;
+            goto finish;
          }
       }
       else {
          tk = TK_GT;
       }
-      goto state_finish;
-   }
-   else if ( ch == '&' ) {
-      ch = read_ch( parse );
-      if ( ch == '&' ) {
-         tk = TK_LOG_AND;
-         ch = read_ch( parse );
-      }
-      else if ( ch == '=' ) {
-         tk = TK_ASSIGN_BIT_AND;
-         ch = read_ch( parse );
-      }
-      else {
-         tk = TK_BIT_AND;
-      }
-      goto state_finish;
+      goto finish;
    }
    else if ( ch == '|' ) {
       ch = read_ch( parse );
@@ -2030,29 +2046,7 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_BIT_OR;
       }
-      goto state_finish;
-   }
-   else if ( ch == '^' ) {
-      ch = read_ch( parse );
-      if ( ch == '=' ) {
-         tk = TK_ASSIGN_BIT_XOR;
-         ch = read_ch( parse );
-      }
-      else {
-         tk = TK_BIT_XOR;
-      }
-      goto state_finish;
-   }
-   else if ( ch == '!' ) {
-      ch = read_ch( parse );
-      if ( ch == '=' ) {
-         tk = TK_NEQ;
-         ch = read_ch( parse );
-      }
-      else {
-         tk = TK_LOG_NOT;
-      }
-      goto state_finish;
+      goto finish;
    }
    else if ( ch == '*' ) {
       ch = read_ch( parse );
@@ -2063,7 +2057,26 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_STAR;
       }
-      goto state_finish;
+      goto finish;
+   }
+   else if ( ch == '/' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_ASSIGN_DIV;
+         ch = read_ch( parse );
+         goto finish;
+      }
+      else if ( ch == '/' ) {
+         goto comment;
+      }
+      else if ( ch == '*' ) {
+         ch = read_ch( parse );
+         goto multiline_comment;
+      }
+      else {
+         tk = TK_SLASH;
+         goto finish;
+      }
    }
    else if ( ch == '%' ) {
       ch = read_ch( parse );
@@ -2074,82 +2087,59 @@ void read_token( struct parse* parse, struct token* token ) {
       else {
          tk = TK_MOD;
       }
-      goto state_finish;
+      goto finish;
    }
-/*
+   else if ( ch == '^' ) {
+      ch = read_ch( parse );
+      if ( ch == '=' ) {
+         tk = TK_ASSIGN_BIT_XOR;
+         ch = read_ch( parse );
+      }
+      else {
+         tk = TK_BIT_XOR;
+      }
+      goto finish;
+   }
+   else if ( ch == '\'' ) {
+      ch = read_ch( parse );
+      goto character;
+   }
+   else if ( ch == '~' ) {
+      tk = TK_BIT_NOT;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '?' ) {
+      tk = TK_QUESTION_MARK;
+      read_ch( parse );
+      goto finish;
+   }
+   else if ( ch == '@' ) {
+      tk = TK_AT;
+      read_ch( parse );
+      goto finish;
+   }
    else if ( ch == '\\' ) {
-      struct pos pos = { parse->source->line, column,
-         parse->source->file->id };
-      p_diag( parse, DIAG_POS_ERR, &pos,
-         "`\\` not followed with newline character" );
-      p_bail( parse );
+      tk = TK_BACKSLASH;
+      read_ch( parse );
+      goto finish;
    }
-*/
-   else if ( ch == '#' ) {
-      ch = read_ch( parse );
-      if ( ch == '#' ) {
-         tk = TK_HASHHASH;
-         ch = read_ch( parse );
-      }
-      else {
-         tk = TK_HASH;
-      }
-      goto state_finish;
-   }
-   else if ( ch == '.' ) {
-      ch = read_ch( parse );
-      if ( ch == '.' && peek_ch( parse ) == '.' ) {
-         read_ch( parse );
-         ch = read_ch( parse );
-         tk = TK_ELLIPSIS;
-      }
-      else {
-         tk = TK_DOT;
-      }
-      goto state_finish;
-   }
-   // End.
-   else if ( ! ch ) {
+   else if ( ch == '\0' ) {
       tk = TK_END;
-      goto state_finish;
+      goto finish;
    }
    else {
-      // Single character tokens.
-      static const int singles[] = {
-         ';', TK_SEMICOLON,
-         ',', TK_COMMA,
-         '(', TK_PAREN_L,
-         ')', TK_PAREN_R,
-         '{', TK_BRACE_L,
-         '}', TK_BRACE_R,
-         '[', TK_BRACKET_L,
-         ']', TK_BRACKET_R,
-         '~', TK_BIT_NOT,
-         '?', TK_QUESTION_MARK,
-         ':', TK_COLON,
-         '@', TK_AT,
-         '\\', TK_BACKSLASH,
-         0 };
-      int i = 0;
-      while ( true ) {
-         if ( singles[ i ] == ch ) {
-            tk = singles[ i + 1 ];
-            ch = read_ch( parse );
-            goto state_finish;
-         }
-         else if ( ! singles[ i ] ) {
-            struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
-            p_diag( parse, DIAG_POS_ERR, &pos, "invalid character" );
-            p_bail( parse );
-         }
-         else {
-            i += 2;
-         }
-      }
+      struct pos pos;
+      t_init_pos( &pos,
+         parse->source->file_entry_id,
+         parse->source->line,
+         column );
+      p_diag( parse, DIAG_POS_ERR, &pos,
+         "invalid character" );
+      p_bail( parse );
    }
 
-   id:
+   identifier:
    // -----------------------------------------------------------------------
    {
       int length = 0;
@@ -2162,16 +2152,18 @@ void read_token( struct parse* parse, struct token* token ) {
       if ( strcmp( text->value, "__VA_ARGS__" ) == 0 &&
          ! parse->variadic_macro_context ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, line, column );
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "`__VA_ARGS__` can only appear in the body of a variadic macro" );
          p_bail( parse );
       }
       tk = TK_ID;
-      goto state_finish;
+      goto finish;
    }
 
-   binary_literal:
+   binary:
    // -----------------------------------------------------------------------
    text = temp_text( parse );
    ch = read_ch( parse );
@@ -2188,34 +2180,42 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! ( ch == '0' || ch == '1' ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing binary digit after digit separator" );
             p_bail( parse );
          }
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in binary literal" );
          p_bail( parse );
       }
       else if ( text->length == 0 ) {
-         struct pos pos = { parse->source->line, column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "binary literal has no digits" );
          p_bail( parse );
       }
       else {
          tk = TK_LIT_BINARY;
-         goto state_finish;
+         goto finish;
       }
    }
 
-   hex_literal:
+   hexadecimal:
    // -----------------------------------------------------------------------
    text = temp_text( parse );
    ch = read_ch( parse );
@@ -2228,34 +2228,42 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isxdigit( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing hexadecimal digit after digit separator" );
             p_bail( parse );
          }
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
          p_bail( parse );
       }
       else {
          if ( text->length == 0 ) {
-            struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
+            struct pos pos;
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "hexadecimal literal has no digits, will interpret it as 0x0" );
             append_ch( text, '0' );
          }
          tk = TK_LIT_HEX;
-         goto state_finish;
+         goto finish;
       }
    }
 
-   octal_literal:
+   octal:
    // -----------------------------------------------------------------------
    text = temp_text( parse );
    while ( true ) {
@@ -2267,30 +2275,38 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! ( ch >= '0' && ch <= '7' ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing octal digit after digit separator" );
             p_bail( parse );
          }
       }
       else if ( isalnum( ch ) ) {
-         struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in octal literal" );
          p_bail( parse );
       }
       else {
          if ( text->length == 0 ) {
-            struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
+            struct pos pos;
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "octal literal has no digits" );
             p_bail( parse );
          }
          tk = TK_LIT_OCTAL;
-         goto state_finish;
+         goto finish;
       }
    }
 
@@ -2300,14 +2316,14 @@ void read_token( struct parse* parse, struct token* token ) {
       ch = read_ch( parse );
    }
    if ( isdigit( ch ) || ch == '\'' ) {
-      goto decimal_literal;
+      goto decimal;
    }
    else if ( ch == '.' ) {
       text = temp_text( parse );
       append_ch( text, '0' );
       append_ch( text, '.' );
       ch = read_ch( parse );
-      goto fraction;
+      goto fixedpoint;
    }
    else if ( ch == 'r' || ch == 'R' || ch == '_' ) {
       text = temp_text( parse );
@@ -2320,10 +2336,10 @@ void read_token( struct parse* parse, struct token* token ) {
       text = temp_text( parse );
       str_append( text, "0" );
       tk = TK_LIT_DECIMAL;
-      goto state_finish;
+      goto finish;
    }
 
-   decimal_literal:
+   decimal:
    // -----------------------------------------------------------------------
    text = temp_text( parse );
    while ( true ) {
@@ -2335,8 +2351,10 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isdigit( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing decimal digit after digit separator" );
             p_bail( parse );
@@ -2346,7 +2364,7 @@ void read_token( struct parse* parse, struct token* token ) {
       else if ( ch == '.' ) {
          append_ch( text, ch );
          ch = read_ch( parse );
-         goto fraction;
+         goto fixedpoint;
       }
       // In ACS, an underscore is used for the separator between the base and
       // the value of a radix constant. In BCS, a single quotation mark is used
@@ -2359,19 +2377,22 @@ void read_token( struct parse* parse, struct token* token ) {
          goto radix;
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in decimal literal" );
          p_bail( parse );
       }
       else {
          tk = TK_LIT_DECIMAL;
-         goto state_finish;
+         goto finish;
       }
    }
 
-   fraction:
+   fixedpoint:
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( isdigit( ch ) ) {
@@ -2382,39 +2403,50 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isdigit( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing decimal digit after digit separator" );
             p_bail( parse );
          }
       }
       else if ( isalpha( ch ) ) {
-         struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
          p_bail( parse );
       }
       else {
          if ( text->value[ text->length - 1 ] == '.' ) {
-            struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
+            struct pos pos;
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "fixed-point literal has no digits after point, will interpret "
                "it as %s0", text->value );
             append_ch( text, '0' );
          }
          tk = TK_LIT_FIXED;
-         goto state_finish;
+         goto finish;
       }
    }
 
    radix:
    // -----------------------------------------------------------------------
    if ( ! ( isalnum( ch ) || ch == '\'' ) ) {
-      struct pos pos = { parse->source->line, column,
-         parse->source->file_entry_id };
+      struct pos pos;
+      t_init_pos( &pos,
+         parse->source->file_entry_id,
+         parse->source->line,
+         column );
       p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
          "radix literal has no digits after %s, will interpret it as %s0",
          ( text->value[ text->length - 1 ] == 'r' ) ? "'r'" : "underscore",
@@ -2430,8 +2462,10 @@ void read_token( struct parse* parse, struct token* token ) {
          ch = read_ch( parse );
          if ( ! isalnum( ch ) ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
-               parse->source->line, parse->source->column );
+            t_init_pos( &pos,
+               parse->source->file_entry_id,
+               parse->source->line,
+               parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
                "missing digit after digit separator" );
             p_bail( parse );
@@ -2442,25 +2476,27 @@ void read_token( struct parse* parse, struct token* token ) {
             append_ch( text, '0' );
          }
          tk = TK_LIT_RADIX;
-         goto state_finish;
+         goto finish;
       }
    }
 
-   state_string:
+   string:
    // -----------------------------------------------------------------------
    text = temp_text( parse );
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, parse->source->file_entry_id };
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
          p_bail( parse );
       }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
-         // Done.
          tk = TK_LIT_STRING;
-         goto state_finish;
+         goto finish;
       }
       else if ( ch == '\\' ) {
          append_ch( text, ch );
@@ -2476,26 +2512,77 @@ void read_token( struct parse* parse, struct token* token ) {
       }
    }
 
-   state_comment:
+   character:
+   // -----------------------------------------------------------------------
+   text = temp_text( parse );
+   if ( ch == '\'' || ! ch ) {
+      struct pos pos;
+      t_init_pos( &pos,
+         parse->source->file_entry_id,
+         parse->source->line,
+         parse->source->column );
+      p_diag( parse, DIAG_POS_ERR, &pos,
+         "missing character in character literal" );
+      p_bail( parse );
+   }
+   if ( ch == '\\' ) {
+      if ( parse->read_flags & READF_ESCAPESEQ ) {
+         ch = read_ch( parse );
+         if ( ch == '\'' ) {
+            append_ch( text, ch );
+            ch = read_ch( parse );
+         }
+         else {
+            escape_ch( parse, &ch, text, false );
+         }
+      }
+      else {
+         append_ch( text, ch );
+         ch = read_ch( parse );
+         append_ch( text, ch );
+         ch = read_ch( parse );
+      }
+   }
+   else  {
+      append_ch( text, ch );
+      ch = read_ch( parse );
+   }
+   if ( ch != '\'' ) {
+      struct pos pos;
+      t_init_pos( &pos,
+         parse->source->file_entry_id,
+         parse->source->line,
+         column );
+      p_diag( parse, DIAG_POS_ERR, &pos,
+         "multiple characters in character literal" );
+      p_bail( parse );
+   }
+   ch = read_ch( parse );
+   tk = TK_LIT_CHAR;
+   goto finish;
+
+   comment:
    // -----------------------------------------------------------------------
    while ( ch && ch != '\n' ) {
       ch = read_ch( parse );
    }
-   goto state_space;
+   goto whitespace;
 
-   state_comment_m:
+   multiline_comment:
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( ! ch ) {
-         struct pos pos = { line, column, parse->source->file_entry_id };
-         p_diag( parse, DIAG_POS_ERR, &pos, "unterminated comment" );
+         struct pos pos;
+         t_init_pos( &pos, parse->source->file_entry_id, line, column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "unterminated comment" );
          p_bail( parse );
       }
       else if ( ch == '*' ) {
          ch = read_ch( parse );
          if ( ch == '/' ) {
             ch = read_ch( parse );
-            goto state_space;
+            goto whitespace;
          }
       }
       else {
@@ -2503,7 +2590,7 @@ void read_token( struct parse* parse, struct token* token ) {
       }
    }
 
-   state_finish:
+   finish:
    // -----------------------------------------------------------------------
    token->type = tk;
    if ( text != NULL ) {
