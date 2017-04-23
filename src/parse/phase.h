@@ -300,17 +300,6 @@ struct source_entry {
    bool line_beginning;
 };
 
-struct request {
-   const char* given_path;
-   struct file_entry* file;
-   struct file_entry* offset_file;
-   struct source* source;
-   bool err_open;
-   bool err_loading;
-   bool err_loaded_before;
-   bool bcs_ext;
-};
-
 struct dec {
    enum {
       DEC_TOP,
@@ -470,6 +459,8 @@ void p_bail( struct parse* parse );
 void p_load_main_source( struct parse* parse );
 void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    struct file_entry* file );
+struct file_entry* p_find_module_file( struct parse* parse,
+   struct library* importing_module, const char* path );
 void p_read_tk( struct parse* parse );
 void p_read_preptk( struct parse* parse );
 void p_read_expanpreptk( struct parse* parse );
@@ -517,9 +508,6 @@ void p_unexpect_last_name( struct parse* parse, struct pos* pos,
    const char* subject );
 void p_load_library( struct parse* parent );
 void p_deinit_tk( struct parse* parse );
-void p_init_request( struct request* request, struct file_entry* offset_file,
-   const char* path, bool bcs_ext );
-void p_load_source( struct parse* parse, struct request* request );
 void p_read_source( struct parse* parse, struct token* token );
 bool p_read_dirc( struct parse* parse );
 void p_confirm_ifdircs_closed( struct parse* parse );

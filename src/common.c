@@ -702,6 +702,16 @@ void c_extract_dirname( struct str* path ) {
    }
 }
 
+const char* c_get_file_ext( const char* path ) {
+   const char* string = strrchr( path, '.' );
+   if ( string ) {
+      return string + 1;
+   }
+   else {
+      return "";
+   }
+}
+
 void fs_get_file_contents( const char* path, struct file_contents* contents ) {
    FILE* fh = fopen( path, "rb" );
    if ( ! fh ) {

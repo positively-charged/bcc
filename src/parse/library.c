@@ -884,11 +884,9 @@ void read_imported_libs( struct parse* parse ) {
 }
 
 void import_lib( struct parse* parse, struct import_dirc* dirc ) {
-   struct file_query query;
-   t_init_file_query( &query, t_get_lang_lib_dir( parse->task, parse->lang ),
-      parse->task->library_main->file, dirc->file_path );
-   t_find_file( parse->task, &query );
-   if ( ! query.file ) {
+   struct file_entry* file = p_find_module_file( parse,
+      parse->task->library_main, dirc->file_path );
+   if ( ! file ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
          "library not found: %s", dirc->file_path );
       p_bail( parse );
@@ -899,21 +897,21 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    list_iterate( &parse->task->libraries, &i );
    while ( ! list_end( &i ) ) {
       lib = list_data( &i );
-      if ( lib->file == query.file ) {
+      if ( lib->file == file ) {
          goto have_lib;
       }
       list_next( &i );
    }
    // Load library from cache.
    if ( parse->cache ) {
-      lib = cache_get( parse->cache, query.file );
+      lib = cache_get( parse->cache, file );
       if ( lib ) {
          goto have_lib;
       }
    }
    // Read library from source file.
    lib = t_add_library( parse->task );
-   lib->lang = p_determine_lang_from_file_path( query.file->full_path.value );
+   lib->lang = p_determine_lang_from_file_path( file->full_path.value );
    list_append( &parse->task->libraries, lib );
    if ( lib->lang == LANG_BCS && parse->lib->lang == LANG_ACS ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
@@ -923,7 +921,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->lib = lib;
-   p_load_imported_lib_source( parse, dirc, query.file );
+   p_load_imported_lib_source( parse, dirc, file );
    parse->ns_fragment = lib->upmost_ns_fragment;
    parse->ns = parse->ns_fragment->ns;
    p_clear_macros( parse );

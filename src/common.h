@@ -197,6 +197,7 @@ bool c_read_fileid( struct fileid*, const char* path );
 bool c_same_fileid( struct fileid*, struct fileid* );
 bool c_read_full_path( const char* path, struct str* );
 void c_extract_dirname( struct str* );
+const char* c_get_file_ext( const char* path );
 
 int alignpad( int size, int align_size );
 
