@@ -6,6 +6,7 @@
 #include "phase.h"
 
 enum { LINE_OFFSET = 1 };
+enum { ACC_EOF_CHARACTER = 127 };
 
 struct request {
    const char* given_path;
@@ -46,6 +47,7 @@ static char peek_ch( struct parse* parse );
 static void read_initial_ch( struct parse* parse );
 static struct str* temp_text( struct parse* parse );
 static void append_ch( struct str* str, char ch );
+static void append_string_ch( struct str* text, char ch );
 
 void p_load_main_source( struct parse* parse ) {
    struct request request;
@@ -982,21 +984,31 @@ void read_token_acs( struct parse* parse, struct token* token ) {
             "unterminated string" );
          p_bail( parse );
       }
+      else if ( ch == ACC_EOF_CHARACTER ) {
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid character in string literal" );
+         p_bail( parse );
+      }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
          tk = TK_LIT_STRING;
          goto finish;
       }
       else if ( ch == '\\' ) {
-         append_ch( text, ch );
+         append_string_ch( text, ch );
          ch = read_ch( parse );
          if ( ch ) {
-            append_ch( text, ch );
+            append_string_ch( text, ch );
             ch = read_ch( parse );
          }
       }
       else {
-         append_ch( text, ch );
+         append_string_ch( text, ch );
          ch = read_ch( parse );
       }
    }
@@ -1595,13 +1607,23 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
             "unterminated string" );
          p_bail( parse );
       }
+      else if ( ch == ACC_EOF_CHARACTER ) {
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid character in string literal" );
+         p_bail( parse );
+      }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
          tk = TK_LIT_STRING;
          goto finish;
       }
       else {
-         append_ch( text, ch );
+         append_ch( text, isprint( ch ) ? ch : ' ' );
          ch = read_ch( parse );
       }
    }
@@ -2376,21 +2398,31 @@ void read_token( struct parse* parse, struct token* token ) {
             "unterminated string" );
          p_bail( parse );
       }
+      else if ( ch == ACC_EOF_CHARACTER ) {
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            parse->source->line,
+            parse->source->column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "invalid character in string literal" );
+         p_bail( parse );
+      }
       else if ( ch == '"' ) {
          ch = read_ch( parse );
          tk = TK_LIT_STRING;
          goto finish;
       }
       else if ( ch == '\\' ) {
-         append_ch( text, ch );
+         append_string_ch( text, ch );
          ch = read_ch( parse );
          if ( ch ) {
-            append_ch( text, ch );
+            append_string_ch( text, ch );
             ch = read_ch( parse );
          }
       }
       else {
-         append_ch( text, ch );
+         append_string_ch( text, ch );
          ch = read_ch( parse );
       }
    }
@@ -2724,6 +2756,20 @@ void append_ch( struct str* str, char ch ) {
    char segment[ 2 ] = { ch, '\0' };
    str_append( str, segment );
 }
+
+#if CHAR_MIN == 0
+
+static void append_string_ch( struct str* text, char ch ) {
+   append_ch( text, ( ch >= ' ' ) ? ch : ' ' );
+}
+
+#else
+
+static void append_string_ch( struct str* text, char ch ) {
+   append_ch( text, ( ! ( ch >= 0 && ch < ' ' ) ) ? ch : ' ' );
+}
+
+#endif
 
 void p_increment_pos( struct pos* pos, enum tk tk ) {
    switch ( tk ) {
