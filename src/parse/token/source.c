@@ -347,8 +347,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    int line = 0;
    int column = 0;
    enum tk tk = TK_END;
-   char* text = NULL;
-   int length = 0;
+   struct str* text = NULL;
 
    whitespace:
    // -----------------------------------------------------------------------
@@ -384,9 +383,9 @@ void read_token_acs( struct parse* parse, struct token* token ) {
             goto hexadecimal;
          }
          else if ( ch == '.' ) {
-            str_clear( &parse->temp_text );
-            append_ch( &parse->temp_text, '0' );
-            append_ch( &parse->temp_text, '.' );
+            text = temp_text( parse );
+            append_ch( text, '0' );
+            append_ch( text, '.' );
             ch = read_ch( parse );
             goto fixedpoint;
          }
@@ -741,60 +740,28 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          { "whitereturn", TK_WHITE_RETURN },
          { "world", TK_WORLD }
       };
-      enum { MAX_IDENTIFIER_LENGTH = 31 };
-      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
-         MAX_IDENTIFIER_LENGTH + 1 );
-      text = text_buffer->left;
-      char* copied_text = text;
-      char* end = copied_text + MAX_IDENTIFIER_LENGTH;
-      char* source_text = parse->source->buffer +
-         parse->source->buffer_pos - 1;
-      while ( true ) {
-         if ( isalnum( *source_text ) || *source_text == '_' ) {
-            if ( copied_text == end ) {
-               struct pos pos;
-               t_init_pos( &pos, parse->source->file_entry_id, line, column );
-               p_diag( parse, DIAG_POS_ERR, &pos,
-                  "identifier too long (maximum length is %d)",
-                  MAX_IDENTIFIER_LENGTH );
-               p_bail( parse );
-            }
-            *copied_text = tolower( *source_text );
-            ++copied_text;
-            ++source_text;
-         }
-         // Read new data from the source file.
-         else if ( *source_text == '\n' && source_text[ 1 ] == '\0' ) {
-            size_t count = fread( parse->source->buffer,
-               sizeof( parse->source->buffer[ 0 ] ), SOURCE_BUFFER_SIZE,
-               parse->source->fh );
-            parse->source->buffer[ count ] = '\n';
-            parse->source->buffer[ count + 1 ] = '\0';
-            parse->source->buffer_pos = 0;
-            source_text = parse->source->buffer;
-            if ( count == 0 ) {
-               break;
-            }
-         }
-         else {
-            break;
-         }
+      text = temp_text( parse );
+      while ( isalnum( ch ) || ch == '_' ) {
+         append_ch( text, tolower( ch ) );
+         ch = read_ch( parse );
       }
-      *copied_text = '\0';
-      length = copied_text - text;
-      // Update source buffer. The 1 added to `buffer_pos` is for the character
-      // after the identifier, since we assume it is now read.
-      parse->source->buffer_pos = source_text - parse->source->buffer + 1;
-      parse->source->ch = *source_text;
-      parse->source->column += length;
-      // Update text buffer.
-      text_buffer->left = copied_text + 1;
+      enum { MAX_IDENTIFIER_LENGTH = 31 };
+      if ( text->length > MAX_IDENTIFIER_LENGTH ) {
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            line, column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "identifier too long (maximum length is %d)",
+            MAX_IDENTIFIER_LENGTH );
+         p_bail( parse );
+      }
       // Reserved identifier. Uses binary search.
       int left = 0;
       int right = ARRAY_SIZE( table ) - 1;
       while ( left <= right ) {
          int middle = ( left + right ) / 2;
-         int result = strcmp( text, table[ middle ].name );
+         int result = strcmp( text->value, table[ middle ].name );
          if ( result > 0 ) {
             left = middle + 1;
          }
@@ -803,6 +770,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          }
          else {
             tk = table[ middle ].tk;
+            text = NULL;
             goto finish;
          }
       }
@@ -813,10 +781,10 @@ void read_token_acs( struct parse* parse, struct token* token ) {
 
    hexadecimal:
    // -----------------------------------------------------------------------
-   str_clear( &parse->temp_text );
+   text = temp_text( parse );
    while ( true ) {
       if ( isxdigit( ch ) ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( isalpha( ch ) ) {
@@ -828,17 +796,15 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         if ( parse->temp_text.length == 0 ) {
+         if ( text->length == 0 ) {
             struct pos pos;
             t_init_pos( &pos, parse->source->file_entry_id,
                parse->source->line, column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "hexadecimal literal has no digits, will interpret it as 0x0" );
-            append_ch( &parse->temp_text, '0' );
+            append_ch( text, '0' );
          }
          tk = TK_LIT_HEX;
-         text = parse->temp_text.value;
-         length = parse->temp_text.length;
          goto finish;
       }
    }
@@ -852,41 +818,41 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       goto decimal;
    }
    else if ( ch == '.' ) {
-      str_clear( &parse->temp_text );
-      append_ch( &parse->temp_text, '0' );
-      append_ch( &parse->temp_text, '.' );
+      text = temp_text( parse );
+      append_ch( text, '0' );
+      append_ch( text, '.' );
       ch = read_ch( parse );
       goto fixedpoint;
    }
    else if ( ch == '_' ) {
-      str_clear( &parse->temp_text );
-      append_ch( &parse->temp_text, '0' );
-      append_ch( &parse->temp_text, ch );
+      text = temp_text( parse );
+      append_ch( text, '0' );
+      append_ch( text, ch );
       ch = read_ch( parse );
       goto radix;
    }
    else {
-      text = "0";
-      length = 1;
+      text = temp_text( parse );
+      append_ch( text, '0' );
       tk = TK_LIT_DECIMAL;
       goto finish;
    }
 
    decimal:
    // -----------------------------------------------------------------------
-   str_clear( &parse->temp_text );
+   text = temp_text( parse );
    while ( true ) {
       if ( isdigit( ch ) ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( ch == '.' ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
          goto fixedpoint;
       }
       else if ( ch == '_' ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
          goto radix;
       }
@@ -900,8 +866,6 @@ void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else {
          tk = TK_LIT_DECIMAL;
-         text = parse->temp_text.value;
-         length = parse->temp_text.length;
          goto finish;
       }
    }
@@ -910,7 +874,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( isdigit( ch ) ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else if ( isalpha( ch ) ) {
@@ -922,17 +886,15 @@ void read_token_acs( struct parse* parse, struct token* token ) {
          p_bail( parse );
       }
       else {
-         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '.' ) {
+         if ( text->value[ text->length - 1 ] == '.' ) {
             struct pos pos = { parse->source->line, column,
                parse->source->file_entry_id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "fixed-point literal has no digits after point, will interpret "
-               "it as %s0", parse->temp_text.value );
-            append_ch( &parse->temp_text, '0' );
+               "it as %s0", text->value );
+            append_ch( text, '0' );
          }
          tk = TK_LIT_FIXED;
-         text = parse->temp_text.value;
-         length = parse->temp_text.length;
          goto finish;
       }
    }
@@ -941,20 +903,18 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    // -----------------------------------------------------------------------
    while ( true ) {
       if ( isdigit( ch ) || isalpha( ch ) ) {
-         append_ch( &parse->temp_text, tolower( ch ) );
+         append_ch( text, tolower( ch ) );
          ch = read_ch( parse );
       }
       else {
-         if ( parse->temp_text.value[ parse->temp_text.length - 1 ] == '_' ) {
+         if ( text->value[ text->length - 1 ] == '_' ) {
             struct pos pos = { parse->source->line, column,
                parse->source->file_entry_id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "radix literal has no digits after underscore, "
-               "will interpret it as %s0", parse->temp_text.value );
-            append_ch( &parse->temp_text, '0' );
+               "will interpret it as %s0", text->value );
+            append_ch( text, '0' );
          }
-         text = parse->temp_text.value;
-         length = parse->temp_text.length;
          tk = TK_LIT_RADIX;
          goto finish;
       }
@@ -962,77 +922,39 @@ void read_token_acs( struct parse* parse, struct token* token ) {
 
    string:
    // -----------------------------------------------------------------------
-   {
-      // Most strings will be small, so copy the characters directly into the
-      // text buffer. For long strings, use an intermediate buffer.
-      enum { SEGMENTLENGTH = 255 };
-      enum { CUSHIONLENGTH = 1 };
-      enum { SAFELENGTH = SEGMENTLENGTH - CUSHIONLENGTH };
-      struct text_buffer* text_buffer = t_get_text_buffer( parse->task,
-         SEGMENTLENGTH + 1 );
-      text = text_buffer->left;
-      char* copied_text = text;
-      char* end = copied_text + SAFELENGTH;
-      struct str* temp_text = NULL;
-      while ( true ) {
-         if ( copied_text >= end ) {
-            if ( ! temp_text ) {
-               temp_text = &parse->temp_text;
-               str_clear( temp_text );
-               str_append_sub( temp_text, text, copied_text - text );
-            }
-            else {
-               temp_text->length = copied_text - temp_text->value;
-               str_grow( temp_text, temp_text->buffer_length * 2 );
-            }
-            copied_text = temp_text->value + temp_text->length;
-            end = temp_text->value + temp_text->buffer_length -
-               ( CUSHIONLENGTH + 1 );
-         }
-         else if ( ! ch ) {
-            struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id, line, column );
-            p_diag( parse, DIAG_POS_ERR, &pos,
-               "unterminated string" );
-            p_bail( parse );
-         }
-         else if ( ch == '"' ) {
-            read_ch( parse );
-            tk = TK_LIT_STRING;
-            *copied_text = '\0';
-            if ( temp_text ) {
-               temp_text->length = copied_text - temp_text->value;
-               text = t_intern_text( parse->task, temp_text->value,
-                  temp_text->length );
-               length = temp_text->length;
-            }
-            else {
-               length = copied_text - text;
-               text_buffer->left = copied_text + 1;
-            }
-            goto finish;
-         }
-         else if ( ch == '\\' ) {
-            *copied_text = ch;
-            ++copied_text;
-            ch = read_ch( parse );
-            if ( ch ) {
-               *copied_text = ch;
-               ++copied_text;
-               ch = read_ch( parse );
-            }
-         }
-         else {
-            *copied_text = ch;
-            ++copied_text;
+   text = temp_text( parse );
+   while ( true ) {
+      if ( ! ch ) {
+         struct pos pos;
+         t_init_pos( &pos,
+            parse->source->file_entry_id,
+            line, column );
+         p_diag( parse, DIAG_POS_ERR, &pos,
+            "unterminated string" );
+         p_bail( parse );
+      }
+      else if ( ch == '"' ) {
+         ch = read_ch( parse );
+         tk = TK_LIT_STRING;
+         goto finish;
+      }
+      else if ( ch == '\\' ) {
+         append_ch( text, ch );
+         ch = read_ch( parse );
+         if ( ch ) {
+            append_ch( text, ch );
             ch = read_ch( parse );
          }
+      }
+      else {
+         append_ch( text, ch );
+         ch = read_ch( parse );
       }
    }
 
    character:
    // -----------------------------------------------------------------------
-   str_clear( &parse->temp_text );
+   text = temp_text( parse );
    if ( ch == '\'' || ! ch ) {
       struct pos pos;
       t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
@@ -1044,15 +966,15 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    if ( ch == '\\' ) {
       ch = read_ch( parse );
       if ( ch == '\'' ) {
-         append_ch( &parse->temp_text, ch );
+         append_ch( text, ch );
          ch = read_ch( parse );
       }
       else {
-         escape_ch( parse, &ch, &parse->temp_text, false );
+         escape_ch( parse, &ch, text, false );
       }
    }
    else  {
-      append_ch( &parse->temp_text, ch );
+      append_ch( text, ch );
       ch = read_ch( parse );
    }
    if ( ch != '\'' ) {
@@ -1065,8 +987,6 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    }
    read_ch( parse );
    tk = TK_LIT_CHAR;
-   text = parse->temp_text.value;
-   length = parse->temp_text.length;
    goto finish;
 
    comment:
@@ -1101,15 +1021,15 @@ void read_token_acs( struct parse* parse, struct token* token ) {
    finish:
    // -----------------------------------------------------------------------
    token->type = tk;
+   token->modifiable_text = NULL;
    if ( text ) {
-      token->text = text;
-      token->length = length;
+      token->text = t_intern_text( parse->task, text->value, text->length );
+      token->length = text->length;
    }
    else {
       const struct token_info* info = p_get_token_info( tk );
       token->text = info->shared_text;
-      token->length = ( length > 0 ) ?
-         length : info->length;
+      token->length = info->length;
    }
    token->pos.line = line;
    token->pos.column = column;
