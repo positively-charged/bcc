@@ -44,6 +44,7 @@ static void do_sary( struct codegen* codegen );
 static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
    int index, struct list* vars );
 static bool script_array( struct var* var );
+static void do_alib( struct codegen* codegen );
 
 void c_write_chunk_obj( struct codegen* codegen ) {
    if ( codegen->task->library_main->format == FORMAT_LITTLE_E ) {
@@ -73,14 +74,7 @@ void c_write_chunk_obj( struct codegen* codegen ) {
       do_mstr( codegen );
       do_astr( codegen );
       do_atag( codegen );
-   }
-   // NOTE: When a BEHAVIOR lump is below 32 bytes in size, the engine will not
-   // process it. It will consider the lump as being of unknown format, even
-   // though it appears to be valid, just empty. An unknown format is an error,
-   // and will cause the engine to halt execution of other scripts. Pad up to
-   // the minimum limit to avoid this situation.
-   while ( c_tell( codegen ) < 32 ) {
-      c_add_byte( codegen, 0 );
+      do_alib( codegen );
    }
    c_add_int( codegen, chunk_pos );
    c_add_str( codegen, codegen->compress ? "ACSe" : "ACSE" );
@@ -116,6 +110,14 @@ void c_write_chunk_obj( struct codegen* codegen ) {
    }
    // Write dummy strings.
    c_add_int( codegen, 0 );
+   // NOTE: When a BEHAVIOR lump is below 32 bytes in size, the engine will not
+   // process it. It will consider the lump as being of unknown format, even
+   // though it appears to be valid, just empty. An unknown format is an error,
+   // and will cause the engine to halt execution of other scripts. Pad up to
+   // the minimum limit to avoid this situation.
+   while ( c_tell( codegen ) < 32 ) {
+      c_add_byte( codegen, 0 );
+   }
    // Write header.
    c_seek( codegen, 0 );
    c_add_sized( codegen, "ACS\0", 4 );
@@ -1135,4 +1137,9 @@ void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
 inline bool script_array( struct var* var ) {
    return ( var->storage == STORAGE_LOCAL && ( var->dim ||
       ( ! var->ref && var->structure ) ) ); 
+}
+
+static void do_alib( struct codegen* codegen ) {
+   c_add_str( codegen, "ALIB" );
+   c_add_int( codegen, 0 );
 }
