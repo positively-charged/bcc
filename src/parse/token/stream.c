@@ -128,6 +128,7 @@ void read_token( struct parse* parse, struct token* token ) {
    while ( parse->macro_expan ) {
       if ( parse->macro_expan->output ) {
          token[ 0 ] = parse->macro_expan->output[ 0 ];
+         token->pos = parse->macro_expan->pos;
          parse->macro_expan->output = token->next;
          if ( token->type == TK_MACRONAME ) {
             token->type = TK_ID;
