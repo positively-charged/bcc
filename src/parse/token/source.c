@@ -376,7 +376,9 @@ void p_pop_source( struct parse* parse ) {
       }
    }
    // Include history.
-   parse->include_history_entry = parse->include_history_entry->parent;
+   if ( parse->include_history_entry ) {
+      parse->include_history_entry = parse->include_history_entry->parent;
+   }
 }
 
 void p_read_source( struct parse* parse, struct token* token ) {
