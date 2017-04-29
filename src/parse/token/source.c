@@ -2563,8 +2563,17 @@ char read_ch( struct parse* parse ) {
             parse->source->file->full_path.value, strerror( errno ) );
          p_bail( parse );
       }
-      source->buffer[ unread + count ] = '\n';
-      source->buffer[ unread + count + 1 ] = '\0';
+      // Every line must be terminated by a newline character. If the end of
+      // the file is not a newline character, implicitly generate one. For
+      // empty files, this is not needed.
+      if ( count < SOURCE_BUFFER_SIZE - unread && unread + count > 0 &&
+         source->buffer[ unread + count - 1 ] != '\n' ) {
+         source->buffer[ unread + count ] = '\n';
+         source->buffer[ unread + count + 1 ] = '\0';
+      }
+      else {
+         source->buffer[ unread + count ] = '\0';
+      }
       source->buffer_pos = 0;
    }
    // Line concatenation.
