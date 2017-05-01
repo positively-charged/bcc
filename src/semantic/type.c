@@ -534,6 +534,12 @@ bool s_is_int_value( struct type_info* type ) {
    return s_same_type( &required_type, type );
 }
 
+bool s_is_str_value( struct type_info* type ) {
+   struct type_info required_type;
+   s_init_type_info_scalar( &required_type, SPEC_STR );
+   return s_same_type( &required_type, type );
+}
+
 bool s_is_enumerator( struct type_info* type ) {
    return ( s_is_value_type( type ) && type->enumeration );
 }

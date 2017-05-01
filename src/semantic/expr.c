@@ -186,7 +186,6 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call );
-static bool is_str_value( struct semantic* semantic, struct result* result );
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv );
 static bool perform_conversion( struct conversion* conv,
@@ -2630,7 +2629,8 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    // String.
    init_result( &arg );
    test_root( semantic, test, &arg, call->string );
-   if ( ! ( arg.usable && is_str_value( semantic, &arg ) ) ) {
+   init_type_info( semantic, &type, &arg );
+   if ( ! ( arg.usable && s_is_str_value( &type ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->string->pos,
          "string argument not a string value" );
       s_bail( semantic );
@@ -2732,11 +2732,6 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    if ( s_is_struct( &dst_type ) ) {
       call->type = MEMCPY_STRUCT;
    }
-}
-
-bool is_str_value( struct semantic* semantic, struct result* result ) {
-   return ( is_value_type( semantic, result ) &&
-      result->spec == s_spec( semantic, SPEC_STR ) );
 }
 
 void test_conversion( struct semantic* semantic, struct expr_test* test,

@@ -201,6 +201,7 @@ void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot );
 bool s_is_onedim_int_array( struct type_info* type );
 bool s_is_int_value( struct type_info* type );
+bool s_is_str_value( struct type_info* type );
 struct alias* s_alloc_alias( void );
 void s_init_alias( struct alias* alias );
 void s_test_type_alias( struct semantic* semantic, struct type_alias* alias );
