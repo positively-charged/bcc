@@ -215,5 +215,6 @@ struct object* s_get_ns_object( struct ns* ns, const char* object_name,
 bool s_is_enumerator( struct type_info* type );
 bool s_is_null( struct type_info* type );
 bool s_in_msgbuild_block( struct semantic* semantic );
+struct ref* s_dup_ref( struct ref* ref );
 
 #endif

@@ -18,7 +18,6 @@ static void present_param_list( struct param* param, struct str* string );
 static bool is_array_ref_type( struct type_info* type );
 static void subscript_array_type( struct semantic* semantic,
    struct type_info* type, struct type_info* element_type );
-static struct ref* dup_ref( struct ref* ref );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
@@ -489,7 +488,7 @@ void subscript_array_type( struct semantic* semantic, struct type_info* type,
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot ) {
    if ( type->implicit_ref ) {
-      snapshot->ref = dup_ref( type->ref );
+      snapshot->ref = s_dup_ref( type->ref );
    }
    else {
       snapshot->ref = type->ref;
@@ -500,7 +499,7 @@ void s_take_type_snapshot( struct type_info* type,
    snapshot->spec = type->spec;
 }
 
-struct ref* dup_ref( struct ref* ref ) {
+struct ref* s_dup_ref( struct ref* ref ) {
    size_t size = 0;
    switch ( ref->type ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;

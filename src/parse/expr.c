@@ -1162,6 +1162,7 @@ void read_sure( struct parse* parse, struct expr_reading* reading ) {
    sure->node.type = NODE_SURE;
    sure->pos = parse->tk_pos;
    sure->operand = reading->node;
+   sure->ref = NULL;
    sure->already_safe = false;
    reading->node = &sure->node;
    p_read_tk( parse );

@@ -518,6 +518,7 @@ struct sure {
    struct node node;
    struct pos pos;
    struct node* operand;
+   struct ref* ref;
    bool already_safe;
 };
 

@@ -2105,36 +2105,20 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
       semantic->lib->uses_nullable_refs = true;
    }
    else {
-      //if ( type.ref->nullable ) {
-         size_t size = 0;
-         switch ( type.ref->type ) {
-         case REF_STRUCTURE:
-            size = sizeof( struct ref_struct );
-            break;
-         case REF_ARRAY:
-            size = sizeof( struct ref_array );
-            break;
-         case REF_FUNCTION:
-            size = sizeof( struct ref_func );
-            break;
-         default:
-            UNREACHABLE();
-         }
-         result->ref = &test->temp_ref.ref;
-         memcpy( result->ref, type.ref, size );
-      //}
-      //else {
-     //    result->ref = type.ref;
-      if ( type.ref->nullable ) {
-         result->ref->nullable = false;
+      sure->ref = s_dup_ref( type.ref );
+      if ( sure->ref->nullable ) {
+         sure->ref->nullable = false;
          semantic->lib->uses_nullable_refs = true;
       }
       else {
          sure->already_safe = true;
       }
+      result->ref = sure->ref;
       result->structure = type.structure;
       result->enumeration = type.enumeration;
       result->spec = type.spec;
+      result->data_origin = operand.data_origin;
+      result->storage = operand.storage;
       result->complete = true;
       result->usable = true;
    }

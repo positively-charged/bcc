@@ -1,4 +1,3 @@
-
 #include <limits.h>
 
 #include "phase.h"
@@ -1933,7 +1932,9 @@ void visit_sure( struct codegen* codegen, struct result* result,
    if ( ! sure->already_safe ) {
       write_null_check( codegen );
    }
-   result->ref = operand.ref;
+   result->ref = sure->ref;
+   result->dim = operand.dim;
+   result->diminfo_start = operand.diminfo_start;
    result->structure = operand.structure;
    result->storage = operand.storage;
    result->index = operand.index;
