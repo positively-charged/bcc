@@ -8,14 +8,8 @@ struct result {
    struct type_info type;
    struct func* func;
    struct var* data_origin;
-   struct ref* ref;
-   struct enumeration* enumeration;
-   struct structure* structure;
-   struct dim* dim;
    struct object* object;
    int ref_dim;
-   int spec;
-   int storage;
    int value;
    bool complete;
    bool usable;
@@ -285,7 +279,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
    }
    test->var = result->data_origin;
    test->func = result->func;
-   expr->spec = result->spec;
+   expr->spec = result->type.spec;
    expr->folded = result->folded;
    expr->value = result->value;
    expr->has_str = test->has_str;
@@ -313,14 +307,8 @@ void init_result( struct result* result ) {
    s_init_type_info_scalar( &result->type, SPEC_VOID );
    result->func = NULL;
    result->data_origin = NULL;
-   result->ref = NULL;
-   result->enumeration = NULL;
-   result->structure = NULL;
-   result->dim = NULL;
    result->object = NULL;
    result->ref_dim = 0;
-   result->spec = SPEC_NONE;
-   result->storage = STORAGE_LOCAL;
    result->value = 0;
    result->complete = false;
    result->usable = false;
@@ -476,12 +464,12 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
       if ( spec == SPEC_NONE ) {
          return false;
       }
-      result->spec = spec;
+      s_init_type_info_scalar( &result->type, spec );
       result->complete = true;
       result->usable = true;
       binary->operand_type = lside->spec;
       if ( lside->spec == SPEC_RAW || rside->spec == SPEC_RAW ) {
-         result->spec = SPEC_RAW;
+         s_init_type_info_scalar( &result->type, SPEC_RAW );
          binary->operand_type = SPEC_RAW;
       }
       return true;
@@ -494,7 +482,8 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
          binary->operand_type = ( lside->ref->type == REF_FUNCTION ||
             rside->ref->type == REF_FUNCTION ) ? BINARYOPERAND_REFFUNC :
             BINARYOPERAND_REF;
-         result->spec = s_spec( semantic, SPEC_BOOL );
+         s_init_type_info_scalar( &result->type,
+            s_spec( semantic, SPEC_BOOL ) );
          result->complete = true;
          result->usable = true;
          return true;
@@ -509,7 +498,7 @@ void fold_bop( struct semantic* semantic, struct binary* binary,
    struct type_info type;
    init_type_info( semantic, &type, lside );
    if ( s_is_value_type( &type ) ) {
-      switch ( lside->spec ) {
+      switch ( lside->type.spec ) {
       case SPEC_INT:
       case SPEC_RAW:
          fold_bop_int( semantic, binary, lside, rside );
@@ -683,11 +672,11 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
    if ( can_convert_to_boolean( semantic, lside ) &&
       can_convert_to_boolean( semantic, rside ) ) {
-      result->spec = s_spec( semantic, SPEC_BOOL );
+      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
       result->complete = true;
       result->usable = true;
-      logical->lside_spec = lside->spec;
-      logical->rside_spec = rside->spec;
+      logical->lside_spec = lside->type.spec;
+      logical->rside_spec = rside->type.spec;
       return true;
    }
    return false;
@@ -703,7 +692,7 @@ static bool can_convert_to_boolean( struct semantic* semantic,
       return true;
    }
    else {
-      switch ( operand->spec ) {
+      switch ( operand->type.spec ) {
       case SPEC_RAW:
       case SPEC_INT:
       case SPEC_FIXED:
@@ -722,7 +711,7 @@ void fold_logical( struct semantic* semantic, struct logical* logical,
    init_type_info( semantic, &type, lside );
    if ( s_is_value_type( &type ) ) {
       int l = 0;
-      switch ( lside->spec ) {
+      switch ( lside->type.spec ) {
       case SPEC_RAW:
       case SPEC_INT:
       case SPEC_FIXED:
@@ -734,7 +723,7 @@ void fold_logical( struct semantic* semantic, struct logical* logical,
          UNREACHABLE();
       }
       int r = 0;
-      switch ( rside->spec ) {
+      switch ( rside->type.spec ) {
       case SPEC_RAW:
       case SPEC_INT:
       case SPEC_FIXED:
@@ -827,7 +816,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
       s_diag( semantic, DIAG_WARN | DIAG_POS, &assign->pos,
          "assignment operation not in parentheses" );
    }
-   assign->spec = lside.spec;
+   assign->spec = lside.type.spec;
 }
 
 bool perform_assign( struct assign* assign, struct result* lside,
@@ -837,7 +826,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
       bool valid = false;
       switch ( assign->op ) {
       case AOP_NONE:
-         switch ( lside->spec ) {
+         switch ( lside->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -851,7 +840,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
          }
          break;
       case AOP_ADD:
-         switch ( lside->spec ) {
+         switch ( lside->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -865,7 +854,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
       case AOP_SUB:
       case AOP_MUL:
       case AOP_DIV:
-         switch ( lside->spec ) {
+         switch ( lside->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -881,7 +870,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
       case AOP_BIT_AND:
       case AOP_BIT_XOR:
       case AOP_BIT_OR:
-         switch ( lside->spec ) {
+         switch ( lside->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
             valid = true;
@@ -896,7 +885,7 @@ bool perform_assign( struct assign* assign, struct result* lside,
       if ( ! valid ) {
          return false;
       }
-      result->spec = lside->spec;
+      s_init_type_info_scalar( &result->type, lside->type.spec );
       result->complete = true;
       result->usable = true;
       return true;
@@ -907,13 +896,13 @@ bool perform_assign( struct assign* assign, struct result* lside,
       if ( assign->op != AOP_NONE ) {
          return false;
       }
-      result->ref = lside->ref;
-      result->structure = lside->structure;
-      result->spec = lside->spec;
+      s_init_type_info( &result->type, lside->type.ref, lside->type.structure,
+         lside->type.enumeration, NULL, lside->type.spec,
+         lside->type.storage );
       result->complete = true;
       result->usable = true;
-      if ( result->ref && result->ref->type == REF_ARRAY ) {
-         struct ref_array* part = ( struct ref_array* ) result->ref;
+      if ( result->type.ref && result->type.ref->type == REF_ARRAY ) {
+         struct ref_array* part = ( struct ref_array* ) result->type.ref;
          result->ref_dim = part->dim_count;
       }
       return true;
@@ -979,14 +968,12 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    else {
       s_take_type_snapshot( &right_type, &snapshot );
    }
-   result->ref = snapshot.ref;
-   result->structure = snapshot.structure;
-   result->enumeration = snapshot.enumeration;
-   result->spec = snapshot.spec;
+   s_init_type_info( &result->type, snapshot.ref, snapshot.structure,
+      snapshot.enumeration, NULL, snapshot.spec, right.type.storage );
    result->complete = true;
    result->usable = ( snapshot.spec != SPEC_VOID );
    cond->ref = snapshot.ref;
-   cond->left_spec = left.spec;
+   cond->left_spec = left.type.spec;
    if ( s_is_ref_type( &middle_type ) ) {
       if ( middle.data_origin ) {
          middle.data_origin->addr_taken = true;
@@ -1075,20 +1062,20 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
       switch ( unary->op ) {
       case UOP_MINUS:
       case UOP_PLUS:
-         switch ( operand->spec ) {
+         switch ( operand->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
-            spec = operand->spec;
+            spec = operand->type.spec;
          default:
             break;
          }
          break;
       case UOP_BIT_NOT:
-         switch ( operand->spec ) {
+         switch ( operand->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
-            spec = operand->spec;
+            spec = operand->type.spec;
          default:
             break;
          }
@@ -1100,10 +1087,10 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
          UNREACHABLE()
       }
       if ( spec != SPEC_NONE ) {
-         result->spec = spec;
+         s_init_type_info_scalar( &result->type, spec );
          result->complete = true;
          result->usable = true;
-         unary->operand_spec = operand->spec;
+         unary->operand_spec = operand->type.spec;
          return true;
       }
       else {
@@ -1114,7 +1101,8 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    else {
       // Only logical-not can be performed on a reference type.
       if ( unary->op == UOP_LOG_NOT ) {
-         result->spec = s_spec( semantic, SPEC_BOOL );
+         s_init_type_info_scalar( &result->type,
+            s_spec( semantic, SPEC_BOOL ) );
          result->complete = true;
          result->usable = true;
          return true;
@@ -1148,7 +1136,7 @@ void fold_unary( struct semantic* semantic, struct unary* unary,
 }
 
 void fold_unary_minus( struct result* operand, struct result* result ) {
-   switch ( operand->spec ) {
+   switch ( operand->type.spec ) {
    case SPEC_RAW:
    case SPEC_INT:
    case SPEC_FIXED:
@@ -1163,7 +1151,7 @@ void fold_unary_minus( struct result* operand, struct result* result ) {
 
 void fold_logical_not( struct semantic* semantic, struct result* operand,
    struct result* result ) {
-   switch ( operand->spec ) {
+   switch ( operand->type.spec ) {
    case SPEC_RAW:
    case SPEC_INT:
    case SPEC_FIXED:
@@ -1213,7 +1201,7 @@ bool perform_inc( struct semantic* semantic, struct inc* inc,
    struct type_info type;
    init_type_info( semantic, &type, operand );
    if ( s_is_value_type( &type ) ) {
-      switch ( operand->spec ) {
+      switch ( operand->type.spec ) {
       case SPEC_RAW:
       case SPEC_INT:
       case SPEC_FIXED:
@@ -1221,10 +1209,10 @@ bool perform_inc( struct semantic* semantic, struct inc* inc,
       default:
          return false;
       }
-      result->spec = operand->spec;
+      s_init_type_info_scalar( &result->type, operand->type.spec );
       result->complete = true;
       result->usable = true;
-      inc->fixed = ( operand->spec == SPEC_FIXED );
+      inc->fixed = ( operand->type.spec == SPEC_FIXED );
       return true;
    }
    // Reference type.
@@ -1247,7 +1235,7 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
       invalid_cast( semantic, cast, &operand );
       s_bail( semantic );
    }
-   result->spec = cast->spec;
+   s_init_type_info_scalar( &result->type, cast->spec );
    result->complete = true;
    result->usable = true;
    result->modifiable = operand.modifiable;
@@ -1266,7 +1254,7 @@ bool valid_cast( struct semantic* semantic, struct cast* cast,
       switch ( cast->spec ) {
       case SPEC_RAW:
       case SPEC_INT:
-         switch ( operand->spec ) {
+         switch ( operand->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
          case SPEC_FIXED:
@@ -1281,13 +1269,13 @@ bool valid_cast( struct semantic* semantic, struct cast* cast,
       case SPEC_FIXED:
       case SPEC_BOOL:
       case SPEC_STR:
-         switch ( operand->spec ) {
+         switch ( operand->type.spec ) {
          case SPEC_RAW:
          case SPEC_INT:
             valid = true;
             break;
          default:
-            valid = ( cast->spec == operand->spec );
+            valid = ( cast->spec == operand->type.spec );
             break;
          }
          break;
@@ -1359,7 +1347,7 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    if ( s_is_array_ref( &type ) ) {
       test_subscript_array( semantic, test, result, &lside, subscript );
    }
-   else if ( lside.spec == SPEC_STR ) {
+   else if ( lside.type.spec == SPEC_STR ) {
       test_subscript_str( semantic, test, result, &lside, subscript );
    }
    else {
@@ -1384,69 +1372,69 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside->dim && lside->dim->length && subscript->index->folded ) {
+   if ( lside->type.dim && lside->type.dim->length &&
+      subscript->index->folded ) {
       warn_bounds_violation( semantic, subscript, "dimension-length",
-         lside->dim->length );
+         lside->type.dim->length );
    }
    // Populate @lside with information about array reference.
-   if ( ! lside->dim && lside->ref_dim == 0 ) {
-      struct ref_array* array = ( struct ref_array* ) lside->ref;
+   if ( ! lside->type.dim && lside->ref_dim == 0 ) {
+      struct ref_array* array = ( struct ref_array* ) lside->type.ref;
       lside->ref_dim = array->dim_count;
-      if ( lside->ref->nullable ) {
+      if ( lside->type.ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
    }
    // Move on to array element:
    // Sub-array.
-   if ( ( lside->dim && lside->dim->next ) || lside->ref_dim > 1 ) {
+   if ( ( lside->type.dim && lside->type.dim->next ) || lside->ref_dim > 1 ) {
       result->data_origin = lside->data_origin;
-      result->ref = lside->ref;
-      result->structure = lside->structure;
-      result->enumeration = lside->enumeration;
-      result->spec = lside->spec;
-      result->storage = lside->storage;
-      if ( lside->dim ) {
-         result->dim = lside->dim->next;
+      s_init_type_info( &result->type, lside->type.ref, lside->type.structure,
+         lside->type.enumeration, NULL, lside->type.spec,
+         lside->type.storage );
+      if ( lside->type.dim ) {
+         result->type.dim = lside->type.dim->next;
       }
       else {
          result->ref_dim = lside->ref_dim - 1;
       }
-      if ( lside->dim && index.folded ) {
-         result->value = lside->value + lside->dim->element_size * index.value;
+      if ( lside->type.dim && index.folded ) {
+         result->value = lside->value +
+            lside->type.dim->element_size * index.value;
          result->folded = true;
       }
    }
    // Reference element.
-   else if ( ( lside->dim && lside->ref ) ||
-      ( lside->ref_dim == 1 && lside->ref->next ) ) {
-      result->structure = lside->structure;
-      result->enumeration = lside->enumeration;
-      result->spec = lside->spec;
-      if ( lside->dim ) {
-         result->ref = lside->ref;
+   else if ( ( lside->type.dim && lside->type.ref ) ||
+      ( lside->ref_dim == 1 && lside->type.ref->next ) ) {
+      s_init_type_info( &result->type, NULL, lside->type.structure,
+         lside->type.enumeration, NULL, lside->type.spec,
+         lside->type.storage );
+      if ( lside->type.dim ) {
+         result->type.ref = lside->type.ref;
       }
       else {
-         result->ref = lside->ref->next;
+         result->type.ref = lside->type.ref->next;
       }
       result->modifiable = true;
    }
    // Structure element.
-   else if ( lside->structure ) {
+   else if ( lside->type.structure ) {
       result->data_origin = lside->data_origin;
-      result->structure = lside->structure;
-      result->spec = lside->spec;
-      if ( lside->ref ) {
-         struct ref_array* array = ( struct ref_array* ) lside->ref;
-         result->storage = array->storage;
+      s_init_type_info( &result->type, NULL, lside->type.structure, NULL, NULL,
+         lside->type.spec, lside->type.storage );
+      if ( lside->type.ref ) {
+         struct ref_array* array = ( struct ref_array* ) lside->type.ref;
+         result->type.storage = array->storage;
       }
       else {
-         result->storage = lside->storage;
+         result->type.storage = lside->type.storage;
       }
    }
    // Primitive element.
    else {
-      result->enumeration = lside->enumeration;
-      result->spec = s_spec( semantic, lside->spec );
+      s_init_type_info( &result->type, NULL, NULL, lside->type.enumeration,
+         NULL, s_spec( semantic, lside->type.spec ), STORAGE_LOCAL );
       result->modifiable = true;
    }
    result->usable = true;
@@ -1489,7 +1477,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
             string->length );
       }
    }
-   result->spec = s_spec( semantic, SPEC_INT );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
    result->complete = true;
    result->usable = true;
    subscript->string = true;
@@ -1519,13 +1507,13 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    select_object( semantic, test, result, object );
    access->rside = &object->node;
    if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
-      if ( lside.ref && ! result->ref &&
-         ( result->dim || result->spec == SPEC_STRUCT ) ) {
-         struct ref_struct* structure = ( struct ref_struct* ) lside.ref;
-         result->storage = structure->storage;
+      if ( lside.type.ref && ! result->type.ref &&
+         ( result->type.dim || result->type.spec == SPEC_STRUCT ) ) {
+         struct ref_struct* structure = ( struct ref_struct* ) lside.type.ref;
+         result->type.storage = structure->storage;
       }
       else {
-         result->storage = lside.storage;
+         result->type.storage = lside.type.storage;
       }
       result->data_origin = lside.data_origin;
    }
@@ -1536,9 +1524,9 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    struct type_info type;
    init_type_info( semantic, &type, lside );
    if ( s_is_struct( &type ) ) {
-      struct name* name = t_extend_name( lside->structure->body,
+      struct name* name = t_extend_name( lside->type.structure->body,
          access->name );
-      if ( lside->ref && lside->ref->nullable ) {
+      if ( lside->type.ref && lside->type.ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
       return name->object;
@@ -1552,7 +1540,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       access->type = ACCESS_ARRAY;
       struct name* name = t_extend_name( semantic->task->array_name, "." );
       name = t_extend_name( name, access->name );
-      if ( lside->ref && lside->ref->nullable ) {
+      if ( lside->type.ref && lside->type.ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
       return name->object;
@@ -1576,14 +1564,14 @@ void unknown_member( struct semantic* semantic, struct access* access,
    struct type_info type;
    init_type_info( semantic, &type, lside );
    if ( s_is_struct( &type ) ) {
-      if ( lside->structure->anon ) {
+      if ( lside->type.structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of anonymous struct", access->name );
       }
       else {
          struct str str;
          str_init( &str );
-         t_copy_name( lside->structure->name, false, &str );
+         t_copy_name( lside->type.structure->name, false, &str );
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of struct `%s`", access->name,
             str.value );
@@ -1639,15 +1627,16 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    if ( operand.func ) {
       // Reference return-value.
       if ( operand.func->ref ) {
-         result->ref = operand.func->ref;
-         result->structure = operand.func->structure;
-         result->spec = operand.func->return_spec;
+         s_init_type_info( &result->type, operand.func->ref,
+            operand.func->structure, operand.func->enumeration, NULL,
+            operand.func->return_spec, STORAGE_LOCAL );
          result->usable = true;
       }
       // Primitive return-value.
       else {
-         result->enumeration = operand.func->enumeration;
-         result->spec = s_spec( semantic, operand.func->return_spec );
+         s_init_type_info( &result->type, NULL, NULL,
+            operand.func->enumeration, NULL,
+            s_spec( semantic, operand.func->return_spec ), STORAGE_LOCAL );
          result->usable = ( operand.func->return_spec != SPEC_VOID );
       }
       result->complete = true;
@@ -1660,20 +1649,20 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       }
    }
    // Return-value from function reference.
-   else if ( operand.ref && operand.ref->type == REF_FUNCTION ) {
-      struct ref_func* func = ( struct ref_func* ) operand.ref;
+   else if ( operand.type.ref && operand.type.ref->type == REF_FUNCTION ) {
+      struct ref_func* func = ( struct ref_func* ) operand.type.ref;
       // Reference return-value.
-      if ( operand.ref->next ) {
-         result->ref = operand.ref->next;
-         result->structure = operand.structure;
-         result->spec = operand.spec;
+      if ( operand.type.ref->next ) {
+         s_init_type_info( &result->type, operand.type.ref->next,
+            operand.type.structure, operand.type.enumeration, NULL,
+            operand.type.spec, operand.type.storage );
          result->usable = true;
       }
       // Primitive return-value.
       else {
-         result->enumeration = operand.enumeration;
-         result->spec = s_spec( semantic, operand.spec );
-         result->usable = ( operand.spec != SPEC_VOID );
+         s_init_type_info( &result->type, NULL, NULL, operand.type.enumeration,
+            NULL, s_spec( semantic, operand.type.spec ), STORAGE_LOCAL );
+         result->usable = ( operand.type.spec != SPEC_VOID );
       }
       result->complete = true;
       static struct func dummy_func;
@@ -1707,13 +1696,13 @@ void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
       test->max_param = operand->func->max_param;
       test->format_param = ( operand->func->type == FUNC_FORMAT );
    }
-   else if ( ! operand->dim && operand->ref &&
-      operand->ref->type == REF_FUNCTION ) {
-      struct ref_func* func = ( struct ref_func* ) operand->ref;
+   else if ( ! operand->type.dim && operand->type.ref &&
+      operand->type.ref->type == REF_FUNCTION ) {
+      struct ref_func* func = ( struct ref_func* ) operand->type.ref;
       test->params = func->params;
       test->min_param = func->min_param;
       test->max_param = func->max_param;
-      if ( operand->ref->nullable ) {
+      if ( operand->type.ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
       }
    }
@@ -2113,12 +2102,9 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
       else {
          sure->already_safe = true;
       }
-      result->ref = sure->ref;
-      result->structure = type.structure;
-      result->enumeration = type.enumeration;
-      result->spec = type.spec;
+      s_init_type_info( &result->type, sure->ref, type.structure,
+         type.enumeration, NULL, type.spec, operand.type.storage );
       result->data_origin = operand.data_origin;
-      result->storage = operand.storage;
       result->complete = true;
       result->usable = true;
    }
@@ -2191,7 +2177,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
 
 void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal ) {
-   result->spec = s_spec( semantic, SPEC_INT );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
@@ -2200,7 +2186,7 @@ void test_literal( struct semantic* semantic, struct result* result,
 
 void test_fixed_literal( struct semantic* semantic, struct result* result,
    struct fixed_literal* literal ) {
-   result->spec = s_spec( semantic, SPEC_FIXED );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_FIXED ) );
    result->value = literal->value;
    result->folded = true;
    result->complete = true;
@@ -2214,7 +2200,7 @@ void test_string_usage( struct semantic* semantic, struct expr_test* test,
 
 void test_string( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct indexed_string* string ) {
-   result->spec = s_spec( semantic, SPEC_STR );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_STR ) );
    result->value = string->index;
    result->folded = true;
    result->complete = true;
@@ -2224,7 +2210,7 @@ void test_string( struct semantic* semantic, struct expr_test* test,
 
 void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean ) {
-   result->spec = s_spec( semantic, SPEC_BOOL );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
    result->value = boolean->value;
    result->folded = true;
    result->complete = true;
@@ -2444,7 +2430,8 @@ void select_object( struct semantic* semantic, struct expr_test* test,
 
 void select_constant( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct constant* constant ) {
-   result->spec = s_spec( semantic, constant->spec );
+   s_init_type_info_scalar( &result->type,
+      s_spec( semantic, constant->spec ) );
    result->value = constant->value;
    result->folded = true;
    result->complete = true;
@@ -2456,8 +2443,8 @@ void select_constant( struct semantic* semantic, struct expr_test* test,
 
 void select_enumerator( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct enumerator* enumerator ) {
-   result->enumeration = enumerator->enumeration;
-   result->spec = s_spec( semantic, enumerator->enumeration->base_type );
+   s_init_type_info( &result->type, NULL, NULL, enumerator->enumeration, NULL,
+      s_spec( semantic, enumerator->enumeration->base_type ), STORAGE_LOCAL );
    result->value = enumerator->value;
    result->folded = true;
    result->complete = true;
@@ -2471,39 +2458,32 @@ void select_var( struct semantic* semantic, struct result* result,
    struct var* var ) {
    // Array.
    if ( var->dim ) {
+      s_init_type_info( &result->type, var->ref, var->structure,
+         var->enumeration, var->dim, var->spec, var->storage );
       result->data_origin = var;
-      result->ref = var->ref;
-      result->structure = var->structure;
-      result->enumeration = var->enumeration;
-      result->dim = var->dim;
-      result->spec = var->spec;
-      result->storage = var->storage;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
       }
    }
    // Reference variable.
    else if ( var->ref ) {
-      result->ref = var->ref;
-      result->structure = var->structure;
-      result->enumeration = var->enumeration;
-      result->spec = var->spec;
+      s_init_type_info( &result->type, var->ref, var->structure,
+         var->enumeration, NULL, var->spec, var->storage );
       result->modifiable = ( ! var->constant );
    }
    // Structure variable.
    else if ( var->structure ) {
       result->data_origin = var;
-      result->structure = var->structure;
-      result->spec = var->spec;
-      result->storage = var->storage;
+      s_init_type_info( &result->type, NULL, var->structure, NULL, NULL,
+         var->spec, var->storage );
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
       }
    }
    // Primitive variable.
    else {
-      result->enumeration = var->enumeration;
-      result->spec = s_spec( semantic, var->spec );
+      s_init_type_info( &result->type, NULL, NULL, var->enumeration, NULL,
+         s_spec( semantic, var->spec ), var->storage );
       result->modifiable = ( ! var->constant );
    }
    result->object = &var->object;
@@ -2516,14 +2496,13 @@ void select_param( struct semantic* semantic, struct result* result,
    struct param* param ) {
    // Reference parameter.
    if ( param->ref ) {
-      result->ref = param->ref;
-      result->structure = param->structure;
-      result->spec = param->spec;
+      s_init_type_info( &result->type, param->ref, param->structure,
+         param->enumeration, NULL, param->spec, STORAGE_LOCAL );
    }
    // Primitive parameter.
    else {
-      result->enumeration = param->enumeration;
-      result->spec = s_spec( semantic, param->spec );
+      s_init_type_info( &result->type, NULL, NULL, param->enumeration, NULL,
+         s_spec( semantic, param->spec ), STORAGE_LOCAL );
    }
    result->complete = true;
    result->usable = true;
@@ -2535,29 +2514,24 @@ void select_member( struct semantic* semantic, struct result* result,
    struct structure_member* member ) {
    // Array member.
    if ( member->dim ) {
-      result->ref = member->ref;
-      result->structure = member->structure;
-      result->enumeration = member->enumeration;
-      result->dim = member->dim;
-      result->spec = member->spec;
+      s_init_type_info( &result->type, member->ref, member->structure,
+         member->enumeration, member->dim, member->spec, STORAGE_LOCAL );
    }
    // Reference member.
    else if ( member->ref ) {
-      result->ref = member->ref;
-      result->structure = member->structure;
-      result->enumeration = member->enumeration;
-      result->spec = member->spec;
+      s_init_type_info( &result->type, member->ref, member->structure,
+         member->enumeration, NULL, member->spec, STORAGE_LOCAL );
       result->modifiable = true;
    }
    // Structure member.
    else if ( member->structure ) {
-      result->structure = member->structure;
-      result->spec = member->spec;
+      s_init_type_info( &result->type, NULL, member->structure, NULL,
+         member->dim, member->spec, STORAGE_LOCAL );
    }
    // Primitive member.
    else {
-      result->enumeration = member->enumeration;
-      result->spec = s_spec( semantic, member->spec );
+      s_init_type_info( &result->type, NULL, NULL, member->enumeration, NULL,
+         s_spec( semantic, member->spec ), STORAGE_LOCAL );
       result->modifiable = true;
    }
    result->complete = true;
@@ -2578,7 +2552,7 @@ void select_func( struct semantic* semantic, struct result* result,
    // When an action-special is not called, it decays into an integer value.
    // The value is the ID of the action-special.
    else if ( func->type == FUNC_ASPEC ) {
-      result->spec = s_spec( semantic, SPEC_INT );
+      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
       struct func_aspec* impl = func->impl;
       result->value = impl->id;
       result->usable = true;
@@ -2587,7 +2561,7 @@ void select_func( struct semantic* semantic, struct result* result,
    }
    // An extension function can also decay into an integer.
    else if ( func->type == FUNC_EXT ) {
-      result->spec = s_spec( semantic, SPEC_INT );
+      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
       struct func_ext* impl = func->impl;
       result->value = -impl->id;
       result->usable = true;
@@ -2658,7 +2632,7 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   result->spec = s_spec( semantic, SPEC_BOOL );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
    result->complete = true;
    result->usable = true;
 }
@@ -2738,7 +2712,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   result->spec = s_spec( semantic, SPEC_BOOL );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
    result->complete = true;
    result->usable = true;
    if ( s_is_struct( &dst_type ) ) {
@@ -2758,7 +2732,7 @@ void test_conversion( struct semantic* semantic, struct expr_test* test,
    }
    conv->spec_from = type.spec;
    conv->from_ref = ( type.ref != NULL );
-   result->spec = s_spec( semantic, conv->spec );
+   s_init_type_info_scalar( &result->type, s_spec( semantic, conv->spec ) );
    result->complete = true;
    result->usable = true;
 }
@@ -2875,15 +2849,17 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
       }
    }
    else if ( result->ref_dim >= 1 ) {
-      s_init_type_info_array_ref( type, result->ref->next, result->structure,
-         result->enumeration, result->ref_dim, result->spec );
+      s_init_type_info_array_ref( type, result->type.ref->next,
+         result->type.structure, result->type.enumeration, result->ref_dim,
+         result->type.spec );
    }
    else if ( s_is_null( &result->type ) ) {
       s_init_type_info_null( type );
    }
    else {
-      s_init_type_info( type, result->ref, result->structure,
-         result->enumeration, result->dim, result->spec, result->storage );
+      s_init_type_info( type, result->type.ref, result->type.structure,
+         result->type.enumeration, result->type.dim, result->type.spec,
+         result->type.storage );
    }
 }
 
