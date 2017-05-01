@@ -217,5 +217,6 @@ bool s_is_null( struct type_info* type );
 bool s_in_msgbuild_block( struct semantic* semantic );
 struct ref* s_dup_ref( struct ref* ref );
 bool s_is_array_ref( struct type_info* type );
+bool s_is_struct( struct type_info* type );
 
 #endif

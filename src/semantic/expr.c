@@ -107,7 +107,6 @@ static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
 static struct object* access_object( struct semantic* semantic,
    struct access* access, struct result* lside );
-static bool is_struct( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
    struct result* lside );
 static void test_call( struct semantic* semantic, struct expr_test* test,
@@ -1527,7 +1526,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    struct result* lside ) {
    struct type_info type;
    init_type_info( semantic, &type, lside );
-   if ( is_struct( lside ) ) {
+   if ( s_is_struct( &type ) ) {
       struct name* name = t_extend_name( lside->structure->body,
          access->name );
       if ( lside->ref && lside->ref->nullable ) {
@@ -1563,17 +1562,11 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    }
 }
 
-bool is_struct( struct result* result ) {
-   return ( ! result->dim && (
-      ( result->ref && result->ref->type == REF_STRUCTURE ) ||
-      ( ! result->ref && result->spec == SPEC_STRUCT ) ) );
-}
-
 void unknown_member( struct semantic* semantic, struct access* access,
    struct result* lside ) {
    struct type_info type;
    init_type_info( semantic, &type, lside );
-   if ( is_struct( lside ) ) {
+   if ( s_is_struct( &type ) ) {
       if ( lside->structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of anonymous struct", access->name );
@@ -2665,7 +2658,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct type_info dst_type;
    init_type_info( semantic, &dst_type, &dst );
    s_decay( semantic, &dst_type );
-   if ( ! ( s_is_array_ref( &dst_type ) || is_struct( &dst ) ) ) {
+   if ( ! ( s_is_array_ref( &dst_type ) || s_is_struct( &dst_type ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
          "destination not an array or structure" );
       s_bail( semantic );
@@ -2729,7 +2722,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    result->spec = s_spec( semantic, SPEC_BOOL );
    result->complete = true;
    result->usable = true;
-   if ( is_struct( &dst ) ) {
+   if ( s_is_struct( &dst_type ) ) {
       call->type = MEMCPY_STRUCT;
    }
 }
