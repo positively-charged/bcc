@@ -107,7 +107,6 @@ static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
 static struct object* access_object( struct semantic* semantic,
    struct access* access, struct result* lside );
-static bool is_array( struct result* result );
 static bool is_struct( struct result* result );
 static void unknown_member( struct semantic* semantic, struct access* access,
    struct result* lside );
@@ -1526,6 +1525,8 @@ void test_access( struct semantic* semantic, struct expr_test* test,
 
 struct object* access_object( struct semantic* semantic, struct access* access,
    struct result* lside ) {
+   struct type_info type;
+   init_type_info( semantic, &type, lside );
    if ( is_struct( lside ) ) {
       struct name* name = t_extend_name( lside->structure->body,
          access->name );
@@ -1539,7 +1540,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       return s_get_ns_object( ( struct ns* ) lside->object, access->name,
          NODE_NONE );
    }
-   else if ( is_array( lside ) ) {
+   else if ( s_is_array_ref( &type ) ) {
       access->type = ACCESS_ARRAY;
       struct name* name = t_extend_name( semantic->task->array_name, "." );
       name = t_extend_name( name, access->name );
@@ -1562,10 +1563,6 @@ struct object* access_object( struct semantic* semantic, struct access* access,
    }
 }
 
-bool is_array( struct result* result ) {
-   return ( result->dim || ( result->ref && result->ref->type == REF_ARRAY ) );
-}
-
 bool is_struct( struct result* result ) {
    return ( ! result->dim && (
       ( result->ref && result->ref->type == REF_STRUCTURE ) ||
@@ -1574,6 +1571,8 @@ bool is_struct( struct result* result ) {
 
 void unknown_member( struct semantic* semantic, struct access* access,
    struct result* lside ) {
+   struct type_info type;
+   init_type_info( semantic, &type, lside );
    if ( is_struct( lside ) ) {
       if ( lside->structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
@@ -1593,7 +1592,7 @@ void unknown_member( struct semantic* semantic, struct access* access,
       s_unknown_ns_object( semantic, ( struct ns* ) lside->object,
          access->name, &access->pos );
    }
-   else if ( is_array( lside ) ) {
+   else if ( s_is_array_ref( &type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "`%s` not a property of an array", access->name );
    }
