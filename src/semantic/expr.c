@@ -103,7 +103,6 @@ static void warn_bounds_violation( struct semantic* semantic,
 static void test_subscript_str( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct result* lside,
    struct subscript* subscript );
-static bool is_array_ref( struct result* result );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
 static struct object* access_object( struct semantic* semantic,
@@ -1348,7 +1347,9 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, subscript->lside );
-   if ( is_array_ref( &lside ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, &lside );
+   if ( s_is_array_ref( &type ) ) {
       test_subscript_array( semantic, test, result, &lside, subscript );
    }
    else if ( lside.spec == SPEC_STR ) {
@@ -1359,10 +1360,6 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
          "subscript operation not supported for given operand" );
       s_bail( semantic );
    }
-}
-
-bool is_array_ref( struct result* result ) {
-   return ( result->dim || ( result->ref && result->ref->type == REF_ARRAY ) );
 }
 
 void test_subscript_array( struct semantic* semantic, struct expr_test* test,
@@ -2666,14 +2663,17 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result dst;
    init_result( &dst );
    test_root( semantic, test, &dst, call->destination );
-   if ( ! ( is_array_ref( &dst ) || is_struct( &dst ) ) ) {
+   struct type_info dst_type;
+   init_type_info( semantic, &dst_type, &dst );
+   s_decay( semantic, &dst_type );
+   if ( ! ( s_is_array_ref( &dst_type ) || is_struct( &dst ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
          "destination not an array or structure" );
       s_bail( semantic );
    }
    // It doesn't look pretty if we allow struct variables to be specified with
    // the array format-item, so make sure the argument is an array.
-   if ( call->array_cast && ! is_array_ref( &dst ) ) {
+   if ( call->array_cast && ! s_is_array_ref( &dst_type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
          "destination not an array" );
       s_bail( semantic );
@@ -2703,11 +2703,8 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result src;
    init_result( &src );
    test_root( semantic, test, &src, call->source );
-   struct type_info dst_type;
    struct type_info src_type;
-   init_type_info( semantic, &dst_type, &dst );
    init_type_info( semantic, &src_type, &src );
-   s_decay( semantic, &dst_type );
    s_decay( semantic, &src_type );
    if ( ! s_same_type( &src_type, &dst_type ) ) {
       s_type_mismatch( semantic, "source", &src_type,
@@ -2724,7 +2721,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
             "source-offset not an integer value" );
          s_bail( semantic );
       }
-      if ( ! is_array_ref( &dst ) ) {
+      if ( ! s_is_array_ref( &dst_type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
             "source-offset specified for non-array source" );
          s_bail( semantic );

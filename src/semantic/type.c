@@ -15,7 +15,6 @@ static void present_spec( int spec, struct str* string );
 static void present_ref( struct ref* ref, struct str* string );
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
-static bool is_array_ref_type( struct type_info* type );
 static void subscript_array_type( struct semantic* semantic,
    struct type_info* type, struct type_info* element_type );
 
@@ -420,7 +419,7 @@ void s_iterate_type( struct semantic* semantic, struct type_info* type,
       s_init_type_info_scalar( &iter->value, s_spec( semantic, SPEC_INT ) );
       iter->available = true;
    }
-   else if ( is_array_ref_type( type ) ) {
+   else if ( s_is_array_ref( type ) ) {
       s_init_type_info_scalar( &iter->key, s_spec( semantic, SPEC_INT ) );
       subscript_array_type( semantic, type, &iter->value );
       iter->available = true;
@@ -434,7 +433,7 @@ bool s_is_str_value_type( struct type_info* type ) {
    return ( s_is_value_type( type ) && type->spec == SPEC_STR );
 }
 
-inline bool is_array_ref_type( struct type_info* type ) {
+bool s_is_array_ref( struct type_info* type ) {
    return ( type->dim || ( type->ref && type->ref->type == REF_ARRAY ) );
 }
 
