@@ -61,7 +61,8 @@ static void test_logical( struct semantic* semantic, struct expr_test* test,
 static bool perform_logical( struct semantic* semantic,
    struct logical* logical, struct result* lside, struct result* rside,
    struct result* result );
-static bool can_convert_to_boolean( struct result* operand );
+static bool can_convert_to_boolean( struct semantic* semantic,
+   struct result* operand );
 static void fold_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result );
 static void test_assign( struct semantic* semantic,
@@ -204,7 +205,6 @@ static void test_current_namespace( struct semantic* semantic,
    struct result* result );
 static void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result );
-static bool is_ref_type( struct result* result );
 static void test_magic_id( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct magic_id* magic_id );
 static void expand_magic_id( struct semantic* semantic,
@@ -262,7 +262,7 @@ void s_test_bool_expr( struct semantic* semantic, struct expr* expr ) {
    struct result result;
    init_result( &result );
    test_root( semantic, &test, &result, expr );
-   if ( ! can_convert_to_boolean( &result ) ) {
+   if ( ! can_convert_to_boolean( semantic, &result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
          "expression cannot be converted to a boolean value" );
       s_bail( semantic );
@@ -680,7 +680,8 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
 
 bool perform_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
-   if ( can_convert_to_boolean( lside ) && can_convert_to_boolean( rside ) ) {
+   if ( can_convert_to_boolean( semantic, lside ) &&
+      can_convert_to_boolean( semantic, rside ) ) {
       result->spec = s_spec( semantic, SPEC_BOOL );
       result->complete = true;
       result->usable = true;
@@ -693,8 +694,11 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
 
 // NOTE: Im not sure if this function is necessary, since every usable result
 // can be converted to a boolean.
-bool can_convert_to_boolean( struct result* operand ) {
-   if ( is_ref_type( operand ) ) {
+static bool can_convert_to_boolean( struct semantic* semantic,
+   struct result* operand ) {
+   struct type_info type;
+   init_type_info( semantic, &type, operand );
+   if ( s_is_ref_type( &type ) ) {
       return true;
    }
    else {
@@ -794,7 +798,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
          "invalid assignment operation" );
       s_bail( semantic );
    }
-   if ( is_ref_type( &lside ) && rside.data_origin ) {
+   if ( s_is_ref_type( &lside_type ) && rside.data_origin ) {
       rside.data_origin->addr_taken = true;
       if ( ! rside.data_origin->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &assign->pos,
@@ -925,7 +929,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          "left operand not a value" );
       s_bail( semantic );
    }
-   if ( ! can_convert_to_boolean( &left ) ) {
+   if ( ! can_convert_to_boolean( semantic, &left ) ) {
       s_diag( semantic, DIAG_POS_ERR, &cond->pos,
          "left operand cannot be converted to a boolean value" );
       s_bail( semantic );
@@ -982,7 +986,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    result->usable = ( snapshot.spec != SPEC_VOID );
    cond->ref = snapshot.ref;
    cond->left_spec = left.spec;
-   if ( is_ref_type( &middle ) ) {
+   if ( s_is_ref_type( &middle_type ) ) {
       if ( middle.data_origin ) {
          middle.data_origin->addr_taken = true;
          if ( ! middle.data_origin->hidden ) {
@@ -1007,6 +1011,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    if ( left.folded && middle.folded && right.folded ) {
       struct type_info type;
       init_type_info( semantic, &type, &left );
+      s_decay( semantic, &type );
       if ( s_is_value_type( &type ) &&
          s_is_value_type( &right_type ) ) {
          result->value = ( left.value != 0 ) ? middle.value : right.value;
@@ -1948,7 +1953,9 @@ void test_remaining_arg( struct semantic* semantic,
       }
    }
    ++test->num_args;
-   if ( is_ref_type( &result ) && result.data_origin ) {
+   struct type_info type;
+   init_type_info( semantic, &type, &result );
+   if ( s_is_ref_type( &type ) && result.data_origin ) {
       result.data_origin->addr_taken = true;
       if ( ! result.data_origin->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &expr->pos,
@@ -2873,11 +2880,6 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
       s_init_type_info( type, result->ref, result->structure,
          result->enumeration, result->dim, result->spec, result->storage );
    }
-}
-
-bool is_ref_type( struct result* result ) {
-   return ( result->ref || result->dim || result->structure || result->func ||
-      result->null );
 }
 
 void test_magic_id( struct semantic* semantic, struct expr_test* test,
