@@ -186,7 +186,6 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call );
-static bool is_int_value( struct semantic* semantic, struct result* result );
 static bool is_str_value( struct semantic* semantic, struct result* result );
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv );
@@ -2610,7 +2609,8 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    if ( call->array_offset ) {
       init_result( &arg );
       test_root( semantic, test, &arg, call->array_offset );
-      if ( ! ( arg.usable && is_int_value( semantic, &arg ) ) ) {
+      init_type_info( semantic, &type, &arg );
+      if ( ! ( arg.usable && s_is_int_value( &type ) ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->array_offset->pos,
             "array-offset argument not an integer value" );
          s_bail( semantic );
@@ -2619,7 +2619,8 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
       if ( call->array_length ) {
          init_result( &arg );
          test_root( semantic, test, &arg, call->array_length );
-         if ( ! ( arg.usable && is_int_value( semantic, &arg ) ) ) {
+         init_type_info( semantic, &type, &arg );
+         if ( ! ( arg.usable && s_is_int_value( &type ) ) ) {
             s_diag( semantic, DIAG_POS_ERR, &call->array_length->pos,
                "array-length argument not an integer value" );
             s_bail( semantic );
@@ -2638,7 +2639,8 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    if ( call->offset ) {
       init_result( &arg );
       test_root( semantic, test, &arg, call->offset );
-      if ( ! ( arg.usable && is_int_value( semantic, &arg ) ) ) {
+      init_type_info( semantic, &type, &arg );
+      if ( ! ( arg.usable && s_is_int_value( &type ) ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->offset->pos,
             "string-offset argument not an integer value" );
          s_bail( semantic );
@@ -2675,7 +2677,9 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
       struct result arg;
       init_result( &arg );
       test_root( semantic, test, &arg, call->destination_offset );
-      if ( ! is_int_value( semantic, &arg ) ) {
+      struct type_info type;
+      init_type_info( semantic, &type, &arg );
+      if ( ! s_is_int_value( &type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->destination_offset->pos,
             "destination-offset not an integer value" );
          s_bail( semantic );
@@ -2684,7 +2688,8 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
       if ( call->destination_length ) {
          init_result( &arg );
          test_root( semantic, test, &arg, call->destination_length );
-         if ( ! is_int_value( semantic, &arg ) ) {
+         init_type_info( semantic, &type, &arg );
+         if ( ! s_is_int_value( &type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &call->destination_length->pos,
                "destination-length not an integer value" );
             s_bail( semantic );
@@ -2708,7 +2713,9 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
       struct result arg;
       init_result( &arg );
       test_root( semantic, test, &arg, call->source_offset );
-      if ( ! is_int_value( semantic, &arg ) ) {
+      struct type_info type;
+      init_type_info( semantic, &type, &arg );
+      if ( ! s_is_int_value( &type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
             "source-offset not an integer value" );
          s_bail( semantic );
@@ -2725,11 +2732,6 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    if ( s_is_struct( &dst_type ) ) {
       call->type = MEMCPY_STRUCT;
    }
-}
-
-bool is_int_value( struct semantic* semantic, struct result* result ) {
-   return ( is_value_type( semantic, result ) &&
-      result->spec == s_spec( semantic, SPEC_INT ) );
 }
 
 bool is_str_value( struct semantic* semantic, struct result* result ) {
