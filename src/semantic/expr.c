@@ -5,6 +5,7 @@
 #include "phase.h"
 
 struct result {
+   struct type_info type;
    struct func* func;
    struct var* data_origin;
    struct ref* ref;
@@ -21,7 +22,6 @@ struct result {
    bool modifiable;
    bool folded;
    bool in_paren;
-   bool null;
 };
 
 struct call_test {
@@ -203,6 +203,7 @@ static void test_paren( struct semantic* semantic, struct expr_test* test,
 static void test_upmost( struct semantic* semantic, struct result* result );
 static void test_current_namespace( struct semantic* semantic,
    struct result* result );
+static void test_null( struct result* result );
 static void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result );
 static void test_magic_id( struct semantic* semantic, struct expr_test* test,
@@ -309,6 +310,7 @@ void test_nested_expr( struct semantic* semantic, struct expr_test* parent,
 }
 
 void init_result( struct result* result ) {
+   s_init_type_info_scalar( &result->type, SPEC_VOID );
    result->func = NULL;
    result->data_origin = NULL;
    result->ref = NULL;
@@ -325,7 +327,6 @@ void init_result( struct result* result ) {
    result->modifiable = false;
    result->folded = false;
    result->in_paren = false;
-   result->null = false;
 }
 
 void test_operand( struct semantic* semantic, struct expr_test* test,
@@ -972,7 +973,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    struct type_snapshot snapshot;
-   if ( ! middle.null ) {
+   if ( ! s_is_null( &middle.type ) ) {
       s_take_type_snapshot( &middle_type, &snapshot );
    }
    else {
@@ -2097,8 +2098,8 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
          "operand not a reference" );
       s_bail( semantic );
    }
-   if ( operand.null ) {
-      result->null = true;
+   if ( s_is_null( &operand.type ) ) {
+      s_init_type_info_null( &result->type );
       result->complete = true;
       result->usable = true;
       semantic->lib->uses_nullable_refs = true;
@@ -2177,10 +2178,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
       test_current_namespace( semantic, result );
       break;
    case NODE_NULL:
-      result->null = true;
-      result->complete = true;
-      result->usable = true;
-      result->folded = true;
+      test_null( result );
       break;
    case NODE_MAGICID:
       test_magic_id( semantic, test, result,
@@ -2851,6 +2849,13 @@ void test_current_namespace( struct semantic* semantic,
    result->object = &semantic->ns->object;
 }
 
+static void test_null( struct result* result ) {
+   s_init_type_info_null( &result->type );
+   result->complete = true;
+   result->usable = true;
+   result->folded = true;
+}
+
 void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result ) {
    if ( result->func ) {
@@ -2873,7 +2878,7 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
       s_init_type_info_array_ref( type, result->ref->next, result->structure,
          result->enumeration, result->ref_dim, result->spec );
    }
-   else if ( result->null ) {
+   else if ( s_is_null( &result->type ) ) {
       s_init_type_info_null( type );
    }
    else {
