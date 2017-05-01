@@ -204,7 +204,6 @@ static void test_current_namespace( struct semantic* semantic,
    struct result* result );
 static void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result );
-static bool is_value_type( struct semantic* semantic, struct result* result );
 static bool is_ref_type( struct result* result );
 static void test_magic_id( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct magic_id* magic_id );
@@ -506,7 +505,9 @@ bool perform_bop( struct semantic* semantic, struct binary* binary,
 
 void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result ) {
-   if ( is_value_type( semantic, lside ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, lside );
+   if ( s_is_value_type( &type ) ) {
       switch ( lside->spec ) {
       case SPEC_INT:
       case SPEC_RAW:
@@ -712,7 +713,9 @@ bool can_convert_to_boolean( struct result* operand ) {
 
 void fold_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
-   if ( is_value_type( semantic, lside ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, lside );
+   if ( s_is_value_type( &type ) ) {
       int l = 0;
       switch ( lside->spec ) {
       case SPEC_RAW:
@@ -1002,8 +1005,10 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
    // Compile-time evaluation.
    if ( left.folded && middle.folded && right.folded ) {
-      if ( is_value_type( semantic, &left ) &&
-         is_value_type( semantic, &right ) ) {
+      struct type_info type;
+      init_type_info( semantic, &type, &left );
+      if ( s_is_value_type( &type ) &&
+         s_is_value_type( &right_type ) ) {
          result->value = ( left.value != 0 ) ? middle.value : right.value;
          result->folded = true;
          cond->left_value = left.value;
@@ -1057,8 +1062,9 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
 
 bool perform_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
-   // Value type.
-   if ( is_value_type( semantic, operand ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, operand );
+   if ( s_is_value_type( &type ) ) {
       int spec = SPEC_NONE;
       switch ( unary->op ) {
       case UOP_MINUS:
@@ -1197,10 +1203,10 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
 }
 
 bool perform_inc( struct semantic* semantic, struct inc* inc,
-   struct result* operand,
-   struct result* result ) {
-   // Value type.
-   if ( is_value_type( semantic, operand ) ) {
+   struct result* operand, struct result* result ) {
+   struct type_info type;
+   init_type_info( semantic, &type, operand );
+   if ( s_is_value_type( &type ) ) {
       switch ( operand->spec ) {
       case SPEC_RAW:
       case SPEC_INT:
@@ -1247,8 +1253,9 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
 
 bool valid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
-   // Value type.
-   if ( is_value_type( semantic, operand ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, operand );
+   if ( s_is_value_type( &type ) ) {
       bool valid = false;
       switch ( cast->spec ) {
       case SPEC_RAW:
@@ -1544,7 +1551,7 @@ struct object* access_object( struct semantic* semantic, struct access* access,
       }
       return name->object;
    }
-   else if ( is_value_type( semantic, lside ) && lside->spec == SPEC_STR ) {
+   else if ( s_is_value_type( &type ) && type.spec == SPEC_STR ) {
       access->type = ACCESS_STR;
       struct name* name = t_extend_name( semantic->task->str_name, "." );
       name = t_extend_name( name, access->name );
@@ -1585,7 +1592,7 @@ void unknown_member( struct semantic* semantic, struct access* access,
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "`%s` not a property of an array", access->name );
    }
-   else if ( is_value_type( semantic, lside ) && lside->spec == SPEC_STR ) {
+   else if ( s_is_value_type( &type ) && type.spec == SPEC_STR ) {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "`%s` not a member of `str` type", access->name );
    }
@@ -2866,12 +2873,6 @@ void init_type_info( struct semantic* semantic, struct type_info* type,
       s_init_type_info( type, result->ref, result->structure,
          result->enumeration, result->dim, result->spec, result->storage );
    }
-}
-
-bool is_value_type( struct semantic* semantic, struct result* result ) {
-   struct type_info type;
-   init_type_info( semantic, &type, result );
-   return s_is_value_type( &type );
 }
 
 bool is_ref_type( struct result* result ) {
