@@ -186,8 +186,6 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call );
-static bool is_onedim_intelem_array_ref( struct semantic* semantic,
-   struct result* result );
 static bool is_int_value( struct semantic* semantic, struct result* result );
 static bool is_str_value( struct semantic* semantic, struct result* result );
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
@@ -2600,7 +2598,9 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result arg;
    init_result( &arg );
    test_root( semantic, test, &arg, call->array );
-   if ( ! is_onedim_intelem_array_ref( semantic, &arg ) ) {
+   struct type_info type;
+   init_type_info( semantic, &type, &arg );
+   if ( ! s_is_onedim_int_array_ref( semantic, &type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
          "array argument not a one-dimensional, "
          "integer element-type array-reference" );
@@ -2725,14 +2725,6 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    if ( s_is_struct( &dst_type ) ) {
       call->type = MEMCPY_STRUCT;
    }
-}
-
-bool is_onedim_intelem_array_ref( struct semantic* semantic,
-   struct result* result ) {
-   bool onedim_array = ( result->dim && ! result->dim->next ) ||
-      ( result->ref_dim == 1 );
-   bool int_elem = ( result->spec == SPEC_INT );
-   return ( onedim_array && int_elem );
 }
 
 bool is_int_value( struct semantic* semantic, struct result* result ) {

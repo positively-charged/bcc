@@ -519,6 +519,15 @@ bool s_is_onedim_int_array( struct type_info* type ) {
       ! type->ref && ( type->spec == SPEC_INT || type->spec == SPEC_RAW ) );
 }
 
+bool s_is_onedim_int_array_ref( struct semantic* semantic,
+   struct type_info* type ) {
+   bool one_dim_array = ( ( type->dim && ! type->dim->next ) ||
+      ( type->ref && type->ref->type == REF_ARRAY &&
+      ( ( struct ref_array* ) type->ref )->dim_count == 1 ) );
+   bool integer_elements = ( type->spec == SPEC_INT );
+   return ( one_dim_array && integer_elements );
+}
+
 bool s_is_int_value( struct type_info* type ) {
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, SPEC_INT );
