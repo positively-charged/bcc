@@ -34,8 +34,7 @@ struct type_info {
       struct ref_struct structure;
       struct ref_array array;
       struct ref_func func;
-   } implicit_ref_part;
-   bool implicit_ref;
+   } implicit_ref;
    bool builtin_func;
 };
 

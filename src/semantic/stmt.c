@@ -538,7 +538,6 @@ void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
          s_init_type_info( &test->cond_type, cond->var->ref,
             cond->var->structure, cond->var->enumeration, cond->var->dim,
             cond->var->spec, cond->var->storage );
-         s_decay( semantic, &test->cond_type );
       }
       if ( ! cond->var->force_local_scope ) {
          s_diag( semantic, DIAG_POS_ERR, &cond->var->object.pos,

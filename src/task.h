@@ -246,6 +246,7 @@ struct ref {
       REF_FUNCTION
    } type;
    bool nullable;
+   bool implicit;
 };
 
 struct ref_struct {
