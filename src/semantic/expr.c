@@ -9,7 +9,7 @@ struct result {
    struct func* func;
    struct var* data_origin;
    struct object* object;
-   int ref_dim;
+   struct dim* dim;
    int value;
    bool complete;
    bool usable;
@@ -307,7 +307,7 @@ void init_result( struct result* result ) {
    result->func = NULL;
    result->data_origin = NULL;
    result->object = NULL;
-   result->ref_dim = 0;
+   result->dim = NULL;
    result->value = 0;
    result->complete = false;
    result->usable = false;
@@ -897,10 +897,6 @@ bool perform_assign( struct assign* assign, struct result* lside,
          lside->type.storage );
       result->complete = true;
       result->usable = true;
-      if ( result->type.ref && result->type.ref->type == REF_ARRAY ) {
-         struct ref_array* part = ( struct ref_array* ) result->type.ref;
-         result->ref_dim = part->dim_count;
-      }
       return true;
    }
 }
@@ -1364,76 +1360,39 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
-   if ( lside->type.dim && lside->type.dim->length &&
-      subscript->index->folded ) {
+   if ( lside->dim && lside->dim->length && subscript->index->folded ) {
       warn_bounds_violation( semantic, subscript, "dimension-length",
-         lside->type.dim->length );
+         lside->dim->length );
    }
-   // Populate @lside with information about array reference.
-   if ( ! lside->type.dim && lside->ref_dim == 0 ) {
-      struct ref_array* array = ( struct ref_array* ) lside->type.ref;
-      lside->ref_dim = array->dim_count;
-      if ( lside->type.ref->nullable ) {
-         semantic->lib->uses_nullable_refs = true;
-      }
-   }
-   // Move on to array element:
-   // Sub-array.
-   if ( ( lside->type.dim && lside->type.dim->next ) || lside->ref_dim > 1 ) {
+   enum subscript_result element = s_subscript_array_ref( semantic,
+      &lside->type, &result->type );
+   switch ( element ) {
+   case SUBSCRIPTRESULT_SUBARRAY:
       result->data_origin = lside->data_origin;
-      s_init_type_info( &result->type, lside->type.ref, lside->type.structure,
-         lside->type.enumeration, NULL, lside->type.spec,
-         lside->type.storage );
-      s_decay( semantic, &result->type );
-      if ( lside->type.dim ) {
-         result->type.dim = lside->type.dim->next;
+      if ( lside->dim ) {
+         if ( index.folded ) {
+            result->value = lside->value +
+               lside->dim->element_size * index.value;
+            result->folded = true;
+         }
+         result->dim = lside->dim->next;
       }
       else {
-         result->ref_dim = lside->ref_dim - 1;
+         
       }
-      if ( lside->type.dim && index.folded ) {
-         result->value = lside->value +
-            lside->type.dim->element_size * index.value;
-         result->folded = true;
-      }
-   }
-   // Reference element.
-   else if ( ( lside->type.dim && lside->type.ref ) ||
-      ( lside->ref_dim == 1 && lside->type.ref->next ) ) {
-      s_init_type_info( &result->type, NULL, lside->type.structure,
-         lside->type.enumeration, NULL, lside->type.spec,
-         lside->type.storage );
-      if ( lside->type.dim ) {
-         result->type.ref = lside->type.ref;
-      }
-      else {
-         result->type.ref = lside->type.ref->next;
-      }
-      result->modifiable = true;
-   }
-   // Structure element.
-   else if ( lside->type.structure ) {
+      break;
+   case SUBSCRIPTRESULT_STRUCT:
       result->data_origin = lside->data_origin;
-      s_init_type_info( &result->type, NULL, lside->type.structure, NULL, NULL,
-         lside->type.spec, lside->type.storage );
-      s_decay( semantic, &result->type );
-      if ( lside->type.ref ) {
-         struct ref_array* array = ( struct ref_array* ) lside->type.ref;
-         result->type.storage = array->storage;
-      }
-      else {
-         result->type.storage = lside->type.storage;
-      }
-   }
-   // Primitive element.
-   else {
-      s_init_type_info( &result->type, NULL, NULL, lside->type.enumeration,
-         NULL, s_spec( semantic, lside->type.spec ), STORAGE_LOCAL );
-      s_decay( semantic, &result->type );
+      break;
+   case SUBSCRIPTRESULT_REF:
+   case SUBSCRIPTRESULT_PRIMITIVE:
       result->modifiable = true;
    }
    result->usable = true;
    result->complete = true;
+   if ( lside->type.ref->nullable ) {
+      semantic->lib->uses_nullable_refs = true;
+   }
 }
 
 void warn_bounds_violation( struct semantic* semantic,
@@ -2456,6 +2415,7 @@ void select_var( struct semantic* semantic, struct result* result,
          var->enumeration, var->dim, var->spec, var->storage );
       s_decay( semantic, &result->type );
       result->data_origin = var;
+      result->dim = var->dim;
       if ( var->storage == STORAGE_MAP ) {
          result->folded = true;
       }
@@ -2515,6 +2475,7 @@ void select_member( struct semantic* semantic, struct result* result,
       s_init_type_info( &result->type, member->ref, member->structure,
          member->enumeration, member->dim, member->spec, STORAGE_LOCAL );
       s_decay( semantic, &result->type );
+      result->dim = member->dim;
    }
    // Reference member.
    else if ( member->ref ) {
@@ -2524,8 +2485,8 @@ void select_member( struct semantic* semantic, struct result* result,
    }
    // Structure member.
    else if ( member->structure ) {
-      s_init_type_info( &result->type, NULL, member->structure, NULL,
-         member->dim, member->spec, STORAGE_LOCAL );
+      s_init_type_info( &result->type, NULL, member->structure, NULL, NULL,
+         member->spec, STORAGE_LOCAL );
       s_decay( semantic, &result->type );
    }
    // Primitive member.
@@ -2837,12 +2798,7 @@ static void test_null( struct result* result ) {
 
 void init_type_info( struct semantic* semantic, struct type_info* type,
    struct result* result ) {
-   if ( result->ref_dim >= 1 ) {
-      s_init_type_info_array_ref( type, result->type.ref->next,
-         result->type.structure, result->type.enumeration, result->ref_dim,
-         result->type.spec );
-   }
-   else if ( s_is_null( &result->type ) ) {
+   if ( s_is_null( &result->type ) ) {
       s_init_type_info_null( type );
    }
    else {

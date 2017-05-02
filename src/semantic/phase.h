@@ -100,6 +100,13 @@ struct type_iter {
    bool available;
 };
 
+enum subscript_result {
+   SUBSCRIPTRESULT_SUBARRAY,
+   SUBSCRIPTRESULT_REF,
+   SUBSCRIPTRESULT_STRUCT,
+   SUBSCRIPTRESULT_PRIMITIVE
+};
+
 struct semantic {
    struct task* task;
    struct library* main_lib;
@@ -220,5 +227,7 @@ bool s_is_array_ref( struct type_info* type );
 bool s_is_struct( struct type_info* type );
 bool s_is_onedim_int_array_ref( struct semantic* semantic,
    struct type_info* type );
+enum subscript_result s_subscript_array_ref( struct semantic* semantic,
+   struct type_info* type, struct type_info* element_type );
 
 #endif

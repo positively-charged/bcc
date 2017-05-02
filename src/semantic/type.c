@@ -511,6 +511,38 @@ void subscript_array_type( struct semantic* semantic, struct type_info* type,
    }
 }
 
+enum subscript_result s_subscript_array_ref( struct semantic* semantic,
+   struct type_info* type, struct type_info* element_type ) {
+   struct ref_array* array = ( struct ref_array* ) type->ref;
+   // Sub-array.
+   if ( array->dim_count > 1 ) {
+      s_init_type_info_array_ref( element_type, type->ref->next,
+         type->structure, type->enumeration, array->dim_count - 1,
+         type->spec );
+      return SUBSCRIPTRESULT_SUBARRAY;
+   }
+   // Reference element.
+   else if ( type->ref->next ) {
+      s_init_type_info( element_type, type->ref->next, type->structure,
+         type->enumeration, NULL, type->spec, type->storage );
+      return SUBSCRIPTRESULT_REF;
+   }
+   // Structure element.
+   else if ( type->structure ) {
+      s_init_type_info( element_type, NULL, type->structure, NULL, NULL,
+         type->spec, type->storage );
+      s_decay( semantic, element_type );
+      return SUBSCRIPTRESULT_STRUCT;
+   }
+   // Primitive element.
+   else {
+      s_init_type_info( element_type, NULL, NULL, type->enumeration, NULL,
+         s_spec( semantic, type->spec ), type->storage );
+      s_decay( semantic, element_type );
+      return SUBSCRIPTRESULT_PRIMITIVE;
+   }
+}
+
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot ) {
    snapshot->ref = type->ref;
