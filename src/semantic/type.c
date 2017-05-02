@@ -53,10 +53,22 @@ static void copy_implicit_ref( struct type_info* type ) {
             type->ref = &type->implicit_ref.func.ref;
          }
          break;
+      case REF_NULL: {
+            type->implicit_ref.ref = *type->ref;
+            type->ref = &type->implicit_ref.ref;
+         }
+         break;
       default:
          UNREACHABLE();
       }
    }
+}
+
+void s_init_type_info_copy( struct type_info* type,
+   struct type_info* other_type ) {
+   s_init_type_info( type, other_type->ref, other_type->structure,
+      other_type->enumeration, other_type->dim, other_type->spec,
+      other_type->storage );
 }
 
 void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,

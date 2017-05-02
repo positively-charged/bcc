@@ -173,6 +173,8 @@ void p_test_inline_asm( struct semantic* semantic, struct stmt_test* test,
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    struct dim* dim, int spec, int storage );
+void s_init_type_info_copy( struct type_info* type,
+   struct type_info* other_type );
 void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
    int dim_count, int spec );
