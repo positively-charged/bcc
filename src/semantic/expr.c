@@ -208,6 +208,7 @@ static void expand_magic_id( struct semantic* semantic,
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
    test->buildmsg = NULL;
+   s_init_type_info_scalar( &test->type, SPEC_VOID );
    test->name_offset = NULL;
    test->var = NULL;
    test->func = NULL;
@@ -231,19 +232,7 @@ void s_test_expr( struct semantic* semantic, struct expr_test* test,
       struct result result;
       init_result( &result );
       test_root( semantic, test, &result, expr );
-   }
-   else {
-      test->undef_erred = true;
-   }
-}
-
-void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
-   struct type_info* result_type, struct expr* expr ) {
-   if ( setjmp( test->bail ) == 0 ) {
-      struct result result;
-      init_result( &result );
-      test_root( semantic, test, &result, expr );
-      s_init_type_info_copy( result_type, &result.type );
+      s_init_type_info_copy( &test->type, &result.type );
    }
    else {
       test->undef_erred = true;
@@ -2629,16 +2618,16 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
 
 void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv ) {
-   struct type_info type;
    struct expr_test nested_test;
    s_init_expr_test( &nested_test, true, false );
-   s_test_expr_type( semantic, &nested_test, &type, conv->expr );
-   if ( ! perform_conversion( conv, &type ) ) {
-      unsupported_conversion( semantic, &type, conv->spec, &conv->expr->pos );
+   s_test_expr( semantic, &nested_test, conv->expr );
+   if ( ! perform_conversion( conv, &nested_test.type ) ) {
+      unsupported_conversion( semantic, &nested_test.type, conv->spec,
+         &conv->expr->pos );
       s_bail( semantic );
    }
-   conv->spec_from = type.spec;
-   conv->from_ref = ( type.ref != NULL );
+   conv->spec_from = nested_test.type.spec;
+   conv->from_ref = ( nested_test.type.ref != NULL );
    s_init_type_info_scalar( &result->type, s_spec( semantic, conv->spec ) );
    result->complete = true;
    result->usable = true;

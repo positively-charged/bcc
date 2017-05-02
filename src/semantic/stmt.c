@@ -264,18 +264,17 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
          "case nested inside another statement" );
       s_bail( semantic );
    }
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, label->number );
+   s_test_expr( semantic, &expr, label->number );
    if ( ! label->number->folded ) {
       s_diag( semantic, DIAG_POS_ERR, &label->number->pos,
          "case value not constant" );
       s_bail( semantic );
    }
    // Check case type.
-   if ( ! s_same_type( &type, &switch_test->cond_type ) ) {
-      s_type_mismatch( semantic, "case-value", &type,
+   if ( ! s_same_type( &expr.type, &switch_test->cond_type ) ) {
+      s_type_mismatch( semantic, "case-value", &expr.type,
          "switch-condition", &switch_test->cond_type,
          &label->number->pos );
       s_bail( semantic );
@@ -373,14 +372,13 @@ void test_assert( struct semantic* semantic, struct stmt_test* test,
       }
    }
    if ( assert->message ) {
-      struct type_info type;
       struct expr_test test;
       s_init_expr_test( &test, true, false );
-      s_test_expr_type( semantic, &test, &type, assert->message );
+      s_test_expr( semantic, &test, assert->message );
       struct type_info required_type;
       s_init_type_info_scalar( &required_type, SPEC_STR );
-      if ( ! s_instance_of( &required_type, &type ) ) {
-         s_type_mismatch( semantic, "argument", &type,
+      if ( ! s_instance_of( &required_type, &test.type ) ) {
+         s_type_mismatch( semantic, "argument", &test.type,
             "required", &required_type, &assert->message->pos );
          s_bail( semantic );
       }
@@ -550,7 +548,8 @@ void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
       if ( test->switch_stmt ) {
          struct expr_test expr;
          s_init_expr_test( &expr, true, true );
-         s_test_expr_type( semantic, &expr, &test->cond_type, cond->expr );
+         s_test_expr( semantic, &expr, cond->expr );
+         s_init_type_info_copy( &test->cond_type, &expr.type );
       }
       else {
          s_test_bool_expr( semantic, cond->expr );
@@ -758,12 +757,11 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct var* key = stmt->key;
    struct var* value = stmt->value;
    // Collection.
-   struct type_info collection_type;
    struct expr_test expr;
    s_init_expr_test( &expr, false, false );
-   s_test_expr_type( semantic, &expr, &collection_type, stmt->collection );
+   s_test_expr( semantic, &expr, stmt->collection );
    struct type_iter iter;
-   s_iterate_type( semantic, &collection_type, &iter );
+   s_iterate_type( semantic, &expr.type, &iter );
    if ( ! iter.available ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
          "expression not of iterable type" );
@@ -922,11 +920,10 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
 void test_return_value( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
    struct func* func = semantic->func_test->func;
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    expr.buildmsg = stmt->buildmsg;
-   s_test_expr_type( semantic, &expr, &type, stmt->return_value );
+   s_test_expr( semantic, &expr, stmt->return_value );
    if ( stmt->buildmsg ) {
       test_buildmsg_block( semantic, test, stmt->buildmsg );
    }
@@ -937,22 +934,22 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    }
    // Return value must be of the same type as the return type.
    if ( func->return_spec == SPEC_AUTOENUM ) {
-      if ( ! s_is_enumerator( &type ) ) {
+      if ( ! s_is_enumerator( &expr.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
             "return value not an enumerator" );
          s_bail( semantic );
       }
-      func->enumeration = type.enumeration;
+      func->enumeration = expr.type.enumeration;
       func->return_spec = SPEC_ENUM;
    }
    else if ( func->return_spec == SPEC_AUTO ) {
-      if ( s_is_null( &type ) ) {
+      if ( s_is_null( &expr.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
             "cannot deduce return type from `null`" );
          s_bail( semantic );
       }
       struct type_snapshot snapshot;
-      s_take_type_snapshot( &type, &snapshot );
+      s_take_type_snapshot( &expr.type, &snapshot );
       func->ref = snapshot.ref;
       func->structure = snapshot.structure;
       func->return_spec = snapshot.spec;
@@ -961,8 +958,8 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
       struct type_info return_type;
       s_init_type_info( &return_type, func->ref, func->structure,
          func->enumeration, NULL, func->return_spec, STORAGE_LOCAL );
-      if ( ! s_instance_of( &return_type, &type ) ) {
-         s_type_mismatch( semantic, "return-value", &type,
+      if ( ! s_instance_of( &return_type, &expr.type ) ) {
+         s_type_mismatch( semantic, "return-value", &expr.type,
             "function-return", &return_type, &stmt->return_value->pos );
          s_bail( semantic );
       }
@@ -975,7 +972,7 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
          s_bail( semantic );
       }
    }
-   if ( s_is_ref_type( &type ) && expr.var ) {
+   if ( s_is_ref_type( &expr.type ) && expr.var ) {
       expr.var->addr_taken = true;
       if ( ! expr.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
@@ -1055,15 +1052,14 @@ void test_paltrans( struct semantic* semantic, struct stmt_test* test,
 
 void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
    bool require_fixed_type ) {
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, arg );
+   s_test_expr( semantic, &expr, arg );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, s_spec( semantic,
       require_fixed_type ? SPEC_FIXED : SPEC_INT ) );
-   if ( ! s_instance_of( &required_type, &type ) ) {
-      s_type_mismatch( semantic, "argument", &type,
+   if ( ! s_instance_of( &required_type, &expr.type ) ) {
+      s_type_mismatch( semantic, "argument", &expr.type,
          "required", &required_type, &arg->pos );
       s_bail( semantic );
    }

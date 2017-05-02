@@ -70,6 +70,7 @@ struct stmt_test {
 
 struct expr_test {
    jmp_buf bail;
+   struct type_info type;
    struct buildmsg* buildmsg;
    struct name* name_offset;
    struct var* var;
@@ -162,8 +163,6 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
 void s_init_expr_test_enumerator( struct expr_test* test,
    struct enumeration* enumeration );
 void s_test_expr( struct semantic* semantic, struct expr_test*, struct expr* );
-void s_test_expr_type( struct semantic* semantic, struct expr_test* test,
-   struct type_info* result_type, struct expr* expr );
 void s_test_bool_expr( struct semantic* semantic, struct expr* expr );
 void s_init_stmt_test( struct stmt_test*, struct stmt_test* );
 void s_test_top_block( struct semantic* semantic, struct block* block );

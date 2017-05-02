@@ -299,10 +299,9 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
    }
    // Test initializer.
    if ( enumerator->initz ) {
-      struct type_info type;
       struct expr_test expr;
       s_init_expr_test_enumerator( &expr, enumeration );
-      s_test_expr_type( semantic, &expr, &type, enumerator->initz );
+      s_test_expr( semantic, &expr, enumerator->initz );
       if ( expr.undef_erred ) {
          return;
       }
@@ -313,8 +312,8 @@ void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
       }
       struct type_info base_type;
       s_init_type_info_scalar( &base_type, enumeration->base_type );
-      if ( ! s_instance_of( &base_type, &type ) ) {
-         s_type_mismatch( semantic, "enumerator", &type,
+      if ( ! s_instance_of( &base_type, &expr.type ) ) {
+         s_type_mismatch( semantic, "enumerator", &expr.type,
             "enumeration-base", &base_type, &enumerator->object.pos );
          s_bail( semantic );
       }
@@ -990,14 +989,13 @@ bool test_dim( struct semantic* semantic, struct dim_test* test,
 
 bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    struct dim* dim ) {
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, dim->length_node );
+   s_test_expr( semantic, &expr, dim->length_node );
    if ( expr.undef_erred ) {
       return false;
    }
-   if ( ! s_is_int_value( &type ) ) {
+   if ( ! s_is_int_value( &expr.type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &dim->length_node->pos,
          "dimension length of non-integer type" );
       s_bail( semantic );
@@ -1345,7 +1343,8 @@ bool test_scalar_initz( struct semantic* semantic,
    struct scalar_initz_test* test, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &test->initz_type, value->expr );
+   s_test_expr( semantic, &expr, value->expr );
+   s_init_type_info_copy( &test->initz_type, &expr.type );
    if ( expr.undef_erred ) {
       return false;
    }
@@ -1400,15 +1399,14 @@ void initz_mismatch( struct semantic* semantic, struct initz_test* test,
 
 bool test_string_initz( struct semantic* semantic, struct dim* dim,
    struct value* value ) {
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, value->expr );
+   s_test_expr( semantic, &expr, value->expr );
    if ( expr.undef_erred ) {
       return false;
    }
    if ( ! ( value->expr->root->type == NODE_INDEXED_STRING_USAGE ||
-      s_is_str_value_type( &type ) ) ) {
+      s_is_str_value_type( &expr.type ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
          "missing brace initializer" );
       s_bail( semantic );
@@ -2103,10 +2101,9 @@ bool test_param_default_value( struct semantic* semantic,
          "default argument specified in a function reference" );
       s_bail( semantic );
    }
-   struct type_info type;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
-   s_test_expr_type( semantic, &expr, &type, param->default_value );
+   s_test_expr( semantic, &expr, param->default_value );
    if ( expr.undef_erred ) {
       return false;
    }
@@ -2118,12 +2115,12 @@ bool test_param_default_value( struct semantic* semantic,
    struct type_info param_type;
    s_init_type_info( &param_type, param->ref, param->structure,
       param->enumeration, NULL, param->spec, STORAGE_LOCAL );
-   if ( ! s_instance_of( &param_type, &type ) ) {
-      default_value_mismatch( semantic, test->func, param, &param_type, &type,
-         &param->default_value->pos );
+   if ( ! s_instance_of( &param_type, &expr.type ) ) {
+      default_value_mismatch( semantic, test->func, param, &param_type,
+         &expr.type, &param->default_value->pos );
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &type ) && expr.var ) {
+   if ( s_is_ref_type( &expr.type ) && expr.var ) {
       expr.var->addr_taken = true;
       if ( ! expr.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
