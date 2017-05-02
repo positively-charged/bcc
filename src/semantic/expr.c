@@ -80,6 +80,8 @@ static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
 static bool perform_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result );
+static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand, struct result* result );
 static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast );
 static bool valid_cast( struct semantic* semantic, struct cast* cast,
@@ -1129,7 +1131,7 @@ void fold_logical_not( struct semantic* semantic, struct result* operand,
    }
 }
 
-void test_inc( struct semantic* semantic, struct expr_test* test,
+static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc ) {
    struct result operand;
    init_result( &operand );
@@ -1160,27 +1162,31 @@ void test_inc( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_inc( struct semantic* semantic, struct inc* inc,
+static bool perform_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result ) {
-   if ( s_is_value_type( &operand->type ) ) {
-      switch ( operand->type.spec ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-      case SPEC_FIXED:
-         break;
-      default:
-         return false;
-      }
-      s_init_type_info_scalar( &result->type, operand->type.spec );
-      result->complete = true;
-      result->usable = true;
-      inc->fixed = ( operand->type.spec == SPEC_FIXED );
-      return true;
-   }
-   // Reference type.
-   else {
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      return perform_primitive_inc( semantic, inc, operand, result );
+   default:
       return false;
    }
+}
+
+static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand, struct result* result ) {
+   switch ( operand->type.spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+      break;
+   default:
+      return false;
+   }
+   s_init_type_info_scalar( &result->type, operand->type.spec );
+   result->complete = true;
+   result->usable = true;
+   inc->fixed = ( operand->type.spec == SPEC_FIXED );
+   return true;
 }
 
 void test_cast( struct semantic* semantic, struct expr_test* test,

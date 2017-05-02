@@ -622,3 +622,29 @@ bool s_is_struct( struct type_info* type ) {
       ( type->ref && type->ref->type == REF_STRUCTURE ) ||
       ( ! type->ref && type->spec == SPEC_STRUCT ) ) );
 }
+
+enum type_description s_describe_type( struct type_info* type ) {
+   if ( type->dim ) {
+      return TYPEDESC_ARRAY;
+   }
+   else if ( type->ref ) {
+      switch ( type->ref->type ) {
+      case REF_STRUCTURE: return TYPEDESC_STRUCTREF;
+      case REF_ARRAY: return TYPEDESC_ARRAYREF;
+      case REF_FUNCTION: return TYPEDESC_FUNCREF;
+      case REF_NULL: return TYPEDESC_NULLREF;
+      default:
+         UNREACHABLE();
+         return TYPEDESC_NONE;
+      }
+   }
+   else if ( type->structure ) {
+      return TYPEDESC_STRUCT;
+   }
+   else if ( type->enumeration ) {
+      return TYPEDESC_ENUM;
+   }
+   else {
+      return TYPEDESC_PRIMITIVE;
+   }
+}
