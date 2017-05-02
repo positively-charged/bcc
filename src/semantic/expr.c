@@ -28,11 +28,12 @@ struct call_test {
    bool format_param;
 };
 
+static void test_nested_expr( struct semantic* semantic,
+   struct expr_test* parent_test, struct expr_test* test, struct expr* expr );
 static void test_root( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct expr* expr );
-static void test_nested_root( struct semantic* semantic,
-   struct expr_test* parent, struct expr_test* test, struct result* result,
    struct expr* expr );
+static void test_root_with_result( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct expr* expr );
 static void init_result( struct result* result );
 static void test_operand( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node );
@@ -122,8 +123,8 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
-static void test_int_arg( struct semantic* semantic,
-   struct expr_test* expr_test, struct expr* arg );
+static void test_int_arg( struct semantic* semantic, struct expr_test* test,
+   struct expr* expr );
 static void test_buildmsg( struct semantic* semantic,
    struct expr_test* expr_test, struct call* call );
 static void add_nested_call( struct func* func, struct call* call );
@@ -229,13 +230,23 @@ void s_init_expr_test_enumerator( struct expr_test* test,
 void s_test_expr( struct semantic* semantic, struct expr_test* test,
    struct expr* expr ) {
    if ( setjmp( test->bail ) == 0 ) {
-      struct result result;
-      init_result( &result );
-      test_root( semantic, test, &result, expr );
-      s_init_type_info_copy( &test->type, &result.type );
+      test_root( semantic, test, expr );
    }
    else {
       test->undef_erred = true;
+   }
+}
+
+static void test_nested_expr( struct semantic* semantic,
+   struct expr_test* parent_test, struct expr_test* test, struct expr* expr ) {
+   if ( setjmp( test->bail ) == 0 ) {
+      test_root( semantic, test, expr );
+      if ( test->has_str ) {
+         parent_test->has_str = true;
+      }
+   }
+   else {
+      longjmp( parent_test->bail, 1 );
    }
 }
 
@@ -244,7 +255,7 @@ void s_test_bool_expr( struct semantic* semantic, struct expr* expr ) {
    s_init_expr_test( &test, true, true );
    struct result result;
    init_result( &result );
-   test_root( semantic, &test, &result, expr );
+   test_root_with_result( semantic, &test, &result, expr );
    if ( ! can_convert_to_boolean( semantic, &result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
          "expression cannot be converted to a boolean value" );
@@ -252,8 +263,15 @@ void s_test_bool_expr( struct semantic* semantic, struct expr* expr ) {
    }
 }
 
-void test_root( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct expr* expr ) {
+static void test_root( struct semantic* semantic, struct expr_test* test,
+   struct expr* expr ) {
+   struct result result;
+   init_result( &result );
+   test_root_with_result( semantic, test, &result, expr );
+}
+
+static void test_root_with_result( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct expr* expr ) {
    test_operand( semantic, test, result, expr->root );
    if ( ! result->complete ) {
       s_diag( semantic, DIAG_POS_ERR, &expr->pos,
@@ -271,24 +289,7 @@ void test_root( struct semantic* semantic, struct expr_test* test,
    expr->folded = result->folded;
    expr->value = result->value;
    expr->has_str = test->has_str;
-}
-
-void test_nested_root( struct semantic* semantic, struct expr_test* parent,
-   struct expr_test* test, struct result* result, struct expr* expr ) {
-   if ( setjmp( test->bail ) == 0 ) {
-      test_root( semantic, test, result, expr );
-      parent->has_str = test->has_str;
-   }
-   else {
-      longjmp( parent->bail, 1 );
-   }
-}
-
-void test_nested_expr( struct semantic* semantic, struct expr_test* parent,
-   struct result* result, struct expr* expr ) {
-   struct expr_test test;
-   s_init_expr_test( &test, true, false );
-   test_nested_root( semantic, parent, &test, result, expr );
+   s_init_type_info_copy( &test->type, &result->type );
 }
 
 void init_result( struct result* result ) {
@@ -1310,8 +1311,8 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
 
 void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct result* lside, struct subscript* subscript ) {
-   struct result index;
-   init_result( &index );
+   struct expr_test index;
+   s_init_expr_test( &index, true, false );
    test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
    if ( ! s_same_type( &index.type, &semantic->type_int ) ) {
@@ -1330,9 +1331,9 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    case SUBSCRIPTRESULT_SUBARRAY:
       result->data_origin = lside->data_origin;
       if ( lside->dim ) {
-         if ( index.folded ) {
+         if ( subscript->index->folded ) {
             result->value = lside->value +
-               lside->dim->element_size * index.value;
+               lside->dim->element_size * subscript->index->value;
             result->folded = true;
          }
          result->dim = lside->dim->next;
@@ -1370,8 +1371,8 @@ void warn_bounds_violation( struct semantic* semantic,
 
 void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct result* lside, struct subscript* subscript ) {
-   struct result index;
-   init_result( &index );
+   struct expr_test index;
+   s_init_expr_test( &index, true, false );
    test_nested_expr( semantic, test, &index, subscript->index );
    // Index must be of integer type.
    if ( ! s_same_type( &index.type, &semantic->type_int ) ) {
@@ -1665,11 +1666,9 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
 
 void test_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
-   struct result result;
-   init_result( &result );
-   struct expr_test nested_test;
-   s_init_expr_test( &nested_test, true, false );
-   test_nested_root( semantic, test, &nested_test, &result, item->value );
+   struct expr_test arg;
+   s_init_expr_test( &arg, true, false );
+   test_nested_expr( semantic, test, &arg, item->value );
    int spec = SPEC_INT;
    switch ( item->cast ) {
    case FCAST_BINARY:
@@ -1694,8 +1693,8 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    }
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, spec );
-   if ( ! s_instance_of( &required_type, &result.type ) ) {
-      s_type_mismatch( semantic, "argument", &result.type,
+   if ( ! s_instance_of( &required_type, &arg.type ) ) {
+      s_type_mismatch( semantic, "argument", &arg.type,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
    }
@@ -1703,18 +1702,16 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
 
 void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    struct format_item* item ) {
-   struct expr_test nested;
-   s_init_expr_test( &nested, false, false );
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, test, &nested, &root, item->value );
+   struct expr_test arg;
+   s_init_expr_test( &arg, false, false );
+   test_nested_expr( semantic, test, &arg, item->value );
    static struct ref_array array = {
       { NULL, { 0, 0, 0 }, REF_ARRAY, true, false }, 1, STORAGE_MAP, 0 };
    struct type_info required_type;
    s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
       s_spec( semantic, SPEC_INT ), STORAGE_MAP );
-   if ( ! s_instance_of( &required_type, &root.type ) ) {
-      s_type_mismatch( semantic, "argument", &root.type,
+   if ( ! s_instance_of( &required_type, &arg.type ) ) {
+      s_type_mismatch( semantic, "argument", &arg.type,
          "required", &required_type, &item->value->pos );
       s_bail( semantic );
    }
@@ -1727,18 +1724,16 @@ void test_array_format_item( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_int_arg( struct semantic* semantic, struct expr_test* expr_test,
-   struct expr* arg ) {
-   struct expr_test nested_expr_test;
-   s_init_expr_test( &nested_expr_test, true, false );
-   struct result root;
-   init_result( &root );
-   test_nested_root( semantic, expr_test, &nested_expr_test, &root, arg );
+static void test_int_arg( struct semantic* semantic, struct expr_test* test,
+   struct expr* expr ) {
+   struct expr_test arg;
+   s_init_expr_test( &arg, true, false );
+   test_nested_expr( semantic, test, &arg, expr );
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, SPEC_INT );
-   if ( ! s_instance_of( &required_type, &root.type ) ) {
-      s_type_mismatch( semantic, "argument", &root.type,
-         "required", &required_type, &arg->pos );
+   if ( ! s_instance_of( &required_type, &arg.type ) ) {
+      s_type_mismatch( semantic, "argument", &arg.type,
+         "required", &required_type, &expr->pos );
       s_bail( semantic );
    }
 }
@@ -1820,22 +1815,20 @@ void test_remaining_args( struct semantic* semantic,
 void test_remaining_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test, struct param* param,
    struct expr* expr ) {
-   struct expr_test nested;
-   s_init_expr_test( &nested, true, false );
-   struct result result;
-   init_result( &result );
-   test_nested_root( semantic, expr_test, &nested, &result, expr );
+   struct expr_test arg;
+   s_init_expr_test( &arg, true, false );
+   test_nested_expr( semantic, expr_test, &arg, expr );
    if ( param ) {
       struct type_info param_type;
       s_init_type_info( &param_type, param->ref, param->structure,
          param->enumeration, NULL, param->spec, STORAGE_LOCAL );
-      if ( ! s_instance_of( &param_type, &result.type ) ) {
-         arg_mismatch( semantic, &expr->pos, &result.type,
+      if ( ! s_instance_of( &param_type, &arg.type ) ) {
+         arg_mismatch( semantic, &expr->pos, &arg.type,
             "parameter", &param_type, "argument", test->num_args + 1 );
          s_bail( semantic );
       }
-      if ( result.func && result.func->type == FUNC_USER ) {
-         struct func_user* impl = result.func->impl;
+      if ( arg.func && arg.func->type == FUNC_USER ) {
+         struct func_user* impl = arg.func->impl;
          if ( impl->local ) {
             s_diag( semantic, DIAG_POS_ERR, &expr->pos,
                "passing a local function as an argument" );
@@ -1844,9 +1837,9 @@ void test_remaining_arg( struct semantic* semantic,
       }
    }
    ++test->num_args;
-   if ( s_is_ref_type( &result.type ) && result.data_origin ) {
-      result.data_origin->addr_taken = true;
-      if ( ! result.data_origin->hidden ) {
+   if ( s_is_ref_type( &arg.type ) && arg.var ) {
+      arg.var->addr_taken = true;
+      if ( ! arg.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &expr->pos,
             "non-private argument (references only work with private "
             "map variables)" );
@@ -2492,9 +2485,9 @@ void select_alias( struct semantic* semantic, struct expr_test* test,
 void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
    // Array.
-   struct result arg;
-   init_result( &arg );
-   test_root( semantic, test, &arg, call->array );
+   struct expr_test arg;
+   s_init_expr_test( &arg, false, false );
+   test_nested_expr( semantic, test, &arg, call->array );
    if ( ! s_is_onedim_int_array_ref( semantic, &arg.type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
          "array argument not a one-dimensional, "
@@ -2503,18 +2496,18 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    }
    // Array-offset.
    if ( call->array_offset ) {
-      init_result( &arg );
-      test_root( semantic, test, &arg, call->array_offset );
-      if ( ! ( arg.usable && s_is_int_value( &arg.type ) ) ) {
+      s_init_expr_test( &arg, true, false );
+      test_nested_expr( semantic, test, &arg, call->array_offset );
+      if ( ! s_is_int_value( &arg.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->array_offset->pos,
             "array-offset argument not an integer value" );
          s_bail( semantic );
       }
       // Array-length.
       if ( call->array_length ) {
-         init_result( &arg );
-         test_root( semantic, test, &arg, call->array_length );
-         if ( ! ( arg.usable && s_is_int_value( &arg.type ) ) ) {
+         s_init_expr_test( &arg, true, false );
+         test_nested_expr( semantic, test, &arg, call->array_length );
+         if ( ! s_is_int_value( &arg.type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &call->array_length->pos,
                "array-length argument not an integer value" );
             s_bail( semantic );
@@ -2522,18 +2515,18 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
       }
    }
    // String.
-   init_result( &arg );
-   test_root( semantic, test, &arg, call->string );
-   if ( ! ( arg.usable && s_is_str_value( &arg.type ) ) ) {
+   s_init_expr_test( &arg, true, false );
+   test_nested_expr( semantic, test, &arg, call->string );
+   if ( ! s_is_str_value( &arg.type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->string->pos,
          "string argument not a string value" );
       s_bail( semantic );
    }
    // String-offset.
    if ( call->offset ) {
-      init_result( &arg );
-      test_root( semantic, test, &arg, call->offset );
-      if ( ! ( arg.usable && s_is_int_value( &arg.type ) ) ) {
+      s_init_expr_test( &arg, true, false );
+      test_nested_expr( semantic, test, &arg, call->offset );
+      if ( ! s_is_int_value( &arg.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->offset->pos,
             "string-offset argument not an integer value" );
          s_bail( semantic );
@@ -2547,9 +2540,9 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
 void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call ) {
    // Destination.
-   struct result dst;
-   init_result( &dst );
-   test_root( semantic, test, &dst, call->destination );
+   struct expr_test dst;
+   s_init_expr_test( &dst, false, false );
+   test_nested_expr( semantic, test, &dst, call->destination );
    if ( ! ( s_is_array_ref( &dst.type ) || s_is_struct( &dst.type ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->destination->pos,
          "destination not an array or structure" );
@@ -2564,9 +2557,9 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    }
    // Destination-offset.
    if ( call->destination_offset ) {
-      struct result arg;
-      init_result( &arg );
-      test_root( semantic, test, &arg, call->destination_offset );
+      struct expr_test arg;
+      s_init_expr_test( &arg, true, false );
+      test_nested_expr( semantic, test, &arg, call->destination_offset );
       if ( ! s_is_int_value( &arg.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->destination_offset->pos,
             "destination-offset not an integer value" );
@@ -2574,8 +2567,8 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
       }
       // Destination-length.
       if ( call->destination_length ) {
-         init_result( &arg );
-         test_root( semantic, test, &arg, call->destination_length );
+         s_init_expr_test( &arg, true, false );
+         test_nested_expr( semantic, test, &arg, call->destination_length );
          if ( ! s_is_int_value( &arg.type ) ) {
             s_diag( semantic, DIAG_POS_ERR, &call->destination_length->pos,
                "destination-length not an integer value" );
@@ -2584,9 +2577,9 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
       }
    }
    // Source.
-   struct result src;
-   init_result( &src );
-   test_root( semantic, test, &src, call->source );
+   struct expr_test src;
+   s_init_expr_test( &src, false, false );
+   test_nested_expr( semantic, test, &src, call->source );
    if ( ! s_same_type( &src.type, &dst.type ) ) {
       s_type_mismatch( semantic, "source", &src.type,
          "destination", &dst.type, &call->source->pos );
@@ -2594,9 +2587,9 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    }
    // Source-offset.
    if ( call->source_offset ) {
-      struct result arg;
-      init_result( &arg );
-      test_root( semantic, test, &arg, call->source_offset );
+      struct expr_test arg;
+      s_init_expr_test( &arg, true, false );
+      test_nested_expr( semantic, test, &arg, call->source_offset );
       if ( ! s_is_int_value( &arg.type ) ) {
          s_diag( semantic, DIAG_POS_ERR, &call->source_offset->pos,
             "source-offset not an integer value" );
