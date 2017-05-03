@@ -103,10 +103,21 @@ static void test_subscript_str( struct semantic* semantic,
    struct subscript* subscript );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
-static struct object* access_object( struct semantic* semantic,
-   struct access* access, struct result* lside );
-static void unknown_member( struct semantic* semantic, struct access* access,
+static void test_access_struct( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result );
+static struct structure_member* get_structure_member(
+   struct semantic* semantic, struct expr_test* test, struct access* access,
    struct result* lside );
+static void test_access_ns( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result );
+static void test_access_array( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result );
+static void test_access_str( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result );
 static void test_call( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct call* call );
 static void init_call_test( struct call_test* test, struct call* call );
@@ -174,10 +185,13 @@ static void select_var( struct semantic* semantic, struct result* result,
    struct var* var );
 static void select_param( struct semantic* semantic, struct result* result,
    struct param* param );
-static void select_member( struct semantic* semantic, struct result* result,
+static void select_structure_member( struct semantic* semantic,
+   struct result* lside, struct result* result,
    struct structure_member* member );
 static void select_func( struct semantic* semantic, struct result* result,
    struct func* func );
+static void select_ns( struct semantic* semantic, struct result* result,
+   struct ns* ns );
 static void select_alias( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct alias* alias );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
@@ -1400,83 +1414,46 @@ void test_access( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, access->lside );
-   struct object* object = access_object( semantic, access, &lside );
-   if ( ! object ) {
-      unknown_member( semantic, access, &lside );
-      s_bail( semantic );
+   if ( s_is_struct( &lside.type ) ) {
+      test_access_struct( semantic, test, access, &lside, result );
    }
-   if ( ! object->resolved && object->node.type != NODE_NAMESPACE ) {
-      if ( semantic->trigger_err ) {
-         s_diag( semantic, DIAG_POS_ERR, &access->pos,
-            "right operand (`%s`) undefined", access->name );
-         s_bail( semantic );
-      }
-      else {
-         test->undef_erred = true;
-         longjmp( test->bail, 1 );
-      }
+   else if ( lside.object && lside.object->node.type == NODE_NAMESPACE ) {
+      test_access_ns( semantic, test, access, &lside, result );
    }
-   select_object( semantic, test, result, object );
-   access->rside = &object->node;
-   if ( object->node.type == NODE_STRUCTURE_MEMBER ) {
-      struct structure_member* member = ( struct structure_member* ) object;
-      if ( member->dim ) {
-         struct ref_array* array =
-            ( struct ref_array* ) result->type.ref;
-         array->storage = lside.type.storage;
-      }
-      else if ( ! member->ref && member->structure ) {
-         struct ref_struct* structure =
-            ( struct ref_struct* ) result->type.ref;
-         structure->storage = lside.type.storage;
-      }
-      result->type.storage = lside.type.storage;
-      result->data_origin = lside.data_origin;
+   else if ( s_is_array_ref( &lside.type ) ) {
+      test_access_array( semantic, test, access, &lside, result );
    }
-}
-
-struct object* access_object( struct semantic* semantic, struct access* access,
-   struct result* lside ) {
-   if ( s_is_struct( &lside->type ) ) {
-      struct name* name = t_extend_name( lside->type.structure->body,
-         access->name );
-      if ( lside->type.ref && lside->type.ref->nullable ) {
-         semantic->lib->uses_nullable_refs = true;
-      }
-      return name->object;
-   }
-   else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
-      access->type = ACCESS_NAMESPACE;
-      return s_get_ns_object( ( struct ns* ) lside->object, access->name,
-         NODE_NONE );
-   }
-   else if ( s_is_array_ref( &lside->type ) ) {
-      access->type = ACCESS_ARRAY;
-      struct name* name = t_extend_name( semantic->task->array_name, "." );
-      name = t_extend_name( name, access->name );
-      if ( lside->type.ref && lside->type.ref->nullable ) {
-         semantic->lib->uses_nullable_refs = true;
-      }
-      return name->object;
-   }
-   else if ( s_is_value_type( &lside->type ) &&
-      lside->type.spec == SPEC_STR ) {
-      access->type = ACCESS_STR;
-      struct name* name = t_extend_name( semantic->task->str_name, "." );
-      name = t_extend_name( name, access->name );
-      return name->object;
+   else if ( s_is_value_type( &lside.type ) &&
+      lside.type.spec == SPEC_STR ) {
+      test_access_str( semantic, test, access, &lside, result );
    }
    else {
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
          "left operand does not support member access" );
       s_bail( semantic );
-      return NULL;
    }
 }
 
-void unknown_member( struct semantic* semantic, struct access* access,
+static void test_access_struct( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result ) {
+   struct structure_member* member =
+      get_structure_member( semantic, test, access, lside );
+   access->rside = &member->object.node;
+   select_structure_member( semantic, lside, result, member );
+   result->data_origin = lside->data_origin;
+   if ( lside->type.ref && lside->type.ref->nullable ) {
+      semantic->lib->uses_nullable_refs = true;
+   }
+}
+
+static struct structure_member* get_structure_member(
+   struct semantic* semantic, struct expr_test* test, struct access* access,
    struct result* lside ) {
-   if ( s_is_struct( &lside->type ) ) {
+   struct name* name = t_extend_name( lside->type.structure->body,
+      access->name );
+   if ( ! ( name->object &&
+      name->object->node.type == NODE_STRUCTURE_MEMBER ) ) {
       if ( lside->type.structure->anon ) {
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of anonymous struct", access->name );
@@ -1490,23 +1467,73 @@ void unknown_member( struct semantic* semantic, struct access* access,
             str.value );
          str_deinit( &str );
       }
+      s_bail( semantic );
    }
-   else if ( lside->object && lside->object->node.type == NODE_NAMESPACE ) {
-      s_unknown_ns_object( semantic, ( struct ns* ) lside->object,
-         access->name, &access->pos );
+   if ( ! name->object->resolved ) {
+      if ( semantic->trigger_err ) {
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
+            "struct member (`%s`) undefined", access->name );
+         s_bail( semantic );
+      }
+      else {
+         test->undef_erred = true;
+         longjmp( test->bail, 1 );
+      }
    }
-   else if ( s_is_array_ref( &lside->type ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "`%s` not a property of an array", access->name );
+   return ( struct structure_member* ) name->object;
+}
+
+static void test_access_ns( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result ) {
+   struct ns* ns = ( struct ns* ) lside->object;
+   struct object* object = s_get_ns_object( ns, access->name, NODE_NONE );
+   if ( ! object ) {
+      s_unknown_ns_object( semantic, ns, access->name, &access->pos );
+      s_bail( semantic );
    }
-   else if ( s_is_value_type( &lside->type ) &&
-      lside->type.spec == SPEC_STR ) {
-      s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "`%s` not a member of `str` type", access->name );
+   if ( ! object->resolved && object->node.type != NODE_NAMESPACE ) {
+      if ( semantic->trigger_err ) {
+         s_diag( semantic, DIAG_POS_ERR, &access->pos,
+            "right operand (`%s`) undefined", access->name );
+         s_bail( semantic );
+      }
+      else {
+         test->undef_erred = true;
+         longjmp( test->bail, 1 );
+      }
    }
-   else {
+   switch ( object->node.type ) {
+   case NODE_CONSTANT:
+      select_constant( semantic, test, result, 
+         ( struct constant* ) object );
+      break;
+   case NODE_ENUMERATOR:
+      select_enumerator( semantic, test, result,
+         ( struct enumerator* ) object );
+      break;
+   case NODE_VAR:
+      select_var( semantic, result,
+         ( struct var* ) object );
+      break;
+   case NODE_FUNC:
+      select_func( semantic, result,
+         ( struct func* ) object );
+      break;
+   case NODE_NAMESPACE:
+      select_ns( semantic, result,
+         ( struct ns* ) object );
+      break;
+   case NODE_ALIAS:
+      select_alias( semantic, test, result,
+         ( struct alias* ) object );
+      break;
+   default:
       UNREACHABLE();
+      s_bail( semantic );
    }
+   access->type = ACCESS_NAMESPACE;
+   access->rside = &object->node;
 }
 
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
@@ -1524,6 +1551,55 @@ void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
          name.value );
       str_deinit( &name );
    }
+}
+
+static void test_access_array( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result ) {
+   struct name* name = t_extend_name( semantic->task->array_name, "." );
+   name = t_extend_name( name, access->name );
+   if ( ! name->object ) {
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "`%s` not a member of the array type", access->name );
+      s_bail( semantic );
+   }
+   switch ( name->object->node.type ) {
+   case NODE_FUNC:
+      select_func( semantic, result,
+         ( struct func* ) name->object );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   access->type = ACCESS_ARRAY;
+   access->rside = &name->object->node;
+   if ( lside->type.ref && lside->type.ref->nullable ) {
+      semantic->lib->uses_nullable_refs = true;
+   }
+}
+
+static void test_access_str( struct semantic* semantic,
+   struct expr_test* test, struct access* access, struct result* lside,
+   struct result* result ) {
+   struct name* name = t_extend_name( semantic->task->str_name, "." );
+   name = t_extend_name( name, access->name );
+   if ( ! name->object ) {
+      s_diag( semantic, DIAG_POS_ERR, &access->pos,
+         "`%s` not a member of the `str` type", access->name );
+      s_bail( semantic );
+   }
+   switch ( name->object->node.type ) {
+   case NODE_FUNC:
+      select_func( semantic, result,
+         ( struct func* ) name->object );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   access->type = ACCESS_STR;
+   access->rside = &name->object->node;
 }
 
 void test_call( struct semantic* semantic, struct expr_test* expr_test,
@@ -2294,16 +2370,13 @@ void select_object( struct semantic* semantic, struct expr_test* test,
       select_param( semantic, result,
          ( struct param* ) object );
       break;
-   case NODE_STRUCTURE_MEMBER:
-      select_member( semantic, result,
-         ( struct structure_member* ) object );
-      break;
    case NODE_FUNC:
       select_func( semantic, result,
          ( struct func* ) object );
       break;
    case NODE_NAMESPACE:
-      result->object = object;
+      select_ns( semantic, result,
+         ( struct ns* ) object );
       break;
    case NODE_ALIAS:
       select_alias( semantic, test, result,
@@ -2406,31 +2479,37 @@ void select_param( struct semantic* semantic, struct result* result,
    param->used = true;
 }
 
-void select_member( struct semantic* semantic, struct result* result,
+static void select_structure_member( struct semantic* semantic,
+   struct result* lside, struct result* result,
    struct structure_member* member ) {
+   int storage = lside->type.storage;
+   if ( lside->type.ref ) {
+      struct ref_struct* structure = ( struct ref_struct* ) lside->type.ref;
+      storage = structure->storage;
+   }
    // Array member.
    if ( member->dim ) {
       s_init_type_info( &result->type, member->ref, member->structure,
-         member->enumeration, member->dim, member->spec, STORAGE_LOCAL );
+         member->enumeration, member->dim, member->spec, storage );
       s_decay( semantic, &result->type );
       result->dim = member->dim;
    }
    // Reference member.
    else if ( member->ref ) {
       s_init_type_info( &result->type, member->ref, member->structure,
-         member->enumeration, NULL, member->spec, STORAGE_LOCAL );
+         member->enumeration, NULL, member->spec, storage );
       result->modifiable = true;
    }
    // Structure member.
    else if ( member->structure ) {
       s_init_type_info( &result->type, NULL, member->structure, NULL, NULL,
-         member->spec, STORAGE_LOCAL );
+         member->spec, storage );
       s_decay( semantic, &result->type );
    }
    // Primitive member.
    else {
       s_init_type_info( &result->type, NULL, NULL, member->enumeration, NULL,
-         s_spec( semantic, member->spec ), STORAGE_LOCAL );
+         s_spec( semantic, member->spec ), storage );
       s_decay( semantic, &result->type );
       result->modifiable = true;
    }
@@ -2475,6 +2554,11 @@ void select_func( struct semantic* semantic, struct result* result,
       s_init_type_info_builtin_func( &result->type );
    }
    result->func = func;
+}
+
+static void select_ns( struct semantic* semantic, struct result* result,
+   struct ns* ns ) {
+   result->object = &ns->object;
 }
 
 void select_alias( struct semantic* semantic, struct expr_test* test,
