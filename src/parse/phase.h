@@ -554,5 +554,7 @@ void p_init_paren_reading( struct parse* parse,
    struct paren_reading* reading );
 void p_read_paren_type( struct parse* parse, struct paren_reading* reading );
 void p_add_altern_file_name( struct parse* parse, const char* name, int line );
+bool p_peek_type_path_from_iter( struct parse* parse,
+   struct parsertk_iter* iter );
 
 #endif

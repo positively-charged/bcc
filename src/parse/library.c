@@ -490,6 +490,35 @@ bool p_peek_type_path( struct parse* parse ) {
    }
 }
 
+bool p_peek_type_path_from_iter( struct parse* parse,
+   struct parsertk_iter* iter ) {
+   if ( iter->token->type == TK_TYPENAME ) {
+      return true;
+   }
+   else if (
+      iter->token->type == TK_ID ||
+      iter->token->type == TK_UPMOST ||
+      iter->token->type == TK_NAMESPACE ) {
+      p_next_tk( parse, iter );
+      while ( iter->token->type == TK_DOT ) {
+         p_next_tk( parse, iter );
+         if ( iter->token->type == TK_TYPENAME ) {
+            return true;
+         }
+         else if ( iter->token->type == TK_ID ) {
+            p_next_tk( parse, iter );
+         }
+         else {
+            break;
+         }
+      }
+      return false;
+   }
+   else {
+      return false;
+   }
+}
+
 struct path* p_read_type_path( struct parse* parse ) {
    if ( parse->tk == TK_TYPENAME ) {
       struct path* path = alloc_path( parse->tk_pos );

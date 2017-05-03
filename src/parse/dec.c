@@ -1736,6 +1736,16 @@ bool p_is_paren_type( struct parse* parse ) {
             }
          }
          break;
+      case TK_ID:
+      case TK_UPMOST:
+      case TK_NAMESPACE:
+         {
+            struct parsertk_iter iter;
+            p_init_parsertk_iter( parse, &iter );
+            p_next_tk( parse, &iter );
+            return p_peek_type_path_from_iter( parse, &iter );
+         }
+         break;
       default:
          break;
       }
