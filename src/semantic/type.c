@@ -16,8 +16,6 @@ static void present_spec( int spec, struct str* string );
 static void present_ref( struct ref* ref, struct str* string );
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
-static void subscript_array_type( struct semantic* semantic,
-   struct type_info* type, struct type_info* element_type );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
@@ -461,7 +459,7 @@ void s_iterate_type( struct semantic* semantic, struct type_info* type,
    }
    else if ( s_is_array_ref( type ) ) {
       s_init_type_info_scalar( &iter->key, s_spec( semantic, SPEC_INT ) );
-      subscript_array_type( semantic, type, &iter->value );
+      s_subscript_array_ref( semantic, type, &iter->value );
       iter->available = true;
    }
    else {
@@ -475,52 +473,6 @@ bool s_is_str_value_type( struct type_info* type ) {
 
 bool s_is_array_ref( struct type_info* type ) {
    return ( type->dim || ( type->ref && type->ref->type == REF_ARRAY ) );
-}
-
-void subscript_array_type( struct semantic* semantic, struct type_info* type,
-   struct type_info* element_type ) {
-   if ( type->dim ) {
-      s_init_type_info( element_type, type->ref, type->structure,
-         type->enumeration, type->dim->next, type->spec, type->storage );
-      s_decay( semantic, element_type );
-   }
-   else if ( type->ref && type->ref->type == REF_ARRAY ) {
-      s_init_type_info( element_type, type->ref, type->structure,
-         type->enumeration, NULL, type->spec, STORAGE_LOCAL );
-      struct ref_array* array = ( struct ref_array* ) type->ref;
-      if ( array->dim_count > 1 ) {
-         struct ref_array* implicit_array = &element_type->implicit_ref.array;
-         implicit_array->ref.next = array->ref.next;
-         implicit_array->ref.type = REF_ARRAY;
-         implicit_array->ref.nullable = false;
-         implicit_array->ref.implicit = true;
-         implicit_array->dim_count = array->dim_count - 1;
-         implicit_array->storage = STORAGE_MAP;
-         element_type->ref = &implicit_array->ref;
-      }
-      else if ( type->ref->next ) {
-         element_type->ref = element_type->ref->next;
-      }
-      else if ( type->structure ) {
-         struct ref_struct* implicit_ref =
-            &element_type->implicit_ref.structure;
-         implicit_ref->ref.next = NULL;
-         implicit_ref->ref.type = REF_STRUCTURE;
-         implicit_ref->ref.nullable = false;
-         implicit_ref->ref.implicit = true;
-         implicit_ref->storage = STORAGE_MAP;
-         element_type->ref = &implicit_ref->ref;
-         element_type->structure = type->structure;
-         element_type->spec = SPEC_STRUCT;
-      }
-      else {
-         element_type->ref = NULL;
-         element_type->spec = s_spec( semantic, type->spec );
-      }
-   }
-   else {
-      UNREACHABLE();
-   }
 }
 
 enum subscript_result s_subscript_array_ref( struct semantic* semantic,
