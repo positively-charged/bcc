@@ -40,9 +40,19 @@ static void test_operand( struct semantic* semantic, struct expr_test* test,
 static void test_binary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct binary* binary );
 static bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct type_info* lside, struct type_info* rside, struct result* result );
+   struct result* lside, struct result* rside, struct result* result );
+static bool perform_bop_primitive( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result );
+static bool perform_bop_ref( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside, struct result* result );
+static void invalid_bop( struct semantic* semantic, struct binary* binary,
+   struct result* operand );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
+static void fold_bop_primitive( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result );
 static void fold_bop_int( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside );
 static void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
@@ -51,6 +61,8 @@ static void fold_bop_bool( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside );
 static void fold_bop_str( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside );
+static void fold_bop_str_compare( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside );
 static void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct logical* logical );
 static bool perform_logical( struct semantic* semantic,
@@ -346,14 +358,14 @@ void test_operand( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_binary( struct semantic* semantic, struct expr_test* test,
+static void test_binary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct binary* binary ) {
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, binary->lside );
    if ( ! lside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "left operand unusable" );
+         "left operand not a value" );
       s_bail( semantic );
    }
    struct result rside;
@@ -361,7 +373,7 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &rside, binary->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "right operand unusable" );
+         "right operand not a value" );
       s_bail( semantic );
    }
    if ( ! s_same_type( &lside.type, &rside.type ) ) {
@@ -369,9 +381,24 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
          "right-operand", &rside.type, &binary->pos );
       s_bail( semantic );
    }
-   if ( ! perform_bop( semantic, binary, &lside.type, &rside.type, result ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &binary->pos,
-         "invalid binary operation" );
+   // Implicit `raw` cast: 
+   // Mixing a `raw` operand with an operand of another type will implicitly
+   // cast the other operand to `raw`. I don't like this being here. Since
+   // this cast happens here only, it will do for now. This cast will probably
+   // be better off done in the type.c file.
+   switch ( s_describe_type( &lside.type ) ) {
+   case TYPEDESC_PRIMITIVE:
+   case TYPEDESC_ENUM:
+      if ( lside.type.spec == SPEC_RAW || rside.type.spec == SPEC_RAW ) {
+         lside.type.spec = SPEC_RAW;
+         rside.type.spec = SPEC_RAW;
+      }
+      break;
+   default:
+      break;
+   }
+   if ( ! perform_bop( semantic, binary, &lside, &rside, result ) ) {
+      invalid_bop( semantic, binary, &lside );
       s_bail( semantic );
    }
    // Compile-time evaluation.
@@ -380,142 +407,190 @@ void test_binary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_bop( struct semantic* semantic, struct binary* binary,
-   struct type_info* lside, struct type_info* rside, struct result* result ) {
-   // Value type.
-   if ( s_is_value_type( lside ) ) {
-      int spec = SPEC_NONE;
-      switch ( binary->op ) {
-      case BOP_EQ:
-      case BOP_NEQ:
-         switch ( lside->spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_BOOL:
-         case SPEC_STR:
-            spec = s_spec( semantic, SPEC_BOOL );
-            break;
-         default:
-            break;
-         }
-         break;
-      case BOP_BIT_OR:
-      case BOP_BIT_XOR:
-      case BOP_BIT_AND:
-      case BOP_SHIFT_L:
-      case BOP_SHIFT_R:
-      case BOP_MOD:
-         switch ( lside->spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-            spec = lside->spec;
-            break;
-         default:
-            break;
-         }
-         break;
-      case BOP_LT:
-      case BOP_LTE:
-      case BOP_GT:
-      case BOP_GTE:
-         switch ( lside->spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_STR:
-            spec = s_spec( semantic, SPEC_BOOL );
-            break;
-         default:
-            break;
-         }
-         break;
-      case BOP_ADD:
-         switch ( lside->spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_STR:
-            spec = lside->spec;
-            break;
-         default:
-            break;
-         }
-         break;
-      case BOP_SUB:
-      case BOP_MUL:
-      case BOP_DIV:
-         switch ( lside->spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-            spec = lside->spec;
-            break;
-         default:
-            break;
-         }
+static bool perform_bop( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside, struct result* result ) {
+   switch ( s_describe_type( &lside->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+   case TYPEDESC_ENUM:
+      return perform_bop_primitive( semantic, binary, lside, rside, result );
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      return perform_bop_ref( semantic, binary, lside, rside, result );
+   default:
+      UNREACHABLE();
+      return false;
+   }
+}
+
+static bool perform_bop_primitive( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result ) {
+   if ( lside->type.spec == SPEC_RAW || rside->type.spec == SPEC_RAW ) {
+      lside->type.spec = SPEC_RAW;
+      rside->type.spec = SPEC_RAW;
+   }
+   int result_spec = SPEC_NONE;
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         result_spec = SPEC_BOOL;
          break;
       default:
          break;
       }
-      if ( spec == SPEC_NONE ) {
-         return false;
+      break;
+   case BOP_BIT_OR:
+   case BOP_BIT_XOR:
+   case BOP_BIT_AND:
+   case BOP_SHIFT_L:
+   case BOP_SHIFT_R:
+   case BOP_MOD:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         result_spec = lside->type.spec;
+         break;
+      default:
+         break;
       }
-      s_init_type_info_scalar( &result->type, spec );
+      break;
+   case BOP_LT:
+   case BOP_LTE:
+   case BOP_GT:
+   case BOP_GTE:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_STR:
+         result_spec = SPEC_BOOL;
+         break;
+      default:
+         break;
+      }
+      break;
+   case BOP_ADD:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_STR:
+         result_spec = lside->type.spec;
+         break;
+      default:
+         break;
+      }
+      break;
+   case BOP_SUB:
+   case BOP_MUL:
+   case BOP_DIV:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         result_spec = lside->type.spec;
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   if ( result_spec == SPEC_NONE ) {
+      return false;
+   }
+   s_init_type_info_scalar( &result->type, s_spec( semantic, result_spec ) );
+   result->complete = true;
+   result->usable = true;
+   binary->operand_type = lside->type.spec;
+   return true;
+}
+
+static bool perform_bop_ref( struct semantic* semantic, struct binary* binary,
+   struct result* lside, struct result* rside, struct result* result ) {
+   switch ( binary->op ) {
+   case BOP_EQ:
+   case BOP_NEQ:
+      if ( s_describe_type( &lside->type ) == TYPEDESC_FUNCREF ||
+         s_describe_type( &rside->type ) == TYPEDESC_FUNCREF ) {
+         binary->operand_type = BINARYOPERAND_REFFUNC;
+      }
+      else {
+         binary->operand_type = BINARYOPERAND_REF;
+      }
+      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
       result->complete = true;
       result->usable = true;
-      binary->operand_type = lside->spec;
-      if ( lside->spec == SPEC_RAW || rside->spec == SPEC_RAW ) {
-         s_init_type_info_scalar( &result->type, SPEC_RAW );
-         binary->operand_type = SPEC_RAW;
-      }
       return true;
-   }
-   // Reference type.
-   else {
-      switch ( binary->op ) {
-      case BOP_EQ:
-      case BOP_NEQ:
-         binary->operand_type = ( lside->ref->type == REF_FUNCTION ||
-            rside->ref->type == REF_FUNCTION ) ? BINARYOPERAND_REFFUNC :
-            BINARYOPERAND_REF;
-         s_init_type_info_scalar( &result->type,
-            s_spec( semantic, SPEC_BOOL ) );
-         result->complete = true;
-         result->usable = true;
-         return true;
-      default:
-         return false;
-      }
+   default:
+      return false;
    }
 }
 
-void fold_bop( struct semantic* semantic, struct binary* binary,
+static void invalid_bop( struct semantic* semantic, struct binary* binary,
+   struct result* operand ) {
+   struct str type;
+   str_init( &type );
+   s_present_type( &operand->type, &type );
+   s_diag( semantic, DIAG_POS_ERR, &binary->pos,
+      "invalid binary operation for operand type (`%s`)",
+      type.value );
+   str_deinit( &type );
+}
+
+static void fold_bop( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result ) {
-   if ( s_is_value_type( &lside->type ) ) {
-      switch ( lside->type.spec ) {
-      case SPEC_INT:
-      case SPEC_RAW:
-         fold_bop_int( semantic, binary, lside, rside );
-         break;
-      case SPEC_FIXED:
-         fold_bop_fixed( semantic, binary, lside, rside );
-         break;
-      case SPEC_BOOL:
-         fold_bop_bool( semantic, binary, lside, rside );
-         break;
-      case SPEC_STR:
-         fold_bop_str( semantic, binary, lside, rside );
-         break;
-      default:
-         break;
-      }
-      result->value = binary->value;
-      result->folded = binary->folded;
+   switch ( s_describe_type( &lside->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+   case TYPEDESC_ENUM:
+      fold_bop_primitive( semantic, binary, lside, rside, result );
+      break;
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
    }
 }
 
-void fold_bop_int( struct semantic* semantic, struct binary* binary,
+static void fold_bop_primitive( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result ) {
+   switch ( lside->type.spec ) {
+   case SPEC_INT:
+   case SPEC_RAW:
+      fold_bop_int( semantic, binary, lside, rside );
+      break;
+   case SPEC_FIXED:
+      fold_bop_fixed( semantic, binary, lside, rside );
+      break;
+   case SPEC_BOOL:
+      fold_bop_bool( semantic, binary, lside, rside );
+      break;
+   case SPEC_STR:
+      fold_bop_str( semantic, binary, lside, rside );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   result->value = binary->value;
+   result->folded = binary->folded;
+}
+
+static void fold_bop_int( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside ) {
    int l = lside->value;
    int r = rside->value;
@@ -549,7 +624,7 @@ void fold_bop_int( struct semantic* semantic, struct binary* binary,
    binary->folded = true;
 }
 
-void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
+static void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside ) {
    switch ( binary->op ) {
    case BOP_EQ:
@@ -586,7 +661,7 @@ void fold_bop_fixed( struct semantic* semantic, struct binary* binary,
    binary->folded = true;
 }
 
-void fold_bop_bool( struct semantic* semantic, struct binary* binary,
+static void fold_bop_bool( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside ) {
    switch ( binary->op ) {
    case BOP_EQ:
@@ -607,30 +682,40 @@ void fold_bop_bool( struct semantic* semantic, struct binary* binary,
    binary->folded = true;
 }
 
-void fold_bop_str( struct semantic* semantic, struct binary* binary,
+static void fold_bop_str( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside ) {
    switch ( binary->op ) {
    case BOP_EQ:
    case BOP_NEQ:
-      break;
    case BOP_LT:
    case BOP_LTE:
    case BOP_GT:
    case BOP_GTE:
-      // TODO.
-      return;
-   default:
-      return;
-   }
-   int l = lside->value;
-   int r = rside->value;
-   switch ( binary->op ) {
-   case BOP_EQ: l = ( l == r ); break;
-   case BOP_NEQ: l = ( l != r ); break;
+      fold_bop_str_compare( semantic, binary, lside, rside );
+      break;
    default:
       break;
    }
-   binary->value = l;
+}
+
+static void fold_bop_str_compare( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside ) {
+   struct indexed_string* lside_str =
+      t_lookup_string( semantic->task, lside->value );
+   struct indexed_string* rside_str =
+      t_lookup_string( semantic->task, rside->value );
+   int result = strcmp( lside_str->value, rside_str->value );
+   switch ( binary->op ) {
+   case BOP_EQ: binary->value = ( result == 0 ); break;
+   case BOP_NEQ: binary->value = ( result != 0 ); break;
+   case BOP_LT: binary->value = ( result < 0 ); break;
+   case BOP_LTE: binary->value = ( result <= 0 ); break;
+   case BOP_GT: binary->value = ( result > 0 ); break;
+   case BOP_GTE: binary->value = ( result >= 0 ); break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
    binary->folded = true;
 }
 
