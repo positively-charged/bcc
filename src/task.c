@@ -1118,6 +1118,7 @@ struct ref_func* t_alloc_ref_func( void ) {
    func->params = NULL;
    func->min_param = 0;
    func->max_param = 0;
+   func->local = false;
    return func;
 }
 

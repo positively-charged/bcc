@@ -267,6 +267,7 @@ struct ref_func {
    struct param* params;
    int min_param;
    int max_param;
+   bool local;
 };
 
 struct type_alias {

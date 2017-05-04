@@ -191,7 +191,8 @@ void s_init_type_info_array_ref( struct type_info* type, struct ref* ref,
    int dim_count, int spec );
 void s_init_type_info_func( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
-   struct param* params, int return_spec, int min_param, int max_param );
+   struct param* params, int return_spec, int min_param, int max_param,
+   bool local );
 void s_init_type_info_builtin_func( struct type_info* type );
 void s_init_type_info_scalar( struct type_info* type, int spec );
 void s_init_type_info_null( struct type_info* type );

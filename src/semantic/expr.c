@@ -2635,16 +2635,14 @@ static void select_structure_member( struct semantic* semantic,
 void select_func( struct semantic* semantic, struct result* result,
    struct func* func ) {
    if ( func->type == FUNC_USER ) {
+      struct func_user* impl = func->impl;
       s_init_type_info_func( &result->type, func->ref, func->structure,
          func->enumeration, func->params, func->return_spec, func->min_param,
-         func->max_param );
+         func->max_param, impl->local );
       result->usable = true;
       result->folded = true;
-      struct func_user* impl = func->impl;
+      result->complete = true;
       ++impl->usage;
-      if ( ! impl->local ) {
-         result->complete = true;
-      }
    }
    // When an action-special is not called, it decays into an integer value.
    // The value is the ID of the action-special.
