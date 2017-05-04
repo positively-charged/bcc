@@ -244,5 +244,6 @@ bool s_is_onedim_int_array_ref( struct semantic* semantic,
 enum subscript_result s_subscript_array_ref( struct semantic* semantic,
    struct type_info* type, struct type_info* element_type );
 enum type_description s_describe_type( struct type_info* type );
+bool s_is_ref( struct type_info* type );
 
 #endif

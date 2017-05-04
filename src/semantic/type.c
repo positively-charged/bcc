@@ -7,7 +7,7 @@ static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_struct( struct ref_struct* a, struct ref_struct* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
 static bool same_ref_func( struct ref_func* a, struct ref_func* b );
-static bool same_spec( int a, int b );
+static bool same_spec_primitive( int a, int b );
 static bool compatible_raw_spec( int spec );
 static bool same_dim( struct dim* a, struct dim* b );
 static void present_extended_spec( struct structure* structure,
@@ -159,19 +159,24 @@ void s_decay( struct semantic* semantic, struct type_info* type ) {
 }
 
 bool s_same_type( struct type_info* a, struct type_info* b ) {
-   if ( a->ref && a->ref->type == REF_NULL ) {
-      return ( ! b->dim && b->ref );
+   if ( s_is_null( a ) ) {
+      return s_is_ref( b );
    }
-   else if ( b->ref && b->ref->type == REF_NULL ) {
-      return ( ! a->dim && a->ref );
+   else if ( s_is_null( b ) ) {
+      return s_is_ref( a );
    }
    else {
-      return same_ref( a->ref, b->ref ) &&
-         ( a->structure == b->structure ) && (
-            ( ( a->spec == SPEC_ENUM || b->spec == SPEC_ENUM ) &&
-               a->enumeration == b->enumeration ) ||
-            ( same_spec( a->spec, b->spec ) ) ) &&
-         same_dim( a->dim, b->dim );
+      switch ( s_describe_type( a ) ) {
+      case TYPEDESC_PRIMITIVE:
+         return ( s_describe_type( b ) == TYPEDESC_PRIMITIVE &&
+            same_spec_primitive( a->spec, b->spec ) );
+      default:
+         return ( same_ref( a->ref, b->ref ) &&
+            a->structure == b->structure &&
+            a->enumeration == b->enumeration &&
+            a->spec == b->spec &&
+            same_dim( a->dim, b->dim ) );
+      }
    }
 }
 
@@ -231,7 +236,7 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       a->local == b->local );
 }
 
-bool same_spec( int a, int b ) {
+bool same_spec_primitive( int a, int b ) {
    if ( a == SPEC_RAW ) {
       return compatible_raw_spec( b );
    }
@@ -250,10 +255,10 @@ bool compatible_raw_spec( int spec ) {
    case SPEC_FIXED:
    case SPEC_BOOL:
    case SPEC_STR:
-   case SPEC_ENUM:
       return true;
+   default:
+      return false;
    }
-   return false;
 }
 
 bool same_dim( struct dim* a, struct dim* b ) {
@@ -601,10 +606,22 @@ enum type_description s_describe_type( struct type_info* type ) {
    else if ( type->structure ) {
       return TYPEDESC_STRUCT;
    }
-   else if ( type->enumeration ) {
+   else if ( type->spec == SPEC_ENUM ) {
       return TYPEDESC_ENUM;
    }
    else {
       return TYPEDESC_PRIMITIVE;
+   }
+}
+
+bool s_is_ref( struct type_info* type ) {
+   switch ( s_describe_type( type ) ) {
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      return true;
+   default:
+      return false;
    }
 }
