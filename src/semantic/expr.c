@@ -1742,6 +1742,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
          s_init_type_info( &result->type, NULL, NULL,
             operand.func->enumeration, NULL,
             s_spec( semantic, operand.func->return_spec ), STORAGE_LOCAL );
+         s_decay( semantic, &result->type );
          result->usable = ( operand.func->return_spec != SPEC_VOID );
       }
       result->complete = true;
@@ -1767,6 +1768,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
       else {
          s_init_type_info( &result->type, NULL, NULL, operand.type.enumeration,
             NULL, s_spec( semantic, operand.type.spec ), STORAGE_LOCAL );
+         s_decay( semantic, &result->type );
          result->usable = ( operand.type.spec != SPEC_VOID );
       }
       result->complete = true;
