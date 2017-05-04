@@ -1046,21 +1046,17 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   if ( ! s_same_type( &middle.type, &right.type ) ) {
+   struct type_info result_type;
+   if ( ! s_common_type( &middle.type, &right.type, &result_type ) ) {
       s_type_mismatch( semantic, cond->middle ?
          "middle-operand" : "left-operand", &middle.type, "right-operand",
          &right.type, &cond->pos );
       s_bail( semantic );
    }
    struct type_snapshot snapshot;
-   if ( ! s_is_null( &middle.type ) ) {
-      s_take_type_snapshot( &middle.type, &snapshot );
-   }
-   else {
-      s_take_type_snapshot( &right.type, &snapshot );
-   }
+   s_take_type_snapshot( &result_type, &snapshot );
    s_init_type_info( &result->type, snapshot.ref, snapshot.structure,
-      snapshot.enumeration, NULL, snapshot.spec, right.type.storage );
+      snapshot.enumeration, NULL, snapshot.spec, STORAGE_LOCAL );
    result->complete = true;
    result->usable = ( snapshot.spec != SPEC_VOID );
    cond->ref = snapshot.ref;

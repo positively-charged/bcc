@@ -2,7 +2,7 @@
 
 #include "phase.h"
 
-static void copy_implicit_ref( struct type_info* type );
+static void create_implicit_ref( struct type_info* type );
 static bool same_ref( struct ref* a, struct ref* b );
 static bool same_ref_struct( struct ref_struct* a, struct ref_struct* b );
 static bool same_ref_array( struct ref_array* a, struct ref_array* b );
@@ -27,38 +27,42 @@ void s_init_type_info( struct type_info* type, struct ref* ref,
    type->spec = spec;
    type->storage = storage;
    type->builtin_func = false;
-   copy_implicit_ref( type );
+   if ( type->ref && type->ref->implicit ) {
+      create_implicit_ref( type );
+   }
 }
 
-static void copy_implicit_ref( struct type_info* type ) {
-   if ( type->ref && type->ref->implicit ) {
-      switch ( type->ref->type ) {
-      case REF_ARRAY: {
-            struct ref_array* array = ( struct ref_array* ) type->ref;
-            type->implicit_ref.array = *array;
-            type->ref = &type->implicit_ref.array.ref;
-         }
-         break;
-      case REF_STRUCTURE: {
-            struct ref_struct* structure = ( struct ref_struct* ) type->ref;
-            type->implicit_ref.structure = *structure;
-            type->ref = &type->implicit_ref.structure.ref;
-         }
-         break;
-      case REF_FUNCTION: {
-            struct ref_func* func = ( struct ref_func* ) type->ref;
-            type->implicit_ref.func = *func;
-            type->ref = &type->implicit_ref.func.ref;
-         }
-         break;
-      case REF_NULL: {
-            type->implicit_ref.ref = *type->ref;
-            type->ref = &type->implicit_ref.ref;
-         }
-         break;
-      default:
-         UNREACHABLE();
+static void create_implicit_ref( struct type_info* type ) {
+   switch ( type->ref->type ) {
+   case REF_ARRAY: {
+         struct ref_array* array = ( struct ref_array* ) type->ref;
+         type->implicit_ref.array = *array;
+         type->ref = &type->implicit_ref.array.ref;
+         type->ref->implicit = true;
       }
+      break;
+   case REF_STRUCTURE: {
+         struct ref_struct* structure = ( struct ref_struct* ) type->ref;
+         type->implicit_ref.structure = *structure;
+         type->ref = &type->implicit_ref.structure.ref;
+         type->ref->implicit = true;
+      }
+      break;
+   case REF_FUNCTION: {
+         struct ref_func* func = ( struct ref_func* ) type->ref;
+         type->implicit_ref.func = *func;
+         type->ref = &type->implicit_ref.func.ref;
+         type->ref->implicit = true;
+      }
+      break;
+   case REF_NULL: {
+         type->implicit_ref.ref = *type->ref;
+         type->ref = &type->implicit_ref.ref;
+         type->ref->implicit = true;
+      }
+      break;
+   default:
+      UNREACHABLE();
    }
 }
 
@@ -119,7 +123,7 @@ void s_init_type_info_null( struct type_info* type ) {
    struct ref* ref = &type->implicit_ref.ref;
    ref->next = NULL;
    ref->type = REF_NULL;
-   ref->nullable = false;
+   ref->nullable = true;
    ref->implicit = true;
    type->ref = ref;
 }
@@ -267,6 +271,54 @@ bool same_dim( struct dim* a, struct dim* b ) {
       b = b->next;
    }
    return ( a == NULL && b == NULL );
+}
+
+bool s_common_type( struct type_info* a, struct type_info* b,
+   struct type_info* result ) {
+   if ( s_same_type( a, b ) ) {
+      switch ( s_describe_type( a ) ) {
+      case TYPEDESC_ARRAYREF:
+      case TYPEDESC_STRUCTREF:
+      case TYPEDESC_FUNCREF:
+         s_init_type_info_copy( result, a );
+         if ( b->ref->nullable && ! result->ref->nullable ) {
+            create_implicit_ref( result );
+            result->ref->nullable = true;
+         }
+         return true;
+      case TYPEDESC_NULLREF:
+         if ( s_is_null( b ) ) {
+            s_init_type_info_null( result );
+         }
+         else {
+            s_init_type_info_copy( result, b );
+            if ( ! result->ref->nullable ) {
+               create_implicit_ref( result );
+               result->ref->nullable = true;
+            }
+         }
+         return true;
+      case TYPEDESC_ARRAY:
+      case TYPEDESC_STRUCT:
+      case TYPEDESC_ENUM:
+         s_init_type_info_copy( result, a );
+         return true;
+      case TYPEDESC_PRIMITIVE:
+         // Implicit `raw` cast: 
+         // Mixing a `raw` value with a value of another type will implicitly
+         // cast the other value to `raw`.
+         if ( a->spec == SPEC_RAW || b->spec == SPEC_RAW ) {
+            s_init_type_info_scalar( result, SPEC_RAW );
+         }
+         else {
+            s_init_type_info_copy( result, a );
+         }
+         return true;
+      default:
+         break;
+      }
+   }
+   return false;
 }
 
 bool s_instance_of( struct type_info* type, struct type_info* instance ) {
@@ -501,20 +553,20 @@ enum subscript_result s_subscript_array_ref( struct semantic* semantic,
    // Reference element.
    else if ( type->ref->next ) {
       s_init_type_info( element_type, type->ref->next, type->structure,
-         type->enumeration, NULL, type->spec, type->storage );
+         type->enumeration, NULL, type->spec, STORAGE_LOCAL );
       return SUBSCRIPTRESULT_REF;
    }
    // Structure element.
    else if ( type->structure ) {
       s_init_type_info( element_type, NULL, type->structure, NULL, NULL,
-         type->spec, type->storage );
+         type->spec, array->storage );
       s_decay( semantic, element_type );
       return SUBSCRIPTRESULT_STRUCT;
    }
    // Primitive element.
    else {
       s_init_type_info( element_type, NULL, NULL, type->enumeration, NULL,
-         s_spec( semantic, type->spec ), type->storage );
+         s_spec( semantic, type->spec ), STORAGE_LOCAL );
       s_decay( semantic, element_type );
       return SUBSCRIPTRESULT_PRIMITIVE;
    }
