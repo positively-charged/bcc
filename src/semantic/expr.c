@@ -72,6 +72,8 @@ static bool can_convert_to_boolean( struct semantic* semantic,
    struct result* operand );
 static void fold_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result );
+static void fold_logical_primitive( struct semantic* semantic,
+   struct logical* logical, struct result* lside, struct result* rside );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
 static bool perform_assign( struct assign* assign, struct result* lside,
@@ -719,14 +721,14 @@ static void fold_bop_str_compare( struct semantic* semantic,
    binary->folded = true;
 }
 
-void test_logical( struct semantic* semantic, struct expr_test* test,
+static void test_logical( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct logical* logical ) {
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, logical->lside );
    if ( ! lside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &logical->pos,
-         "left operand unusable" );
+         "left operand not a value" );
       s_bail( semantic );
    }
    struct result rside;
@@ -734,7 +736,7 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &rside, logical->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &logical->pos,
-         "right operand unusable" );
+         "right operand not a value" );
       s_bail( semantic );
    }
    if ( ! perform_logical( semantic, logical, &lside, &rside, result ) ) {
@@ -748,8 +750,9 @@ void test_logical( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_logical( struct semantic* semantic, struct logical* logical,
-   struct result* lside, struct result* rside, struct result* result ) {
+static bool perform_logical( struct semantic* semantic,
+   struct logical* logical, struct result* lside, struct result* rside,
+   struct result* result ) {
    if ( can_convert_to_boolean( semantic, lside ) &&
       can_convert_to_boolean( semantic, rside ) ) {
       s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
@@ -762,14 +765,13 @@ bool perform_logical( struct semantic* semantic, struct logical* logical,
    return false;
 }
 
-// NOTE: Im not sure if this function is necessary, since every usable result
-// can be converted to a boolean.
+// NOTE: Not sure if this function is necessary, since every usable result can
+// be converted to a boolean.
 static bool can_convert_to_boolean( struct semantic* semantic,
    struct result* operand ) {
-   if ( s_is_ref_type( &operand->type ) ) {
-      return true;
-   }
-   else {
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+   case TYPEDESC_ENUM:
       switch ( operand->type.spec ) {
       case SPEC_RAW:
       case SPEC_INT:
@@ -778,49 +780,77 @@ static bool can_convert_to_boolean( struct semantic* semantic,
       case SPEC_STR:
          return true;
       default:
-         return false;
+         break;
       }
+      return false;
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      return true;
+   default:
+      UNREACHABLE();
+      return false;
    }
 }
 
-void fold_logical( struct semantic* semantic, struct logical* logical,
+static void fold_logical( struct semantic* semantic, struct logical* logical,
    struct result* lside, struct result* rside, struct result* result ) {
-   if ( s_is_value_type( &lside->type ) ) {
-      int l = 0;
-      switch ( lside->type.spec ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-      case SPEC_FIXED:
-      case SPEC_BOOL:
-      case SPEC_STR:
-         l = lside->value;
-         break;
-      default:
-         UNREACHABLE();
-      }
-      int r = 0;
-      switch ( rside->type.spec ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-      case SPEC_FIXED:
-      case SPEC_BOOL:
-      case SPEC_STR:
-         r = rside->value;
-         break;
-      default:
-         UNREACHABLE();
-      }
-      switch ( logical->op ) {
-      case LOP_OR: l = ( l || r ); break;
-      case LOP_AND: l = ( l && r ); break;
-      default:
-         UNREACHABLE();
-      }
-      logical->value = l;
-      logical->folded = true;
+   switch ( s_describe_type( &lside->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+   case TYPEDESC_ENUM:
+      fold_logical_primitive( semantic, logical, lside, rside );
+      break;
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
    }
    result->value = logical->value;
    result->folded = logical->folded;
+}
+
+static void fold_logical_primitive( struct semantic* semantic,
+   struct logical* logical, struct result* lside, struct result* rside ) {
+   int l = 0;
+   switch ( lside->type.spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+      l = lside->value;
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   int r = 0;
+   switch ( rside->type.spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+      r = rside->value;
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   switch ( logical->op ) {
+   case LOP_OR: l = ( l || r ); break;
+   case LOP_AND: l = ( l && r ); break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   logical->value = l;
+   logical->folded = true;
 }
 
 void test_assign( struct semantic* semantic, struct expr_test* test,
