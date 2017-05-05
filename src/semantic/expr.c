@@ -76,8 +76,14 @@ static void fold_logical_primitive( struct semantic* semantic,
    struct logical* logical, struct result* lside, struct result* rside );
 static void test_assign( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct assign* assign );
-static bool perform_assign( struct assign* assign, struct result* lside,
-   struct type_info* lside_type, struct result* result );
+static bool perform_assign( struct semantic* semantic, struct assign* assign,
+   struct result* lside, struct result* result );
+static bool perform_assign_primitive( struct assign* assign,
+   struct result* lside, struct result* result );
+static bool perform_assign_enum( struct semantic* semantic,
+   struct assign* assign, struct result* lside, struct result* result );
+static bool perform_assign_ref( struct assign* assign, struct result* lside,
+   struct result* result );
 static void test_conditional( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct conditional* cond );
 static void test_prefix( struct semantic* semantic, struct expr_test* test,
@@ -896,7 +902,7 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
          s_bail( semantic );
       }
    }
-   if ( ! perform_assign( assign, &lside, &lside.type, result ) ) {
+   if ( ! perform_assign( semantic, assign, &lside, result ) ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "invalid assignment operation" );
       s_bail( semantic );
@@ -912,14 +918,9 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
    }
    // Record the fact that the object was modified.
    if ( lside.object ) {
-      switch ( lside.object->node.type ) {
-      case NODE_VAR: {
-            struct var* var = ( struct var* ) lside.object;
-            var->modified = true;
-         }
-         break;
-      default:
-         break;
+      if ( lside.object->node.type == NODE_VAR ) {
+         struct var* var = ( struct var* ) lside.object;
+         var->modified = true;
       }
    }
    // To avoid the error where the user wanted equality operator but instead
@@ -932,90 +933,114 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
    assign->spec = lside.type.spec;
 }
 
-static bool perform_assign( struct assign* assign, struct result* lside,
-   struct type_info* lside_type, struct result* result ) {
-   // Value type.
-   if ( s_is_value_type( lside_type ) ) {
-      bool valid = false;
-      switch ( assign->op ) {
-      case AOP_NONE:
-         switch ( lside->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_BOOL:
-         case SPEC_STR:
-         case SPEC_ENUM:
-            valid = true;
-            break;
-         default:
-            break;
-         }
-         break;
-      case AOP_ADD:
-         switch ( lside->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_STR:
-            valid = true;
-            break;
-         default:
-            break;
-         }
-         break;
-      case AOP_SUB:
-      case AOP_MUL:
-      case AOP_DIV:
-         switch ( lside->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-            valid = true;
-            break;
-         default:
-            break;
-         }
-         break;
-      case AOP_MOD:
-      case AOP_SHIFT_L:
-      case AOP_SHIFT_R:
-      case AOP_BIT_AND:
-      case AOP_BIT_XOR:
-      case AOP_BIT_OR:
-         switch ( lside->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-            valid = true;
-            break;
-         default:
-            break;
-         }
+static bool perform_assign( struct semantic* semantic, struct assign* assign,
+   struct result* lside, struct result* result ) {
+   switch ( s_describe_type( &lside->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      return perform_assign_primitive( assign, lside, result );
+   case TYPEDESC_ENUM:
+      return perform_assign_enum( semantic, assign, lside, result );
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+      return perform_assign_ref( assign, lside, result );
+   default:
+      UNREACHABLE();
+      return false;
+   }
+}
+
+static bool perform_assign_primitive( struct assign* assign,
+   struct result* lside, struct result* result ) {
+   bool valid = false;
+   switch ( assign->op ) {
+   case AOP_NONE:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+      case SPEC_ENUM:
+         valid = true;
          break;
       default:
          break;
       }
-      if ( ! valid ) {
-         return false;
+      break;
+   case AOP_ADD:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_STR:
+         valid = true;
+         break;
+      default:
+         break;
       }
-      s_init_type_info_scalar( &result->type, lside->type.spec );
+      break;
+   case AOP_SUB:
+   case AOP_MUL:
+   case AOP_DIV:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         valid = true;
+         break;
+      default:
+         break;
+      }
+      break;
+   case AOP_MOD:
+   case AOP_SHIFT_L:
+   case AOP_SHIFT_R:
+   case AOP_BIT_AND:
+   case AOP_BIT_XOR:
+   case AOP_BIT_OR:
+      switch ( lside->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         valid = true;
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      break;
+   }
+   if ( ! valid ) {
+      return false;
+   }
+   s_init_type_info_scalar( &result->type, lside->type.spec );
+   result->complete = true;
+   result->usable = true;
+   return true;
+}
+
+static bool perform_assign_enum( struct semantic* semantic,
+   struct assign* assign, struct result* lside, struct result* result ) {
+   if ( assign->op == AOP_NONE ) {
+      s_init_type_info_copy( &result->type, &lside->type );
+      s_decay( semantic, &result->type );
       result->complete = true;
       result->usable = true;
       return true;
    }
-   // Reference type.
-   else {
-      // Only plain assignment can be performed on a reference type.
-      if ( assign->op != AOP_NONE ) {
-         return false;
-      }
-      s_init_type_info( &result->type, lside->type.ref, lside->type.structure,
-         lside->type.enumeration, NULL, lside->type.spec,
-         lside->type.storage );
+   return false;
+}
+
+static bool perform_assign_ref( struct assign* assign, struct result* lside,
+   struct result* result ) {
+   if ( assign->op == AOP_NONE ) {
+      s_init_type_info_copy( &result->type, &lside->type );
       result->complete = true;
       result->usable = true;
       return true;
    }
+   return false;
 }
 
 static void test_conditional( struct semantic* semantic,
