@@ -1829,13 +1829,17 @@ static void assign_inferred_type( struct semantic* semantic, struct var* var,
             "cannot deduce variable type from `null`" );
          s_bail( semantic );
       }
-      struct type_snapshot snapshot;
-      s_take_type_snapshot( type, &snapshot );
-      var->ref = snapshot.ref;
-      var->structure = snapshot.structure;
-      var->enumeration = snapshot.enumeration;
-      var->dim = snapshot.dim;
-      var->spec = snapshot.spec;
+      if ( s_describe_type( type ) == TYPEDESC_PRIMITIVE ) {
+         var->spec = type->spec;
+      }
+      else {
+         struct type_snapshot snapshot;
+         s_take_type_snapshot( type, &snapshot );
+         var->ref = snapshot.ref;
+         var->structure = snapshot.structure;
+         var->enumeration = snapshot.enumeration;
+         var->spec = snapshot.spec;
+      }
    }
 }
 

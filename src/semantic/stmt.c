@@ -948,11 +948,17 @@ static void test_return_value( struct semantic* semantic,
             "cannot deduce return type from `null`" );
          s_bail( semantic );
       }
-      struct type_snapshot snapshot;
-      s_take_type_snapshot( &expr.type, &snapshot );
-      func->ref = snapshot.ref;
-      func->structure = snapshot.structure;
-      func->return_spec = snapshot.spec;
+      if ( s_describe_type( &expr.type ) == TYPEDESC_PRIMITIVE ) {
+         func->return_spec = expr.type.spec;
+      }
+      else {
+         struct type_snapshot snapshot;
+         s_take_type_snapshot( &expr.type, &snapshot );
+         func->ref = snapshot.ref;
+         func->enumeration = snapshot.enumeration;
+         func->structure = snapshot.structure;
+         func->return_spec = snapshot.spec;
+      }
    }
    else {
       struct type_info return_type;
