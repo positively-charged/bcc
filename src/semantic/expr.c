@@ -86,11 +86,18 @@ static void test_unary( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct unary* unary );
 static bool perform_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result );
+static bool perform_unary_primitive( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result );
+static bool perform_unary_ref( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result );
+static void invalid_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand );
 static void fold_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result );
-static void fold_unary_minus( struct result* operand, struct result* result );
-static void fold_logical_not( struct semantic* semantic,
-   struct result* operand, struct result* result );
+static void fold_unary_primitive( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result );
+static void fold_unary_ref( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result );
 static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct inc* inc );
 static bool perform_inc( struct semantic* semantic, struct inc* inc,
@@ -1126,8 +1133,7 @@ static void test_unary( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    if ( ! perform_unary( semantic, unary, &operand, result ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &unary->pos,
-         "invalid unary operation" );
+      invalid_unary( semantic, unary, &operand );
       s_bail( semantic );
    }
    // Compile-time evaluation.
@@ -1138,111 +1144,180 @@ static void test_unary( struct semantic* semantic, struct expr_test* test,
 
 static bool perform_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
-   if ( s_is_value_type( &operand->type ) ) {
-      int spec = SPEC_NONE;
-      switch ( unary->op ) {
-      case UOP_MINUS:
-      case UOP_PLUS:
-         switch ( operand->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-            spec = operand->type.spec;
-         default:
-            break;
-         }
-         break;
-      case UOP_BIT_NOT:
-         switch ( operand->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-            spec = operand->type.spec;
-         default:
-            break;
-         }
-         break;
-      case UOP_LOG_NOT:
-         spec = s_spec( semantic, SPEC_BOOL );
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      return perform_unary_primitive( semantic, unary, operand, result );
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      return perform_unary_ref( semantic, unary, operand, result );
+   default:
+      UNREACHABLE();
+      return false;
+   }
+}
+
+static bool perform_unary_primitive( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result ) {
+   int spec = SPEC_NONE;
+   switch ( unary->op ) {
+   case UOP_MINUS:
+   case UOP_PLUS:
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         spec = operand->type.spec;
          break;
       default:
-         UNREACHABLE()
+         break;
       }
-      if ( spec != SPEC_NONE ) {
-         s_init_type_info_scalar( &result->type, spec );
-         result->complete = true;
-         result->usable = true;
-         unary->operand_spec = operand->type.spec;
-         return true;
+      break;
+   case UOP_BIT_NOT:
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         spec = operand->type.spec;
+         break;
+      default:
+         break;
       }
-      else {
-         return false;
-      }
+      break;
+   case UOP_LOG_NOT:
+      spec = SPEC_BOOL;
+      break;
+   default:
+      UNREACHABLE()
    }
-   // Reference type.
+   if ( spec != SPEC_NONE ) {
+      s_init_type_info_scalar( &result->type, s_spec( semantic, spec ) );
+      result->complete = true;
+      result->usable = true;
+      unary->operand_spec = operand->type.spec;
+      return true;
+   }
    else {
-      // Only logical-not can be performed on a reference type.
-      if ( unary->op == UOP_LOG_NOT ) {
-         s_init_type_info_scalar( &result->type,
-            s_spec( semantic, SPEC_BOOL ) );
-         result->complete = true;
-         result->usable = true;
-         return true;
-      }
-      else {
-         return false;
-      }
+      return false;
    }
+}
+
+static bool perform_unary_ref( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result ) {
+   switch ( unary->op ) {
+   case UOP_LOG_NOT:
+      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
+      result->complete = true;
+      result->usable = true;
+      return true;
+   default:
+      return false;
+   }
+}
+
+static void invalid_unary( struct semantic* semantic, struct unary* unary,
+   struct result* operand ) {
+   struct str type;
+   str_init( &type );
+   s_present_type( &operand->type, &type );
+   s_diag( semantic, DIAG_POS_ERR, &unary->pos,
+      "invalid unary operation for operand type (`%s`)", type.value );
+   str_deinit( &type );
 }
 
 static void fold_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      fold_unary_primitive( semantic, unary, operand, result );
+      break;
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      fold_unary_ref( semantic, unary, operand, result );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+}
+
+static void fold_unary_primitive( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result ) {
    switch ( unary->op ) {
    case UOP_MINUS:
-      fold_unary_minus( operand, result );
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         // TODO: Warn on overflow and underflow.
+         result->value = ( - operand->value );
+         result->folded = true;
+         break;
+      default:
+         UNREACHABLE();
+         s_bail( semantic );
+      }
       break;
    case UOP_PLUS:
-      result->value = operand->value;
-      result->folded = true;
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+         result->value = operand->value;
+         result->folded = true;
+         break;
+      default:
+         UNREACHABLE();
+         s_bail( semantic );
+      }
       break;
    case UOP_LOG_NOT:
-      fold_logical_not( semantic, operand, result );
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         result->value = ( ! operand->value );
+         result->folded = true;
+         break;
+      default:
+         UNREACHABLE();
+         s_bail( semantic );
+      }
       break;
    case UOP_BIT_NOT:
-      result->value = ( ~ operand->value );
-      result->folded = true;
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         result->value = ( ~ operand->value );
+         result->folded = true;
+         break;
+      default:
+         UNREACHABLE();
+         s_bail( semantic );
+      }
       break;
    default:
-      UNREACHABLE()
+      UNREACHABLE();
+      s_bail( semantic );
    }
 }
 
-static void fold_unary_minus( struct result* operand, struct result* result ) {
-   switch ( operand->type.spec ) {
-   case SPEC_RAW:
-   case SPEC_INT:
-   case SPEC_FIXED:
-      // TODO: Warn on overflow and underflow.
-      result->value = ( - operand->value );
+static void fold_unary_ref( struct semantic* semantic,
+   struct unary* unary, struct result* operand, struct result* result ) {
+   switch ( unary->op ) {
+   case UOP_LOG_NOT:
+      // If the operand is folded, that means that the operand is a direct
+      // reference to the object. So the result is always true.
+      result->value = 1;
       result->folded = true;
       break;
    default:
-      UNREACHABLE()
-   }
-}
-
-static void fold_logical_not( struct semantic* semantic,
-   struct result* operand, struct result* result ) {
-   switch ( operand->type.spec ) {
-   case SPEC_RAW:
-   case SPEC_INT:
-   case SPEC_FIXED:
-   case SPEC_BOOL:
-   case SPEC_STR:
-      result->value = ( ! operand->value );
-      result->folded = true;
-      break;
-   default:
-      break;
+      UNREACHABLE();
+      s_bail( semantic );
    }
 }
 
