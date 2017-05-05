@@ -104,6 +104,8 @@ static bool perform_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result );
 static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result );
+static void invalid_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand );
 static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast );
 static bool perform_cast( struct semantic* semantic, struct cast* cast,
@@ -1337,21 +1339,13 @@ static void test_inc( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    if ( ! perform_inc( semantic, inc, &operand, result ) ) {
-      s_diag( semantic, DIAG_POS_ERR, &inc->pos,
-         "invalid %s operation", inc->dec ?
-            "decrement" : "increment" );
+      invalid_inc( semantic, inc, &operand );
       s_bail( semantic );
    }
-   // Record the fact that the object is modified.
    if ( operand.object ) {
-      switch ( operand.object->node.type ) {
-      case NODE_VAR: {
-            struct var* var = ( struct var* ) operand.object;
-            var->modified = true;
-         }
-         break;
-      default:
-         break;
+      if ( operand.object->node.type == NODE_VAR ) {
+         struct var* var = ( struct var* ) operand.object;
+         var->modified = true;
       }
    }
 }
@@ -1372,15 +1366,25 @@ static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
    case SPEC_RAW:
    case SPEC_INT:
    case SPEC_FIXED:
-      break;
+      s_init_type_info_scalar( &result->type, operand->type.spec );
+      result->complete = true;
+      result->usable = true;
+      inc->fixed = ( operand->type.spec == SPEC_FIXED );
+      return true;
    default:
       return false;
    }
-   s_init_type_info_scalar( &result->type, operand->type.spec );
-   result->complete = true;
-   result->usable = true;
-   inc->fixed = ( operand->type.spec == SPEC_FIXED );
-   return true;
+}
+
+static void invalid_inc( struct semantic* semantic, struct inc* inc,
+   struct result* operand ) {
+   struct str string;
+   str_init( &string );
+   s_present_type( &operand->type, &string );
+   s_diag( semantic, DIAG_POS_ERR, &inc->pos,
+      "%s operation not supported for given operand (`%s`)",
+      inc->dec ? "decrement" : "increment", string.value );
+   str_deinit( &string );
 }
 
 static void test_cast( struct semantic* semantic, struct expr_test* test,
