@@ -677,3 +677,8 @@ bool s_is_ref( struct type_info* type ) {
       return false;
    }
 }
+
+bool s_is_void( struct type_info* type ) {
+   return ( s_describe_type( type ) == TYPEDESC_PRIMITIVE &&
+      type->spec == SPEC_VOID );
+}

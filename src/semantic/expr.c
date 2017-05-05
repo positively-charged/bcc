@@ -1058,7 +1058,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    s_init_type_info( &result->type, snapshot.ref, snapshot.structure,
       snapshot.enumeration, NULL, snapshot.spec, STORAGE_LOCAL );
    result->complete = true;
-   result->usable = ( snapshot.spec != SPEC_VOID );
+   result->usable = ( ! s_is_void( &result_type ) );
    cond->ref = snapshot.ref;
    cond->left_spec = left.type.spec;
    if ( s_is_ref_type( &middle.type ) ) {
