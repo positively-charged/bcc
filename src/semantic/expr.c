@@ -880,7 +880,7 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
    test_operand( semantic, test, &rside, assign->rside );
    if ( ! rside.usable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-         "right operand unusable" );
+         "right operand not a value" );
       s_bail( semantic );
    }
    if ( ! s_instance_of( &lside.type, &rside.type ) ) {

@@ -245,23 +245,26 @@ static void test_script_body( struct semantic* semantic,
    struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
-   // Test expression.
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, constant->value_node );
-   if ( ! expr.undef_erred ) {
-      if ( constant->value_node->folded ) {
-         constant->spec = constant->value_node->spec;
-         constant->value = constant->value_node->value;
-         constant->has_str = constant->value_node->has_str;
-         constant->object.resolved = true;
-      }
-      else {
-         s_diag( semantic, DIAG_POS_ERR, &constant->value_node->pos,
-            "expression not constant" );
-         s_bail( semantic );
-      }
+   if ( expr.undef_erred ) {
+      return;
    }
+   if ( ! constant->value_node->folded ) {
+      s_diag( semantic, DIAG_POS_ERR, &constant->value_node->pos,
+         "expression not constant" );
+      s_bail( semantic );
+   }
+   if ( s_describe_type( &expr.type ) != TYPEDESC_PRIMITIVE ) {
+      s_diag( semantic, DIAG_POS_ERR, &constant->value_node->pos,
+         "expression not of primitive type" );
+      s_bail( semantic );
+   }
+   constant->spec = constant->value_node->spec;
+   constant->value = constant->value_node->value;
+   constant->has_str = constant->value_node->has_str;
+   constant->object.resolved = true;
 }
 
 void s_test_enumeration( struct semantic* semantic,
