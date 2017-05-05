@@ -1512,15 +1512,21 @@ static void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, subscript->lside );
-   if ( s_is_array_ref( &lside.type ) ) {
+   enum type_description desc = s_describe_type( &lside.type );
+   if ( desc == TYPEDESC_ARRAYREF ) {
       test_subscript_array( semantic, test, result, &lside, subscript );
    }
-   else if ( lside.type.spec == SPEC_STR ) {
+   else if ( desc == TYPEDESC_PRIMITIVE && lside.type.spec == SPEC_STR ) {
       test_subscript_str( semantic, test, result, &lside, subscript );
    }
    else {
+      struct str string;
+      str_init( &string );
+      s_present_type( &lside.type, &string ); 
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
-         "subscript operation not supported for given operand" );
+         "subscript operation not supported for given operand (`%s`)",
+         string.value );
+      str_deinit( &string );
       s_bail( semantic );
    }
 }
