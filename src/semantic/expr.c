@@ -106,8 +106,10 @@ static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
    struct result* operand, struct result* result );
 static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast );
-static bool valid_cast( struct semantic* semantic, struct cast* cast,
-   struct result* operand );
+static bool perform_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand, struct result* result );
+static bool perform_cast_primitive( struct semantic* semantic,
+   struct cast* cast, struct result* operand, struct result* result );
 static void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand );
 static void test_suffix( struct semantic* semantic, struct expr_test* test,
@@ -1391,64 +1393,76 @@ static void test_cast( struct semantic* semantic, struct expr_test* test,
          "cast operand not a value" );
       s_bail( semantic );
    }
-   if ( ! valid_cast( semantic, cast, &operand ) ) {
+   if ( ! perform_cast( semantic, cast, &operand, result ) ) {
       invalid_cast( semantic, cast, &operand );
       s_bail( semantic );
    }
-   s_init_type_info_scalar( &result->type, cast->spec );
-   result->complete = true;
-   result->usable = true;
-   result->modifiable = operand.modifiable;
-   if ( operand.folded ) {
-      result->value = operand.value;
-      result->folded = true;
-   }
 }
 
-static bool valid_cast( struct semantic* semantic, struct cast* cast,
-   struct result* operand ) {
-   if ( s_is_value_type( &operand->type ) ) {
-      bool valid = false;
-      switch ( cast->spec ) {
-      case SPEC_RAW:
-      case SPEC_INT:
-         switch ( operand->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-         case SPEC_FIXED:
-         case SPEC_BOOL:
-         case SPEC_STR:
-            valid = true;
-            break;
-         default:
-            break;
-         }
-         break;
-      case SPEC_FIXED:
-      case SPEC_BOOL:
-      case SPEC_STR:
-         switch ( operand->type.spec ) {
-         case SPEC_RAW:
-         case SPEC_INT:
-            valid = true;
-            break;
-         default:
-            valid = ( cast->spec == operand->type.spec );
-            break;
-         }
-         break;
-      default:
-         break;
-      }
-      return valid;
-   }
-   // Reference type.
-   else {
+static bool perform_cast( struct semantic* semantic, struct cast* cast,
+   struct result* operand, struct result* result ) {
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      return perform_cast_primitive( semantic, cast, operand, result );
+   default:
       return false;
    }
 }
 
-// TODO: Change error message.
+static bool perform_cast_primitive( struct semantic* semantic,
+   struct cast* cast, struct result* operand, struct result* result ) {
+   bool valid = false;
+   switch ( cast->spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+      case SPEC_FIXED:
+      case SPEC_BOOL:
+      case SPEC_STR:
+         valid = true;
+         break;
+      default:
+         break;
+      }
+      break;
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+      switch ( operand->type.spec ) {
+      case SPEC_RAW:
+      case SPEC_INT:
+         valid = true;
+         break;
+      default:
+         valid = ( cast->spec == operand->type.spec );
+      }
+      break;
+   default:
+      break;
+   }
+   if ( ! valid ) {
+      return false;
+   }
+   s_init_type_info_scalar( &result->type, cast->spec );
+   result->complete = true;
+   result->usable = true;
+   // NOTE: Enumeration variables must not be modified via casts. Only
+   // primitive variables can be modified.
+   struct type_info revealed_type;
+   s_init_type_info_copy( &revealed_type, &operand->type );
+   s_reveal( &revealed_type );
+   if ( s_describe_type( &revealed_type ) == TYPEDESC_PRIMITIVE ) {
+      result->modifiable = operand->modifiable;
+   }
+   if ( operand->folded ) {
+      result->value = operand->value;
+      result->folded = true;
+   }
+   return true;
+}
+
 static void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    struct type_info cast_type;
