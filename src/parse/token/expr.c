@@ -46,7 +46,7 @@ int p_eval_prep_expr( struct parse* parse ) {
    return value;
 }
 
-int eval_binary( struct parse* parse, struct calc* calc ) {
+static int eval_binary( struct parse* parse, struct calc* calc ) {
    int mul = 0;
    int mul_lside = 0;
    int add = 0;
@@ -270,7 +270,7 @@ int eval_binary( struct parse* parse, struct calc* calc ) {
    return operand;
 }
 
-int eval_prefix( struct parse* parse, struct calc* calc ) {
+static int eval_prefix( struct parse* parse, struct calc* calc ) {
    switch ( parse->token->type ) {
       int value;
    case TK_PLUS:
@@ -295,7 +295,7 @@ int eval_prefix( struct parse* parse, struct calc* calc ) {
    }
 }
 
-int eval_primary( struct parse* parse, struct calc* calc ) {
+static int eval_primary( struct parse* parse, struct calc* calc ) {
    switch ( parse->token->type ) {
    case TK_LIT_CHAR:
       return eval_ch( parse );
@@ -313,13 +313,13 @@ int eval_primary( struct parse* parse, struct calc* calc ) {
    }
 }
 
-int eval_ch( struct parse* parse ) {
+static int eval_ch( struct parse* parse ) {
    int value = parse->token->text[ 0 ];
    p_read_expanpreptk( parse );
    return value;
 }
 
-int eval_id( struct parse* parse ) {
+static int eval_id( struct parse* parse ) {
    if ( strcmp( parse->token->text, "defined" ) == 0 ) {
       return eval_defined( parse );
    }
@@ -329,7 +329,7 @@ int eval_id( struct parse* parse ) {
    }
 }
 
-int eval_defined( struct parse* parse ) {
+static int eval_defined( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    bool paren = false;
@@ -347,7 +347,7 @@ int eval_defined( struct parse* parse ) {
    return ( int ) defined;
 }
 
-int eval_number( struct parse* parse ) {
+static int eval_number( struct parse* parse ) {
    int value = 0;
    switch ( parse->token->type ) {
    case TK_LIT_DECIMAL:
@@ -366,7 +366,7 @@ int eval_number( struct parse* parse ) {
    return value;
 }
 
-int eval_paren( struct parse* parse, struct calc* calc ) {
+static int eval_paren( struct parse* parse, struct calc* calc ) {
    p_test_preptk( parse, TK_PAREN_L );
    p_read_expanpreptk( parse );
    int value = eval_binary( parse, calc );

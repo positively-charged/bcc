@@ -81,7 +81,7 @@ void p_read_top_block( struct parse* parse, struct stmt_reading* reading,
    }
 }
 
-void read_block( struct parse* parse, struct stmt_reading* reading ) {
+static void read_block( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_BRACE_L );
    struct block* block = alloc_block();
    block->pos = parse->tk_pos;
@@ -95,7 +95,7 @@ void read_block( struct parse* parse, struct stmt_reading* reading ) {
    reading->block_node = block;
 }
 
-struct block* alloc_block( void ) {
+static struct block* alloc_block( void ) {
    struct block* block = mem_alloc( sizeof( *block ) );
    block->node.type = NODE_BLOCK;
    list_init( &block->stmts );
@@ -106,7 +106,8 @@ struct block* alloc_block( void ) {
 // result, you can have weird code like the following, and it does exist in the
 // wild: if ( 0 ) int test = 123; switch ( 1 ) case 0:
 // To support such code, we implicitly create a block.
-void read_implicit_block( struct parse* parse, struct stmt_reading* reading ) {
+static void read_implicit_block( struct parse* parse,
+   struct stmt_reading* reading ) {
    // No need for an implicit block when one is explicitly specified.
    if ( parse->tk == TK_BRACE_L ) {
       read_block( parse, reading );
@@ -120,7 +121,7 @@ void read_implicit_block( struct parse* parse, struct stmt_reading* reading ) {
    }
 }
 
-void read_block_item( struct parse* parse, struct stmt_reading* reading,
+static void read_block_item( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
    reading->node = NULL;
    read_stmt( parse, reading, block );
@@ -135,7 +136,7 @@ void read_block_item( struct parse* parse, struct stmt_reading* reading,
 //    if ( 0 ) int a = 123;
 //    switch ( 0 ) default:
 // For the sake of being compatible with ACS, we do the same in BCS.
-void read_stmt( struct parse* parse, struct stmt_reading* reading,
+static void read_stmt( struct parse* parse, struct stmt_reading* reading,
    struct block* block ) {
    // using directive.
    if ( parse->tk == TK_USING ||
@@ -266,7 +267,7 @@ void read_stmt( struct parse* parse, struct stmt_reading* reading,
    }
 }
 
-void read_case( struct parse* parse, struct stmt_reading* reading ) {
+static void read_case( struct parse* parse, struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE;
    label->offset = 0;
@@ -283,7 +284,8 @@ void read_case( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &label->node;
 }
 
-void read_default_case( struct parse* parse, struct stmt_reading* reading ) {
+static void read_default_case( struct parse* parse,
+   struct stmt_reading* reading ) {
    struct case_label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_CASE_DEFAULT;
    label->pos = parse->tk_pos;
@@ -294,7 +296,7 @@ void read_default_case( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &label->node;
 }
 
-void read_label( struct parse* parse, struct stmt_reading* reading ) {
+static void read_label( struct parse* parse, struct stmt_reading* reading ) {
    struct label* label = alloc_label( parse->tk_text, &parse->tk_pos );
    list_append( reading->labels, label );
    p_test_tk( parse, TK_ID );
@@ -304,7 +306,7 @@ void read_label( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &label->node;
 }
 
-struct label* alloc_label( const char* name, struct pos* pos ) {
+static struct label* alloc_label( const char* name, struct pos* pos ) {
    struct label* label = mem_alloc( sizeof( *label ) );
    label->node.type = NODE_GOTO_LABEL;
    label->pos = *pos;
@@ -315,7 +317,7 @@ struct label* alloc_label( const char* name, struct pos* pos ) {
    return label;
 }
 
-void read_if( struct parse* parse, struct stmt_reading* reading ) {
+static void read_if( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct if_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_IF;
@@ -346,11 +348,11 @@ void read_if( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void init_cond( struct cond* cond ) {
+static void init_cond( struct cond* cond ) {
    cond->u.node = NULL;
 }
 
-void read_cond( struct parse* parse, struct cond* cond ) {
+static void read_cond( struct parse* parse, struct cond* cond ) {
    if ( parse->lang == LANG_BCS && p_is_local_dec( parse ) ) {
       cond->u.var = p_read_cond_var( parse );
    }
@@ -362,12 +364,12 @@ void read_cond( struct parse* parse, struct cond* cond ) {
    }
 }
 
-void init_heavy_cond( struct heavy_cond* cond ) {
+static void init_heavy_cond( struct heavy_cond* cond ) {
    cond->var = NULL;
    cond->expr = NULL;
 }
 
-void read_heavy_cond( struct parse* parse, struct heavy_cond* cond ) {
+static void read_heavy_cond( struct parse* parse, struct heavy_cond* cond ) {
    bool read_expr = false;
    if ( parse->lang == LANG_BCS && p_is_local_dec( parse ) ) {
       cond->var = p_read_cond_var( parse );
@@ -387,7 +389,7 @@ void read_heavy_cond( struct parse* parse, struct heavy_cond* cond ) {
    }
 }
 
-void read_switch( struct parse* parse, struct stmt_reading* reading ) {
+static void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct switch_stmt* stmt = alloc_switch_stmt();
    p_test_tk( parse, TK_PAREN_L );
@@ -400,7 +402,7 @@ void read_switch( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct switch_stmt* alloc_switch_stmt( void ) {
+static struct switch_stmt* alloc_switch_stmt( void ) {
    struct switch_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SWITCH;
    init_heavy_cond( &stmt->cond );
@@ -411,7 +413,7 @@ struct switch_stmt* alloc_switch_stmt( void ) {
    return stmt;
 }
 
-void read_while( struct parse* parse, struct stmt_reading* reading ) {
+static void read_while( struct parse* parse, struct stmt_reading* reading ) {
    struct while_stmt* stmt = alloc_while();
    if ( parse->tk == TK_WHILE ) {
       p_read_tk( parse );
@@ -431,7 +433,7 @@ void read_while( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct while_stmt* alloc_while( void ) {
+static struct while_stmt* alloc_while( void ) {
    struct while_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_WHILE;
    init_cond( &stmt->cond );
@@ -442,7 +444,7 @@ struct while_stmt* alloc_while( void ) {
    return stmt;
 }
 
-void read_do( struct parse* parse, struct stmt_reading* reading ) {
+static void read_do( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_DO );
    p_read_tk( parse );
    struct do_stmt* stmt = alloc_do();
@@ -469,7 +471,7 @@ void read_do( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct do_stmt* alloc_do( void ) {
+static struct do_stmt* alloc_do( void ) {
    struct do_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_DO;
    stmt->cond = NULL;
@@ -480,7 +482,7 @@ struct do_stmt* alloc_do( void ) {
    return stmt;
 }
 
-void read_for( struct parse* parse, struct stmt_reading* reading ) {
+static void read_for( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_FOR );
    p_read_tk( parse );
    struct for_stmt* stmt = mem_alloc( sizeof( *stmt ) );
@@ -517,7 +519,7 @@ void read_for( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
+static void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
    if ( p_is_local_dec( parse ) ) {
       struct dec dec;
       p_init_for_dec( parse, &dec, &stmt->init );
@@ -541,7 +543,7 @@ void read_for_init( struct parse* parse, struct for_stmt* stmt ) {
    }
 }
 
-void read_for_post( struct parse* parse, struct for_stmt* stmt ) {
+static void read_for_post( struct parse* parse, struct for_stmt* stmt ) {
    while ( true ) {
       struct expr_reading expr;
       p_init_expr_reading( &expr, false, false, false, true );
@@ -556,7 +558,7 @@ void read_for_post( struct parse* parse, struct for_stmt* stmt ) {
    }
 }
 
-void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
+static void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
    struct foreach_stmt* stmt = alloc_foreach();
    p_test_tk( parse, TK_FOREACH );
    p_read_tk( parse );
@@ -574,7 +576,7 @@ void read_foreach( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct foreach_stmt* alloc_foreach( void ) {
+static struct foreach_stmt* alloc_foreach( void ) {
    struct foreach_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_FOREACH;
    stmt->key = NULL;
@@ -586,7 +588,7 @@ struct foreach_stmt* alloc_foreach( void ) {
    return stmt;
 }
 
-void read_jump( struct parse* parse, struct stmt_reading* reading ) {
+static void read_jump( struct parse* parse, struct stmt_reading* reading ) {
    struct jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_JUMP;
    stmt->type = JUMP_BREAK;
@@ -603,7 +605,8 @@ void read_jump( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_script_jump( struct parse* parse, struct stmt_reading* reading ) {
+static void read_script_jump( struct parse* parse,
+   struct stmt_reading* reading ) {
    struct script_jump* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_SCRIPT_JUMP;
    stmt->type = SCRIPT_JUMP_TERMINATE;
@@ -620,7 +623,7 @@ void read_script_jump( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_return( struct parse* parse, struct stmt_reading* reading ) {
+static void read_return( struct parse* parse, struct stmt_reading* reading ) {
    p_test_tk( parse, TK_RETURN );
    struct return_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_RETURN;
@@ -647,7 +650,7 @@ void read_return( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_goto( struct parse* parse, struct stmt_reading* reading ) {
+static void read_goto( struct parse* parse, struct stmt_reading* reading ) {
    struct goto_stmt* stmt = alloc_goto_stmt( &parse->tk_pos );
    p_test_tk( parse, TK_GOTO );
    p_read_tk( parse );
@@ -660,7 +663,7 @@ void read_goto( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-struct goto_stmt* alloc_goto_stmt( struct pos* pos ) {
+static struct goto_stmt* alloc_goto_stmt( struct pos* pos ) {
    struct goto_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_GOTO;
    stmt->obj_pos = 0;
@@ -672,7 +675,8 @@ struct goto_stmt* alloc_goto_stmt( struct pos* pos ) {
    return stmt;
 }
 
-void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
+static void read_paltrans( struct parse* parse,
+   struct stmt_reading* reading ) {
    p_read_tk( parse );
    struct paltrans* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_PALTRANS;
@@ -743,7 +747,7 @@ void read_paltrans( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_palrange_rgb( struct parse* parse, struct palrange* range ) {
+static void read_palrange_rgb( struct parse* parse, struct palrange* range ) {
    read_palrange_rgb_field( parse, &range->value.rgb.red1,
       &range->value.rgb.green1, &range->value.rgb.blue1 );
    p_test_tk( parse, TK_COLON );
@@ -752,7 +756,7 @@ void read_palrange_rgb( struct parse* parse, struct palrange* range ) {
       &range->value.rgb.green2, &range->value.rgb.blue2 );
 }
 
-void read_palrange_rgb_field( struct parse* parse, struct expr** r,
+static void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    struct expr** g, struct expr** b ) {
    p_test_tk( parse, TK_BRACKET_L );
    p_read_tk( parse );
@@ -774,7 +778,7 @@ void read_palrange_rgb_field( struct parse* parse, struct expr** r,
    p_read_tk( parse ); 
 }
 
-void read_palrange_colorisation( struct parse* parse,
+static void read_palrange_colorisation( struct parse* parse,
    struct palrange* range ) {
    p_test_tk( parse, TK_HASH );
    p_read_tk( parse );
@@ -785,7 +789,7 @@ void read_palrange_colorisation( struct parse* parse,
    range->colorisation = true;
 }
 
-void read_palrange_tint( struct parse* parse, struct palrange* range ) {
+static void read_palrange_tint( struct parse* parse, struct palrange* range ) {
    p_test_tk( parse, TK_AT );
    p_read_tk( parse );
    // NOTE: The syntax for this range is problematic. Here, we parse an
@@ -832,7 +836,8 @@ static struct buildmsg* read_buildmsg( struct parse* parse,
    return buildmsg;
 }
 
-void read_expr_stmt( struct parse* parse, struct stmt_reading* reading ) {
+static void read_expr_stmt( struct parse* parse,
+   struct stmt_reading* reading ) {
    struct expr_stmt* stmt = mem_alloc( sizeof( *stmt ) );
    stmt->node.type = NODE_EXPR_STMT;
    list_init( &stmt->expr_list );
@@ -853,7 +858,7 @@ void read_expr_stmt( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &stmt->node;
 }
 
-void read_assert( struct parse* parse, struct stmt_reading* reading ) {
+static void read_assert( struct parse* parse, struct stmt_reading* reading ) {
    struct assert* assert = alloc_assert( &parse->tk_pos );
    if ( parse->tk == TK_STATIC ) {
       assert->is_static = true;
@@ -881,7 +886,7 @@ void read_assert( struct parse* parse, struct stmt_reading* reading ) {
    }
 }
 
-struct assert* alloc_assert( struct pos* pos ) {
+static struct assert* alloc_assert( struct pos* pos ) {
    struct assert* assert = mem_alloc( sizeof( *assert ) );
    assert->node.type = NODE_ASSERT;
    assert->next = NULL;

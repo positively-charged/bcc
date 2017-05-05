@@ -125,7 +125,7 @@ void c_write_chunk_obj( struct codegen* codegen ) {
    c_flush( codegen );
 }
 
-void do_sptr( struct codegen* codegen ) {
+static void do_sptr( struct codegen* codegen ) {
    if ( ! list_size( &codegen->task->library_main->scripts ) ) {
       return;
    }
@@ -151,7 +151,7 @@ void do_sptr( struct codegen* codegen ) {
    }
 }
 
-void do_svct( struct codegen* codegen ) {
+static void do_svct( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
    list_iterate( &codegen->task->library_main->scripts, &i );
@@ -185,7 +185,7 @@ inline bool svct_script( struct script* script ) {
    return ( script->size > DEFAULT_SCRIPT_SIZE );
 }
 
-void do_sflg( struct codegen* codegen ) {
+static void do_sflg( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
    list_iterate( &codegen->task->library_main->scripts, &i );
@@ -216,7 +216,7 @@ void do_sflg( struct codegen* codegen ) {
    }
 }
 
-void do_snam( struct codegen* codegen ) {
+static void do_snam( struct codegen* codegen ) {
    int count = 0;
    int total_length = 0;
    struct list_iter i;
@@ -275,7 +275,7 @@ void do_snam( struct codegen* codegen ) {
    }
 }
 
-void do_func( struct codegen* codegen ) {
+static void do_func( struct codegen* codegen ) {
    if ( list_size( &codegen->funcs ) == 0 ) {
       return;
    }
@@ -323,7 +323,7 @@ int c_total_param_size( struct func* func ) {
 // game engine will crash when attempting to execute the `acsprofile` command.
 // Always output the FNAM chunk if the FUNC chunk is present, even if the FNAM
 // chunk will end up being empty.
-void do_fnam( struct codegen* codegen ) {
+static void do_fnam( struct codegen* codegen ) {
    if ( list_size( &codegen->funcs ) == 0 ) {
       return;
    }
@@ -375,7 +375,7 @@ void do_fnam( struct codegen* codegen ) {
    }
 }
 
-void do_strl( struct codegen* codegen ) {
+static void do_strl( struct codegen* codegen ) {
    if ( ! list_size( &codegen->used_strings ) ) {
       return;
    }
@@ -440,7 +440,7 @@ void do_strl( struct codegen* codegen ) {
    }
 }
 
-void do_mini( struct codegen* codegen ) {
+static void do_mini( struct codegen* codegen ) {
    struct var* first_var = NULL;
    int count = 0;
    struct list_iter i;
@@ -480,7 +480,7 @@ inline bool mini_var( struct var* var ) {
       var->value->expr->value != 0;
 }
 
-void do_aray( struct codegen* codegen ) {
+static void do_aray( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
@@ -524,7 +524,7 @@ inline bool aray_var( struct var* var ) {
       ( var->desc == DESC_REFVAR && var->ref->type == REF_ARRAY ) );
 }
 
-void do_aini( struct codegen* codegen ) {
+static void do_aini( struct codegen* codegen ) {
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
    while ( ! list_end( &i ) ) {
@@ -543,7 +543,7 @@ inline bool aini_var( struct var* var ) {
    return aray_var( var ) && var->value;
 }
 
-void write_aini( struct codegen* codegen, struct var* var ) {
+static void write_aini( struct codegen* codegen, struct var* var ) {
    int count = count_nonzero_initz( var );
    if ( ! count ) {
       return;
@@ -585,7 +585,7 @@ void write_aini( struct codegen* codegen, struct var* var ) {
    }
 }
 
-int count_nonzero_initz( struct var* var ) {
+static int count_nonzero_initz( struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
@@ -614,7 +614,7 @@ struct initz_w {
    int done;
 };
 
-void write_initz( struct codegen* codegen, struct initz_w* writing,
+static void write_initz( struct codegen* codegen, struct initz_w* writing,
    struct value* value ) {
    while ( value ) {
       int index = writing->base + value->index;
@@ -647,7 +647,7 @@ void write_initz( struct codegen* codegen, struct initz_w* writing,
    }
 }
 
-void write_aini_shary( struct codegen* codegen ) {
+static void write_aini_shary( struct codegen* codegen ) {
    c_add_str( codegen, "AINI" );
    c_add_int( codegen,
       sizeof( int ) +
@@ -669,7 +669,7 @@ void write_aini_shary( struct codegen* codegen ) {
    }
 }
 
-int count_shary_initz( struct codegen* codegen ) {
+static int count_shary_initz( struct codegen* codegen ) {
    int count = 0;
    // null-element/dimension-tracker.
    ++count;
@@ -691,7 +691,7 @@ int count_shary_initz( struct codegen* codegen ) {
    return count;
 }
 
-void write_diminfo( struct codegen* codegen ) {
+static void write_diminfo( struct codegen* codegen ) {
    struct list_iter i;
    list_iterate( &codegen->shary.dims, &i );
    while ( ! list_end( &i ) ) {
@@ -701,7 +701,7 @@ void write_diminfo( struct codegen* codegen ) {
    }
 }
 
-void do_load( struct codegen* codegen ) {
+static void do_load( struct codegen* codegen ) {
    int size = 0;
    struct list_iter i;
    list_iterate( &codegen->task->library_main->dynamic, &i );
@@ -748,7 +748,7 @@ void do_load( struct codegen* codegen ) {
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
-void do_mimp( struct codegen* codegen ) {
+static void do_mimp( struct codegen* codegen ) {
    int size = 0;
    struct list_iter i;
    list_iterate( &codegen->imported_vars, &i );
@@ -785,7 +785,7 @@ inline bool mimp_var( struct var* var ) {
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
-void do_aimp( struct codegen* codegen ) {
+static void do_aimp( struct codegen* codegen ) {
    int count = 0;
    int size = sizeof( int );
    struct list_iter i;
@@ -831,7 +831,7 @@ inline bool aimp_array( struct var* var ) {
       var->desc == DESC_STRUCTVAR ) );
 }
 
-void do_mexp( struct codegen* codegen ) {
+static void do_mexp( struct codegen* codegen ) {
    int count = 0;
    int size = 0;
    struct list_iter i;
@@ -883,7 +883,7 @@ void do_mexp( struct codegen* codegen ) {
    }
 }
 
-void do_mstr( struct codegen* codegen ) {
+static void do_mstr( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
@@ -913,7 +913,7 @@ inline bool mstr_var( struct var* var ) {
       ( var->desc == DESC_REFVAR && var->ref->type == REF_FUNCTION );
 }
 
-void do_astr( struct codegen* codegen ) {
+static void do_astr( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
@@ -944,7 +944,7 @@ inline bool astr_var( struct var* var ) {
       ( var->ref && var->ref->type == REF_FUNCTION ) ) );
 }
 
-void do_atag( struct codegen* codegen ) {
+static void do_atag( struct codegen* codegen ) {
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
    while ( ! list_end( &i ) ) {
@@ -959,7 +959,7 @@ void do_atag( struct codegen* codegen ) {
    }
 }
 
-void write_atag_chunk( struct codegen* codegen, struct var* var ) {
+static void write_atag_chunk( struct codegen* codegen, struct var* var ) {
    enum { CHUNK_VERSION = 0 };
    enum {
       TAG_INTEGER,
@@ -1017,7 +1017,7 @@ void write_atag_chunk( struct codegen* codegen, struct var* var ) {
 }
 
 // TODO: Refactor.
-void write_atag_shary( struct codegen* codegen ) {
+static void write_atag_shary( struct codegen* codegen ) {
    enum { CHUNK_VERSION = 0 };
    enum {
       TAG_INTEGER,
@@ -1085,7 +1085,7 @@ void write_atag_shary( struct codegen* codegen ) {
    }
 }
 
-void do_sary( struct codegen* codegen ) {
+static void do_sary( struct codegen* codegen ) {
    // Scripts.
    struct list_iter i;
    list_iterate( &codegen->task->library_main->scripts, &i );
@@ -1105,7 +1105,7 @@ void do_sary( struct codegen* codegen ) {
    }
 }
 
-void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
+static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
    int index, struct list* vars ) {
    int count = 0;
    struct list_iter i;

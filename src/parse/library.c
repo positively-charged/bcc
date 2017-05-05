@@ -87,7 +87,7 @@ static void read_main_module( struct parse* parse ) {
    finish_wadauthor( parse );
 }
 
-void read_module( struct parse* parse ) {
+static void read_module( struct parse* parse ) {
    if ( parse->tk == TK_HASH ) {
       read_pseudo_dirc( parse, true );
    }
@@ -97,7 +97,7 @@ void read_module( struct parse* parse ) {
    p_confirm_ifdircs_closed( parse );
 }
 
-void read_module_item( struct parse* parse ) {
+static void read_module_item( struct parse* parse ) {
    switch ( parse->lang ) {
    case LANG_ACS:
    case LANG_ACS95:
@@ -115,7 +115,7 @@ void read_module_item( struct parse* parse ) {
    }
 }
 
-void read_module_item_acs( struct parse* parse ) {
+static void read_module_item_acs( struct parse* parse ) {
    if ( p_is_dec( parse ) || parse->tk == TK_FUNCTION ) {
       struct dec dec;
       p_init_dec( &dec );
@@ -141,7 +141,7 @@ void read_module_item_acs( struct parse* parse ) {
    }
 }
 
-void read_namespace( struct parse* parse ) {
+static void read_namespace( struct parse* parse ) {
    struct ns_qual qualifiers;
    init_namespace_qualifier( &qualifiers );
    read_namespace_qualifier( parse, &qualifiers );
@@ -166,12 +166,12 @@ void read_namespace( struct parse* parse ) {
    parse->ns = parent_fragment->ns;
 }
 
-void init_namespace_qualifier( struct ns_qual* qualifiers ) {
+static void init_namespace_qualifier( struct ns_qual* qualifiers ) {
    qualifiers->private_visibility = false;
    qualifiers->strict = false;
 }
 
-void read_namespace_qualifier( struct parse* parse,
+static void read_namespace_qualifier( struct parse* parse,
    struct ns_qual* qualifiers ) {
    if ( parse->tk == TK_PRIVATE ) {
       qualifiers->private_visibility = true;
@@ -183,7 +183,7 @@ void read_namespace_qualifier( struct parse* parse,
    }
 }
 
-void read_namespace_name( struct parse* parse ) {
+static void read_namespace_name( struct parse* parse ) {
    if ( parse->tk == TK_ID ||
       // An unqualified, unnamed namespace does not do anything useful. Force
       // an unqualified namespace to have a name.
@@ -218,7 +218,7 @@ void read_namespace_name( struct parse* parse ) {
    list_append( &parse->ns->fragments, parse->ns_fragment );
 }
 
-void read_namespace_path( struct parse* parse ) {
+static void read_namespace_path( struct parse* parse ) {
    if ( parse->tk != TK_ID ) {
       p_unexpect_diag( parse );
       p_unexpect_last_name( parse, NULL, "namespace name" );
@@ -244,13 +244,13 @@ void read_namespace_path( struct parse* parse ) {
    parse->ns_fragment->path = head;
 }
 
-void read_namespace_member_list( struct parse* parse ) {
+static void read_namespace_member_list( struct parse* parse ) {
    while ( parse->tk != TK_BRACE_R ) {
       read_namespace_member( parse );
    }
 }
 
-void read_namespace_member( struct parse* parse ) {
+static void read_namespace_member( struct parse* parse ) {
    if ( is_namespace( parse ) ) {
       read_namespace( parse );
    }
@@ -279,7 +279,7 @@ void read_namespace_member( struct parse* parse ) {
    }
 }
 
-bool is_namespace( struct parse* parse ) {
+static bool is_namespace( struct parse* parse ) {
    switch ( parse->tk ) {
    case TK_STRICT:
       return true;
@@ -315,7 +315,7 @@ bool is_namespace( struct parse* parse ) {
    return false;
 }
 
-void read_using( struct parse* parse, struct list* output,
+static void read_using( struct parse* parse, struct list* output,
    bool block_scope ) {
    struct using_dirc* dirc = alloc_using( &parse->tk_pos );
    dirc->force_local_scope = block_scope;
@@ -344,7 +344,7 @@ void p_read_local_using( struct parse* parse, struct list* output ) {
    read_using( parse, output, p_read_let( parse ) );
 }
 
-struct using_dirc* alloc_using( struct pos* pos ) {
+static struct using_dirc* alloc_using( struct pos* pos ) {
    struct using_dirc* dirc = mem_alloc( sizeof( *dirc ) );
    dirc->node.type = NODE_USING;
    dirc->path = NULL;
@@ -355,7 +355,7 @@ struct using_dirc* alloc_using( struct pos* pos ) {
    return dirc;
 }
 
-void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
+static void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
    struct using_item* item = alloc_using_item();
    item->name = parse->tk_text;
    item->pos = parse->tk_pos;
@@ -409,7 +409,7 @@ void read_using_item( struct parse* parse, struct using_dirc* dirc ) {
    list_append( &dirc->items, item );
 }
 
-struct using_item* alloc_using_item( void ) {
+static struct using_item* alloc_using_item( void ) {
    struct using_item* item = mem_alloc( sizeof( *item ) );
    item->name = NULL;
    item->usage_name = NULL;
@@ -450,7 +450,7 @@ struct path* p_read_path( struct parse* parse ) {
    return head;
 }
 
-struct path* alloc_path( struct pos pos ) {
+static struct path* alloc_path( struct pos pos ) {
    struct path* path = mem_alloc( sizeof( *path ) );
    path->next = NULL;
    path->text = "";
@@ -566,7 +566,7 @@ struct path* p_read_type_path( struct parse* parse ) {
    }
 }
 
-void read_pseudo_dirc( struct parse* parse, bool first_object ) {
+static void read_pseudo_dirc( struct parse* parse, bool first_object ) {
    struct pos pos = parse->tk_pos;
    p_test_tk( parse, TK_HASH );
    p_read_tk( parse );
@@ -656,7 +656,7 @@ void read_pseudo_dirc( struct parse* parse, bool first_object ) {
    }
 }
 
-enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
+static enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
    static const struct { const char* text; enum tk tk; } table[] = {
       { "define", TK_DEFINE },
       { "libdefine", TK_LIBDEFINE },
@@ -677,7 +677,7 @@ enum tk determine_bcs_pseudo_dirc( struct parse* parse ) {
    return TK_NONE;
 }
 
-void read_include( struct parse* parse ) {
+static void read_include( struct parse* parse ) {
    p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_INCLUDE );
    p_read_tk( parse );
    if ( parse->lib->imported ) {
@@ -691,7 +691,7 @@ void read_include( struct parse* parse ) {
    }
 }
 
-void read_define( struct parse* parse ) {
+static void read_define( struct parse* parse ) {
    bool hidden = ( parse->tk_text[ 0 ] == 'd' );
    p_read_tk( parse );
    // In BCS, true and false are keywords, but they are defined as constants in
@@ -723,7 +723,7 @@ void read_define( struct parse* parse ) {
    list_append( &parse->ns_fragment->objects, constant );
 }
 
-void read_import( struct parse* parse, struct pos* pos ) {
+static void read_import( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_IMPORT );
    p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
@@ -734,7 +734,8 @@ void read_import( struct parse* parse, struct pos* pos ) {
    p_read_tk( parse );
 }
 
-void read_library( struct parse* parse, struct pos* pos, bool first_object ) {
+static void read_library( struct parse* parse, struct pos* pos,
+   bool first_object ) {
    p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_LIBRARY );
    p_read_tk( parse );
    parse->lib->header = true;
@@ -754,7 +755,7 @@ void read_library( struct parse* parse, struct pos* pos, bool first_object ) {
    }
 }
 
-void read_library_name( struct parse* parse, struct pos* pos ) {
+static void read_library_name( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_LIT_STRING );
    test_library_name( parse, &parse->tk_pos, parse->tk_text,
       parse->tk_length );
@@ -788,7 +789,7 @@ void read_library_name( struct parse* parse, struct pos* pos ) {
    p_read_tk( parse );
 }
 
-void test_library_name( struct parse* parse, struct pos* pos,
+static void test_library_name( struct parse* parse, struct pos* pos,
    const char* name, int length ) {
    if ( length == 0 ) {
       p_diag( parse, DIAG_POS_ERR, pos,
@@ -804,7 +805,7 @@ void test_library_name( struct parse* parse, struct pos* pos,
    }
 }
 
-void read_linklibrary( struct parse* parse, struct pos* pos ) {
+static void read_linklibrary( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, TK_ID );
    p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
@@ -812,7 +813,7 @@ void read_linklibrary( struct parse* parse, struct pos* pos ) {
    p_read_tk( parse );
 }
 
-void add_library_link( struct parse* parse, const char* name,
+static void add_library_link( struct parse* parse, const char* name,
    struct pos* pos ) {
    test_library_name( parse, pos, name, strlen( name ) );
    struct library_link* link = NULL;
@@ -903,7 +904,7 @@ void p_add_unresolved( struct parse* parse, struct object* object ) {
    t_append_unresolved_namespace_object( parse->ns_fragment, object );
 }
 
-void read_imported_libs( struct parse* parse ) {
+static void read_imported_libs( struct parse* parse ) {
    struct list_iter i;
    list_iterate( &parse->lib->import_dircs, &i );
    while ( ! list_end( &i ) ) {
@@ -912,7 +913,7 @@ void read_imported_libs( struct parse* parse ) {
    }
 }
 
-void import_lib( struct parse* parse, struct import_dirc* dirc ) {
+static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    struct file_entry* file = p_find_module_file( parse,
       parse->task->library_main, dirc->file_path );
    if ( ! file ) {
@@ -989,7 +990,7 @@ void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
 }
 
-void determine_needed_library_links( struct parse* parse ) {
+static void determine_needed_library_links( struct parse* parse ) {
    struct list_iter i;
    list_iterate( &parse->task->library_main->links, &i );
    while ( ! list_end( &i ) ) {
@@ -1014,7 +1015,7 @@ void determine_needed_library_links( struct parse* parse ) {
    }
 }
 
-void determine_hidden_objects( struct parse* parse ) {
+static void determine_hidden_objects( struct parse* parse ) {
    // Determine private objects.
    struct list_iter i;
    list_iterate( &parse->task->libraries, &i );
@@ -1032,7 +1033,7 @@ void determine_hidden_objects( struct parse* parse ) {
    }
 }
 
-void collect_private_objects( struct parse* parse, struct library* lib,
+static void collect_private_objects( struct parse* parse, struct library* lib,
    struct ns_fragment* fragment ) {
    struct list_iter i;
    list_iterate( &fragment->objects, &i );
@@ -1097,7 +1098,7 @@ void collect_private_objects( struct parse* parse, struct library* lib,
    }
 }
 
-bool is_private_namespace( struct ns* ns ) {
+static bool is_private_namespace( struct ns* ns ) {
    struct list_iter i;
    list_iterate( &ns->fragments, &i );
    while ( ! list_end( &i ) ) {
@@ -1110,7 +1111,7 @@ bool is_private_namespace( struct ns* ns ) {
    return true;
 }
 
-void unbind_namespaces( struct parse* parse ) {
+static void unbind_namespaces( struct parse* parse ) {
    struct list_iter i;
    list_iterate( &parse->task->namespaces, &i );
    while ( ! list_end( &i ) ) {

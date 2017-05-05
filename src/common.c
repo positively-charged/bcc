@@ -100,7 +100,7 @@ void* mem_realloc( void* block, size_t size ) {
    return alloc + 1;
 }
 
-void unlink_alloc( struct alloc* alloc ) {
+static void unlink_alloc( struct alloc* alloc ) {
    struct alloc* curr = g_alloc;
    struct alloc* prev = NULL;
    while ( curr != alloc ) {
@@ -197,7 +197,7 @@ void str_copy( struct str* str, const char* value, int length ) {
 // If necessary, increases the buffer size enough to fit a string of the
 // specified length and the terminating null character. To select the size, an
 // initial size is doubled until the size is appropriate.
-void adjust_buffer( struct str* string, int length ) {
+static void adjust_buffer( struct str* string, int length ) {
    int required_length = length + 1;
    if ( string->buffer_length < required_length ) {
       int buffer_length = 1;

@@ -78,7 +78,7 @@ void c_publish( struct codegen* codegen ) {
    }
 }
 
-void publish_acs95( struct codegen* codegen ) {
+static void publish_acs95( struct codegen* codegen ) {
    // Reserve header.
    c_add_int( codegen, 0 );
    c_add_int( codegen, 0 );
@@ -125,7 +125,7 @@ void publish_acs95( struct codegen* codegen ) {
    c_flush( codegen );
 }
 
-void publish( struct codegen* codegen ) {
+static void publish( struct codegen* codegen ) {
    switch ( codegen->lang ) {
    case LANG_ACS:
       append_acs_strings( codegen );
@@ -160,7 +160,7 @@ void publish( struct codegen* codegen ) {
    c_write_chunk_obj( codegen );
 }
 
-void clarify_vars( struct codegen* codegen ) {
+static void clarify_vars( struct codegen* codegen ) {
    int count = 0;
    // Variables.
    struct list_iter i;
@@ -264,7 +264,7 @@ void clarify_vars( struct codegen* codegen ) {
    }
 }
 
-void alloc_dim_counter_var( struct codegen* codegen ) {
+static void alloc_dim_counter_var( struct codegen* codegen ) {
    // TODO: Determine if we need the dimension counter.
    codegen->shary.dim_counter_var = true;
 }
@@ -274,7 +274,7 @@ void alloc_dim_counter_var( struct codegen* codegen ) {
 // - imported functions
 // - functions
 // - hidden functions
-void clarify_funcs( struct codegen* codegen ) {
+static void clarify_funcs( struct codegen* codegen ) {
    // Null handler.
    if ( codegen->lang == LANG_BCS &&
       codegen->task->library_main->uses_nullable_refs ) {
@@ -348,7 +348,7 @@ void clarify_funcs( struct codegen* codegen ) {
 // - null-element/dimension-counter
 // - dimension-information
 // - data
-void setup_shary( struct codegen* codegen ) {
+static void setup_shary( struct codegen* codegen ) {
    if ( codegen->shary.used ) {
       // null-element/dimension-counter
       ++codegen->shary.size;
@@ -362,7 +362,7 @@ void setup_shary( struct codegen* codegen ) {
 // reuse the dimension-size values of the objects with the greater number of
 // dimensions, since they might form a substring of the values. This eliminates
 // duplicates.
-void setup_diminfo( struct codegen* codegen ) {
+static void setup_diminfo( struct codegen* codegen ) {
    codegen->shary.diminfo_offset = codegen->shary.size;
    // Variables.
    struct list_iter i;
@@ -393,7 +393,7 @@ void setup_diminfo( struct codegen* codegen ) {
    codegen->shary.size += codegen->shary.diminfo_size;
 }
 
-int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
+static int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
    int offset = codegen->shary.diminfo_offset;
    struct list_iter i;
    list_iterate( &codegen->shary.dims, &i );
@@ -413,7 +413,7 @@ int append_dim( struct codegen* codegen, struct dim* candidate_dim ) {
    return offset;
 }
 
-bool same_dim( struct dim* dim, struct list_iter i ) {
+static bool same_dim( struct dim* dim, struct list_iter i ) {
    while ( dim != NULL && ! list_end( &i ) &&
       t_dim_size( dim ) == t_dim_size( list_data( &i ) ) ) {
       list_next( &i );
@@ -422,7 +422,7 @@ bool same_dim( struct dim* dim, struct list_iter i ) {
    return ( dim == NULL && list_end( &i ) );
 }
 
-void setup_data( struct codegen* codegen ) {
+static void setup_data( struct codegen* codegen ) {
    codegen->shary.data_offset = codegen->shary.size;
    struct list_iter i;
    list_iterate( &codegen->shary.vars, &i );
@@ -435,12 +435,12 @@ void setup_data( struct codegen* codegen ) {
    }
 }
 
-void patch_initz( struct codegen* codegen ) {
+static void patch_initz( struct codegen* codegen ) {
    patch_initz_list( codegen, &codegen->vars );
    patch_initz_list( codegen, &codegen->shary.vars );
 }
 
-void patch_initz_list( struct codegen* codegen, struct list* vars ) {
+static void patch_initz_list( struct codegen* codegen, struct list* vars ) {
    struct list_iter i;
    list_iterate( vars, &i );
    while ( ! list_end( &i ) ) {
@@ -454,7 +454,7 @@ void patch_initz_list( struct codegen* codegen, struct list* vars ) {
    }
 }
 
-void patch_value( struct codegen* codegen, struct value* value ) {
+static void patch_value( struct codegen* codegen, struct value* value ) {
    if ( value->var ) {
       value->expr->value += value->var->index;
    }
@@ -491,7 +491,7 @@ void patch_value( struct codegen* codegen, struct value* value ) {
 // - scalars, with-value, hidden
 // - scalars, with-no-value, hidden
 // - arrays, hidden
-void sort_vars( struct codegen* codegen ) {
+static void sort_vars( struct codegen* codegen ) {
    struct list arrays;
    struct list zero_scalars;
    struct list nonzero_scalars;
@@ -561,7 +561,7 @@ inline bool scalar_var( struct var* var ) {
    );
 }
 
-void assign_indexes( struct codegen* codegen ) {
+static void assign_indexes( struct codegen* codegen ) {
    // NOTE: The indexes need to be assigned in the same order as the variables
    // are allocated.
    int index = 0;
@@ -603,7 +603,7 @@ void assign_indexes( struct codegen* codegen ) {
    }
 }
 
-void create_assert_strings( struct codegen* codegen ) {
+static void create_assert_strings( struct codegen* codegen ) {
    struct list_iter i;
    list_iterate( &codegen->task->runtime_asserts, &i );
    while ( ! list_end( &i ) ) {
@@ -633,7 +633,7 @@ void c_append_string( struct codegen* codegen,
    }
 }
 
-void append_acs_strings( struct codegen* codegen ) {
+static void append_acs_strings( struct codegen* codegen ) {
    struct indexed_string* string = codegen->task->str_table.head;
    while ( string ) {
       if ( string->in_source_code ) {

@@ -320,7 +320,7 @@ static void test_root_with_result( struct semantic* semantic,
    s_init_type_info_copy( &test->type, &result->type );
 }
 
-void init_result( struct result* result ) {
+static void init_result( struct result* result ) {
    s_init_type_info_scalar( &result->type, SPEC_VOID );
    result->func = NULL;
    result->data_origin = NULL;
@@ -334,7 +334,7 @@ void init_result( struct result* result ) {
    result->in_paren = false;
 }
 
-void test_operand( struct semantic* semantic, struct expr_test* test,
+static void test_operand( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_BINARY:
@@ -853,7 +853,7 @@ static void fold_logical_primitive( struct semantic* semantic,
    logical->folded = true;
 }
 
-void test_assign( struct semantic* semantic, struct expr_test* test,
+static void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct assign* assign ) {
    struct result lside;
    init_result( &lside );
@@ -920,7 +920,7 @@ void test_assign( struct semantic* semantic, struct expr_test* test,
    assign->spec = lside.type.spec;
 }
 
-bool perform_assign( struct assign* assign, struct result* lside,
+static bool perform_assign( struct assign* assign, struct result* lside,
    struct type_info* lside_type, struct result* result ) {
    // Value type.
    if ( s_is_value_type( lside_type ) ) {
@@ -1006,8 +1006,8 @@ bool perform_assign( struct assign* assign, struct result* lside,
    }
 }
 
-void test_conditional( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct conditional* cond ) {
+static void test_conditional( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct conditional* cond ) {
    struct result left;
    init_result( &left );
    test_operand( semantic, test, &left, cond->left );
@@ -1093,7 +1093,7 @@ void test_conditional( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_prefix( struct semantic* semantic, struct expr_test* test,
+static void test_prefix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_UNARY:
@@ -1115,7 +1115,7 @@ void test_prefix( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_unary( struct semantic* semantic, struct expr_test* test,
+static void test_unary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct unary* unary ) {
    struct result operand;
    init_result( &operand );
@@ -1136,7 +1136,7 @@ void test_unary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool perform_unary( struct semantic* semantic, struct unary* unary,
+static bool perform_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
    if ( s_is_value_type( &operand->type ) ) {
       int spec = SPEC_NONE;
@@ -1194,7 +1194,7 @@ bool perform_unary( struct semantic* semantic, struct unary* unary,
    }
 }
 
-void fold_unary( struct semantic* semantic, struct unary* unary,
+static void fold_unary( struct semantic* semantic, struct unary* unary,
    struct result* operand, struct result* result ) {
    switch ( unary->op ) {
    case UOP_MINUS:
@@ -1216,7 +1216,7 @@ void fold_unary( struct semantic* semantic, struct unary* unary,
    }
 }
 
-void fold_unary_minus( struct result* operand, struct result* result ) {
+static void fold_unary_minus( struct result* operand, struct result* result ) {
    switch ( operand->type.spec ) {
    case SPEC_RAW:
    case SPEC_INT:
@@ -1230,8 +1230,8 @@ void fold_unary_minus( struct result* operand, struct result* result ) {
    }
 }
 
-void fold_logical_not( struct semantic* semantic, struct result* operand,
-   struct result* result ) {
+static void fold_logical_not( struct semantic* semantic,
+   struct result* operand, struct result* result ) {
    switch ( operand->type.spec ) {
    case SPEC_RAW:
    case SPEC_INT:
@@ -1304,7 +1304,7 @@ static bool perform_primitive_inc( struct semantic* semantic, struct inc* inc,
    return true;
 }
 
-void test_cast( struct semantic* semantic, struct expr_test* test,
+static void test_cast( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct cast* cast ) {
    struct result operand;
    init_result( &operand );
@@ -1328,7 +1328,7 @@ void test_cast( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-bool valid_cast( struct semantic* semantic, struct cast* cast,
+static bool valid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    if ( s_is_value_type( &operand->type ) ) {
       bool valid = false;
@@ -1372,7 +1372,7 @@ bool valid_cast( struct semantic* semantic, struct cast* cast,
 }
 
 // TODO: Change error message.
-void invalid_cast( struct semantic* semantic, struct cast* cast,
+static void invalid_cast( struct semantic* semantic, struct cast* cast,
    struct result* operand ) {
    struct type_info cast_type;
    s_init_type_info( &cast_type, NULL, NULL, NULL, NULL, cast->spec,
@@ -1390,7 +1390,7 @@ void invalid_cast( struct semantic* semantic, struct cast* cast,
    str_deinit( &operand_type_s );
 }
 
-void test_suffix( struct semantic* semantic, struct expr_test* test,
+static void test_suffix( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_SUBSCRIPT:
@@ -1416,7 +1416,7 @@ void test_suffix( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_subscript( struct semantic* semantic, struct expr_test* test,
+static void test_subscript( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct subscript* subscript ) {
    struct result lside;
    init_result( &lside );
@@ -1434,8 +1434,9 @@ void test_subscript( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_subscript_array( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct result* lside, struct subscript* subscript ) {
+static void test_subscript_array( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct result* lside,
+   struct subscript* subscript ) {
    struct expr_test index;
    s_init_expr_test( &index, true, false );
    test_nested_expr( semantic, test, &index, subscript->index );
@@ -1481,7 +1482,7 @@ void test_subscript_array( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void warn_bounds_violation( struct semantic* semantic,
+static void warn_bounds_violation( struct semantic* semantic,
    struct subscript* subscript, const char* subject, int upper_bound ) {
    if ( subscript->index->value < 0 ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
@@ -1494,8 +1495,9 @@ void warn_bounds_violation( struct semantic* semantic,
    }
 }
 
-void test_subscript_str( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct result* lside, struct subscript* subscript ) {
+static void test_subscript_str( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct result* lside,
+   struct subscript* subscript ) {
    struct expr_test index;
    s_init_expr_test( &index, true, false );
    test_nested_expr( semantic, test, &index, subscript->index );
@@ -1520,7 +1522,7 @@ void test_subscript_str( struct semantic* semantic, struct expr_test* test,
    subscript->string = true;
 }
 
-void test_access( struct semantic* semantic, struct expr_test* test,
+static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access ) {
    struct result lside;
    init_result( &lside );
@@ -1713,7 +1715,7 @@ static void test_access_str( struct semantic* semantic,
    access->rside = &name->object->node;
 }
 
-void test_call( struct semantic* semantic, struct expr_test* expr_test,
+static void test_call( struct semantic* semantic, struct expr_test* expr_test,
    struct result* result, struct call* call ) {
    struct result operand;
    struct call_test test;
@@ -1778,7 +1780,7 @@ void test_call( struct semantic* semantic, struct expr_test* expr_test,
    }
 }
 
-void init_call_test( struct call_test* test, struct call* call ) {
+static void init_call_test( struct call_test* test, struct call* call ) {
    test->func = NULL;
    test->call = call;
    test->params = NULL;
@@ -1788,8 +1790,9 @@ void init_call_test( struct call_test* test, struct call* call ) {
    test->format_param = false;
 }
 
-void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
-   struct call_test* test, struct call* call, struct result* operand ) {
+static void test_call_operand( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test, struct call* call,
+   struct result* operand ) {
    init_result( operand );
    test_suffix( semantic, expr_test, operand, call->operand );
    if ( operand->func ) {
@@ -1816,7 +1819,7 @@ void test_call_operand( struct semantic* semantic, struct expr_test* expr_test,
    }
 }
 
-void test_call_format_arg( struct semantic* semantic,
+static void test_call_format_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test, struct call* call ) {
    if ( test->format_param ) {
       if ( call->format_item ) {
@@ -1840,8 +1843,8 @@ void test_call_format_arg( struct semantic* semantic,
    }
 }
 
-void test_format_item_list( struct semantic* semantic, struct expr_test* test,
-   struct format_item* item ) {
+static void test_format_item_list( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item ) {
    while ( item ) {
       if ( item->cast == FCAST_ARRAY ) {
          test_array_format_item( semantic, test, item );
@@ -1853,8 +1856,8 @@ void test_format_item_list( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_format_item( struct semantic* semantic, struct expr_test* test,
-   struct format_item* item ) {
+static void test_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item ) {
    struct expr_test arg;
    s_init_expr_test( &arg, true, false );
    test_nested_expr( semantic, test, &arg, item->value );
@@ -1889,8 +1892,8 @@ void test_format_item( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_array_format_item( struct semantic* semantic, struct expr_test* test,
-   struct format_item* item ) {
+static void test_array_format_item( struct semantic* semantic,
+   struct expr_test* test, struct format_item* item ) {
    struct expr_test arg;
    s_init_expr_test( &arg, false, false );
    test_nested_expr( semantic, test, &arg, item->value );
@@ -1941,7 +1944,7 @@ static void test_buildmsg( struct semantic* semantic,
    call->format_item = item;
 }
 
-void add_nested_call( struct func* func, struct call* call ) {
+static void add_nested_call( struct func* func, struct call* call ) {
    struct func_user* impl = func->impl;
    struct nested_call* nested = mem_alloc( sizeof( *nested ) );
    nested->next = impl->nested_calls;
@@ -1952,8 +1955,8 @@ void add_nested_call( struct func* func, struct call* call ) {
    call->nested_call = nested;
 }
 
-void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
-   struct call_test* test ) {
+static void test_call_args( struct semantic* semantic,
+   struct expr_test* expr_test, struct call_test* test ) {
    struct call* call = test->call;
    test_remaining_args( semantic, expr_test, test );
    // Number of arguments must be correct.
@@ -1987,7 +1990,7 @@ void test_call_args( struct semantic* semantic, struct expr_test* expr_test,
    }
 }
 
-void test_remaining_args( struct semantic* semantic,
+static void test_remaining_args( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test ) {
    struct param* param = test->params;
    struct list_iter i;
@@ -2001,7 +2004,7 @@ void test_remaining_args( struct semantic* semantic,
    }
 }
 
-void test_remaining_arg( struct semantic* semantic,
+static void test_remaining_arg( struct semantic* semantic,
    struct expr_test* expr_test, struct call_test* test, struct param* param,
    struct expr* expr ) {
    struct expr_test arg;
@@ -2042,7 +2045,7 @@ void test_remaining_arg( struct semantic* semantic,
    }
 }
 
-void arg_mismatch( struct semantic* semantic, struct pos* pos,
+static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct type_info* type, const char* from, struct type_info* required_type,
    const char* where, int number ) {
    struct str type_s;
@@ -2058,7 +2061,7 @@ void arg_mismatch( struct semantic* semantic, struct pos* pos,
    str_deinit( &type_s );
 }
 
-void present_func( struct call_test* test, struct str* msg ) {
+static void present_func( struct call_test* test, struct str* msg ) {
    if ( test->func ) {
       if ( test->func->name ) {
          struct str name;
@@ -2079,7 +2082,7 @@ void present_func( struct call_test* test, struct str* msg ) {
    }
 }
 
-void test_call_func( struct semantic* semantic, struct call_test* test,
+static void test_call_func( struct semantic* semantic, struct call_test* test,
    struct call* call ) {
    // Some action-specials cannot be called from a script.
    if ( test->func->type == FUNC_ASPEC ) {
@@ -2155,7 +2158,7 @@ static void test_call_ded( struct semantic* semantic, struct call_test* test,
    }
 }
 
-void test_sure( struct semantic* semantic, struct expr_test* test,
+static void test_sure( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct sure* sure ) {
    struct result operand;
    init_result( &operand );
@@ -2189,7 +2192,7 @@ void test_sure( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_primary( struct semantic* semantic, struct expr_test* test,
+static void test_primary( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct node* node ) {
    switch ( node->type ) {
    case NODE_LITERAL:
@@ -2254,7 +2257,7 @@ void test_primary( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_literal( struct semantic* semantic, struct result* result,
+static void test_literal( struct semantic* semantic, struct result* result,
    struct literal* literal ) {
    s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
    result->value = literal->value;
@@ -2263,8 +2266,8 @@ void test_literal( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-void test_fixed_literal( struct semantic* semantic, struct result* result,
-   struct fixed_literal* literal ) {
+static void test_fixed_literal( struct semantic* semantic,
+   struct result* result, struct fixed_literal* literal ) {
    s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_FIXED ) );
    result->value = literal->value;
    result->folded = true;
@@ -2272,12 +2275,13 @@ void test_fixed_literal( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-void test_string_usage( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct indexed_string_usage* usage ) {
+static void test_string_usage( struct semantic* semantic,
+   struct expr_test* test, struct result* result,
+   struct indexed_string_usage* usage ) {
    test_string( semantic, test, result, usage->string );
 }
 
-void test_string( struct semantic* semantic, struct expr_test* test,
+static void test_string( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct indexed_string* string ) {
    s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_STR ) );
    result->value = string->index;
@@ -2287,7 +2291,7 @@ void test_string( struct semantic* semantic, struct expr_test* test,
    test->has_str = true;
 }
 
-void test_boolean( struct semantic* semantic, struct result* result,
+static void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean ) {
    s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
    result->value = boolean->value;
@@ -2296,7 +2300,7 @@ void test_boolean( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-void test_name_usage( struct semantic* semantic, struct expr_test* test,
+static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage ) {
    struct object* object = NULL;
    if ( test->name_offset ) {
@@ -2333,8 +2337,9 @@ void test_name_usage( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_found_object( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct name_usage* usage, struct object* object ) {
+static void test_found_object( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct name_usage* usage,
+   struct object* object ) {
    // The engine does not support accessing of arrays in another library unless
    // explicitly imported. So array and struct references only work in the
    // library which contains the referenced data.
@@ -2425,7 +2430,8 @@ void test_found_object( struct semantic* semantic, struct expr_test* test,
    usage->object = &object->node;
 }
 
-struct ref* find_map_ref( struct ref* ref, struct structure* structure ) {
+static struct ref* find_map_ref( struct ref* ref,
+   struct structure* structure ) {
    if ( ref ) {
       while ( ref ) {
          if ( ref->type == REF_FUNCTION ) {
@@ -2453,7 +2459,7 @@ struct ref* find_map_ref( struct ref* ref, struct structure* structure ) {
    return NULL;
 }
 
-struct ref* find_map_ref_struct( struct structure* structure ) {
+static struct ref* find_map_ref_struct( struct structure* structure ) {
    struct ref* ref = NULL;
    struct structure_member* member = structure->member;
    while ( member && ! ref ) {
@@ -2464,7 +2470,7 @@ struct ref* find_map_ref_struct( struct structure* structure ) {
    return ref;
 }
 
-void select_object( struct semantic* semantic, struct expr_test* test,
+static void select_object( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
@@ -2504,7 +2510,7 @@ void select_object( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_constant( struct semantic* semantic, struct expr_test* test,
+static void select_constant( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct constant* constant ) {
    s_init_type_info_scalar( &result->type,
       s_spec( semantic, constant->spec ) );
@@ -2517,8 +2523,9 @@ void select_constant( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_enumerator( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct enumerator* enumerator ) {
+static void select_enumerator( struct semantic* semantic,
+   struct expr_test* test, struct result* result,
+   struct enumerator* enumerator ) {
    s_init_type_info( &result->type, NULL, NULL, enumerator->enumeration, NULL,
       s_spec( semantic, enumerator->enumeration->base_type ), STORAGE_LOCAL );
    s_decay( semantic, &result->type );
@@ -2531,7 +2538,7 @@ void select_enumerator( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void select_var( struct semantic* semantic, struct result* result,
+static void select_var( struct semantic* semantic, struct result* result,
    struct var* var ) {
    // Array.
    if ( var->dim ) {
@@ -2573,7 +2580,7 @@ void select_var( struct semantic* semantic, struct result* result,
    var->used = true;
 }
 
-void select_param( struct semantic* semantic, struct result* result,
+static void select_param( struct semantic* semantic, struct result* result,
    struct param* param ) {
    // Reference parameter.
    if ( param->ref ) {
@@ -2630,7 +2637,7 @@ static void select_structure_member( struct semantic* semantic,
    result->usable = true;
 }
 
-void select_func( struct semantic* semantic, struct result* result,
+static void select_func( struct semantic* semantic, struct result* result,
    struct func* func ) {
    if ( func->type == FUNC_USER ) {
       struct func_user* impl = func->impl;
@@ -2672,12 +2679,12 @@ static void select_ns( struct semantic* semantic, struct result* result,
    result->object = &ns->object;
 }
 
-void select_alias( struct semantic* semantic, struct expr_test* test,
+static void select_alias( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct alias* alias ) {
    select_object( semantic, test, result, alias->target );
 }
 
-void test_strcpy( struct semantic* semantic, struct expr_test* test,
+static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call ) {
    // Array.
    struct expr_test arg;
@@ -2732,7 +2739,7 @@ void test_strcpy( struct semantic* semantic, struct expr_test* test,
    result->usable = true;
 }
 
-void test_memcpy( struct semantic* semantic, struct expr_test* test,
+static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call ) {
    // Destination.
    struct expr_test dst;
@@ -2804,7 +2811,7 @@ void test_memcpy( struct semantic* semantic, struct expr_test* test,
    }
 }
 
-void test_conversion( struct semantic* semantic, struct expr_test* test,
+static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv ) {
    struct expr_test nested_test;
    s_init_expr_test( &nested_test, true, false );
@@ -2821,7 +2828,8 @@ void test_conversion( struct semantic* semantic, struct expr_test* test,
    result->usable = true;
 }
 
-bool perform_conversion( struct conversion* conv, struct type_info* from ) { 
+static bool perform_conversion( struct conversion* conv,
+   struct type_info* from ) { 
    if ( s_is_value_type( from ) ) {
       // Converting from a string to either an integer or a fixed-point number
       // requires a lot of generated code. For now, use a library function to
@@ -2851,8 +2859,8 @@ bool perform_conversion( struct conversion* conv, struct type_info* from ) {
    }
 }
 
-void unsupported_conversion( struct semantic* semantic, struct type_info* from,
-   int to_spec, struct pos* pos ) {
+static void unsupported_conversion( struct semantic* semantic,
+   struct type_info* from, int to_spec, struct pos* pos ) {
    struct str from_s;
    str_init( &from_s );
    s_present_type( from, &from_s );
@@ -2868,8 +2876,9 @@ void unsupported_conversion( struct semantic* semantic, struct type_info* from,
    str_deinit( &to_s );
 }
 
-void test_compound_literal( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct compound_literal* literal ) {
+static void test_compound_literal( struct semantic* semantic,
+   struct expr_test* test, struct result* result,
+   struct compound_literal* literal ) {
    if ( semantic->in_localscope ) {
       s_test_local_var( semantic, literal->var );
    }
@@ -2883,7 +2892,7 @@ void test_compound_literal( struct semantic* semantic, struct expr_test* test,
    select_var( semantic, result, literal->var );
 }
 
-void test_anon_func( struct semantic* semantic, struct result* result,
+static void test_anon_func( struct semantic* semantic, struct result* result,
    struct func* func ) {
    if ( semantic->in_localscope ) {
       s_test_nested_func( semantic, func );
@@ -2891,18 +2900,18 @@ void test_anon_func( struct semantic* semantic, struct result* result,
    select_func( semantic, result, func );
 }
 
-void test_paren( struct semantic* semantic, struct expr_test* test,
+static void test_paren( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct paren* paren ) {
    result->in_paren = true;
    test_operand( semantic, test, result, paren->inside );
    result->in_paren = false;
 }
 
-void test_upmost( struct semantic* semantic, struct result* result ) {
+static void test_upmost( struct semantic* semantic, struct result* result ) {
    result->object = &semantic->task->upmost_ns->object;
 }
 
-void test_current_namespace( struct semantic* semantic,
+static void test_current_namespace( struct semantic* semantic,
    struct result* result ) {
    result->object = &semantic->ns->object;
 }
@@ -2914,13 +2923,14 @@ static void test_null( struct result* result ) {
    result->folded = true;
 }
 
-void test_magic_id( struct semantic* semantic, struct expr_test* test,
+static void test_magic_id( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct magic_id* magic_id ) {
    expand_magic_id( semantic, magic_id );
    test_string( semantic, test, result, magic_id->string );
 }
 
-void expand_magic_id( struct semantic* semantic, struct magic_id* magic_id ) {
+static void expand_magic_id( struct semantic* semantic,
+   struct magic_id* magic_id ) {
    struct str name;
    str_init( &name );
    switch ( magic_id->name ) {

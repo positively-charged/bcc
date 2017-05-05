@@ -21,7 +21,7 @@ static void write_casejump( struct codegen* codegen, struct c_casejump* jump );
 static void write_sortedcasejump( struct codegen* codegen,
    struct c_sortedcasejump* sorted_jump );
 
-void* alloc_node( struct codegen* codegen, int type ) {
+static void* alloc_node( struct codegen* codegen, int type ) {
    if ( codegen->free_nodes[ type ] ) {
       struct c_node* node = codegen->free_nodes[ type ];
       codegen->free_nodes[ type ] = node->next;
@@ -58,7 +58,7 @@ void c_append_node( struct codegen* codegen, struct c_node* node ) {
    codegen->node = node;
 }
 
-void free_node( struct codegen* codegen, struct c_node* node ) {
+static void free_node( struct codegen* codegen, struct c_node* node ) {
    node->next = codegen->free_nodes[ node->type ];
    codegen->free_nodes[ node->type ] = node;
    if ( node->type == C_NODE_PCODE ) {
@@ -73,7 +73,7 @@ void free_node( struct codegen* codegen, struct c_node* node ) {
    }
 }
 
-void init_node( struct c_node* node, int type ) {
+static void init_node( struct c_node* node, int type ) {
    node->next = NULL;
    node->type = type;
 }
@@ -137,7 +137,7 @@ void c_unoptimized_opc( struct codegen* codegen, int code ) {
    create_pcode( codegen, code, false );
 }
 
-void create_pcode( struct codegen* codegen, int code, bool optimize ) {
+static void create_pcode( struct codegen* codegen, int code, bool optimize ) {
    struct c_pcode* pcode = alloc_node( codegen, C_NODE_PCODE );
    init_node( &pcode->node, C_NODE_PCODE );
    pcode->code = code;
@@ -159,7 +159,8 @@ void c_point_arg( struct codegen* codegen, struct c_point* point ) {
    codegen->pcode->patch = true;
 }
 
-void add_arg( struct codegen* codegen, struct c_point* point, int value ) {
+static void add_arg( struct codegen* codegen, struct c_point* point,
+   int value ) {
    struct c_pcode_arg* arg = codegen->free_pcode_args;
    if ( arg ) {
       codegen->free_pcode_args = arg->next;
@@ -196,7 +197,7 @@ void c_pcd( struct codegen* codegen, int code, ... ) {
    va_end( args );
 }
 
-void add_pushbytes( struct codegen* codegen, va_list* args ) {
+static void add_pushbytes( struct codegen* codegen, va_list* args ) {
    int count = va_arg( *args, int );
    if ( count > 0 ) {
       c_opc( codegen, PCD_PUSHBYTES );
@@ -207,7 +208,7 @@ void add_pushbytes( struct codegen* codegen, va_list* args ) {
    }
 }
 
-void add_casegotosorted( struct codegen* codegen, va_list* args ) {
+static void add_casegotosorted( struct codegen* codegen, va_list* args ) {
    int count = va_arg( *args, int );
    if ( count > 0 ) {
       c_opc( codegen, PCD_CASEGOTOSORTED );
@@ -219,7 +220,7 @@ void add_casegotosorted( struct codegen* codegen, va_list* args ) {
    }
 }
 
-void add_fixed( struct codegen* codegen, int code, va_list* args ) {
+static void add_fixed( struct codegen* codegen, int code, va_list* args ) {
    c_opc( codegen, code );
    struct pcode* pcode_info = c_get_pcode_info( code );
    for ( int i = 0; i < pcode_info->argc; ++i ) {
@@ -265,7 +266,7 @@ void c_flush_pcode( struct codegen* codegen ) {
    codegen->node_tail = NULL;
 }
 
-void write_node( struct codegen* codegen, struct c_node* node ) {
+static void write_node( struct codegen* codegen, struct c_node* node ) {
    switch ( node->type ) {
    case C_NODE_PCODE:
       write_pcode( codegen,
@@ -292,7 +293,7 @@ void write_node( struct codegen* codegen, struct c_node* node ) {
    }
 }
 
-void write_pcode( struct codegen* codegen, struct c_pcode* pcode ) {
+static void write_pcode( struct codegen* codegen, struct c_pcode* pcode ) {
    if ( pcode->patch ) {
       if ( pcode->obj_pos ) {
          c_seek( codegen, pcode->obj_pos );
@@ -320,11 +321,11 @@ void write_pcode( struct codegen* codegen, struct c_pcode* pcode ) {
    }
 }
 
-void write_point( struct codegen* codegen, struct c_point* point ) {
+static void write_point( struct codegen* codegen, struct c_point* point ) {
    point->obj_pos = c_tell( codegen );
 }
 
-void write_jump( struct codegen* codegen, struct c_jump* jump ) {
+static void write_jump( struct codegen* codegen, struct c_jump* jump ) {
    if ( jump->obj_pos ) {
       c_seek( codegen, jump->obj_pos );
    }
@@ -335,7 +336,8 @@ void write_jump( struct codegen* codegen, struct c_jump* jump ) {
    c_add_arg( codegen, jump->point->obj_pos );
 }
 
-void write_casejump( struct codegen* codegen, struct c_casejump* jump ) {
+static void write_casejump( struct codegen* codegen,
+   struct c_casejump* jump ) {
    if ( jump->obj_pos ) {
       c_seek( codegen, jump->obj_pos );
    }
@@ -347,7 +349,7 @@ void write_casejump( struct codegen* codegen, struct c_casejump* jump ) {
    c_add_arg( codegen, jump->point->obj_pos );
 }
 
-void write_sortedcasejump( struct codegen* codegen,
+static void write_sortedcasejump( struct codegen* codegen,
    struct c_sortedcasejump* sorted_jump ) {
    if ( sorted_jump->obj_pos ) {
       c_seek( codegen, sorted_jump->obj_pos );

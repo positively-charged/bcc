@@ -32,7 +32,7 @@ static void nullify_array( struct codegen* codegen, int storage, int index,
 static void write_multi_initz_acs( struct codegen* codegen, struct var* var );
 static void assign_nested_call_ids( struct codegen* codegen,
    struct func* nested_funcs );
-void init_nestedfunc_writing( struct nestedfunc_writing* writing,
+static void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start );
 static void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing );
@@ -83,7 +83,7 @@ void c_write_user_code( struct codegen* codegen ) {
    }
 }
 
-void write_null_handler( struct codegen* codegen ) {
+static void write_null_handler( struct codegen* codegen ) {
    #define NULLDEREF_MSG "\\cgerror: script attempting to use null reference"
    struct indexed_string* string = t_intern_string( codegen->task,
       NULLDEREF_MSG, strlen( NULLDEREF_MSG ) );
@@ -109,7 +109,7 @@ void c_write_user_code_acs( struct codegen* codegen ) {
    }
 }
 
-void write_script( struct codegen* codegen, struct script* script ) {
+static void write_script( struct codegen* codegen, struct script* script ) {
    struct func_record record;
    init_func_record( &record, NULL );
    codegen->func = &record;
@@ -133,7 +133,7 @@ void write_script( struct codegen* codegen, struct script* script ) {
    c_flush_pcode( codegen );
 }
 
-void write_func( struct codegen* codegen, struct func* func ) {
+static void write_func( struct codegen* codegen, struct func* func ) {
    struct func_record record;
    init_func_record( &record, func );
    codegen->func = &record;
@@ -160,7 +160,7 @@ void write_func( struct codegen* codegen, struct func* func ) {
    c_flush_pcode( codegen );
 }
 
-void init_func_record( struct func_record* record, struct func* func ) {
+static void init_func_record( struct func_record* record, struct func* func ) {
    record->func = func;
    record->start_index = 0;
    record->array_index = 0;
@@ -168,7 +168,8 @@ void init_func_record( struct func_record* record, struct func* func ) {
    record->nested_func = false;
 }
 
-void alloc_param_indexes( struct func_record* func, struct param* param ) {
+static void alloc_param_indexes( struct func_record* func,
+   struct param* param ) {
    while ( param ) {
       param->index = func->start_index;
       func->start_index += param->size;
@@ -177,7 +178,7 @@ void alloc_param_indexes( struct func_record* func, struct param* param ) {
    }
 }
 
-void alloc_funcscopevars_indexes( struct func_record* func,
+static void alloc_funcscopevars_indexes( struct func_record* func,
    struct list* vars ) {
    struct list_iter i;
    list_iterate( vars, &i );
@@ -236,7 +237,7 @@ void c_visit_var( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void visit_local_var( struct codegen* codegen, struct var* var ) {
+static void visit_local_var( struct codegen* codegen, struct var* var ) {
    switch ( var->desc ) {
    case DESC_ARRAY:
    case DESC_STRUCTVAR:
@@ -280,7 +281,7 @@ void visit_local_var( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void visit_world_var( struct codegen* codegen, struct var* var ) {
+static void visit_world_var( struct codegen* codegen, struct var* var ) {
    if ( var->initial ) {
       if ( var->initial->multi ) {
          write_multi_initz( codegen, var );
@@ -295,7 +296,7 @@ void visit_world_var( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void write_multi_initz( struct codegen* codegen, struct var* var ) {
+static void write_multi_initz( struct codegen* codegen, struct var* var ) {
    // Determine segment of the array to nullify.
    // -----------------------------------------------------------------------
    // The segment begins at the first element with a value of zero, or at the
@@ -360,7 +361,7 @@ void write_multi_initz( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void write_string_initz( struct codegen* codegen, struct var* var,
+static void write_string_initz( struct codegen* codegen, struct var* var,
    struct value* value, bool nul_element ) {
    struct indexed_string_usage* usage =
       ( struct indexed_string_usage* ) value->expr->root;
@@ -422,7 +423,7 @@ void write_string_initz( struct codegen* codegen, struct var* var,
    }
 }
 
-void nullify_array( struct codegen* codegen, int storage, int index,
+static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size ) {
    // Optimization: If the size of the sub-array is small enough, initialize
    // each element with a separate set of instructions.
@@ -461,7 +462,7 @@ void nullify_array( struct codegen* codegen, int storage, int index,
    }
 }
 
-void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
+static void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
    struct value* value = var->value;
    while ( value ) {
       c_pcd( codegen, PCD_PUSHNUMBER, value->index );
@@ -471,7 +472,7 @@ void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
    }
 }
 
-void assign_nested_call_ids( struct codegen* codegen,
+static void assign_nested_call_ids( struct codegen* codegen,
    struct func* nested_funcs ) {
    struct func* nested_func = nested_funcs;
    while ( nested_func ) {
@@ -487,7 +488,7 @@ void assign_nested_call_ids( struct codegen* codegen,
    }
 }
 
-void init_nestedfunc_writing( struct nestedfunc_writing* writing,
+static void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    struct func* nested_funcs, struct call* nested_calls, int temps_start ) {
    writing->nested_funcs = nested_funcs;
    writing->nested_calls = nested_calls;
@@ -497,7 +498,7 @@ void init_nestedfunc_writing( struct nestedfunc_writing* writing,
    writing->local_size = 0;
 }
 
-void write_nested_funcs( struct codegen* codegen,
+static void write_nested_funcs( struct codegen* codegen,
    struct nestedfunc_writing* writing ) {
    // Determine the size of the argument-holding area.
    struct func* func = writing->nested_funcs;
@@ -535,7 +536,7 @@ void write_nested_funcs( struct codegen* codegen,
    }
 }
 
-void write_one_nestedfunc( struct codegen* codegen,
+static void write_one_nestedfunc( struct codegen* codegen,
    struct nestedfunc_writing* writing, struct func* func ) {
    struct func_user* impl = func->impl;
    // Prologue (part #1):
@@ -633,7 +634,8 @@ void write_one_nestedfunc( struct codegen* codegen,
    codegen->func = NULL;
 }
 
-void patch_nestedfunc_addresses( struct codegen* codegen, struct func* func ) {
+static void patch_nestedfunc_addresses( struct codegen* codegen,
+   struct func* func ) {
    struct func_user* impl = func->impl;
    // Correct calls to function.
    struct call* call = impl->nested_calls;

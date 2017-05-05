@@ -34,7 +34,7 @@ void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
    reading->node = &inline_asm->node;
 }
 
-struct inline_asm* alloc_inline_asm( void ) {
+static struct inline_asm* alloc_inline_asm( void ) {
    struct inline_asm* inline_asm = mem_alloc( sizeof( *inline_asm ) );
    inline_asm->node.type = NODE_INLINE_ASM;
    inline_asm->name = NULL;
@@ -45,7 +45,7 @@ struct inline_asm* alloc_inline_asm( void ) {
    return inline_asm;
 }
 
-void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
+static void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
    struct inline_asm_arg* arg = alloc_inline_asm_arg( &parse->tk_pos );
    list_append( &inline_asm->args, arg );
    if (
@@ -73,7 +73,7 @@ void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
    }
 }
 
-struct inline_asm_arg* alloc_inline_asm_arg( struct pos* pos ) {
+static struct inline_asm_arg* alloc_inline_asm_arg( struct pos* pos ) {
    struct inline_asm_arg* arg = mem_alloc( sizeof( *arg ) );
    arg->type = INLINE_ASM_ARG_NUMBER;
    arg->value.number = 0;

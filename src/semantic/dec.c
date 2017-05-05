@@ -290,8 +290,9 @@ void s_test_enumeration( struct semantic* semantic,
    enumeration->object.resolved = true;
 }
 
-void test_enumerator( struct semantic* semantic, struct enumeration_test* test,
-   struct enumeration* enumeration, struct enumerator* enumerator ) {
+static void test_enumerator( struct semantic* semantic,
+   struct enumeration_test* test, struct enumeration* enumeration,
+   struct enumerator* enumerator ) {
    // Test name.
    if ( semantic->in_localscope ) {
       s_bind_local_name( semantic, enumerator->name, &enumerator->object,
@@ -353,7 +354,7 @@ void s_test_struct( struct semantic* semantic, struct structure* structure ) {
    }
 }
 
-bool test_struct_name( struct semantic* semantic,
+static bool test_struct_name( struct semantic* semantic,
    struct structure* structure ) {
    if ( semantic->in_localscope ) {
       s_bind_local_name( semantic, structure->name, &structure->object,
@@ -362,7 +363,7 @@ bool test_struct_name( struct semantic* semantic,
    return true;
 }
 
-bool test_struct_body( struct semantic* semantic,
+static bool test_struct_body( struct semantic* semantic,
    struct structure* structure ) {
    struct structure_member* member = structure->member;
    while ( member ) {
@@ -377,8 +378,8 @@ bool test_struct_body( struct semantic* semantic,
    return true;
 }
 
-void test_member( struct semantic* semantic, struct structure* structure,
-   struct structure_member* member ) {
+static void test_member( struct semantic* semantic,
+   struct structure* structure, struct structure_member* member ) {
    member->object.resolved =
       test_member_spec( semantic, structure, member ) &&
       test_member_ref( semantic, structure, member ) &&
@@ -394,8 +395,8 @@ void test_member( struct semantic* semantic, struct structure* structure,
    }
 }
 
-bool test_member_spec( struct semantic* semantic, struct structure* structure,
-   struct structure_member* member ) {
+static bool test_member_spec( struct semantic* semantic,
+   struct structure* structure, struct structure_member* member ) {
    struct spec_test test;
    init_spec_test( &test, member->path, &member->object, member->ref,
       member->structure, member->enumeration, member->dim, member->spec );
@@ -440,15 +441,15 @@ bool test_member_spec( struct semantic* semantic, struct structure* structure,
    }
 }
 
-bool test_member_ref( struct semantic* semantic, struct structure* structure,
-   struct structure_member* member ) {
+static bool test_member_ref( struct semantic* semantic,
+   struct structure* structure, struct structure_member* member ) {
    struct ref_test test;
    init_ref_test( &test, member->ref, member->spec, ( ! structure->hidden ) );
    return test_ref( semantic, &test );
 }
 
-bool test_member_name( struct semantic* semantic, struct structure* structure,
-   struct structure_member* member ) {
+static bool test_member_name( struct semantic* semantic,
+   struct structure* structure, struct structure_member* member ) {
    if ( semantic->in_localscope ) {
       s_bind_local_name( semantic, member->name, &member->object,
          structure->force_local_scope );
@@ -456,7 +457,7 @@ bool test_member_name( struct semantic* semantic, struct structure* structure,
    return true;
 }
 
-bool test_member_dim( struct semantic* semantic,
+static bool test_member_dim( struct semantic* semantic,
    struct structure_member* member ) {
    if ( member->dim ) {
       struct dim_test test;
@@ -477,7 +478,8 @@ void s_test_type_alias( struct semantic* semantic, struct type_alias* alias ) {
       test_typedef_dim( semantic, alias );
 }
 
-bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
+static bool test_typedef_spec( struct semantic* semantic,
+   struct type_alias* alias ) {
    struct spec_test test;
    init_spec_test( &test, alias->path, &alias->object, alias->ref,
       alias->structure, alias->enumeration, alias->dim, alias->spec );
@@ -510,13 +512,15 @@ bool test_typedef_spec( struct semantic* semantic, struct type_alias* alias ) {
    }
 }
 
-bool test_typedef_ref( struct semantic* semantic, struct type_alias* alias ) {
+static bool test_typedef_ref( struct semantic* semantic,
+   struct type_alias* alias ) {
    struct ref_test test;
    init_ref_test( &test, alias->ref, alias->spec, false );
    return test_ref( semantic, &test );
 }
 
-bool test_typedef_name( struct semantic* semantic, struct type_alias* alias ) {
+static bool test_typedef_name( struct semantic* semantic,
+   struct type_alias* alias ) {
    if ( semantic->in_localscope ) {
       s_bind_local_name( semantic, alias->name, &alias->object,
          alias->force_local_scope );
@@ -524,7 +528,8 @@ bool test_typedef_name( struct semantic* semantic, struct type_alias* alias ) {
    return true;
 }
 
-bool test_typedef_dim( struct semantic* semantic, struct type_alias* alias ) {
+static bool test_typedef_dim( struct semantic* semantic,
+   struct type_alias* alias ) {
    // No need to continue when the variable is not an array.
    if ( alias->dim ) {
       struct dim_test test;
@@ -552,7 +557,7 @@ void s_test_var( struct semantic* semantic, struct var* var ) {
    }
 }
 
-bool test_var_spec( struct semantic* semantic, struct var* var ) {
+static bool test_var_spec( struct semantic* semantic, struct var* var ) {
    struct spec_test test;
    init_spec_test( &test, var->type_path, &var->object, var->ref,
       var->structure, var->enumeration, var->dim, var->spec );
@@ -586,7 +591,7 @@ bool test_var_spec( struct semantic* semantic, struct var* var ) {
    }
 }
 
-void init_spec_test( struct spec_test* test, struct path* path,
+static void init_spec_test( struct spec_test* test, struct path* path,
    struct object* object, struct ref* ref, struct structure* structure,
    struct enumeration* enumeration, struct dim* dim, int spec ) {
    test->object = object;
@@ -600,7 +605,7 @@ void init_spec_test( struct spec_test* test, struct path* path,
    test->public_spec = false;
 }
 
-void test_spec( struct semantic* semantic, struct spec_test* test ) {
+static void test_spec( struct semantic* semantic, struct spec_test* test ) {
    // Find the specifier.
    if ( test->spec >= SPEC_NAME ) {
       find_name_spec( semantic, test );
@@ -645,7 +650,8 @@ void test_spec( struct semantic* semantic, struct spec_test* test ) {
    }
 }
 
-void find_name_spec( struct semantic* semantic, struct spec_test* test ) {
+static void find_name_spec( struct semantic* semantic,
+   struct spec_test* test ) {
    int decoded_spec = test->spec - SPEC_NAME;
    if ( decoded_spec == SPEC_ENUM ) {
       struct follower follower;
@@ -687,7 +693,7 @@ struct path* s_last_path_part( struct path* path ) {
    return path;
 }
 
-void merge_type( struct semantic* semantic, struct spec_test* test,
+static void merge_type( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias ) {
    test->spec = alias->spec;
    test->structure = alias->structure;
@@ -711,7 +717,7 @@ void merge_type( struct semantic* semantic, struct spec_test* test,
    }
 }
 
-void merge_ref( struct semantic* semantic, struct spec_test* test,
+static void merge_ref( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias ) {
    struct ref* ref = test->ref;
    while ( ref->next ) {
@@ -777,7 +783,7 @@ void merge_ref( struct semantic* semantic, struct spec_test* test,
    }
 }
 
-void merge_func_type( struct semantic* semantic, struct spec_test* test,
+static void merge_func_type( struct semantic* semantic, struct spec_test* test,
    struct func* alias ) {
    test->spec = alias->return_spec;
    test->structure = alias->structure;
@@ -827,28 +833,28 @@ void merge_func_type( struct semantic* semantic, struct spec_test* test,
    }
 }
 
-struct ref* get_last_ref_part( struct ref* ref ) {
+static struct ref* get_last_ref_part( struct ref* ref ) {
    while ( ref && ref->next ) {
       ref = ref->next;
    }
    return ref;
 }
 
-bool test_var_ref( struct semantic* semantic, struct var* var ) {
+static bool test_var_ref( struct semantic* semantic, struct var* var ) {
    struct ref_test test;
    init_ref_test( &test, var->ref, var->spec,
       ( ! semantic->in_localscope && ! var->hidden ) );
    return test_ref( semantic, &test );
 }
 
-void init_ref_test( struct ref_test* test, struct ref* ref, int spec,
+static void init_ref_test( struct ref_test* test, struct ref* ref, int spec,
    bool need_public_spec ) {
    test->ref = ref;
    test->spec = spec;
    test->need_public_spec = need_public_spec;
 }
 
-bool test_ref( struct semantic* semantic, struct ref_test* test ) {
+static bool test_ref( struct semantic* semantic, struct ref_test* test ) {
    struct ref* ref = test->ref;
    while ( ref ) {
       bool resolved = false;
@@ -876,7 +882,7 @@ bool test_ref( struct semantic* semantic, struct ref_test* test ) {
    return true;
 }
 
-bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
+static bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
    struct ref_struct* structure ) {
    if ( test->spec != SPEC_STRUCT ) {
       s_diag( semantic, DIAG_POS_ERR, &structure->ref.pos,
@@ -886,7 +892,7 @@ bool test_ref_struct( struct semantic* semantic, struct ref_test* test,
    return true;
 }
 
-bool test_ref_array( struct semantic* semantic, struct ref_test* test,
+static bool test_ref_array( struct semantic* semantic, struct ref_test* test,
    struct ref_array* array ) {
    if ( test->spec == SPEC_VOID && ! array->ref.next ) {
       s_diag( semantic, DIAG_POS_ERR, &array->ref.pos,
@@ -896,7 +902,7 @@ bool test_ref_array( struct semantic* semantic, struct ref_test* test,
    return true;
 }
 
-bool test_ref_func( struct semantic* semantic, struct ref_test* test,
+static bool test_ref_func( struct semantic* semantic, struct ref_test* test,
    struct ref_func* func ) {
    if ( test->spec == SPEC_STRUCT && ! func->ref.next ) {
       s_diag( semantic, DIAG_POS_ERR, &func->ref.pos,
@@ -912,7 +918,7 @@ bool test_ref_func( struct semantic* semantic, struct ref_test* test,
    return resolved;
 }
 
-bool test_var_name( struct semantic* semantic, struct var* var ) {
+static bool test_var_name( struct semantic* semantic, struct var* var ) {
    if ( ! var->anon ) {
       if ( semantic->in_localscope ) {
          s_bind_local_name( semantic, var->name, &var->object,
@@ -922,7 +928,7 @@ bool test_var_name( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-bool test_var_dim( struct semantic* semantic, struct var* var ) {
+static bool test_var_dim( struct semantic* semantic, struct var* var ) {
    if ( var->dim ) {
       struct dim_test test;
       init_dim_test( &test, var->dim, false );
@@ -955,13 +961,14 @@ bool test_var_dim( struct semantic* semantic, struct var* var ) {
    }
 }
 
-void init_dim_test( struct dim_test* test, struct dim* dim, bool member ) {
+static void init_dim_test( struct dim_test* test, struct dim* dim,
+   bool member ) {
    test->dim = dim;
    test->resolved = false;
    test->member = member;
 }
 
-void test_dim_list( struct semantic* semantic, struct dim_test* test ) {
+static void test_dim_list( struct semantic* semantic, struct dim_test* test ) {
    struct dim* dim = test->dim;
    while ( dim ) {
       if ( ! test_dim( semantic, test, dim ) ) {
@@ -972,7 +979,7 @@ void test_dim_list( struct semantic* semantic, struct dim_test* test ) {
    test->resolved = true;
 }
 
-bool test_dim( struct semantic* semantic, struct dim_test* test,
+static bool test_dim( struct semantic* semantic, struct dim_test* test,
    struct dim* dim ) {
    if ( test->member && ! dim->length_node ) {
       s_diag( semantic, DIAG_POS_ERR, &dim->pos,
@@ -987,7 +994,7 @@ bool test_dim( struct semantic* semantic, struct dim_test* test,
    }
 }
 
-bool test_dim_length( struct semantic* semantic, struct dim_test* test,
+static bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    struct dim* dim ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -1014,7 +1021,7 @@ bool test_dim_length( struct semantic* semantic, struct dim_test* test,
    return true;
 }
 
-bool test_var_initz( struct semantic* semantic, struct var* var ) {
+static bool test_var_initz( struct semantic* semantic, struct var* var ) {
    if ( ! var->imported ) {
       if ( var->initial ) {
          return test_object_initz( semantic, var );
@@ -1041,7 +1048,7 @@ bool test_var_initz( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void refnotinit_var( struct semantic* semantic, struct var* var ) {
+static void refnotinit_var( struct semantic* semantic, struct var* var ) {
    if ( var->dim || ( var->structure && ! var->ref ) ) {
       struct initz_pres pres;
       init_initz_pres( &pres );
@@ -1062,7 +1069,7 @@ void refnotinit_var( struct semantic* semantic, struct var* var ) {
    }
 }
 
-bool test_object_initz( struct semantic* semantic, struct var* var ) {
+static bool test_object_initz( struct semantic* semantic, struct var* var ) {
    if ( var->anon && ! ( var->dim ||
       ( var->spec == SPEC_STRUCT && ! var->ref ) ) ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
@@ -1106,9 +1113,10 @@ bool test_object_initz( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void init_initz_test( struct initz_test* test, struct initz_test* parent,
-   struct var* var, int spec, struct dim* dim, struct structure* structure,
-   struct enumeration* enumeration, struct ref* ref, bool constant ) {
+static void init_initz_test( struct initz_test* test,
+   struct initz_test* parent, struct var* var, int spec, struct dim* dim,
+   struct structure* structure, struct enumeration* enumeration,
+   struct ref* ref, bool constant ) {
    test->var = var;
    test->ref = ref;
    test->structure = structure;
@@ -1122,13 +1130,13 @@ void init_initz_test( struct initz_test* test, struct initz_test* parent,
    test->has_str = false;
 }
 
-void init_root_initz_test( struct initz_test* test, struct var* var ) {
+static void init_root_initz_test( struct initz_test* test, struct var* var ) {
    init_initz_test( test, NULL, var, var->spec, var->dim, var->structure,
       var->enumeration, var->ref, var->is_constant_init );
 }
 
-bool test_multi_value( struct semantic* semantic, struct initz_test* test,
-   struct multi_value* multi_value ) {
+static bool test_multi_value( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value ) {
    if ( test->dim ) {
       return test_multi_value_array( semantic, test, multi_value );
    }
@@ -1143,7 +1151,7 @@ bool test_multi_value( struct semantic* semantic, struct initz_test* test,
    }
 }
 
-bool test_multi_value_array( struct semantic* semantic,
+static bool test_multi_value_array( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
@@ -1180,7 +1188,7 @@ bool test_multi_value_array( struct semantic* semantic,
    return true;
 }
 
-bool test_multi_value_array_child( struct semantic* semantic,
+static bool test_multi_value_array_child( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial ) {
    // Make sure there is an element to initialize.
@@ -1211,8 +1219,8 @@ bool test_multi_value_array_child( struct semantic* semantic,
    }
 }
 
-void refnotinit_array( struct semantic* semantic, struct initz_test* test,
-   struct multi_value* multi_value ) {
+static void refnotinit_array( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value ) {
    struct initz_pres pres;
    init_initz_pres( &pres );
    present_parent( &pres, test );
@@ -1222,7 +1230,7 @@ void refnotinit_array( struct semantic* semantic, struct initz_test* test,
    refnotinit( semantic, &pres, &multi_value->pos );
 }
 
-bool test_multi_value_struct( struct semantic* semantic,
+static bool test_multi_value_struct( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value ) {
    test->member = test->structure->member;
    struct initial* initial = multi_value->body;
@@ -1257,7 +1265,7 @@ bool test_multi_value_struct( struct semantic* semantic,
    return true;
 }
 
-bool test_multi_value_struct_child( struct semantic* semantic,
+static bool test_multi_value_struct_child( struct semantic* semantic,
    struct initz_test* test, struct multi_value* multi_value,
    struct initial* initial, struct structure_member* member ) {
    // Make sure there is a member to initialize.
@@ -1287,8 +1295,8 @@ bool test_multi_value_struct_child( struct semantic* semantic,
    }
 }
 
-void refnotinit_struct( struct semantic* semantic, struct initz_test* test,
-   struct multi_value* multi_value ) {
+static void refnotinit_struct( struct semantic* semantic,
+   struct initz_test* test, struct multi_value* multi_value ) {
    struct initz_pres pres;
    init_initz_pres( &pres );
    present_parent( &pres, test );
@@ -1302,7 +1310,7 @@ void refnotinit_struct( struct semantic* semantic, struct initz_test* test,
    refnotinit( semantic, &pres, &multi_value->pos );
 }
 
-bool test_value( struct semantic* semantic, struct initz_test* test,
+static bool test_value( struct semantic* semantic, struct initz_test* test,
    struct type_info* type, struct value* value ) {
    if ( s_is_scalar( type ) ) {
       struct scalar_initz_test scalar_test;
@@ -1326,7 +1334,7 @@ bool test_value( struct semantic* semantic, struct initz_test* test,
    }
 }
 
-void init_scalar_initz_test( struct scalar_initz_test* test,
+static void init_scalar_initz_test( struct scalar_initz_test* test,
    struct initz_test* initz_test, struct type_info* type, bool constant ) {
    test->initz_test = initz_test;
    test->type = type;
@@ -1334,12 +1342,12 @@ void init_scalar_initz_test( struct scalar_initz_test* test,
    test->has_str = false;
 }
 
-void init_scalar_initz_test_auto( struct scalar_initz_test* test,
+static void init_scalar_initz_test_auto( struct scalar_initz_test* test,
    bool constant ) {
    init_scalar_initz_test( test, NULL, NULL, constant );
 }
 
-bool test_scalar_initz( struct semantic* semantic,
+static bool test_scalar_initz( struct semantic* semantic,
    struct scalar_initz_test* test, struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -1391,13 +1399,13 @@ bool test_scalar_initz( struct semantic* semantic,
    return true;
 }
 
-void initz_mismatch( struct semantic* semantic, struct initz_test* test,
+static void initz_mismatch( struct semantic* semantic, struct initz_test* test,
    struct type_info* initz_type, struct type_info* type, struct pos* pos ) {
    s_type_mismatch( semantic, "initializer", initz_type, test->dim ?
       "element" : ( test->member ? "struct-member" : "variable" ), type, pos );
 }
 
-bool test_string_initz( struct semantic* semantic, struct dim* dim,
+static bool test_string_initz( struct semantic* semantic, struct dim* dim,
    struct value* value ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -1436,12 +1444,13 @@ bool test_string_initz( struct semantic* semantic, struct dim* dim,
    return true;
 }
 
-void init_initz_pres( struct initz_pres* pres ) {
+static void init_initz_pres( struct initz_pres* pres ) {
    str_init( &pres->output );
    pres->member_last = false;
 }
 
-void present_parent( struct initz_pres* pres, struct initz_test* test ) {
+static void present_parent( struct initz_pres* pres,
+   struct initz_test* test ) {
    if ( test->parent ) {
       present_parent( pres, test->parent );
    }
@@ -1471,7 +1480,7 @@ void present_parent( struct initz_pres* pres, struct initz_test* test ) {
    }
 }
 
-void present_ref_element( struct initz_pres* pres, struct dim* dim,
+static void present_ref_element( struct initz_pres* pres, struct dim* dim,
    struct structure_member* member ) {
    if ( dim ) {
       while ( dim ) {
@@ -1502,7 +1511,7 @@ void present_ref_element( struct initz_pres* pres, struct dim* dim,
    }
 }
 
-void refnotinit( struct semantic* semantic, struct initz_pres* pres,
+static void refnotinit( struct semantic* semantic, struct initz_pres* pres,
    struct pos* pos ) {
    s_diag( semantic, DIAG_POS_ERR, pos,
       "`%s` not initialized", pres->output.value );
@@ -1517,7 +1526,7 @@ void refnotinit( struct semantic* semantic, struct initz_pres* pres,
 // consume more space in the object file. For efficiency purposes, leverage the
 // memset() performed by the engine by requiring the enumeration to have an
 // enumerator with value 0.
-void confirm_enum_default_initz( struct semantic* semantic,
+static void confirm_enum_default_initz( struct semantic* semantic,
    struct enumeration* enumeration, struct structure_member* member,
    int spec, struct pos* pos ) {
    enumeration = find_nondefaultinitz_enum( enumeration, member );
@@ -1532,8 +1541,8 @@ void confirm_enum_default_initz( struct semantic* semantic,
    }
 }
 
-struct enumeration* find_nondefaultinitz_enum( struct enumeration* enumeration,
-   struct structure_member* member ) {
+static struct enumeration* find_nondefaultinitz_enum(
+   struct enumeration* enumeration, struct structure_member* member ) {
    if ( enumeration ) {
       if ( ! enumeration->default_initz ) {
          return enumeration;
@@ -1563,7 +1572,8 @@ struct enumeration* find_nondefaultinitz_enum( struct enumeration* enumeration,
    }
 }
 
-const char* get_enum_default_initz_text( struct enumeration* enumeration ) {
+static const char* get_enum_default_initz_text(
+   struct enumeration* enumeration ) {
    STATIC_ASSERT( SPEC_TOTAL == 11 );
    switch ( enumeration->base_type ) {
    case SPEC_FIXED: return "0.0";
@@ -1575,7 +1585,7 @@ const char* get_enum_default_initz_text( struct enumeration* enumeration ) {
    return "0";
 }
 
-void confirm_dim_length( struct semantic* semantic, struct var* var ) {
+static void confirm_dim_length( struct semantic* semantic, struct var* var ) {
    struct dim* dim = var->dim;
    // The first dimension of a world array or a global array does not need to
    // have a concrete length.
@@ -1597,7 +1607,7 @@ void confirm_dim_length( struct semantic* semantic, struct var* var ) {
    }
 }
 
-bool test_var_finish( struct semantic* semantic, struct var* var ) {
+static bool test_var_finish( struct semantic* semantic, struct var* var ) {
    describe_var( var );
    if ( semantic->func_test != semantic->topfunc_test &&
       ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ) &&
@@ -1646,7 +1656,7 @@ bool test_var_finish( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-bool test_external_var( struct semantic* semantic, struct var* var ) {
+static bool test_external_var( struct semantic* semantic, struct var* var ) {
    if ( semantic->in_localscope ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
          "external variable declared in local scope" );
@@ -1696,7 +1706,8 @@ bool test_external_var( struct semantic* semantic, struct var* var ) {
    return true;
 }
 
-void test_worldglobal_var( struct semantic* semantic, struct var* var ) {
+static void test_worldglobal_var( struct semantic* semantic,
+   struct var* var ) {
    // Global/world declarations must be consistent.
    struct var* prev_var = NULL;
    if ( var->storage == STORAGE_WORLD ) {
@@ -1754,7 +1765,7 @@ void test_worldglobal_var( struct semantic* semantic, struct var* var ) {
    }
 }
 
-void describe_var( struct var* var ) {
+static void describe_var( struct var* var ) {
    // Array.
    if ( var->dim ) {
       var->desc = DESC_ARRAY;
@@ -1773,11 +1784,11 @@ void describe_var( struct var* var ) {
    }
 }
 
-bool is_auto_var( struct var* var ) {
+static bool is_auto_var( struct var* var ) {
    return ( var->spec == SPEC_AUTO || var->spec == SPEC_AUTOENUM );
 }
 
-void test_auto_var( struct semantic* semantic, struct var* var ) {
+static void test_auto_var( struct semantic* semantic, struct var* var ) {
    // Infer type from initializer.
    if ( ! var->initial ) {
       s_diag( semantic, DIAG_POS_ERR, &var->object.pos,
@@ -1801,7 +1812,7 @@ void test_auto_var( struct semantic* semantic, struct var* var ) {
    describe_var( var );
 }
 
-void assign_inferred_type( struct semantic* semantic, struct var* var,
+static void assign_inferred_type( struct semantic* semantic, struct var* var,
    struct type_info* type ) {
    if ( var->spec == SPEC_AUTOENUM ) {
       if ( ! s_is_enumerator( type ) ) {
@@ -1874,7 +1885,8 @@ void s_test_func( struct semantic* semantic, struct func* func ) {
       test_func_after_name( semantic, func );
 }
 
-bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
+static bool test_func_return_spec( struct semantic* semantic,
+   struct func* func ) {
    // Keep the interface of a function explicit. Nested functions are an
    // implementation detail of a function, so it doesn't matter there.
    if (
@@ -1921,13 +1933,13 @@ bool test_func_return_spec( struct semantic* semantic, struct func* func ) {
    }
 }
 
-bool test_func_ref( struct semantic* semantic, struct func* func ) {
+static bool test_func_ref( struct semantic* semantic, struct func* func ) {
    struct ref_test test;
    init_ref_test( &test, func->ref, func->return_spec, ( ! func->hidden ) );
    return test_ref( semantic, &test );
 }
 
-bool test_func_name( struct semantic* semantic, struct func* func ) {
+static bool test_func_name( struct semantic* semantic, struct func* func ) {
    if ( semantic->in_localscope ) {
       if ( func->literal ) {
          func->object.depth = semantic->depth;
@@ -1940,7 +1952,8 @@ bool test_func_name( struct semantic* semantic, struct func* func ) {
    return true;
 }
 
-bool test_func_after_name( struct semantic* semantic, struct func* func ) {
+static bool test_func_after_name( struct semantic* semantic,
+   struct func* func ) {
    s_add_scope( semantic, true );
    struct param_list_test param_test;
    init_param_list_test( &param_test, func, NULL,
@@ -1953,8 +1966,8 @@ bool test_func_after_name( struct semantic* semantic, struct func* func ) {
    return resolved;
 }
 
-void init_param_list_test( struct param_list_test* test, struct func* func,
-   struct ref_func* func_ref, bool need_public_spec ) {
+static void init_param_list_test( struct param_list_test* test,
+   struct func* func, struct ref_func* func_ref, bool need_public_spec ) {
    test->func = func;
    test->func_ref = func_ref;
    if ( func_ref ) {
@@ -1967,7 +1980,7 @@ void init_param_list_test( struct param_list_test* test, struct func* func,
    test->need_public_spec = need_public_spec;
 }
 
-bool test_param_list( struct semantic* semantic,
+static bool test_param_list( struct semantic* semantic,
    struct param_list_test* test ) {
    struct param* param = test->params;
    while ( param ) {
@@ -1996,8 +2009,8 @@ bool test_param_list( struct semantic* semantic,
    return true;
 }
 
-void test_param( struct semantic* semantic, struct param_list_test* test,
-   struct param* param ) {
+static void test_param( struct semantic* semantic,
+   struct param_list_test* test, struct param* param ) {
    param->object.resolved =
       test_param_spec( semantic, test, param ) &&
       test_param_ref( semantic, test, param ) &&
@@ -2008,8 +2021,8 @@ void test_param( struct semantic* semantic, struct param_list_test* test,
    }
 }
 
-bool test_param_spec( struct semantic* semantic, struct param_list_test* test,
-   struct param* param ) {
+static bool test_param_spec( struct semantic* semantic,
+   struct param_list_test* test, struct param* param ) {
    struct spec_test spec_test;
    init_spec_test( &spec_test, param->path, &param->object, param->ref,
       param->structure, param->enumeration, NULL, param->spec );
@@ -2046,21 +2059,21 @@ bool test_param_spec( struct semantic* semantic, struct param_list_test* test,
    }
 }
 
-bool test_param_ref( struct semantic* semantic, struct param_list_test* test,
-   struct param* param ) {
+static bool test_param_ref( struct semantic* semantic,
+   struct param_list_test* test, struct param* param ) {
    struct ref_test ref_test;
    init_ref_test( &ref_test, param->ref, param->spec, test->need_public_spec );
    return test_ref( semantic, &ref_test );
 }
 
-bool test_param_name( struct semantic* semantic, struct param* param ) {
+static bool test_param_name( struct semantic* semantic, struct param* param ) {
    if ( param->name ) {
       s_bind_local_name( semantic, param->name, &param->object, true );
    }
    return true;
 }
 
-bool test_param_after_name( struct semantic* semantic,
+static bool test_param_after_name( struct semantic* semantic,
    struct param_list_test* test, struct param* param ) {
    // Builtin functions accept only primitive arguments.
    if ( test->func && test->func->type != FUNC_USER ) {
@@ -2089,7 +2102,7 @@ bool test_param_after_name( struct semantic* semantic,
    return true;
 }
 
-bool test_param_default_value( struct semantic* semantic,
+static bool test_param_default_value( struct semantic* semantic,
    struct param_list_test* test, struct param* param ) {
    if ( test->func && test->func->type == FUNC_ALIAS ) {
       s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
@@ -2133,9 +2146,9 @@ bool test_param_default_value( struct semantic* semantic,
    return true;
 }
 
-void default_value_mismatch( struct semantic* semantic, struct func* func,
-   struct param* param, struct type_info* param_type, struct type_info* type,
-   struct pos* pos ) {
+static void default_value_mismatch( struct semantic* semantic,
+   struct func* func, struct param* param, struct type_info* param_type,
+   struct type_info* type, struct pos* pos ) {
    struct str type_s;
    str_init( &type_s );
    s_present_type( type, &type_s );
@@ -2150,7 +2163,7 @@ void default_value_mismatch( struct semantic* semantic, struct func* func,
    str_deinit( &param_type_s );
 }
 
-int get_param_number( struct func* func, struct param* target ) {
+static int get_param_number( struct func* func, struct param* target ) {
    // Start at the second parameter when in a format-function.
    int number = ( func->type == FUNC_FORMAT ) ? 2 : 1;
    struct param* param = func->params;
@@ -2161,7 +2174,8 @@ int get_param_number( struct func* func, struct param* target ) {
    return number;
 }
 
-bool test_external_func( struct semantic* semantic, struct func* func ) {
+static bool test_external_func( struct semantic* semantic,
+   struct func* func ) {
    if ( semantic->in_localscope ) {
       s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
          "external function declaration in local scope" );
@@ -2250,7 +2264,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    }
 }
 
-void init_func_test( struct func_test* test, struct func_test* parent,
+static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script ) {
    test->func = func;
@@ -2285,13 +2299,14 @@ void s_test_script( struct semantic* semantic, struct script* script ) {
    }
 }
 
-void test_script_number( struct semantic* semantic, struct script* script ) {
+static void test_script_number( struct semantic* semantic,
+   struct script* script ) {
    if ( script->number != semantic->task->raw0_expr ) {
       test_nonzero_script_number( semantic, script );
    }
 }
 
-void test_nonzero_script_number( struct semantic* semantic,
+static void test_nonzero_script_number( struct semantic* semantic,
    struct script* script ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -2348,7 +2363,7 @@ void test_nonzero_script_number( struct semantic* semantic,
    }
 }
 
-void test_script_param_list( struct semantic* semantic,
+static void test_script_param_list( struct semantic* semantic,
    struct script* script ) {
    struct param* param = script->params;
    while ( param ) {
@@ -2358,7 +2373,8 @@ void test_script_param_list( struct semantic* semantic,
    }
 }
 
-void test_script_body( struct semantic* semantic, struct script* script ) {
+static void test_script_body( struct semantic* semantic,
+   struct script* script ) {
    s_add_scope( semantic, true );
    struct param* param = script->params;
    while ( param ) {
@@ -2383,11 +2399,11 @@ void s_calc_var_size( struct var* var ) {
    var->size = calc_size( var->dim, var->structure, var->ref );
 }
 
-void calc_param_size( struct param* param ) {
+static void calc_param_size( struct param* param ) {
    param->size = calc_size( NULL, NULL, param->ref );
 }
 
-int calc_size( struct dim* dim, struct structure* structure,
+static int calc_size( struct dim* dim, struct structure* structure,
    struct ref* ref ) {
    enum { PRIMITIVE_SIZE = 1 };
    // Array.
@@ -2418,7 +2434,7 @@ int calc_size( struct dim* dim, struct structure* structure,
    }
 }
 
-void calc_struct_size( struct structure* structure ) {
+static void calc_struct_size( struct structure* structure ) {
    struct structure_member* member = structure->member;
    while ( member ) {
       member->offset = structure->size;
@@ -2455,7 +2471,7 @@ void s_calc_var_value_index( struct var* var ) {
    }
 }
 
-void make_value_list( struct value_list* list,
+static void make_value_list( struct value_list* list,
    struct multi_value* multi_value ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
@@ -2476,7 +2492,7 @@ void make_value_list( struct value_list* list,
    }
 }
 
-void alloc_value_index( struct value_index_alloc* alloc,
+static void alloc_value_index( struct value_index_alloc* alloc,
    struct multi_value* multi_value, struct structure* type, struct dim* dim ) {
    struct initial* initial = multi_value->body;
    while ( initial ) {
@@ -2513,7 +2529,7 @@ void alloc_value_index( struct value_index_alloc* alloc,
    }
 }
 
-void alloc_value_index_struct( struct value_index_alloc* alloc,
+static void alloc_value_index_struct( struct value_index_alloc* alloc,
    struct multi_value* multi_value, struct structure* type ) {
    struct structure_member* member = type->member;
    struct initial* initial = multi_value->body;

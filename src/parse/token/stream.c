@@ -110,7 +110,7 @@ void p_read_stream( struct parse* parse ) {
    parse->source_entry->prev_tk = parse->token->type;
 }
 
-void read_peeked_token( struct parse* parse ) {
+static void read_peeked_token( struct parse* parse ) {
    if ( parse->tkque->size > 0 ) {
       parse->token = p_shift_entry( parse, parse->tkque );
    }
@@ -123,7 +123,7 @@ void read_peeked_token( struct parse* parse ) {
 // Begins by reading tokens from a macro expansion. When a macro expansion is
 // not present, or there are no more tokens available in the macro expansion,
 // reads a token from the source file.
-void read_token( struct parse* parse, struct token* token ) {
+static void read_token( struct parse* parse, struct token* token ) {
    // Read from a macro expansion.
    while ( parse->macro_expan ) {
       if ( parse->macro_expan->output ) {
@@ -195,7 +195,7 @@ bool p_expand_macro( struct parse* parse ) {
    return true;
 }
 
-struct macro_expan* alloc_expan( struct parse* parse ) {
+static struct macro_expan* alloc_expan( struct parse* parse ) {
    struct macro_expan* expan;
    if ( parse->macro_expan_free ) {
       expan = parse->macro_expan_free;
@@ -207,7 +207,7 @@ struct macro_expan* alloc_expan( struct parse* parse ) {
    return expan;
 }
 
-void free_expan( struct parse* parse, struct macro_expan* expan ) {
+static void free_expan( struct parse* parse, struct macro_expan* expan ) {
    struct macro_arg* arg = expan->args;
    while ( arg ) {
       struct macro_arg* next = arg->next;
@@ -222,7 +222,7 @@ void free_expan( struct parse* parse, struct macro_expan* expan ) {
    parse->macro_expan_free = expan;
 }
 
-void init_macro_expan( struct macro_expan* expan,
+static void init_macro_expan( struct macro_expan* expan,
    struct macro_expan* parent_expan ) {
    expan->macro = NULL;
    expan->prev = parent_expan;
@@ -248,7 +248,7 @@ void init_macro_expan( struct macro_expan* expan,
    }
 }
 
-void fill( struct parse* parse, struct macro_expan* expan ) {
+static void fill( struct parse* parse, struct macro_expan* expan ) {
    int paren_depth = 0;
    bool done = false;
    while ( ! done ) {
@@ -272,7 +272,7 @@ void fill( struct parse* parse, struct macro_expan* expan ) {
    expan->input = expan->input_head;
 }
 
-void add_input_token( struct parse* parse, struct macro_expan* expan,
+static void add_input_token( struct parse* parse, struct macro_expan* expan,
    const struct token* token ) {
    struct token* input_token = p_alloc_token( parse );
    memcpy( input_token, token, sizeof( *token ) );
@@ -286,7 +286,7 @@ void add_input_token( struct parse* parse, struct macro_expan* expan,
    expan->input_tail = input_token;
 }
 
-void read_arg_list( struct parse* parse, struct macro_expan* expan ) {
+static void read_arg_list( struct parse* parse, struct macro_expan* expan ) {
    skip_whitespace( parse, expan );
    // Consume `(` token.
    expan->input = expan->input->next;
@@ -321,7 +321,7 @@ void read_arg_list( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-void skip_whitespace( struct parse* parse, struct macro_expan* expan ) {
+static void skip_whitespace( struct parse* parse, struct macro_expan* expan ) {
    while (
       expan->input->type == TK_HORZSPACE ||
       expan->input->type == TK_NL ) {
@@ -329,7 +329,7 @@ void skip_whitespace( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-void read_arg( struct parse* parse, struct macro_expan* expan ) {
+static void read_arg( struct parse* parse, struct macro_expan* expan ) {
    // Read sequence of tokens that make up the argument.
    if ( expan->macro->variadic &&
       expan->given == expan->macro->param_count - 1 ) {
@@ -348,7 +348,7 @@ void read_arg( struct parse* parse, struct macro_expan* expan ) {
    append_arg( expan, arg );
 }
 
-void read_arg_token( struct parse* parse, struct macro_expan* expan ) {
+static void read_arg_token( struct parse* parse, struct macro_expan* expan ) {
    if ( ! expan->input ) {
       p_diag( parse, DIAG_POS_ERR, &expan->pos,
          "unterminated macro" );
@@ -401,7 +401,7 @@ void read_arg_token( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-void add_arg_token( struct parse* parse, struct macro_expan* expan,
+static void add_arg_token( struct parse* parse, struct macro_expan* expan,
    const struct token* token ) {
    struct token* arg_token = p_alloc_token( parse );
    memcpy( arg_token, token, sizeof( *token ) );
@@ -415,7 +415,7 @@ void add_arg_token( struct parse* parse, struct macro_expan* expan,
    expan->arg_token_tail = arg_token;
 }
 
-struct macro_arg* alloc_arg( struct parse* parse ) {
+static struct macro_arg* alloc_arg( struct parse* parse ) {
    struct macro_arg* arg;
    if ( parse->macro_arg_free ) {
       arg = parse->macro_arg_free;
@@ -430,7 +430,7 @@ struct macro_arg* alloc_arg( struct parse* parse ) {
    return arg;
 }
 
-void append_arg( struct macro_expan* expan, struct macro_arg* arg ) {
+static void append_arg( struct macro_expan* expan, struct macro_arg* arg ) {
    if ( expan->args ) {
       expan->args_tail->next = arg;
    }
@@ -441,7 +441,7 @@ void append_arg( struct macro_expan* expan, struct macro_arg* arg ) {
    ++expan->given;
 }
 
-void perform_expan( struct parse* parse, struct macro_expan* expan ) {
+static void perform_expan( struct parse* parse, struct macro_expan* expan ) {
    if ( expan->macro->predef ) {
       expand_predef_macro( parse, expan );
    }
@@ -451,7 +451,8 @@ void perform_expan( struct parse* parse, struct macro_expan* expan ) {
    expan->output = expan->output_head;
 }
 
-void expand_predef_macro( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_macro( struct parse* parse,
+   struct macro_expan* expan ) {
    switch ( expan->macro->predef ) {
    case PREDEFMACRO_LINE:
       expand_predef_line( parse, expan );
@@ -474,7 +475,8 @@ void expand_predef_macro( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-void expand_predef_line( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_line( struct parse* parse,
+   struct macro_expan* expan ) {
    char value[ 11 ];
    const char* file;
    int line;
@@ -490,7 +492,8 @@ void expand_predef_line( struct parse* parse, struct macro_expan* expan ) {
    output( parse, expan, &token );
 }
 
-void expand_predef_file( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_file( struct parse* parse,
+   struct macro_expan* expan ) {
    const char* file;
    int line;
    int column;
@@ -504,7 +507,8 @@ void expand_predef_file( struct parse* parse, struct macro_expan* expan ) {
    output( parse, expan, &token );
 }
 
-void expand_predef_time( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_time( struct parse* parse,
+   struct macro_expan* expan ) {
    char value[ 9 ];
    time_t timestamp;
    time( &timestamp );
@@ -520,7 +524,8 @@ void expand_predef_time( struct parse* parse, struct macro_expan* expan ) {
    output( parse, expan, &token );
 }
 
-void expand_predef_date( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_date( struct parse* parse,
+   struct macro_expan* expan ) {
    char value[ 12 ];
    time_t timestamp;
    time( &timestamp );
@@ -536,7 +541,8 @@ void expand_predef_date( struct parse* parse, struct macro_expan* expan ) {
 }
 
 // Both __IMPORTED__ and __INCLUDED__ have the same body.
-void expand_predef_imported( struct parse* parse, struct macro_expan* expan ) {
+static void expand_predef_imported( struct parse* parse,
+   struct macro_expan* expan ) {
    struct token token;
    p_init_token( &token );
    token.type = TK_LIT_DECIMAL;
@@ -546,7 +552,7 @@ void expand_predef_imported( struct parse* parse, struct macro_expan* expan ) {
    output( parse, expan, &token );
 }
 
-void expand_macro( struct parse* parse, struct macro_expan* expan ) {
+static void expand_macro( struct parse* parse, struct macro_expan* expan ) {
    while ( expan->token ) {
       if ( expan->token->type == TK_ID ) {
          expand_id( parse, expan );
@@ -588,7 +594,7 @@ void expand_macro( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-void expand_id( struct parse* parse, struct macro_expan* expan ) {
+static void expand_id( struct parse* parse, struct macro_expan* expan ) {
    if ( ( expan->token->next &&
       expan->token->next->type == TK_HASHHASH ) || (
       expan->output_tail && expan->output_tail->type == TK_HASHHASH ) ) {
@@ -622,7 +628,7 @@ void expand_id( struct parse* parse, struct macro_expan* expan ) {
    }
 }
 
-struct macro_arg* find_arg( struct macro_expan* expan,
+static struct macro_arg* find_arg( struct macro_expan* expan,
    const char* param_name ) {
    struct macro_arg* arg = expan->args;
    struct macro_param* param = expan->macro->param_head;
@@ -633,7 +639,7 @@ struct macro_arg* find_arg( struct macro_expan* expan,
    return arg;
 }
 
-bool expand_param( struct parse* parse, struct macro_expan* expan ) {
+static bool expand_param( struct parse* parse, struct macro_expan* expan ) {
    struct macro_arg* arg = find_arg( expan, expan->token->text );
    if ( ! arg ) {
       return false;
@@ -655,7 +661,8 @@ bool expand_param( struct parse* parse, struct macro_expan* expan ) {
    return true;
 }
 
-bool expand_nested_macro( struct parse* parse, struct macro_expan* expan ) {
+static bool expand_nested_macro( struct parse* parse,
+   struct macro_expan* expan ) {
    struct macro* macro = p_find_macro( parse, expan->arg_token->text );
    if ( ! macro ) {
       return false;
@@ -693,7 +700,7 @@ bool expand_nested_macro( struct parse* parse, struct macro_expan* expan ) {
    return true;
 }
 
-void output_expan( struct macro_expan* expan,
+static void output_expan( struct macro_expan* expan,
    struct macro_expan* other_expan ) {
    if ( expan->output_head ) {
       expan->output_tail->next = other_expan->output;
@@ -706,7 +713,7 @@ void output_expan( struct macro_expan* expan,
    other_expan->output_tail = NULL;
 }
 
-void output( struct parse* parse, struct macro_expan* expan,
+static void output( struct parse* parse, struct macro_expan* expan,
    struct token* token ) {
    struct token* dup_token = p_alloc_token( parse );
    memcpy( dup_token, token, sizeof( *token ) );
@@ -721,7 +728,7 @@ void output( struct parse* parse, struct macro_expan* expan,
 }
 
 // `#` operator.
-void stringize( struct parse* parse, struct macro_expan* expan ) {
+static void stringize( struct parse* parse, struct macro_expan* expan ) {
    str_clear( &parse->temp_text );
    struct macro_arg* arg = find_arg( expan, expan->token->text );
    struct token* token = arg->sequence;
@@ -740,7 +747,7 @@ void stringize( struct parse* parse, struct macro_expan* expan ) {
 }
 
 // `##` operator.
-void concat( struct parse* parse, struct macro_expan* expan,
+static void concat( struct parse* parse, struct macro_expan* expan,
    struct token* lside ) {
    struct token* rside = lside->next->next;
    if ( lside->type == TK_PLACEMARKER ) {
@@ -760,7 +767,7 @@ void concat( struct parse* parse, struct macro_expan* expan,
    }
 }
 
-void concat_tangible( struct parse* parse, struct macro_expan* expan,
+static void concat_tangible( struct parse* parse, struct macro_expan* expan,
    struct token* lside, struct token* rside ) {
    enum tk type = concat_result( lside->type, rside->type );
    if ( type == TK_NONE ) {
@@ -793,7 +800,7 @@ void concat_tangible( struct parse* parse, struct macro_expan* expan,
    memcpy( lside, &token, sizeof( token ) );
 }
 
-enum tk concat_result( enum tk lside, enum tk rside ) {
+static enum tk concat_result( enum tk lside, enum tk rside ) {
    switch ( lside ) {
    case TK_ID:
       switch ( rside ) {
@@ -982,7 +989,7 @@ void p_next_stream( struct parse* parse, struct streamtk_iter* iter ) {
    }
 }
 
-struct token* push_token( struct parse* parse ) {
+static struct token* push_token( struct parse* parse ) {
    struct queue_entry* entry = p_push_entry( parse, parse->tkque );
    entry->token = p_alloc_token( parse );
    entry->token_allocated = true;
@@ -1018,7 +1025,7 @@ void p_free_token( struct parse* parse, struct token* token ) {
    parse->token_free = token;
 }
 
-void free_token_list( struct parse* parse, struct token* head,
+static void free_token_list( struct parse* parse, struct token* head,
    struct token* tail ) {
    if ( head ) {
       tail->next = parse->token_free;

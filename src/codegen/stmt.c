@@ -74,7 +74,7 @@ void c_write_block( struct codegen* codegen, struct block* stmt ) {
    pop_local_record( codegen );
 }
 
-void init_local_record( struct codegen* codegen,
+static void init_local_record( struct codegen* codegen,
    struct local_record* record ) {
    record->parent = NULL;
    if ( codegen->local_record ) {
@@ -87,17 +87,17 @@ void init_local_record( struct codegen* codegen,
    }
 }
 
-void push_local_record( struct codegen* codegen,
+static void push_local_record( struct codegen* codegen,
    struct local_record* record ) {
    record->parent = codegen->local_record;
    codegen->local_record = record;
 }
 
-void pop_local_record( struct codegen* codegen ) {
+static void pop_local_record( struct codegen* codegen ) {
    codegen->local_record = codegen->local_record->parent;
 }
 
-void write_block_item( struct codegen* codegen, struct node* node ) {
+static void write_block_item( struct codegen* codegen, struct node* node ) {
    switch ( node->type ) {
    case NODE_VAR:
       c_visit_var( codegen, ( struct var* ) node );
@@ -123,13 +123,14 @@ void write_block_item( struct codegen* codegen, struct node* node ) {
    }
 }
 
-void write_assert( struct codegen* codegen, struct assert* assert ) {
+static void write_assert( struct codegen* codegen, struct assert* assert ) {
    if ( ! assert->is_static && codegen->task->options->write_asserts ) {
       write_runtime_assert( codegen, assert );
    }
 }
 
-void write_runtime_assert( struct codegen* codegen, struct assert* assert ) {
+static void write_runtime_assert( struct codegen* codegen,
+   struct assert* assert ) {
    c_push_bool_expr( codegen, assert->cond );
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &exit_jump->node );
@@ -239,7 +240,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
    }
 }
 
-void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
+static void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
@@ -262,7 +263,7 @@ void visit_if( struct codegen* codegen, struct if_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void push_if_cond( struct codegen* codegen, struct heavy_cond* cond ) {
+static void push_if_cond( struct codegen* codegen, struct heavy_cond* cond ) {
    if ( cond->var ) {
       c_visit_var( codegen, cond->var );
       if ( cond->expr ) {
@@ -277,7 +278,7 @@ void push_if_cond( struct codegen* codegen, struct heavy_cond* cond ) {
    }
 }
 
-void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
+static void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    switch ( codegen->lang ) {
    case LANG_ACS:
       write_switch( codegen, stmt );
@@ -295,7 +296,7 @@ void visit_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    }
 }
 
-void write_switch_casegoto( struct codegen* codegen,
+static void write_switch_casegoto( struct codegen* codegen,
    struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Condition.
@@ -344,7 +345,7 @@ inline bool string_switch( struct switch_stmt* stmt ) {
       stmt->cond.var->spec == SPEC_STR );
 }
 
-void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
+static void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
@@ -377,7 +378,8 @@ void write_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void write_switch_cond( struct codegen* codegen, struct switch_stmt* stmt ) {
+static void write_switch_cond( struct codegen* codegen,
+   struct switch_stmt* stmt ) {
    if ( stmt->cond.var ) {
       c_visit_var( codegen, stmt->cond.var );
       if ( stmt->cond.expr ) {
@@ -394,7 +396,8 @@ void write_switch_cond( struct codegen* codegen, struct switch_stmt* stmt ) {
 
 // NOTE: Right now, the implementation does a linear search when attempting to
 // find the correct case. A binary search might be possible. 
-void write_string_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
+static void write_string_switch( struct codegen* codegen,
+   struct switch_stmt* stmt ) {
    struct c_point* exit_point = c_create_point( codegen );
    // Case selection.
    write_switch_cond( codegen, stmt );
@@ -449,11 +452,11 @@ void write_string_switch( struct codegen* codegen, struct switch_stmt* stmt ) {
    set_jumps_point( codegen, stmt->jump_break, exit_point );
 }
 
-void visit_case( struct codegen* codegen, struct case_label* label ) {
+static void visit_case( struct codegen* codegen, struct case_label* label ) {
    c_append_node( codegen, &label->point->node );
 }
 
-void visit_while( struct codegen* codegen, struct while_stmt* stmt ) {
+static void visit_while( struct codegen* codegen, struct while_stmt* stmt ) {
    if ( stmt->cond.u.node->type == NODE_EXPR && stmt->cond.u.expr->folded ) {
       write_folded_while( codegen, stmt );
    }
@@ -462,7 +465,8 @@ void visit_while( struct codegen* codegen, struct while_stmt* stmt ) {
    }
 }
 
-void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
+static void write_folded_while( struct codegen* codegen,
+   struct while_stmt* stmt ) {
    bool true_cond = ( ! stmt->until && stmt->cond.u.expr->value != 0 ) ||
       ( stmt->until && stmt->cond.u.expr->value == 0 );
    // A loop with a constant false condition never executes, so jump to the
@@ -494,7 +498,7 @@ void write_folded_while( struct codegen* codegen, struct while_stmt* stmt ) {
       ( true_cond ) ? body_point : exit_point );
 }
 
-void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
+static void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
@@ -520,7 +524,7 @@ void write_while( struct codegen* codegen, struct while_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void push_cond( struct codegen* codegen, struct cond* cond ) {
+static void push_cond( struct codegen* codegen, struct cond* cond ) {
    if ( cond->u.node->type == NODE_VAR ) {
       c_visit_var( codegen, cond->u.var );
       c_push_bool_cond_var( codegen, cond->u.var );
@@ -530,7 +534,7 @@ void push_cond( struct codegen* codegen, struct cond* cond ) {
    }
 }
 
-void visit_do( struct codegen* codegen, struct do_stmt* stmt ) {
+static void visit_do( struct codegen* codegen, struct do_stmt* stmt ) {
    if ( stmt->cond->folded ) {
       write_folded_do( codegen, stmt );
    }
@@ -539,7 +543,7 @@ void visit_do( struct codegen* codegen, struct do_stmt* stmt ) {
    }
 }
 
-void write_folded_do( struct codegen* codegen, struct do_stmt* stmt ) {
+static void write_folded_do( struct codegen* codegen, struct do_stmt* stmt ) {
    bool true_cond = ( ! stmt->until && stmt->cond->value != 0 ) ||
       ( stmt->until && stmt->cond->value == 0 );
    // A loop with a constant false condition never executes, so jump to the
@@ -571,7 +575,7 @@ void write_folded_do( struct codegen* codegen, struct do_stmt* stmt ) {
       ( true_cond ) ? body_point : exit_point );
 }
 
-void write_do( struct codegen* codegen, struct do_stmt* stmt ) {
+static void write_do( struct codegen* codegen, struct do_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
@@ -614,7 +618,7 @@ void write_do( struct codegen* codegen, struct do_stmt* stmt ) {
 // <body>
 // <post-expression-list>
 // <done>
-void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
+static void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    // Initialization.
    struct local_record record;
    init_local_record( codegen, &record );
@@ -696,7 +700,8 @@ void visit_for( struct codegen* codegen, struct for_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void visit_foreach( struct codegen* codegen, struct foreach_stmt* stmt ) {
+static void visit_foreach( struct codegen* codegen,
+   struct foreach_stmt* stmt ) {
    struct local_record record;
    init_local_record( codegen, &record );
    push_local_record( codegen, &record );
@@ -720,7 +725,7 @@ void visit_foreach( struct codegen* codegen, struct foreach_stmt* stmt ) {
    pop_local_record( codegen );
 }
 
-void init_foreach_writing( struct foreach_writing* writing ) {
+static void init_foreach_writing( struct foreach_writing* writing ) {
    writing->structure = NULL;
    writing->dim = NULL;
    writing->break_point = NULL;
@@ -733,8 +738,8 @@ void init_foreach_writing( struct foreach_writing* writing ) {
    writing->pushed_base = false;
 }
 
-void foreach_array( struct codegen* codegen, struct foreach_writing* writing,
-   struct foreach_stmt* stmt ) {
+static void foreach_array( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt ) {
    // Allocate key variable.
    int key = c_alloc_script_var( codegen );
    c_pcd( codegen, PCD_PUSHNUMBER, 0 );
@@ -886,7 +891,7 @@ void foreach_array( struct codegen* codegen, struct foreach_writing* writing,
    writing->break_point = exit_point;
 }
 
-void foreach_ref_array( struct codegen* codegen,
+static void foreach_ref_array( struct codegen* codegen,
    struct foreach_writing* writing, struct foreach_stmt* stmt ) {
    // Allocate key variable.
    int key = 0;
@@ -1033,8 +1038,8 @@ void foreach_ref_array( struct codegen* codegen,
    writing->break_point = exit_point;
 }
 
-void foreach_str( struct codegen* codegen, struct foreach_writing* writing,
-   struct foreach_stmt* stmt ) {
+static void foreach_str( struct codegen* codegen,
+   struct foreach_writing* writing, struct foreach_stmt* stmt ) {
    // Allocate string variable.
    int string = c_alloc_script_var( codegen );
    c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, string );
@@ -1091,13 +1096,13 @@ void foreach_str( struct codegen* codegen, struct foreach_writing* writing,
    writing->break_point = exit_point;
 }
 
-void visit_jump( struct codegen* codegen, struct jump* jump ) {
+static void visit_jump( struct codegen* codegen, struct jump* jump ) {
    struct c_jump* point_jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &point_jump->node );
    jump->point_jump = point_jump;
 }
 
-void set_jumps_point( struct codegen* codegen, struct jump* jump,
+static void set_jumps_point( struct codegen* codegen, struct jump* jump,
    struct c_point* point ) {
    while ( jump ) {
       jump->point_jump->point = point;
@@ -1105,7 +1110,7 @@ void set_jumps_point( struct codegen* codegen, struct jump* jump,
    }
 }
 
-void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
+static void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    // Push return value.
    if ( stmt->return_value ) {
       c_push_initz_expr( codegen, codegen->func->func->ref,
@@ -1130,7 +1135,7 @@ void visit_return( struct codegen* codegen, struct return_stmt* stmt ) {
    }
 }
 
-void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
+static void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
    c_push_expr( codegen, trans->number );
    c_pcd( codegen, PCD_STARTTRANSLATION );
    struct palrange* range = trans->ranges;
@@ -1167,7 +1172,7 @@ void visit_paltrans( struct codegen* codegen, struct paltrans* trans ) {
    c_pcd( codegen, PCD_ENDTRANSLATION );
 }
 
-void write_palrange_colorisation( struct codegen* codegen,
+static void write_palrange_colorisation( struct codegen* codegen,
    struct palrange* range ) {
    c_push_expr( codegen, range->value.colorisation.red );
    c_push_expr( codegen, range->value.colorisation.green );
@@ -1175,7 +1180,7 @@ void write_palrange_colorisation( struct codegen* codegen,
    c_pcd( codegen, PCD_TRANSLATIONRANGE4 );
 }
 
-void write_palrange_tint( struct codegen* codegen,
+static void write_palrange_tint( struct codegen* codegen,
    struct palrange* range ) {
    c_push_expr( codegen, range->value.tint.amount );
    c_push_expr( codegen, range->value.tint.red );
@@ -1184,7 +1189,8 @@ void write_palrange_tint( struct codegen* codegen,
    c_pcd( codegen, PCD_TRANSLATIONRANGE5 );
 }
 
-void visit_script_jump( struct codegen* codegen, struct script_jump* stmt ) {
+static void visit_script_jump( struct codegen* codegen,
+   struct script_jump* stmt ) {
    switch ( stmt->type ) {
    case SCRIPT_JUMP_SUSPEND:
       c_pcd( codegen, PCD_SUSPEND );
@@ -1198,14 +1204,14 @@ void visit_script_jump( struct codegen* codegen, struct script_jump* stmt ) {
    }
 }
 
-void visit_label( struct codegen* codegen, struct label* label ) {
+static void visit_label( struct codegen* codegen, struct label* label ) {
    if ( ! label->point ) {
       label->point = c_create_point( codegen );
    }
    c_append_node( codegen, &label->point->node );
 }
 
-void visit_goto( struct codegen* codegen, struct goto_stmt* stmt ) {
+static void visit_goto( struct codegen* codegen, struct goto_stmt* stmt ) {
    struct c_jump* jump = c_create_jump( codegen, PCD_GOTO );
    c_append_node( codegen, &jump->node );
    if ( ! stmt->label->point ) {
@@ -1274,7 +1280,8 @@ static void write_multi_usage_msgbuild_block( struct codegen* codegen,
    exit_jump->point = exit_point;
 }
 
-void visit_expr_stmt( struct codegen* codegen, struct expr_stmt* stmt ) {
+static void visit_expr_stmt( struct codegen* codegen,
+   struct expr_stmt* stmt ) {
    struct list_iter i;
    list_iterate( &stmt->expr_list, &i );
    while ( ! list_end( &i ) ) {

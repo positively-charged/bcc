@@ -139,7 +139,7 @@ void p_load_included_source( struct parse* parse, const char* file_path,
    }
 }
 
-void append_file( struct library* lib, struct file_entry* file ) {
+static void append_file( struct library* lib, struct file_entry* file ) {
    struct list_iter i;
    list_iterate( &lib->files, &i );
    while ( ! list_end( &i ) ) {
@@ -187,7 +187,7 @@ static void add_lang_dir( struct parse* parse, struct request* request ) {
    }
 }
 
-void load_source( struct parse* parse, struct request* request ) {
+static void load_source( struct parse* parse, struct request* request ) {
    find_source( parse, request );
    if ( request->file ) {
       if ( ! source_loading( parse, request ) ) {
@@ -233,7 +233,7 @@ static void find_source( struct parse* parse, struct request* request ) {
    }
 }
 
-bool source_loading( struct parse* parse, struct request* request ) {
+static bool source_loading( struct parse* parse, struct request* request ) {
    struct source_entry* entry = parse->source_entry;
    while ( entry && ( ! entry->source ||
       request->file != entry->source->file ) ) {
@@ -246,7 +246,7 @@ static void load_module( struct parse* parse, struct request* request ) {
    open_source_file( parse, request );
 }
 
-void open_source_file( struct parse* parse, struct request* request ) {
+static void open_source_file( struct parse* parse, struct request* request ) {
    FILE* fh = fopen( request->file->full_path.value, "rb" );
    if ( ! fh ) {
       request->err_open = true;
@@ -261,7 +261,7 @@ void open_source_file( struct parse* parse, struct request* request ) {
    request->source = source;
 }
 
-struct source* alloc_source( struct parse* parse ) {
+static struct source* alloc_source( struct parse* parse ) {
    // Allocate.
    struct source* source;
    if ( parse->free_source ) {
@@ -281,12 +281,12 @@ struct source* alloc_source( struct parse* parse ) {
    return source;
 }
 
-void reset_filepos( struct source* source ) {
+static void reset_filepos( struct source* source ) {
    source->line = LINE_OFFSET;
    source->column = 0;
 }
 
-void create_entry( struct parse* parse, struct request* request,
+static void create_entry( struct parse* parse, struct request* request,
    bool imported ) {
    struct source_entry* entry;
    if ( parse->source_entry_free ) {
@@ -312,7 +312,7 @@ void create_entry( struct parse* parse, struct request* request,
    read_initial_ch( parse );
 }
 
-void create_include_history_entry( struct parse* parse, int line ) {
+static void create_include_history_entry( struct parse* parse, int line ) {
    struct include_history_entry* entry =
       t_alloc_include_history_entry( parse->task );
    entry->parent = parse->include_history_entry;
@@ -322,7 +322,7 @@ void create_include_history_entry( struct parse* parse, int line ) {
    parse->source->file_entry_id = entry->id;
 }
 
-void create_include_history_entry_imported( struct parse* parse,
+static void create_include_history_entry_imported( struct parse* parse,
    struct import_dirc* dirc ) {
    struct include_history_entry* entry =
       t_alloc_include_history_entry( parse->task );
@@ -394,7 +394,7 @@ void p_read_source( struct parse* parse, struct token* token ) {
    }
 }
 
-void read_token_acs( struct parse* parse, struct token* token ) {
+static void read_token_acs( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
    int id = 0;
    int line = 0;
@@ -1102,7 +1102,7 @@ void read_token_acs( struct parse* parse, struct token* token ) {
 
 // NOTE: ACS95 is a historic version of ACS, so the particular lexing done by
 // this function should remain largely unchanged, unless there is a bug.
-void read_token_acs95( struct parse* parse, struct token* token ) {
+static void read_token_acs95( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
    int id = 0;
    int line = 0;
@@ -1680,7 +1680,7 @@ void read_token_acs95( struct parse* parse, struct token* token ) {
    token->next = NULL;
 }
 
-void read_token( struct parse* parse, struct token* token ) {
+static void read_token( struct parse* parse, struct token* token ) {
    char ch = parse->source->ch;
    int line = 0;
    int column = 0;
@@ -2529,7 +2529,7 @@ void read_token( struct parse* parse, struct token* token ) {
    token->next = NULL;
 }
 
-char read_ch( struct parse* parse ) {
+static char read_ch( struct parse* parse ) {
    struct source* source = parse->source;
    // Adjust the file position. The file position is adjusted based on the
    // previous character. (If we adjust the file position based on the new
@@ -2614,11 +2614,11 @@ char read_ch( struct parse* parse ) {
    return ch;
 }
 
-char peek_ch( struct parse* parse ) {
+static char peek_ch( struct parse* parse ) {
    return parse->source->buffer[ parse->source->buffer_pos ];
 }
 
-void read_initial_ch( struct parse* parse ) {
+static void read_initial_ch( struct parse* parse ) {
    read_ch( parse );
    // The file position is adjusted based on the previous character. Initially,
    // there is no previous character, but the file position is still adjusted
@@ -2627,7 +2627,7 @@ void read_initial_ch( struct parse* parse ) {
    reset_filepos( parse->source );
 }
 
-void escape_ch( struct parse* parse, char* ch_out, struct str* text,
+static void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    bool in_string ) {
    char ch = *ch_out;
    if ( ! ch ) {
@@ -2758,12 +2758,12 @@ void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    *ch_out = ch;
 }
 
-struct str* temp_text( struct parse* parse ) {
+static struct str* temp_text( struct parse* parse ) {
    str_clear( &parse->temp_text );
    return &parse->temp_text;
 }
 
-void append_ch( struct str* str, char ch ) {
+static void append_ch( struct str* str, char ch ) {
    char segment[ 2 ] = { ch, '\0' };
    str_append( str, segment );
 }

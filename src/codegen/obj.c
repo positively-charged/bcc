@@ -27,7 +27,7 @@ void c_init_obj( struct codegen* codegen ) {
    codegen->push_immediate = false;
 }
 
-struct buffer* alloc_buffer( void ) {
+static struct buffer* alloc_buffer( void ) {
    struct buffer* buffer = mem_alloc( sizeof( *buffer ) );
    buffer->next = NULL;
    buffer->used = 0;
@@ -53,7 +53,7 @@ void c_add_sized( struct codegen* codegen, const void* data, int size ) {
    }
 }
 
-void next_buffer( struct codegen* codegen ) {
+static void next_buffer( struct codegen* codegen ) {
    if ( codegen->buffer->next ) {
       codegen->buffer = codegen->buffer->next;
       codegen->buffer->pos = 0;
@@ -296,7 +296,7 @@ void c_add_arg( struct codegen* codegen, int arg ) {
    }
 }
 
-void write_opc( struct codegen* codegen, int code ) {
+static void write_opc( struct codegen* codegen, int code ) {
    if ( codegen->compress ) {
       // I don't know how the compression algorithm works exactly, but at this
       // time, the following works with all of the available opcodes as of this
@@ -317,7 +317,7 @@ void write_opc( struct codegen* codegen, int code ) {
    codegen->opc_args = 0;
 }
 
-void write_arg( struct codegen* codegen, int arg ) {
+static void write_arg( struct codegen* codegen, int arg ) {
    switch ( codegen->opc ) {
    case PCD_LSPEC1:
    case PCD_LSPEC2:
@@ -516,14 +516,14 @@ void write_arg( struct codegen* codegen, int arg ) {
    ++codegen->opc_args;
 }
 
-void write_args( struct codegen* codegen ) {
+static void write_args( struct codegen* codegen ) {
    while ( codegen->immediate_count ) {
       write_arg( codegen, codegen->immediate->value );
       remove_immediate( codegen );
    }
 }
 
-void add_immediate( struct codegen* codegen, int value ) {
+static void add_immediate( struct codegen* codegen, int value ) {
    struct immediate* immediate = NULL;
    if ( codegen->free_immediate ) {
       immediate = codegen->free_immediate;
@@ -544,7 +544,7 @@ void add_immediate( struct codegen* codegen, int value ) {
    ++codegen->immediate_count;
 }
 
-void remove_immediate( struct codegen* codegen ) {
+static void remove_immediate( struct codegen* codegen ) {
    struct immediate* immediate = codegen->immediate;
    codegen->immediate = immediate->next;
    immediate->next = codegen->free_immediate;
@@ -557,7 +557,7 @@ void remove_immediate( struct codegen* codegen ) {
 
 // NOTE: It is assumed that the count passed is always equal to, or is less
 // than, the number of immediates in the queue.
-void push_immediate( struct codegen* codegen, int count ) {
+static void push_immediate( struct codegen* codegen, int count ) {
    int left = count;
    struct immediate* immediate = codegen->immediate;
    if ( codegen->task->library_main->lang == LANG_ACS95 ) {
@@ -635,7 +635,7 @@ void push_immediate( struct codegen* codegen, int count ) {
    }
 }
 
-bool is_byte_value( int value ) {
+static bool is_byte_value( int value ) {
    return ( ( unsigned int ) value <= 255 );
 }
 

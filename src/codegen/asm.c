@@ -15,7 +15,7 @@ void p_visit_inline_asm( struct codegen* codegen,
    }
 }
 
-void write_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
+static void write_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
    switch ( arg->type ) {
    case INLINE_ASM_ARG_NUMBER:
       c_arg( codegen, arg->value.number );
@@ -50,7 +50,8 @@ void write_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
    }
 }
 
-void write_expr_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
+static void write_expr_arg( struct codegen* codegen,
+   struct inline_asm_arg* arg ) {
    c_arg( codegen, arg->value.expr->value );
    if ( arg->value.expr->has_str ) {
       struct indexed_string* string = t_lookup_string( codegen->task,

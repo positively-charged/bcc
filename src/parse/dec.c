@@ -76,7 +76,7 @@ static void read_struct_name( struct parse* parse, struct dec* dec,
    struct structure* structure );
 static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure );
-void read_struct_member( struct parse* parse, struct dec* parent_dec,
+static void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure );
 static struct structure_member* create_structure_member( struct dec* dec );
 static void read_typedef( struct parse* parse, struct dec* dec );
@@ -201,7 +201,7 @@ bool p_is_dec( struct parse* parse ) {
    }
 }
 
-bool is_dec_bcs( struct parse* parse ) {
+static bool is_dec_bcs( struct parse* parse ) {
    if ( parse->tk == TK_STATIC ) {
       // The `static` keyword is also used by static-assert.
       return ( p_peek( parse ) != TK_ASSERT );
@@ -311,7 +311,7 @@ bool p_read_let( struct parse* parse ) {
    }
 }
 
-void read_dec( struct parse* parse, struct dec* dec ) {
+static void read_dec( struct parse* parse, struct dec* dec ) {
    dec->pos = parse->tk_pos;
    if ( parse->tk == TK_PRIVATE ) {
       dec->private_visibility = true;
@@ -338,7 +338,7 @@ void read_dec( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_enum( struct parse* parse, struct dec* dec ) {
+static void read_enum( struct parse* parse, struct dec* dec ) {
    if ( is_enum_def( parse ) ) {
       read_enum_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
@@ -364,7 +364,7 @@ inline bool is_enum_def( struct parse* parse ) {
          p_peek_2nd( parse ) == TK_COLON ) ) );
 }
 
-void read_enum_def( struct parse* parse, struct dec* dec ) {
+static void read_enum_def( struct parse* parse, struct dec* dec ) {
    dec->type_pos = parse->tk_pos;
    p_test_tk( parse, TK_ENUM );
    p_read_tk( parse );
@@ -405,7 +405,7 @@ void read_enum_def( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_enum_name( struct parse* parse, struct dec* dec,
+static void read_enum_name( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration ) {
    if ( parse->tk == TK_ID || parse->tk == TK_TYPENAME ) {
       enumeration->name = t_extend_name( parse->ns->body_enums,
@@ -424,7 +424,7 @@ void read_enum_name( struct parse* parse, struct dec* dec,
    }
 }
 
-void read_enum_base_type( struct parse* parse,
+static void read_enum_base_type( struct parse* parse,
    struct enumeration* enumeration ) {
    if ( parse->tk == TK_COLON ) {
       p_read_tk( parse );
@@ -452,7 +452,7 @@ void read_enum_base_type( struct parse* parse,
    }
 }
 
-void read_enum_body( struct parse* parse, struct dec* dec,
+static void read_enum_body( struct parse* parse, struct dec* dec,
    struct enumeration* enumeration ) {
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
@@ -473,7 +473,8 @@ void read_enum_body( struct parse* parse, struct dec* dec,
    p_read_tk( parse );
 }
 
-void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
+static void read_enumerator( struct parse* parse,
+   struct enumeration* enumeration ) {
    if ( parse->tk != TK_ID ) {
       p_unexpect_diag( parse );
       p_unexpect_last_name( parse, NULL, "enumerator" );
@@ -500,7 +501,7 @@ void read_enumerator( struct parse* parse, struct enumeration* enumeration ) {
    }
 }
 
-void read_struct( struct parse* parse, struct dec* dec ) {
+static void read_struct( struct parse* parse, struct dec* dec ) {
    if ( is_struct_def( parse ) ) {
       read_struct_def( parse, dec );
       if ( parse->tk == TK_SEMICOLON ) {
@@ -530,7 +531,7 @@ inline bool is_struct_def( struct parse* parse ) {
          p_peek_2nd( parse ) == TK_BRACE_L ) ) );
 }
 
-void read_struct_def( struct parse* parse, struct dec* dec ) {
+static void read_struct_def( struct parse* parse, struct dec* dec ) {
    struct structure* structure = t_alloc_structure();
    structure->object.pos = parse->tk_pos;
    structure->force_local_scope = dec->force_local_scope;
@@ -570,7 +571,7 @@ void read_struct_def( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_struct_name( struct parse* parse, struct dec* dec,
+static void read_struct_name( struct parse* parse, struct dec* dec,
    struct structure* structure ) {
    if ( parse->tk == TK_ID || parse->tk == TK_TYPENAME ) {
       structure->name = t_extend_name( parse->ns->body_structs,
@@ -590,7 +591,7 @@ void read_struct_name( struct parse* parse, struct dec* dec,
    }
 }
 
-void read_struct_body( struct parse* parse, struct dec* dec,
+static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure ) {
    structure->body = t_extend_name( structure->name, "." );
    p_test_tk( parse, TK_BRACE_L );
@@ -606,7 +607,7 @@ void read_struct_body( struct parse* parse, struct dec* dec,
    p_read_tk( parse );
 }
 
-void read_struct_member( struct parse* parse, struct dec* parent_dec,
+static void read_struct_member( struct parse* parse, struct dec* parent_dec,
    struct structure* structure ) {
    struct dec dec;
    p_init_dec( &dec );
@@ -644,7 +645,7 @@ void read_struct_member( struct parse* parse, struct dec* parent_dec,
    }
 }
 
-struct structure_member* create_structure_member( struct dec* dec ) {
+static struct structure_member* create_structure_member( struct dec* dec ) {
    struct structure_member* member = t_alloc_structure_member();
    member->object.pos = dec->name_pos;
    member->name = dec->name;
@@ -677,7 +678,7 @@ static void read_typedef( struct parse* parse, struct dec* dec ) {
    read_after_spec( parse, dec );
 }
 
-void read_visibility( struct parse* parse, struct dec* dec ) {
+static void read_visibility( struct parse* parse, struct dec* dec ) {
    if ( ! is_private_read( dec ) ) {
       if ( parse->tk == TK_EXTERN ) {
          if ( parse->lib->imported ) {
@@ -703,7 +704,7 @@ static bool is_private_read( struct dec* dec ) {
    return dec->private_visibility;
 }
 
-void read_object( struct parse* parse, struct dec* dec ) {
+static void read_object( struct parse* parse, struct dec* dec ) {
    // Function keyword.
    if ( parse->tk == TK_FUNCTION ) {
       dec->object = DECOBJ_FUNC;
@@ -752,7 +753,7 @@ static void read_var_object( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_storage( struct parse* parse, struct dec* dec ) {
+static void read_storage( struct parse* parse, struct dec* dec ) {
    switch ( parse->tk ) {
    case TK_WORLD:
    case TK_GLOBAL:
@@ -768,7 +769,7 @@ void read_storage( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_auto( struct parse* parse, struct dec* dec ) {
+static void read_auto( struct parse* parse, struct dec* dec ) {
    p_test_tk( parse, TK_AUTO );
    dec->spec = SPEC_AUTO;
    p_read_tk( parse );
@@ -778,7 +779,7 @@ void read_auto( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_extended_spec( struct parse* parse, struct dec* dec ) {
+static void read_extended_spec( struct parse* parse, struct dec* dec ) {
    if ( is_enum_def( parse ) ) {
       read_enum_def( parse, dec );
    }
@@ -797,7 +798,7 @@ void read_extended_spec( struct parse* parse, struct dec* dec ) {
    }
 }
 
-bool is_spec( struct parse* parse ) {
+static bool is_spec( struct parse* parse ) {
    switch ( parse->tk ) {
    case TK_RAW:
    case TK_INT:
@@ -814,13 +815,13 @@ bool is_spec( struct parse* parse ) {
    }
 }
 
-void init_spec_reading( struct spec_reading* spec, int area ) {
+static void init_spec_reading( struct spec_reading* spec, int area ) {
    spec->path = NULL;
    spec->type = SPEC_NONE;
    spec->area = area;
 }
 
-void read_spec( struct parse* parse, struct spec_reading* spec ) {
+static void read_spec( struct parse* parse, struct spec_reading* spec ) {
    spec->pos = parse->tk_pos;
    switch ( parse->lang ) {
    case LANG_ACS:
@@ -901,7 +902,7 @@ void read_spec( struct parse* parse, struct spec_reading* spec ) {
    }
 }
 
-void missing_spec( struct parse* parse, struct spec_reading* spec ) {
+static void missing_spec( struct parse* parse, struct spec_reading* spec ) {
    const char* subject;
    switch ( spec->area ) {
    case AREA_FUNCRETURN:
@@ -918,7 +919,7 @@ void missing_spec( struct parse* parse, struct spec_reading* spec ) {
    p_unexpect_last_name( parse, NULL, subject );
 }
 
-void read_after_spec( struct parse* parse, struct dec* dec ) {
+static void read_after_spec( struct parse* parse, struct dec* dec ) {
    // Reference.
    if ( parse->lang == LANG_BCS ) {
       struct ref_reading ref;
@@ -929,13 +930,13 @@ void read_after_spec( struct parse* parse, struct dec* dec ) {
    read_after_ref( parse, dec );
 }
 
-void init_ref_reading( struct ref_reading* reading ) {
+static void init_ref_reading( struct ref_reading* reading ) {
    reading->head = NULL;
    reading->storage = STORAGE_MAP;
    reading->storage_index = 0;
 }
 
-void read_ref( struct parse* parse, struct ref_reading* reading ) {
+static void read_ref( struct parse* parse, struct ref_reading* reading ) {
    // Read structure reference.
    switch ( parse->tk ) {
    case TK_GLOBAL:
@@ -983,7 +984,7 @@ void read_ref( struct parse* parse, struct ref_reading* reading ) {
    }
 }
 
-void init_ref( struct ref* ref, int type, struct pos* pos ) {
+static void init_ref( struct ref* ref, int type, struct pos* pos ) {
    ref->next = NULL;
    ref->type = type;
    ref->pos = *pos;
@@ -991,12 +992,13 @@ void init_ref( struct ref* ref, int type, struct pos* pos ) {
    ref->implicit = false;
 }
 
-void prepend_ref( struct ref_reading* reading, struct ref* part ) {
+static void prepend_ref( struct ref_reading* reading, struct ref* part ) {
    part->next = reading->head;
    reading->head = part;
 }
 
-void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
+static void read_struct_ref( struct parse* parse,
+   struct ref_reading* reading ) {
    bool nullable = false;
    if ( parse->tk == TK_QUESTION_MARK ) {
       nullable = true;
@@ -1013,7 +1015,7 @@ void read_struct_ref( struct parse* parse, struct ref_reading* reading ) {
    p_read_tk( parse );
 }
 
-bool is_array_ref( struct parse* parse ) {
+static bool is_array_ref( struct parse* parse ) {
    struct parsertk_iter iter;
    p_init_parsertk_iter( parse, &iter );
    p_next_tk( parse, &iter );
@@ -1041,7 +1043,8 @@ bool is_array_ref( struct parse* parse ) {
    return false;
 }
 
-void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
+static void read_array_ref( struct parse* parse,
+   struct ref_reading* reading ) {
    struct pos pos = parse->tk_pos;
    int count = 0;
    while ( parse->tk == TK_BRACKET_L ) {
@@ -1058,7 +1061,7 @@ void read_array_ref( struct parse* parse, struct ref_reading* reading ) {
    prepend_ref( reading, &part->ref );
 }
 
-void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
+static void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
    struct ref_func* part = t_alloc_ref_func();
    part->ref.pos = parse->tk_pos;
    p_test_tk( parse, TK_FUNCTION );
@@ -1080,7 +1083,7 @@ void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
    prepend_ref( reading, &part->ref );
 }
 
-void read_after_ref( struct parse* parse, struct dec* dec ) {
+static void read_after_ref( struct parse* parse, struct dec* dec ) {
    // We reached a point where we can determine whether to read a variable or
    // a function.
    if ( dec->object == DECOBJ_UNDECIDED ) {
@@ -1100,7 +1103,7 @@ void read_after_ref( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_var( struct parse* parse, struct dec* dec ) {
+static void read_var( struct parse* parse, struct dec* dec ) {
    if (
       dec->spec == SPEC_AUTO ||
       dec->spec == SPEC_AUTOENUM ) {
@@ -1113,7 +1116,7 @@ void read_var( struct parse* parse, struct dec* dec ) {
    p_read_tk( parse );
 }
 
-void read_instance_list( struct parse* parse, struct dec* dec ) {
+static void read_instance_list( struct parse* parse, struct dec* dec ) {
    if ( dec->semicolon_absent && ! ( parse->tk == TK_ID ||
       parse->tk == TK_LIT_DECIMAL || dec->ref ) ) {
       p_unexpect_diag( parse );
@@ -1134,7 +1137,7 @@ void read_instance_list( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_instance( struct parse* parse, struct dec* dec ) {
+static void read_instance( struct parse* parse, struct dec* dec ) {
    if ( dec->type_alias ) {
       read_name( parse, dec );
       read_dim( parse, dec );
@@ -1154,7 +1157,7 @@ void read_instance( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_storage_index( struct parse* parse, struct dec* dec ) {
+static void read_storage_index( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_LIT_DECIMAL ) {
       p_test_tk( parse, TK_LIT_DECIMAL );
       dec->storage_index.pos = parse->tk_pos;
@@ -1170,7 +1173,7 @@ void read_storage_index( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_name( struct parse* parse, struct dec* dec ) {
+static void read_name( struct parse* parse, struct dec* dec ) {
    if ( is_name( parse, dec ) ) {
       dec->name = t_extend_name( dec->name_offset, parse->tk_text );
       dec->name_pos = parse->tk_pos;
@@ -1186,7 +1189,7 @@ inline bool is_name( struct parse* parse, struct dec* dec ) {
       ( ! dec->type_alias && parse->tk == TK_ID ) );
 }
 
-void missing_name( struct parse* parse, struct dec* dec ) {
+static void missing_name( struct parse* parse, struct dec* dec ) {
    if ( dec->type_alias ) {
       p_unexpect_diag( parse );
       p_unexpect_last( parse, NULL, TK_TYPENAME );
@@ -1209,7 +1212,7 @@ void missing_name( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_dim( struct parse* parse, struct dec* dec ) {
+static void read_dim( struct parse* parse, struct dec* dec ) {
    dec->dim = NULL;
    struct dim* tail = NULL;
    while ( parse->tk == TK_BRACKET_L ) {
@@ -1237,7 +1240,7 @@ void read_dim( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_var_init( struct parse* parse, struct dec* dec ) {
+static void read_var_init( struct parse* parse, struct dec* dec ) {
    dec->initz.pos = parse->tk_pos;
    dec->initz.initial = NULL;
    if ( parse->lib->imported ) {
@@ -1248,7 +1251,7 @@ void read_var_init( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_imported_init( struct parse* parse, struct dec* dec ) {
+static void read_imported_init( struct parse* parse, struct dec* dec ) {
    // Assume global and world variables cannot be initialized.
    if ( ! dec->storage.specified ) {
       if ( dec->dim ) {
@@ -1272,7 +1275,7 @@ void read_imported_init( struct parse* parse, struct dec* dec ) {
    }
 }
 
-bool has_implicit_length_dim( struct dec* dec ) {
+static bool has_implicit_length_dim( struct dec* dec ) {
    struct dim* dim = dec->dim;
    while ( dim ) {
       if ( ! dim->length_node ) {
@@ -1283,7 +1286,7 @@ bool has_implicit_length_dim( struct dec* dec ) {
    return false;
 }
 
-void read_imported_multi_init( struct parse* parse, struct dim* dim ) {
+static void read_imported_multi_init( struct parse* parse, struct dim* dim ) {
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    int length = 0;
@@ -1328,7 +1331,7 @@ void read_imported_multi_init( struct parse* parse, struct dim* dim ) {
    }
 }
 
-void read_init( struct parse* parse, struct dec* dec ) {
+static void read_init( struct parse* parse, struct dec* dec ) {
    if ( parse->tk == TK_ASSIGN ) {
       dec->initz.specified = true;
       p_read_tk( parse );
@@ -1349,7 +1352,7 @@ void read_init( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void read_multi_init( struct parse* parse, struct dec* dec,
+static void read_multi_init( struct parse* parse, struct dec* dec,
    struct multi_value_read* parent ) {
    p_test_tk( parse, TK_BRACE_L );
    struct multi_value* multi_value = mem_alloc( sizeof( *multi_value ) );
@@ -1412,13 +1415,13 @@ void read_multi_init( struct parse* parse, struct dec* dec,
    }
 }
 
-void init_initial( struct initial* initial, bool multi ) {
+static void init_initial( struct initial* initial, bool multi ) {
    initial->next = NULL;
    initial->multi = multi;
    initial->tested = false;
 }
 
-struct value* alloc_value( void ) {
+static struct value* alloc_value( void ) {
    struct value* value = mem_alloc( sizeof( *value ) );
    init_initial( &value->initial, false );
    value->expr = NULL;
@@ -1431,7 +1434,7 @@ struct value* alloc_value( void ) {
    return value;
 }
 
-void read_single_init( struct parse* parse, struct dec* dec ) {
+static void read_single_init( struct parse* parse, struct dec* dec ) {
    struct expr_reading expr;
    p_init_expr_reading( &expr, false, false, false, true );
    p_read_expr( parse, &expr );
@@ -1440,7 +1443,7 @@ void read_single_init( struct parse* parse, struct dec* dec ) {
    dec->initz.initial = &value->initial;
 }
 
-void test_var( struct parse* parse, struct dec* dec ) {
+static void test_var( struct parse* parse, struct dec* dec ) {
    if ( dec->static_qual && ! ( dec->area == DEC_LOCAL ||
       dec->area == DEC_FOR ) ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
@@ -1464,7 +1467,7 @@ void test_var( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void test_storage( struct parse* parse, struct dec* dec ) {
+static void test_storage( struct parse* parse, struct dec* dec ) {
    if ( ! dec->storage.specified && ! dec->external ) {
       // Variable found at namespace scope, or a static local variable, has map
       // storage.
@@ -1508,7 +1511,7 @@ void test_storage( struct parse* parse, struct dec* dec ) {
    }
 }
 
-void add_var( struct parse* parse, struct dec* dec ) {
+static void add_var( struct parse* parse, struct dec* dec ) {
    struct var* var = alloc_var( dec );
    var->imported = parse->lib->imported;
    if ( dec->area == DEC_TOP ) {
@@ -1546,7 +1549,7 @@ void add_var( struct parse* parse, struct dec* dec ) {
    dec->var = var;
 }
 
-struct var* alloc_var( struct dec* dec ) {
+static struct var* alloc_var( struct dec* dec ) {
    struct var* var = t_alloc_var();
    var->object.pos = dec->name_pos;
    var->name = dec->name;
@@ -1569,7 +1572,7 @@ struct var* alloc_var( struct dec* dec ) {
    return var;
 }
 
-void finish_type_alias( struct parse* parse, struct dec* dec ) {
+static void finish_type_alias( struct parse* parse, struct dec* dec ) {
    struct type_alias* alias = t_alloc_type_alias();
    t_init_object( &alias->object, NODE_TYPE_ALIAS );
    alias->object.pos = dec->name_pos;
@@ -1599,7 +1602,7 @@ void finish_type_alias( struct parse* parse, struct dec* dec ) {
    dec->type_alias_object = alias;
 }
 
-void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
+static void read_auto_instance_list( struct parse* parse, struct dec* dec ) {
    while ( true ) {
       read_name( parse, dec );
       read_var_init( parse, dec );
@@ -1671,7 +1674,7 @@ void p_read_foreach_item( struct parse* parse, struct foreach_stmt* stmt ) {
    }
 }
 
-void read_foreach_var( struct parse* parse, struct dec* dec ) {
+static void read_foreach_var( struct parse* parse, struct dec* dec ) {
    dec->force_local_scope = p_read_let( parse );
    if ( parse->tk == TK_AUTO ) {
       read_auto( parse, dec );
@@ -1866,7 +1869,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    }
 }
 
-bool is_cast_spec( struct parse* parse, int spec ) {
+static bool is_cast_spec( struct parse* parse, int spec ) {
    switch ( spec ) {
    case SPEC_RAW:
    case SPEC_INT:
@@ -1879,7 +1882,7 @@ bool is_cast_spec( struct parse* parse, int spec ) {
    }
 }
 
-void read_func( struct parse* parse, struct dec* dec ) {
+static void read_func( struct parse* parse, struct dec* dec ) {
    read_name( parse, dec );
    struct func* func = alloc_func( parse, dec );
    p_test_tk( parse, TK_PAREN_L );
@@ -1926,7 +1929,7 @@ void read_func( struct parse* parse, struct dec* dec ) {
    }
 }
 
-struct func* alloc_func( struct parse* parse, struct dec* dec ) {
+static struct func* alloc_func( struct parse* parse, struct dec* dec ) {
    struct func* func = t_alloc_func();
    func->object.pos = dec->name_pos;
    func->type = FUNC_USER;
@@ -1944,7 +1947,7 @@ struct func* alloc_func( struct parse* parse, struct dec* dec ) {
    return func;
 }
 
-void read_func_param_list( struct parse* parse, struct func* func ) {
+static void read_func_param_list( struct parse* parse, struct func* func ) {
    // In BCS, the parameter list can be empty. The `void` keyword is optional.
    if ( ! ( parse->lang == LANG_BCS && parse->tk == TK_PAREN_R ) ) {
       struct params params;
@@ -1956,14 +1959,14 @@ void read_func_param_list( struct parse* parse, struct func* func ) {
    }
 }
 
-void init_params( struct params* params ) {
+static void init_params( struct params* params ) {
    params->node = NULL;
    params->tail = NULL;
    params->min = 0;
    params->max = 0;
 } 
 
-void read_param_list( struct parse* parse, struct params* params ) {
+static void read_param_list( struct parse* parse, struct params* params ) {
    // The reason we peek is because the `void` keyword might be part of a
    // function-reference parameter. We don't want to leave prematurely.
    if ( parse->tk == TK_VOID && ! ( parse->lang == LANG_BCS &&
@@ -1983,7 +1986,7 @@ void read_param_list( struct parse* parse, struct params* params ) {
    }
 }
 
-void read_param( struct parse* parse, struct params* params ) {
+static void read_param( struct parse* parse, struct params* params ) {
    struct param* param = t_alloc_param();
    param->object.pos = parse->tk_pos;
    read_param_spec( parse, params, param );
@@ -1993,7 +1996,7 @@ void read_param( struct parse* parse, struct params* params ) {
    append_param( params, param );
 }
 
-void read_param_spec( struct parse* parse, struct params* params,
+static void read_param_spec( struct parse* parse, struct params* params,
    struct param* param ) {
    switch ( parse->lang ) {
       struct spec_reading spec;
@@ -2027,7 +2030,7 @@ void read_param_spec( struct parse* parse, struct params* params,
    }
 }
 
-void read_param_ref( struct parse* parse, struct param* param ) {
+static void read_param_ref( struct parse* parse, struct param* param ) {
    switch ( parse->lang ) {
       struct ref_reading ref;
    case LANG_BCS:
@@ -2040,7 +2043,7 @@ void read_param_ref( struct parse* parse, struct param* param ) {
    }
 }
 
-void read_param_name( struct parse* parse, struct param* param ) {
+static void read_param_name( struct parse* parse, struct param* param ) {
    // In BCS, the name is optional.
    if ( ! ( parse->lang == LANG_BCS && parse->tk != TK_ID ) ) {
       if ( parse->tk != TK_ID ) {
@@ -2054,8 +2057,8 @@ void read_param_name( struct parse* parse, struct param* param ) {
    }
 }
 
-void read_param_default_value( struct parse* parse, struct params* params,
-   struct param* param ) {
+static void read_param_default_value( struct parse* parse,
+   struct params* params, struct param* param ) {
    switch ( parse->lang ) {
    case LANG_BCS:
       if ( parse->tk == TK_ASSIGN ) {
@@ -2071,7 +2074,7 @@ void read_param_default_value( struct parse* parse, struct params* params,
    }
 }
 
-void append_param( struct params* params, struct param* param ) {
+static void append_param( struct params* params, struct param* param ) {
    if ( params->tail ) {
       params->tail->next = param;
    }
@@ -2085,7 +2088,7 @@ void append_param( struct params* params, struct param* param ) {
    }
 }
 
-void read_func_body( struct parse* parse, struct dec* dec,
+static void read_func_body( struct parse* parse, struct dec* dec,
    struct func* func ) {
    struct func_user* impl = t_alloc_func_user();
    impl->nested = ( dec->area == DEC_LOCAL );
@@ -2114,7 +2117,7 @@ void p_read_func_body( struct parse* parse, struct func* func ) {
    parse->local_vars = prev_local_vars;
 }
 
-struct func_aspec* alloc_aspec_impl( void ) {
+static struct func_aspec* alloc_aspec_impl( void ) {
    struct func_aspec* impl = mem_slot_alloc( sizeof( *impl ) );
    impl->id = 0;
    impl->script_callable = false;
@@ -2137,7 +2140,8 @@ void p_read_script( struct parse* parse ) {
    read_script_after_flag( parse, &reading );
 }
 
-void init_script_reading( struct script_reading* reading, struct pos* pos ) {
+static void init_script_reading( struct script_reading* reading,
+   struct pos* pos ) {
    reading->pos = *pos;
    reading->number = NULL;
    reading->param = NULL;
@@ -2148,7 +2152,7 @@ void init_script_reading( struct script_reading* reading, struct pos* pos ) {
    reading->param_specified = false;
 }
 
-void read_script_number( struct parse* parse,
+static void read_script_number( struct parse* parse,
    struct script_reading* reading ) {
    if ( ( parse->lang == LANG_ACS || parse->lang == LANG_BCS ) &&
       parse->tk == TK_SHIFT_L ) {
@@ -2186,7 +2190,7 @@ void read_script_number( struct parse* parse,
    }
 }
 
-void read_script_param_paren( struct parse* parse,
+static void read_script_param_paren( struct parse* parse,
    struct script_reading* reading ) {
    reading->param_pos = parse->tk_pos;
    if ( parse->tk == TK_PAREN_L ) {
@@ -2204,7 +2208,7 @@ void read_script_param_paren( struct parse* parse,
    }
 }
 
-void read_script_param_list( struct parse* parse,
+static void read_script_param_list( struct parse* parse,
    struct script_reading* reading ) {
    if ( parse->tk == TK_VOID ) {
       p_read_tk( parse );
@@ -2222,7 +2226,8 @@ void read_script_param_list( struct parse* parse,
    }
 }
 
-void read_script_param( struct parse* parse, struct script_reading* reading ) {
+static void read_script_param( struct parse* parse,
+   struct script_reading* reading ) {
    struct param* param = t_alloc_param();
    // Specifier.
    switch ( parse->lang ) {
@@ -2293,7 +2298,8 @@ void read_script_param( struct parse* parse, struct script_reading* reading ) {
    ++reading->num_param;
 }
 
-void read_script_type( struct parse* parse, struct script_reading* reading ) {
+static void read_script_type( struct parse* parse,
+   struct script_reading* reading ) {
    enum tk tk = parse->tk;
    // In BCS, script types are context-sensitive keywords.
    if ( parse->lang == LANG_BCS && parse->tk == TK_ID ) {
@@ -2407,7 +2413,7 @@ void read_script_type( struct parse* parse, struct script_reading* reading ) {
    }
 }
 
-const char* get_script_article( int type ) {
+static const char* get_script_article( int type ) {
    STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_REOPEN + 1 );
    switch ( type ) {
    case SCRIPT_TYPE_OPEN:
@@ -2420,7 +2426,8 @@ const char* get_script_article( int type ) {
    }
 }
 
-void read_script_flag( struct parse* parse, struct script_reading* reading ) {
+static void read_script_flag( struct parse* parse,
+   struct script_reading* reading ) {
    // In ACS, the flags must appear in a specific order.
    if ( parse->lang == LANG_ACS ) {
       if ( parse->tk == TK_NET ) {
@@ -2457,7 +2464,7 @@ void read_script_flag( struct parse* parse, struct script_reading* reading ) {
    }
 }
 
-void read_script_after_flag( struct parse* parse,
+static void read_script_after_flag( struct parse* parse,
    struct script_reading* reading ) {
    struct script* script = add_script( parse, reading );
    // NOTE: A script can be of the form: script 1 open <statement>. In this
@@ -2477,8 +2484,8 @@ void read_script_after_flag( struct parse* parse,
    }
 }
 
-void read_script_body( struct parse* parse, struct script_reading* reading,
-   struct script* script ) {
+static void read_script_body( struct parse* parse,
+   struct script_reading* reading, struct script* script ) {
    struct stmt_reading body;
    p_init_stmt_reading( &body, &script->labels );
    parse->local_vars = &script->vars;
@@ -2487,7 +2494,7 @@ void read_script_body( struct parse* parse, struct script_reading* reading,
    parse->local_vars = NULL;
 }
 
-struct script* add_script( struct parse* parse,
+static struct script* add_script( struct parse* parse,
    struct script_reading* reading ) {
    struct script* script = mem_alloc( sizeof( *script ) );
    script->node.type = NODE_SCRIPT;
@@ -2534,7 +2541,7 @@ void p_read_special_list( struct parse* parse ) {
    }
 }
 
-void read_special( struct parse* parse ) {
+static void read_special( struct parse* parse ) {
    struct special_reading reading;
    init_special_reading( &reading );
    bool minus = false;
@@ -2610,7 +2617,7 @@ void read_special( struct parse* parse ) {
    list_append( &parse->lib->objects, func );
 }
 
-void init_special_reading( struct special_reading* reading ) { 
+static void init_special_reading( struct special_reading* reading ) { 
    reading->param = NULL;
    reading->param_tail = NULL;
    reading->return_spec = SPEC_NONE;
@@ -2619,7 +2626,7 @@ void init_special_reading( struct special_reading* reading ) {
    reading->optional = false;
 }
 
-void read_special_param_dec( struct parse* parse,
+static void read_special_param_dec( struct parse* parse,
    struct special_reading* reading ) {
    if ( parse->lang == LANG_ACS || parse->lang == LANG_ACS95 ||
       parse->tk == TK_LIT_DECIMAL ) {
@@ -2632,7 +2639,7 @@ void read_special_param_dec( struct parse* parse,
    }
 }
 
-void read_special_param_list_minmax( struct parse* parse,
+static void read_special_param_list_minmax( struct parse* parse,
    struct special_reading* reading ) {
    // Two formats:
    // 1. <maximum-parameters>
@@ -2656,7 +2663,7 @@ void read_special_param_list_minmax( struct parse* parse,
    }
 }
 
-void read_special_param_list( struct parse* parse,
+static void read_special_param_list( struct parse* parse,
    struct special_reading* reading ) {
    // Required parameters.
    if ( parse->tk != TK_SEMICOLON ) {
@@ -2686,7 +2693,7 @@ void read_special_param_list( struct parse* parse,
    }
 }
 
-void read_special_param( struct parse* parse,
+static void read_special_param( struct parse* parse,
    struct special_reading* reading ) {
    struct param* param = t_alloc_param();
    param->object.pos = parse->tk_pos;
@@ -2721,7 +2728,7 @@ void read_special_param( struct parse* parse,
    }
 }
 
-void read_special_return_type( struct parse* parse,
+static void read_special_return_type( struct parse* parse,
    struct special_reading* reading ) {
    p_test_tk( parse, TK_COLON );
    p_read_tk( parse );

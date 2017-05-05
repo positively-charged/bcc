@@ -107,7 +107,7 @@ int main( int argc, char* argv[] ) {
    return result;
 }
 
-void init_options( struct options* options ) {
+static void init_options( struct options* options ) {
    list_init( &options->includes );
    list_init( &options->defines );
    list_init( &options->library_links );
@@ -131,7 +131,7 @@ void init_options( struct options* options ) {
    options->cache.print = false;
 }
 
-bool read_options( struct options* options, char** argv ) {
+static bool read_options( struct options* options, char** argv ) {
    char** args = argv + 1;
    // Process the help option first.
    while ( *args ) {
@@ -311,7 +311,7 @@ bool read_options( struct options* options, char** argv ) {
    return true;
 }
 
-void strip_rslash( char* ch ) {
+static void strip_rslash( char* ch ) {
    int i = strlen( ch ) - 1;
    while ( i >= 0 && ( ch[ i ] == '/' || ch[ i ] == '\\' ) ) {
       ch[ i ] = 0;
@@ -319,7 +319,7 @@ void strip_rslash( char* ch ) {
    }
 }
 
-bool source_object_files_same( struct options* options ) {
+static bool source_object_files_same( struct options* options ) {
    struct fileid source;
    struct fileid object;
    if (
@@ -330,7 +330,7 @@ bool source_object_files_same( struct options* options ) {
    return c_same_fileid( &source, &object );
 }
 
-void print_usage( char* path ) {
+static void print_usage( char* path ) {
    printf(
       "Usage: %s [options] <source-file> [object-file]\n"
       "Options: \n"
@@ -368,11 +368,11 @@ void print_usage( char* path ) {
       path );
 }
 
-void print_version( void ) {
+static void print_version( void ) {
    printf( "%s\n", c_version );
 }
 
-bool perform_action( struct options* options, jmp_buf* root_bail,
+static bool perform_action( struct options* options, jmp_buf* root_bail,
    struct str* compiler_dir ) {
    bool success = false;
    struct task task;
@@ -388,7 +388,7 @@ bool perform_action( struct options* options, jmp_buf* root_bail,
    return success;
 }
 
-void perform_task( struct task* task ) {
+static void perform_task( struct task* task ) {
    if ( task->options->cache.enable ) {
       struct cache cache;
       cache_init( &cache, task );
@@ -401,7 +401,7 @@ void perform_task( struct task* task ) {
    }
 }
 
-void perform_selected_task( struct task* task, struct cache* cache ) {
+static void perform_selected_task( struct task* task, struct cache* cache ) {
    if ( task->options->cache.print ) {
       print_cache( task, cache );
    }
@@ -416,7 +416,7 @@ void perform_selected_task( struct task* task, struct cache* cache ) {
    }
 }
 
-void print_cache( struct task* task, struct cache* cache ) {
+static void print_cache( struct task* task, struct cache* cache ) {
    if ( cache ) {
       cache_print( cache );
    }
@@ -427,7 +427,7 @@ void print_cache( struct task* task, struct cache* cache ) {
    }
 }
 
-void clear_cache( struct task* task, struct cache* cache ) {
+static void clear_cache( struct task* task, struct cache* cache ) {
    if ( cache ) {
       cache_clear( cache );
    }
@@ -438,13 +438,13 @@ void clear_cache( struct task* task, struct cache* cache ) {
    }
 }
 
-void preprocess( struct task* task ) {
+static void preprocess( struct task* task ) {
    struct parse parse;
    p_init( &parse, task, NULL );
    p_run( &parse );
 }
 
-void compile_mainlib( struct task* task, struct cache* cache ) {
+static void compile_mainlib( struct task* task, struct cache* cache ) {
    struct parse parse;
    p_init( &parse, task, cache );
    p_run( &parse );
@@ -459,7 +459,7 @@ void compile_mainlib( struct task* task, struct cache* cache ) {
    }
 }
 
-void print_acc_stats( struct task* task, struct parse* parse,
+static void print_acc_stats( struct task* task, struct parse* parse,
    struct codegen* codegen ) {
    switch ( parse->lang ) {
    case LANG_ACS95:
@@ -471,7 +471,7 @@ void print_acc_stats( struct task* task, struct parse* parse,
    }
 }
 
-void print_acc_stats_acs( struct task* task, struct parse* parse,
+static void print_acc_stats_acs( struct task* task, struct parse* parse,
    struct codegen* codegen ) {
    t_diag( task, DIAG_NONE,
       "\"%s\":\n"
@@ -539,7 +539,7 @@ void print_acc_stats_acs( struct task* task, struct parse* parse,
       codegen->object_size );
 }
 
-void print_acc_stats_bcs( struct task* task, struct parse* parse,
+static void print_acc_stats_bcs( struct task* task, struct parse* parse,
    struct codegen* codegen ) {
    // acc includes imported functions in the function count. This can cause
    // confusion. We, instead, have two counts: one for functions in the library
@@ -640,7 +640,7 @@ void print_acc_stats_bcs( struct task* task, struct parse* parse,
       codegen->object_size );
 }
 
-const char* get_script_type_label( int type ) {
+static const char* get_script_type_label( int type ) {
    STATIC_ASSERT( SCRIPT_TYPE_NEXTFREENUMBER == SCRIPT_TYPE_REOPEN + 1 );
    switch ( type ) {
    case SCRIPT_TYPE_CLOSED: return "closed";

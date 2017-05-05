@@ -125,7 +125,7 @@ void cache_save_lib( struct task* task, struct field_writer* writer,
    str_deinit( &saver.string );
 }
 
-void save_lib( struct saver* saver ) {
+static void save_lib( struct saver* saver ) {
    WF( saver, F_LIB );
    save_file_map( saver );
    if ( saver->lib->header ) {
@@ -136,7 +136,7 @@ void save_lib( struct saver* saver ) {
    WF( saver, F_END );
 }
 
-void save_file_map( struct saver* saver ) {
+static void save_file_map( struct saver* saver ) {
    WF( saver, F_FILEMAP );
    int size = list_size( &saver->lib->files );
    WV( saver, F_SIZE, &size );
@@ -150,7 +150,8 @@ void save_file_map( struct saver* saver ) {
    WF( saver, F_END );
 }
 
-void save_namespace( struct saver* saver, struct ns_fragment* fragment ) {
+static void save_namespace( struct saver* saver,
+   struct ns_fragment* fragment ) {
    WF( saver, F_NAMESPACEFRAGMENT );
    // Save namespace path.
    if ( fragment->path ) {
@@ -173,7 +174,8 @@ void save_namespace( struct saver* saver, struct ns_fragment* fragment ) {
    WF( saver, F_END );
 }
 
-void save_namespace_member( struct saver* saver, struct object* object ) {
+static void save_namespace_member( struct saver* saver,
+   struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT: {
          struct constant* constant =
@@ -232,7 +234,7 @@ void save_namespace_member( struct saver* saver, struct object* object ) {
    }
 }
 
-void save_constant( struct saver* saver, struct constant* constant ) {
+static void save_constant( struct saver* saver, struct constant* constant ) {
    WF( saver, F_CONSTANT );
    save_object( saver, &constant->object );
    WN( saver, F_NAME, constant->name );
@@ -250,7 +252,7 @@ void save_constant( struct saver* saver, struct constant* constant ) {
    WF( saver, F_END );
 }
 
-void save_enumeration( struct saver* saver,
+static void save_enumeration( struct saver* saver,
    struct enumeration* enumeration ) {
    WF( saver, F_ENUMERATION );
    save_object( saver, &enumeration->object );
@@ -266,7 +268,8 @@ void save_enumeration( struct saver* saver,
    WF( saver, F_END );
 }
 
-void save_enumerator( struct saver* saver, struct enumerator* enumerator ) {
+static void save_enumerator( struct saver* saver,
+   struct enumerator* enumerator ) {
    WF( saver, F_ENUMERATOR );
    save_object( saver, &enumerator->object );
    WN( saver, F_NAME, enumerator->name );
@@ -283,7 +286,8 @@ void save_enumerator( struct saver* saver, struct enumerator* enumerator ) {
    WF( saver, F_END );
 }
 
-void save_structure( struct saver* saver, struct structure* structure ) {
+static void save_structure( struct saver* saver,
+   struct structure* structure ) {
    WF( saver, F_STRUCTURE );
    save_object( saver, &structure->object );
    if ( ! structure->anon ) {
@@ -299,7 +303,7 @@ void save_structure( struct saver* saver, struct structure* structure ) {
    WF( saver, F_END );
 }
 
-void save_structure_member( struct saver* saver,
+static void save_structure_member( struct saver* saver,
    struct structure_member* member ) {
    WF( saver, F_STRUCTUREMEMBER );
    save_spec( saver,
@@ -318,7 +322,7 @@ void save_structure_member( struct saver* saver,
    WF( saver, F_END );
 }
 
-void save_spec( struct saver* saver, struct structure* structure,
+static void save_spec( struct saver* saver, struct structure* structure,
    struct enumeration* enumeration, struct path* path, int spec ) {
    switch ( spec ) {
    case SPEC_ENUM:
@@ -338,7 +342,7 @@ void save_spec( struct saver* saver, struct structure* structure,
    }
 }
 
-void save_path( struct saver* saver, struct path* path ) {
+static void save_path( struct saver* saver, struct path* path ) {
    WF( saver, F_PATH );
    while ( path ) {
       WS( saver, F_TEXT, path->text );
@@ -349,7 +353,7 @@ void save_path( struct saver* saver, struct path* path ) {
    WF( saver, F_END );
 }
 
-void save_ref( struct saver* saver, struct ref* ref ) {
+static void save_ref( struct saver* saver, struct ref* ref ) {
    while ( ref ) {
       WF( saver, F_REF );
       save_pos( saver, &ref->pos );
@@ -384,7 +388,7 @@ void save_ref( struct saver* saver, struct ref* ref ) {
    }
 }
 
-void save_dim( struct saver* saver, struct dim* dim ) {
+static void save_dim( struct saver* saver, struct dim* dim ) {
    while ( dim ) {
       WF( saver, F_DIM );
       WV( saver, F_SIZE, &dim->length );
@@ -394,7 +398,7 @@ void save_dim( struct saver* saver, struct dim* dim ) {
    }
 }
 
-void save_type_alias( struct saver* saver, struct type_alias* alias ) {
+static void save_type_alias( struct saver* saver, struct type_alias* alias ) {
    WF( saver, F_TYPEALIAS );
    save_spec( saver,
       alias->structure,
@@ -412,7 +416,7 @@ void save_type_alias( struct saver* saver, struct type_alias* alias ) {
    WF( saver, F_END );
 }
 
-void save_var( struct saver* saver, struct var* var ) {
+static void save_var( struct saver* saver, struct var* var ) {
    WF( saver, F_VAR );
    save_spec( saver,
       var->structure,
@@ -432,7 +436,7 @@ void save_var( struct saver* saver, struct var* var ) {
    WF( saver, F_END );
 }
 
-void save_func( struct saver* saver, struct func* func ) {
+static void save_func( struct saver* saver, struct func* func ) {
    WF( saver, F_FUNC );
    save_object( saver, &func->object );
    WV( saver, F_TYPE, &func->type );
@@ -450,7 +454,7 @@ void save_func( struct saver* saver, struct func* func ) {
    WF( saver, F_END );
 }
 
-void save_impl( struct saver* saver, struct func* func ) {
+static void save_impl( struct saver* saver, struct func* func ) {
    switch ( func->type ) {
    case FUNC_ASPEC: {
          struct func_aspec* aspec = func->impl;
@@ -487,7 +491,7 @@ void save_impl( struct saver* saver, struct func* func ) {
    }
 }
 
-void save_param_list( struct saver* saver, struct param* param ) {
+static void save_param_list( struct saver* saver, struct param* param ) {
    while ( param ) {
       WF( saver, F_PARAM );
       save_object( saver, &param->object );
@@ -501,7 +505,7 @@ void save_param_list( struct saver* saver, struct param* param ) {
    }
 }
 
-void save_const_expr( struct saver* saver, struct expr* expr ) {
+static void save_const_expr( struct saver* saver, struct expr* expr ) {
    WF( saver, F_EXPR );
    save_pos( saver, &expr->pos );
    WV( saver, F_SPEC, &expr->spec );
@@ -518,13 +522,13 @@ void save_const_expr( struct saver* saver, struct expr* expr ) {
    WF( saver, F_END );
 }
 
-void save_object( struct saver* saver, struct object* object ) {
+static void save_object( struct saver* saver, struct object* object ) {
    WF( saver, F_OBJECT );
    save_pos( saver, &object->pos );
    WF( saver, F_END );
 }
 
-void save_pos( struct saver* saver, struct pos* pos ) {
+static void save_pos( struct saver* saver, struct pos* pos ) {
    WF( saver, F_POS );
    WV( saver, F_LINE, &pos->line );
    WV( saver, F_COLUMN, &pos->column );
@@ -533,7 +537,7 @@ void save_pos( struct saver* saver, struct pos* pos ) {
    WF( saver, F_END );
 }
 
-int map_file( struct saver* saver, int id ) {
+static int map_file( struct saver* saver, int id ) {
    struct list_iter i;
    list_iterate( &saver->lib->files, &i );
    int map_id = 0;
@@ -548,7 +552,8 @@ int map_file( struct saver* saver, int id ) {
    return 0;
 }
 
-const char* name_s( struct saver* saver, struct name* name, bool full ) {
+static const char* name_s( struct saver* saver,
+   struct name* name, bool full ) {
    str_clear( &saver->string );
    t_copy_name( name, full, &saver->string );
    return saver->string.value;
@@ -626,7 +631,7 @@ struct library* cache_restore_lib( struct cache* cache,
    return restorer.lib;
 }
 
-void restore_lib( struct restorer* restorer ) {
+static void restore_lib( struct restorer* restorer ) {
    RF( restorer, F_LIB );
    restorer->lib = t_add_library( restorer->task );
    restorer->ns_fragment = restorer->lib->upmost_ns_fragment;
@@ -640,7 +645,7 @@ void restore_lib( struct restorer* restorer ) {
    RF( restorer, F_END );
 }
 
-void restore_file_map( struct restorer* restorer ) {
+static void restore_file_map( struct restorer* restorer ) {
    RF( restorer, F_FILEMAP );
    RV( restorer, F_SIZE, &restorer->file_map_size );
    restorer->file_map = mem_alloc( sizeof( *restorer->file_map ) *
@@ -655,7 +660,7 @@ void restore_file_map( struct restorer* restorer ) {
    RF( restorer, F_END );
 }
 
-void restore_namespace( struct restorer* restorer, bool upmost ) {
+static void restore_namespace( struct restorer* restorer, bool upmost ) {
    RF( restorer, F_NAMESPACEFRAGMENT );
    struct ns_fragment* parent_fragment = restorer->ns_fragment;
    struct ns* parent_ns = restorer->ns;
@@ -676,7 +681,7 @@ void restore_namespace( struct restorer* restorer, bool upmost ) {
    RF( restorer, F_END );
 }
 
-void restore_namespace_path( struct restorer* restorer ) {
+static void restore_namespace_path( struct restorer* restorer ) {
    // Restore namespace path.
    struct ns_path* head = NULL;
    struct ns_path* tail;
@@ -699,7 +704,7 @@ void restore_namespace_path( struct restorer* restorer ) {
    restorer->ns_fragment->path = head;
 }
 
-void setup_namespaces( struct restorer* restorer ) {
+static void setup_namespaces( struct restorer* restorer ) {
    if ( restorer->ns_fragment->path ) {
       struct ns_path* path = restorer->ns_fragment->path;
       while ( path ) {
@@ -721,7 +726,7 @@ void setup_namespaces( struct restorer* restorer ) {
    restorer->ns_fragment->ns = restorer->ns;
 }
 
-void restore_namespace_member( struct restorer* restorer ) {
+static void restore_namespace_member( struct restorer* restorer ) {
    switch ( f_peek( restorer->r ) ) {
    case F_CONSTANT:
       restore_constant( restorer );
@@ -754,7 +759,7 @@ void restore_namespace_member( struct restorer* restorer ) {
    }
 }
 
-void restore_constant( struct restorer* restorer ) {
+static void restore_constant( struct restorer* restorer ) {
    RF( restorer, F_CONSTANT );
    struct constant* constant = t_alloc_constant();
    restore_object( restorer, &constant->object, NODE_CONSTANT );
@@ -778,7 +783,7 @@ void restore_constant( struct restorer* restorer ) {
    constant->object.resolved = true;
 }
 
-struct enumeration* restore_enumeration( struct restorer* restorer ) {
+static struct enumeration* restore_enumeration( struct restorer* restorer ) {
    RF( restorer, F_ENUMERATION );
    struct enumeration* enumeration = t_alloc_enumeration();
    restore_object( restorer, &enumeration->object, NODE_ENUMERATION );
@@ -801,7 +806,7 @@ struct enumeration* restore_enumeration( struct restorer* restorer ) {
    return enumeration;
 }
 
-void restore_enumerator( struct restorer* restorer,
+static void restore_enumerator( struct restorer* restorer,
    struct enumeration* enumeration ) {
    RF( restorer, F_ENUMERATOR );
    struct enumerator* enumerator = t_alloc_enumerator();
@@ -825,7 +830,7 @@ void restore_enumerator( struct restorer* restorer,
    enumerator->object.resolved = true;
 }
 
-struct structure* restore_structure( struct restorer* restorer ) {
+static struct structure* restore_structure( struct restorer* restorer ) {
    RF( restorer, F_STRUCTURE );
    struct structure* structure = t_alloc_structure();
    restore_object( restorer, &structure->object, NODE_STRUCTURE );
@@ -849,7 +854,7 @@ struct structure* restore_structure( struct restorer* restorer ) {
    return structure;
 }
 
-void restore_structure_member( struct restorer* restorer,
+static void restore_structure_member( struct restorer* restorer,
    struct structure* structure ) {
    RF( restorer, F_STRUCTUREMEMBER );
    struct restored_spec spec;
@@ -871,7 +876,8 @@ void restore_structure_member( struct restorer* restorer,
    RF( restorer, F_END );
 }
 
-void restore_spec( struct restorer* restorer, struct restored_spec* spec ) {
+static void restore_spec( struct restorer* restorer,
+   struct restored_spec* spec ) {
    spec->enumeration = NULL;
    spec->structure = NULL;
    spec->path = NULL;
@@ -893,7 +899,7 @@ void restore_spec( struct restorer* restorer, struct restored_spec* spec ) {
    }
 }
 
-struct path* restore_path( struct restorer* restorer ) {
+static struct path* restore_path( struct restorer* restorer ) {
    struct path* head = NULL;
    struct path* tail;
    if ( f_peek( restorer->r ) == F_PATH ) {
@@ -918,7 +924,7 @@ struct path* restore_path( struct restorer* restorer ) {
    return head;
 }
 
-struct ref* restore_ref( struct restorer* restorer ) {
+static struct ref* restore_ref( struct restorer* restorer ) {
    struct ref* head = NULL;
    struct ref* tail;
    while ( f_peek( restorer->r ) == F_REF ) {
@@ -944,7 +950,8 @@ struct ref* restore_ref( struct restorer* restorer ) {
    return head;
 }
 
-struct ref* restore_specific_ref( struct restorer* restorer, int type ) {
+static struct ref* restore_specific_ref( struct restorer* restorer,
+   int type ) {
    switch ( type ) {
    case REF_STRUCTURE: {
          struct ref_struct* structure = mem_alloc( sizeof( *structure ) );
@@ -973,7 +980,7 @@ struct ref* restore_specific_ref( struct restorer* restorer, int type ) {
    }
 }
 
-struct dim* restore_dim( struct restorer* restorer ) {
+static struct dim* restore_dim( struct restorer* restorer ) {
    struct dim* head = NULL;
    struct dim* tail;
    while ( f_peek( restorer->r ) == F_DIM ) {
@@ -993,7 +1000,7 @@ struct dim* restore_dim( struct restorer* restorer ) {
    return head;
 }
 
-void restore_type_alias( struct restorer* restorer ) {
+static void restore_type_alias( struct restorer* restorer ) {
    RF( restorer, F_TYPEALIAS );
    struct restored_spec spec;
    restore_spec( restorer, &spec );
@@ -1018,7 +1025,7 @@ void restore_type_alias( struct restorer* restorer ) {
    RF( restorer, F_END );
 }
 
-void restore_var( struct restorer* restorer ) {
+static void restore_var( struct restorer* restorer ) {
    RF( restorer, F_VAR );
    struct restored_spec spec;
    restore_spec( restorer, &spec );
@@ -1050,7 +1057,7 @@ void restore_var( struct restorer* restorer ) {
    RF( restorer, F_END );
 }
 
-void restore_func( struct restorer* restorer ) {
+static void restore_func( struct restorer* restorer ) {
    RF( restorer, F_FUNC );
    struct func* func = t_alloc_func();
    restore_object( restorer, &func->object, NODE_FUNC );
@@ -1081,7 +1088,7 @@ void restore_func( struct restorer* restorer ) {
       &func->object );
 }
 
-void restore_impl( struct restorer* restorer, struct func* func ) {
+static void restore_impl( struct restorer* restorer, struct func* func ) {
    switch ( func->type ) {
    case FUNC_ASPEC: {
          struct func_aspec* aspec = mem_slot_alloc( sizeof( *aspec ) );
@@ -1124,7 +1131,7 @@ void restore_impl( struct restorer* restorer, struct func* func ) {
    }
 }
 
-struct param* restore_param_list( struct restorer* restorer ) {
+static struct param* restore_param_list( struct restorer* restorer ) {
    struct param* head = NULL;
    struct param* tail;
    while ( f_peek( restorer->r ) == F_PARAM ) {
@@ -1154,7 +1161,7 @@ struct param* restore_param_list( struct restorer* restorer ) {
    return head;
 }
 
-struct expr* restore_const_expr( struct restorer* restorer ) {
+static struct expr* restore_const_expr( struct restorer* restorer ) {
    RF( restorer, F_EXPR );
    struct expr* expr = t_alloc_expr();
    restore_pos( restorer, &expr->pos );
@@ -1180,7 +1187,7 @@ struct expr* restore_const_expr( struct restorer* restorer ) {
    return expr;
 }
 
-void restore_object( struct restorer* restorer, struct object* object,
+static void restore_object( struct restorer* restorer, struct object* object,
    int node ) {
    RF( restorer, F_OBJECT );
    t_init_object( object, node );
@@ -1188,7 +1195,7 @@ void restore_object( struct restorer* restorer, struct object* object,
    RF( restorer, F_END );
 }
 
-void restore_pos( struct restorer* restorer, struct pos* pos ) {
+static void restore_pos( struct restorer* restorer, struct pos* pos ) {
    RF( restorer, F_POS );
    RV( restorer, F_LINE, &pos->line );
    RV( restorer, F_COLUMN, &pos->column );
@@ -1198,7 +1205,7 @@ void restore_pos( struct restorer* restorer, struct pos* pos ) {
    RF( restorer, F_END );
 }
 
-struct file_entry* map_id( struct restorer* restorer, int id ) {
+static struct file_entry* map_id( struct restorer* restorer, int id ) {
    if ( id < restorer->file_map_size ) {
       return restorer->file_map[ id ];
    }

@@ -184,7 +184,7 @@ bool s_same_type( struct type_info* a, struct type_info* b ) {
    }
 }
 
-bool same_ref( struct ref* a, struct ref* b ) {
+static bool same_ref( struct ref* a, struct ref* b ) {
    while ( a && b ) {
       if ( ! ( a->type == b->type ) ) {
          return false;
@@ -217,15 +217,15 @@ bool same_ref( struct ref* a, struct ref* b ) {
    return ( a == NULL && b == NULL );
 }
 
-bool same_ref_struct( struct ref_struct* a, struct ref_struct* b ) {
+static bool same_ref_struct( struct ref_struct* a, struct ref_struct* b ) {
    return ( a->storage == b->storage );
 }
 
-bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
+static bool same_ref_array( struct ref_array* a, struct ref_array* b ) {
    return ( a->dim_count == b->dim_count && a->storage == b->storage );
 }
 
-bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
+static bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
    struct param* param_a = a->params;
    struct param* param_b = b->params;
    while ( param_a && param_b &&
@@ -240,7 +240,7 @@ bool same_ref_func( struct ref_func* a, struct ref_func* b ) {
       a->local == b->local );
 }
 
-bool same_spec_primitive( int a, int b ) {
+static bool same_spec_primitive( int a, int b ) {
    if ( a == SPEC_RAW ) {
       return compatible_raw_spec( b );
    }
@@ -252,7 +252,7 @@ bool same_spec_primitive( int a, int b ) {
    }
 }
 
-bool compatible_raw_spec( int spec ) {
+static bool compatible_raw_spec( int spec ) {
    switch ( spec ) {
    case SPEC_RAW:
    case SPEC_INT:
@@ -265,7 +265,7 @@ bool compatible_raw_spec( int spec ) {
    }
 }
 
-bool same_dim( struct dim* a, struct dim* b ) {
+static bool same_dim( struct dim* a, struct dim* b ) {
    while ( a && b && a->length == b->length ) {
       a = a->next;
       b = b->next;
@@ -355,7 +355,7 @@ void s_present_type( struct type_info* type, struct str* string ) {
    }
 }
 
-void present_extended_spec( struct structure* structure,
+static void present_extended_spec( struct structure* structure,
    struct enumeration* enumeration, int spec, struct str* string ) {
    if ( enumeration ) {
       if ( enumeration->name ) {
@@ -388,7 +388,7 @@ void present_extended_spec( struct structure* structure,
    }
 }
 
-void present_spec( int spec, struct str* string ) {
+static void present_spec( int spec, struct str* string ) {
    switch ( spec ) {
    case SPEC_RAW:
       str_append( string, "raw" );
@@ -412,7 +412,7 @@ void present_spec( int spec, struct str* string ) {
    }
 }
 
-void present_ref( struct ref* ref, struct str* string ) {
+static void present_ref( struct ref* ref, struct str* string ) {
    if ( ref ) {
       present_ref( ref->next, string );
       if ( ref->type == REF_ARRAY ) {
@@ -474,7 +474,7 @@ void present_ref( struct ref* ref, struct str* string ) {
    }
 }
 
-void present_dim( struct type_info* type, struct str* string ) {
+static void present_dim( struct type_info* type, struct str* string ) {
    struct dim* dim = type->dim;
    while ( dim ) {
       char text[ 11 + 2 ];
@@ -484,7 +484,7 @@ void present_dim( struct type_info* type, struct str* string ) {
    }
 }
 
-void present_param_list( struct param* param, struct str* string ) {
+static void present_param_list( struct param* param, struct str* string ) {
    while ( param ) {
       present_extended_spec( param->structure, param->enumeration, param->spec,
          string );

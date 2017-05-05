@@ -15,7 +15,7 @@ void p_preprocess( struct parse* parse ) {
    str_deinit( &output );
 }
 
-void output_source( struct parse* parse, struct str* output ) {
+static void output_source( struct parse* parse, struct str* output ) {
    while ( true ) {
       p_read_eoptiontk( parse );
       if ( parse->token->type != TK_END ) {
@@ -29,7 +29,7 @@ void output_source( struct parse* parse, struct str* output ) {
 }
 
 // TODO: Get the original text of the token.
-void output_token( struct parse* parse, struct str* output ) {
+static void output_token( struct parse* parse, struct str* output ) {
    switch ( parse->token->type ) {
    case TK_NL:
       str_append( output, NEWLINE_CHAR );

@@ -47,7 +47,7 @@ void p_test_inline_asm( struct semantic* semantic,
    }
 }
 
-void test_name( struct semantic* semantic, struct test* test ) {
+static void test_name( struct semantic* semantic, struct test* test ) {
    const struct mnemonic* mnemonic = find_mnemonic( test->inline_asm->name );
    if ( ! mnemonic ) {
       s_diag( semantic, DIAG_POS_ERR, &test->inline_asm->pos,
@@ -59,7 +59,7 @@ void test_name( struct semantic* semantic, struct test* test ) {
    test->inline_asm->opcode = mnemonic->opcode;
 }
 
-const struct mnemonic* find_mnemonic( const char* name ) {
+static const struct mnemonic* find_mnemonic( const char* name ) {
    STATIC_ASSERT( PCD_TOTAL == 385 );
    static const struct mnemonic table[] = {
       { "activatorsound", PCD_ACTIVATORSOUND },
@@ -445,7 +445,7 @@ const struct mnemonic* find_mnemonic( const char* name ) {
    return NULL;
 }
 
-void test_arg( struct semantic* semantic, struct test* test,
+static void test_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    if ( ! *test->format ) {
       s_diag( semantic, DIAG_POS_ERR, &test->inline_asm->pos,
@@ -526,7 +526,7 @@ void test_arg( struct semantic* semantic, struct test* test,
    }
 }
 
-void test_label_arg( struct semantic* semantic, struct test* test,
+static void test_label_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    struct list_iter i;
    list_iterate( semantic->topfunc_test->labels, &i );
@@ -544,7 +544,7 @@ void test_label_arg( struct semantic* semantic, struct test* test,
    s_bail( semantic );
 }
 
-void test_var_arg( struct semantic* semantic, struct test* test,
+static void test_var_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    struct object_search search;
    s_init_object_search( &search, NODE_NONE, &arg->pos, arg->value.id );
@@ -620,7 +620,7 @@ void test_var_arg( struct semantic* semantic, struct test* test,
    }
 }
 
-void test_func_arg( struct semantic* semantic, struct test* test,
+static void test_func_arg( struct semantic* semantic, struct test* test,
    struct inline_asm_arg* arg ) {
    struct object_search search;
    s_init_object_search( &search, NODE_NONE, &arg->pos, arg->value.id );
@@ -655,7 +655,8 @@ void test_func_arg( struct semantic* semantic, struct test* test,
    arg->value.func = func;
 }
 
-void test_expr_arg( struct semantic* semantic, struct inline_asm_arg* arg ) {
+static void test_expr_arg( struct semantic* semantic,
+   struct inline_asm_arg* arg ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, arg->value.expr );

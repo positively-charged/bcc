@@ -76,7 +76,7 @@ void cache_init( struct cache* cache, struct task* task ) {
 
 // NOTE: The ID is only regenerated when this file is compiled. Compiling the
 // other source files of the cache will not cause the ID to be regenerated.
-void generate_header_id( struct str* id ) {
+static void generate_header_id( struct str* id ) {
    char text[] = __DATE__ " " __TIME__;
    int i = 0;
    int length = 0;
@@ -94,7 +94,7 @@ void generate_header_id( struct str* id ) {
    str_append_sub( id, text, length );
 }
 
-void init_cache_entry_list( struct cache_entry_list* entries ) {
+static void init_cache_entry_list( struct cache_entry_list* entries ) {
    entries->head = NULL;
    entries->tail = NULL;
 }
@@ -104,7 +104,7 @@ void cache_load( struct cache* cache ) {
    restore_archive( cache );
 }
 
-void prepare_dir( struct cache* cache ) {
+static void prepare_dir( struct cache* cache ) {
    if ( cache->task->options->cache.dir_path ) {
       str_append( &cache->dir_path, cache->task->options->cache.dir_path );
       fs_strip_trailing_pathsep( &cache->dir_path );
@@ -114,7 +114,7 @@ void prepare_dir( struct cache* cache ) {
    }
 }
 
-void prepare_tempdir( struct cache* cache ) {
+static void prepare_tempdir( struct cache* cache ) {
    // Use temporary directory of the system.
    str_append( &cache->dir_path, fs_get_tempdir() );
    str_append( &cache->dir_path, OS_PATHSEP );
@@ -132,7 +132,7 @@ void prepare_tempdir( struct cache* cache ) {
    }
 }
 
-void restore_archive( struct cache* cache ) {
+static void restore_archive( struct cache* cache ) {
    struct str path;
    str_init( &path );
    append_archive_path( cache, &path );
@@ -142,20 +142,20 @@ void restore_archive( struct cache* cache ) {
    str_deinit( &path );
 }
 
-void append_archive_path( struct cache* cache, struct str* path ) {
+static void append_archive_path( struct cache* cache, struct str* path ) {
    str_append( path, cache->dir_path.value );
    str_append( path, OS_PATHSEP );
    str_append( path, "archive.o" );
 }
 
-void init_restore_request( struct restore_request* request, int type,
+static void init_restore_request( struct restore_request* request, int type,
    struct str* path ) {
    request->path = path;
    request->lib = NULL;
    request->type = type;
 }
 
-void restore( struct cache* cache, struct restore_request* request ) {
+static void restore( struct cache* cache, struct restore_request* request ) {
    struct file_contents contents;
    fs_get_file_contents( request->path->value, &contents );
    if ( ! contents.obtained ) {
@@ -182,8 +182,8 @@ void restore( struct cache* cache, struct restore_request* request ) {
    mem_free( contents.data );
 }
 
-void restore_file( struct cache* cache, struct restore_request* request,
-   struct field_reader* reader ) {
+static void restore_file( struct cache* cache,
+   struct restore_request* request, struct field_reader* reader ) {
    f_rf( reader, F_HEADER );
    const char* id = f_rs( reader, F_ID );
    if ( strcmp( id, cache->header_id.value ) != 0 ) {
@@ -264,7 +264,7 @@ struct cache_entry* cache_alloc_entry( void ) {
    return entry;
 }
 
-int generate_id( struct cache* cache ) {
+static int generate_id( struct cache* cache ) {
    // Search for an unused ID between entries.
    int id = 0;
    struct cache_entry* entry = cache->entries.head;
@@ -288,7 +288,7 @@ void cache_append_entry( struct cache_entry_list* entries,
 }
 
 // Appends the entry into the list, sorted by ID.
-void append_entry_sorted( struct cache_entry_list* entries,
+static void append_entry_sorted( struct cache_entry_list* entries,
    struct cache_entry* latest_entry ) {
    struct cache_entry* prev_entry = NULL;
    struct cache_entry* entry = entries->head;
@@ -357,7 +357,8 @@ struct library* cache_get( struct cache* cache, struct file_entry* file ) {
    return entry->lib;
 }
 
-struct cache_entry* find_entry( struct cache* cache, const char* path ) {
+static struct cache_entry* find_entry( struct cache* cache,
+   const char* path ) {
    struct cache_entry* entry = cache->entries.head;
    while ( entry && strcmp( entry->path.value, path ) != 0 ) {
       entry = entry->next;
@@ -365,7 +366,7 @@ struct cache_entry* find_entry( struct cache* cache, const char* path ) {
    return entry;
 }
 
-bool timestamp_entry( struct cache_entry* entry ) {
+static bool timestamp_entry( struct cache_entry* entry ) {
    struct cache_dependency* dep = entry->dependency;
    while ( dep ) {
       struct fs_query query;
@@ -380,7 +381,7 @@ bool timestamp_entry( struct cache_entry* entry ) {
    return true;
 }
 
-bool fresh_entry( struct cache_entry* entry ) {
+static bool fresh_entry( struct cache_entry* entry ) {
    struct cache_dependency* dep = entry->dependency;
    while ( dep && dep->mtime <= entry->compile_time ) {
       dep = dep->next;
@@ -388,7 +389,7 @@ bool fresh_entry( struct cache_entry* entry ) {
    return ( dep == NULL );
 }
 
-bool restore_lib( struct cache* cache, struct cache_entry* entry ) {
+static bool restore_lib( struct cache* cache, struct cache_entry* entry ) {
    struct str path;
    str_init( &path );
    append_entry_path( cache, entry, &path );
@@ -399,7 +400,7 @@ bool restore_lib( struct cache* cache, struct cache_entry* entry ) {
    return ( entry->lib != NULL );
 }
 
-void append_entry_path( struct cache* cache, struct cache_entry* entry,
+static void append_entry_path( struct cache* cache, struct cache_entry* entry,
    struct str* path ) {
    str_append( path, cache->dir_path.value );
    str_append( path, OS_PATHSEP );
@@ -419,7 +420,7 @@ void cache_clear( struct cache* cache ) {
    }
 }
 
-void unlink_entry( struct cache_entry_list* entries,
+static void unlink_entry( struct cache_entry_list* entries,
    struct cache_entry* selected_entry ) {
    struct cache_entry* prev_entry = NULL;
    struct cache_entry* entry = entries->head;
@@ -453,11 +454,11 @@ void cache_close( struct cache* cache ) {
    save_cache( cache );
 }
 
-bool lifetime_enabled( struct cache* cache ) {
+static bool lifetime_enabled( struct cache* cache ) {
    return ( cache->lifetime > 0 );
 }
 
-void remove_outdated_entries( struct cache* cache ) {
+static void remove_outdated_entries( struct cache* cache ) {
    struct cache_entry* entry = cache->entries.head;
    while ( entry ) {
       struct cache_entry* next_entry = entry->next;
@@ -470,12 +471,12 @@ void remove_outdated_entries( struct cache* cache ) {
    }
 }
 
-time_t lifetime_seconds( struct cache* cache ) {
+static time_t lifetime_seconds( struct cache* cache ) {
    return ( 60 * 60 * cache->lifetime );
 }
 
 // Writes cache contents into permanent storage.
-void save_cache( struct cache* cache ) {
+static void save_cache( struct cache* cache ) {
    bool archive_updated = false;
    // Remove files of removed entries.
    struct cache_entry* entry = cache->removed_entries.head;
@@ -504,7 +505,7 @@ void save_cache( struct cache* cache ) {
    }
 }
 
-void save_lib( struct cache* cache, struct cache_entry* entry ) {
+static void save_lib( struct cache* cache, struct cache_entry* entry ) {
    struct field_writer writer;
    gbuf_reset( &cache->task->growing_buffer );
    f_init_writer( &writer, &cache->task->growing_buffer );
@@ -519,13 +520,13 @@ void save_lib( struct cache* cache, struct cache_entry* entry ) {
    str_deinit( &path );
 }
 
-void save_header( struct cache* cache, struct field_writer* writer ) {
+static void save_header( struct cache* cache, struct field_writer* writer ) {
    f_wf( writer, F_HEADER );
    f_ws( writer, F_ID, cache->header_id.value );
    f_wf( writer, F_END );
 }
 
-void save_archive( struct cache* cache ) {
+static void save_archive( struct cache* cache ) {
    struct field_writer writer;
    gbuf_reset( &cache->task->growing_buffer );
    f_init_writer( &writer, &cache->task->growing_buffer );
@@ -561,7 +562,7 @@ void cache_print( struct cache* cache ) {
    }
 }
 
-void print_entry( struct cache* cache, struct cache_entry* entry ) {
+static void print_entry( struct cache* cache, struct cache_entry* entry ) {
    printf( "library=%s\n", entry->path.value );
    struct str path;
    str_init( &path );
@@ -583,7 +584,7 @@ void print_entry( struct cache* cache, struct cache_entry* entry ) {
    }
 }
 
-void print_lifetime( struct cache* cache, struct cache_entry* entry ) {
+static void print_lifetime( struct cache* cache, struct cache_entry* entry ) {
    time_t expire_time = entry->compile_time + lifetime_seconds( cache );
    struct tm* tm_time = localtime( &expire_time );
    char time_text[ 100 ];

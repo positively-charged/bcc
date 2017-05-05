@@ -64,7 +64,7 @@ void p_run( struct parse* parse ) {
    }
 }
 
-void run_phase( struct parse* parse ) {
+static void run_phase( struct parse* parse ) {
    struct library* lib = t_add_library( parse->task );
    lib->lang = ( parse->task->options->lang_specified ) ?
       parse->task->options->lang : p_determine_lang_from_file_path(

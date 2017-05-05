@@ -106,7 +106,7 @@ void p_read_expr( struct parse* parse, struct expr_reading* reading ) {
    reading->output_node = expr;
 }
 
-void read_op( struct parse* parse, struct expr_reading* reading ) {
+static void read_op( struct parse* parse, struct expr_reading* reading ) {
    int op = 0;
    struct binary* mul = NULL;
    struct binary* add = NULL;
@@ -390,7 +390,7 @@ void read_op( struct parse* parse, struct expr_reading* reading ) {
    return;
 }
 
-struct binary* alloc_binary( int op, struct pos* pos ) {
+static struct binary* alloc_binary( int op, struct pos* pos ) {
    struct binary* binary = mem_slot_alloc( sizeof( *binary ) );
    binary->node.type = NODE_BINARY;
    binary->op = op;
@@ -403,7 +403,7 @@ struct binary* alloc_binary( int op, struct pos* pos ) {
    return binary;
 }
 
-struct logical* alloc_logical( int op, struct pos* pos ) {
+static struct logical* alloc_logical( int op, struct pos* pos ) {
    struct logical* logical = mem_alloc( sizeof( *logical ) );
    logical->node.type = NODE_LOGICAL;
    logical->op = op;
@@ -417,7 +417,7 @@ struct logical* alloc_logical( int op, struct pos* pos ) {
    return logical;
 }
 
-void read_prefix( struct parse* parse, struct expr_reading* reading ) {
+static void read_prefix( struct parse* parse, struct expr_reading* reading ) {
    // Determine which prefix operation to read.
    enum tk prefix = TK_NONE;
    switch ( parse->lang ) {
@@ -460,7 +460,7 @@ void read_prefix( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-void read_unary( struct parse* parse, struct expr_reading* reading ) {
+static void read_unary( struct parse* parse, struct expr_reading* reading ) {
    int op = UOP_BIT_NOT;
    switch ( parse->tk ) {
    case TK_MINUS:
@@ -487,7 +487,7 @@ void read_unary( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &unary->node;
 }
 
-void read_inc( struct parse* parse, struct expr_reading* reading ) {
+static void read_inc( struct parse* parse, struct expr_reading* reading ) {
    struct inc* inc = alloc_inc( parse->tk_pos, ( parse->tk == TK_DEC ) );
    p_read_tk( parse );
    read_prefix( parse, reading );
@@ -495,7 +495,7 @@ void read_inc( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &inc->node;
 }
 
-struct inc* alloc_inc( struct pos pos, bool dec ) {
+static struct inc* alloc_inc( struct pos pos, bool dec ) {
    struct inc* inc = mem_alloc( sizeof( *inc ) );
    inc->node.type = NODE_INC;
    inc->operand = NULL;
@@ -506,7 +506,7 @@ struct inc* alloc_inc( struct pos pos, bool dec ) {
    return inc;
 }
 
-void read_primary( struct parse* parse, struct expr_reading* reading ) {
+static void read_primary( struct parse* parse, struct expr_reading* reading ) {
    // Determine which primary to read.
    enum tk primary = TK_NONE;
    switch ( parse->lang ) {
@@ -606,7 +606,7 @@ void read_primary( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-void read_id( struct parse* parse, struct expr_reading* reading ) {
+static void read_id( struct parse* parse, struct expr_reading* reading ) {
    struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
    usage->node.type = NODE_NAME_USAGE;
    usage->text = parse->tk_text;
@@ -616,7 +616,7 @@ void read_id( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_literal( struct parse* parse, struct expr_reading* reading ) {
+static void read_literal( struct parse* parse, struct expr_reading* reading ) {
    struct literal* literal = mem_slot_alloc( sizeof( *literal ) );
    literal->node.type = NODE_LITERAL;
    literal->value = p_extract_literal_value( parse );
@@ -624,7 +624,7 @@ void read_literal( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_string( struct parse* parse, struct expr_reading* reading ) {
+static void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_LIT_STRING );
    if ( parse->tk_length > parse->lang_limits->max_string_length ) {
       p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
@@ -648,7 +648,7 @@ void read_string( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_boolean( struct parse* parse, struct expr_reading* reading ) {
+static void read_boolean( struct parse* parse, struct expr_reading* reading ) {
    if ( parse->tk == TK_TRUE ) {
       static struct boolean boolean = { { NODE_BOOLEAN }, 1 };
       reading->node = &boolean.node;
@@ -662,21 +662,21 @@ void read_boolean( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-void read_null( struct parse* parse, struct expr_reading* reading ) {
+static void read_null( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_NULL );
    p_read_tk( parse );
    static struct node node = { NODE_NULL };
    reading->node = &node;
 }
 
-void read_upmost( struct parse* parse, struct expr_reading* reading ) {
+static void read_upmost( struct parse* parse, struct expr_reading* reading ) {
    static struct node node = { NODE_UPMOST };
    reading->node = &node;
    p_test_tk( parse, TK_UPMOST );
    p_read_tk( parse );
 }
 
-void read_current_namespace( struct parse* parse,
+static void read_current_namespace( struct parse* parse,
    struct expr_reading* reading ) {
    static struct node node = { NODE_CURRENTNAMESPACE };
    reading->node = &node;
@@ -746,7 +746,7 @@ int p_extract_literal_value( struct parse* parse ) {
 // operation, and is done elsewhere.
 // TODO: Do underflow/overflow check on intermediate results of a constant
 // expression, not just on a literal operand.
-int convert_numerictoken_to_int( struct parse* parse, int base ) {
+static int convert_numerictoken_to_int( struct parse* parse, int base ) {
    errno = 0;
    char* temp = NULL;
    long value = strtol( parse->tk_text, &temp, base );
@@ -766,7 +766,7 @@ int convert_numerictoken_to_int( struct parse* parse, int base ) {
    return ( int ) value;
 }
 
-int extract_radix_literal( struct parse* parse ) {
+static int extract_radix_literal( struct parse* parse ) {
    static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
    enum { LOWER_LIMIT = 2 };
    enum { UPPER_LIMIT = ARRAY_SIZE( digits ) - 1 };
@@ -808,7 +808,8 @@ int extract_radix_literal( struct parse* parse ) {
    return value;
 }
 
-void read_fixed_literal( struct parse* parse, struct expr_reading* reading ) {
+static void read_fixed_literal( struct parse* parse,
+   struct expr_reading* reading ) {
    struct fixed_literal* literal = mem_slot_alloc( sizeof( *literal ) );
    literal->node.type = NODE_FIXED_LITERAL;
    literal->value = extract_fixed_literal_value( parse->tk_text );
@@ -816,7 +817,7 @@ void read_fixed_literal( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-int extract_fixed_literal_value( const char* text ) {
+static int extract_fixed_literal_value( const char* text ) {
    double value = atof( text );
    return
       // Whole.
@@ -825,7 +826,8 @@ int extract_fixed_literal_value( const char* text ) {
       ( int ) ( ( 1 << 16 ) * ( value - ( int ) value ) );
 }
 
-void read_conversion( struct parse* parse, struct expr_reading* reading ) {
+static void read_conversion( struct parse* parse,
+   struct expr_reading* reading ) {
    int spec = SPEC_INT;
    switch ( parse->tk ) {
    case TK_FIXED:
@@ -860,7 +862,7 @@ void read_conversion( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_suffix( struct parse* parse, struct expr_reading* reading ) {
+static void read_suffix( struct parse* parse, struct expr_reading* reading ) {
    read_primary( parse, reading );
    while ( true ) {
       // Determine which suffix operation to read.
@@ -924,7 +926,8 @@ void read_suffix( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-void read_subscript( struct parse* parse, struct expr_reading* reading ) {
+static void read_subscript( struct parse* parse,
+   struct expr_reading* reading ) {
    struct subscript* subscript = mem_alloc( sizeof( *subscript ) );
    subscript->node.type = NODE_SUBSCRIPT;
    subscript->pos = parse->tk_pos;
@@ -940,7 +943,7 @@ void read_subscript( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &subscript->node;
 }
 
-void read_access( struct parse* parse, struct expr_reading* reading ) { 
+static void read_access( struct parse* parse, struct expr_reading* reading ) { 
    struct pos pos = parse->tk_pos;
    p_read_tk( parse );
    p_test_tk( parse, TK_ID );
@@ -950,7 +953,7 @@ void read_access( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-struct access* alloc_access( const char* name, struct pos pos ) {
+static struct access* alloc_access( const char* name, struct pos pos ) {
    struct access* access = mem_alloc( sizeof( *access ) );
    access->node.type = NODE_ACCESS;
    access->name = name;
@@ -961,7 +964,8 @@ struct access* alloc_access( const char* name, struct pos pos ) {
    return access;
 }
 
-void read_post_inc( struct parse* parse, struct expr_reading* reading ) {
+static void read_post_inc( struct parse* parse,
+   struct expr_reading* reading ) {
    struct inc* inc = alloc_inc( parse->tk_pos, ( parse->tk == TK_DEC ) );
    inc->post = true;
    inc->operand = reading->node;
@@ -969,7 +973,7 @@ void read_post_inc( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_call( struct parse* parse, struct expr_reading* reading ) {
+static void read_call( struct parse* parse, struct expr_reading* reading ) {
    struct call* call = t_alloc_call();
    call->pos = parse->tk_pos;
    call->operand = reading->node;
@@ -1001,7 +1005,7 @@ void read_call( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &call->node;
 }
 
-void read_call_args( struct parse* parse, struct expr_reading* reading,
+static void read_call_args( struct parse* parse, struct expr_reading* reading,
    struct list* args ) {
    while ( true ) {
       struct expr_reading arg;
@@ -1017,7 +1021,7 @@ void read_call_args( struct parse* parse, struct expr_reading* reading,
    }
 }
 
-struct format_item* read_format_item_list( struct parse* parse ) {
+static struct format_item* read_format_item_list( struct parse* parse ) {
    struct format_item* head = NULL;
    struct format_item* tail;
    while ( true ) {
@@ -1038,7 +1042,7 @@ struct format_item* read_format_item_list( struct parse* parse ) {
    }
 }
 
-struct format_item* read_format_item( struct parse* parse ) {
+static struct format_item* read_format_item( struct parse* parse ) {
    struct format_item* item = t_alloc_format_item();
    item->pos = parse->tk_pos;
    struct format_cast cast;
@@ -1066,12 +1070,12 @@ struct format_item* read_format_item( struct parse* parse ) {
    return item;
 }
 
-void init_format_cast( struct format_cast* cast ) {
+static void init_format_cast( struct format_cast* cast ) {
    cast->unknown = false;
    cast->type = FCAST_DECIMAL;
 }
 
-void read_format_cast( struct parse* parse, struct format_cast* cast ) {
+static void read_format_cast( struct parse* parse, struct format_cast* cast ) {
    cast->pos = parse->tk_pos;
    switch ( parse->lang ) {
    case LANG_ACS95:
@@ -1114,17 +1118,18 @@ void read_format_cast( struct parse* parse, struct format_cast* cast ) {
    p_read_tk( parse );
 }
 
-bool peek_format_cast( struct parse* parse ) {
+static bool peek_format_cast( struct parse* parse ) {
    return ( parse->tk == TK_ID && p_peek( parse ) == TK_COLON );
 }
 
-void init_array_field( struct array_field* field ) {
+static void init_array_field( struct array_field* field ) {
    field->array = NULL;
    field->offset = NULL;
    field->length = NULL;
 }
 
-void read_array_field( struct parse* parse, struct array_field* field ) {
+static void read_array_field( struct parse* parse,
+   struct array_field* field ) {
    bool paren = false;
    if ( parse->tk == TK_PAREN_L ) {
       paren = true;
@@ -1156,7 +1161,7 @@ void read_array_field( struct parse* parse, struct array_field* field ) {
    p_read_tk( parse );
 }
 
-void read_sure( struct parse* parse, struct expr_reading* reading ) {
+static void read_sure( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_LOG_NOT );
    struct sure* sure = mem_alloc( sizeof( *sure ) );
    sure->node.type = NODE_SURE;
@@ -1170,7 +1175,7 @@ void read_sure( struct parse* parse, struct expr_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
+static void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_STRCPY );
    p_read_tk( parse );
    struct strcpy_reading call_r;
@@ -1185,7 +1190,8 @@ void read_strcpy( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &call->node;
 }
 
-void read_strcpy_call( struct parse* parse, struct strcpy_reading* reading ) {
+static void read_strcpy_call( struct parse* parse,
+   struct strcpy_reading* reading ) {
    reading->array = NULL;
    reading->array_offset = NULL;
    reading->array_length = NULL;
@@ -1238,7 +1244,7 @@ void read_strcpy_call( struct parse* parse, struct strcpy_reading* reading ) {
    p_read_tk( parse );
 }
 
-void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
+static void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
    p_test_tk( parse, TK_MEMCPY );
    p_read_tk( parse );
    struct strcpy_reading call_r;
@@ -1255,7 +1261,7 @@ void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &call->node;
 }
 
-void read_paren( struct parse* parse, struct expr_reading* reading ) {
+static void read_paren( struct parse* parse, struct expr_reading* reading ) {
    if ( p_is_paren_type( parse ) ) {
       struct paren_reading paren;
       p_init_paren_reading( parse, &paren );
@@ -1275,12 +1281,13 @@ void read_paren( struct parse* parse, struct expr_reading* reading ) {
    }
 }
 
-void read_func_literal( struct parse* parse, struct expr_reading* reading,
-   struct paren_reading* paren ) {
+static void read_func_literal( struct parse* parse,
+   struct expr_reading* reading, struct paren_reading* paren ) {
    reading->node = &paren->func->object.node;
 }
 
-void read_compound_literal( struct parse* parse, struct expr_reading* reading,
+static void read_compound_literal( struct parse* parse,
+   struct expr_reading* reading,
    struct paren_reading* paren ) {
    struct compound_literal* literal = mem_alloc( sizeof( *literal ) );
    literal->node.type = NODE_COMPOUNDLITERAL;
@@ -1288,7 +1295,7 @@ void read_compound_literal( struct parse* parse, struct expr_reading* reading,
    reading->node = &literal->node;
 }
 
-void read_cast( struct parse* parse, struct expr_reading* reading,
+static void read_cast( struct parse* parse, struct expr_reading* reading,
    struct paren_reading* paren ) {
    read_prefix( parse, reading );
    struct cast* cast = mem_alloc( sizeof( *cast ) );
@@ -1299,7 +1306,8 @@ void read_cast( struct parse* parse, struct expr_reading* reading,
    reading->node = &cast->node;
 }
 
-void read_paren_expr( struct parse* parse, struct expr_reading* reading ) {
+static void read_paren_expr( struct parse* parse,
+   struct expr_reading* reading ) {
    struct paren* paren = mem_alloc( sizeof( *paren ) );
    paren->node.type = NODE_PAREN;
    paren->inside = NULL;
@@ -1315,7 +1323,8 @@ void read_paren_expr( struct parse* parse, struct expr_reading* reading ) {
    reading->node = &paren->node;
 }
 
-void read_magic_id( struct parse* parse, struct expr_reading* reading ) {
+static void read_magic_id( struct parse* parse,
+   struct expr_reading* reading ) {
    struct magic_id* magic_id = mem_alloc( sizeof( *magic_id ) );
    magic_id->node.type = NODE_MAGICID;
    magic_id->pos = parse->tk_pos;

@@ -183,7 +183,7 @@ void t_append_unresolved_namespace_object( struct ns_fragment* fragment,
    fragment->unresolved_tail = object;
 }
 
-void init_str_table( struct str_table* table ) {
+static void init_str_table( struct str_table* table ) {
    table->head = NULL;
    table->tail = NULL;
    table->root = NULL;
@@ -321,7 +321,7 @@ void t_init_type_members( struct task* task ) {
    }
 } */
 
-void add_internal_file( struct task* task, const char* name ) {
+static void add_internal_file( struct task* task, const char* name ) {
    struct include_history_entry* entry = t_alloc_include_history_entry( task );
    entry->altern_name = name;
 }
@@ -355,7 +355,7 @@ void t_diag_args( struct task* task, int flags, va_list* args ) {
    }
 }
 
-void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
+static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    va_list* args ) {
    str_init( &msg->text );
    msg->file = NULL;
@@ -395,7 +395,7 @@ void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    str_append_format( &msg->text, format, args );
 }
 
-void print_diag( struct task* task, struct diag_msg* msg ) {
+static void print_diag( struct task* task, struct diag_msg* msg ) {
    if ( msg->flags & DIAG_FILE ) {
       print_include_history( task, msg, stdout );
       printf( "%s:", decode_filename( task, msg->file ) );
@@ -410,14 +410,14 @@ void print_diag( struct task* task, struct diag_msg* msg ) {
    printf( "%s\n", msg->text.value );
 }
 
-void print_include_history( struct task* task, struct diag_msg* msg,
+static void print_include_history( struct task* task, struct diag_msg* msg,
    FILE* stream ) {
    if ( msg->include_history ) {
       print_parent_files( task, stream, msg->file->parent, msg->file );
    }
 }
 
-void print_parent_files( struct task* task, FILE* stream,
+static void print_parent_files( struct task* task, FILE* stream,
    struct include_history_entry* entry,
    struct include_history_entry* child_entry ) {
    if ( entry->parent ) {
@@ -429,7 +429,7 @@ void print_parent_files( struct task* task, FILE* stream,
 }
 
 // Line format: <file>:<line>: <message>
-void log_diag( struct task* task, struct diag_msg* msg ) {
+static void log_diag( struct task* task, struct diag_msg* msg ) {
    if ( msg->flags & DIAG_ERR ) {
       if ( ! task->err_file ) {
          open_logfile( task );
@@ -447,7 +447,7 @@ void log_diag( struct task* task, struct diag_msg* msg ) {
    }
 }
 
-void open_logfile( struct task* task ) {
+static void open_logfile( struct task* task ) {
    struct str path;
    str_init( &path );
    str_append( &path, task->err_file_dir.value );
@@ -460,7 +460,7 @@ void open_logfile( struct task* task ) {
    str_deinit( &path );
 }
 
-void decode_pos( struct task* task, struct pos* pos,
+static void decode_pos( struct task* task, struct pos* pos,
    struct include_history_entry** file, int* line, int* column ) {
    *file = t_decode_include_history_entry( task, pos->id );
    *line = pos->line;
@@ -484,7 +484,7 @@ struct include_history_entry* t_decode_include_history_entry(
    return list_head( &task->include_history );
 }
 
-const char* decode_filename( struct task* task,
+static const char* decode_filename( struct task* task,
    struct include_history_entry* entry ) {
    if ( entry->altern_name ) {
       return entry->altern_name;
@@ -555,7 +555,7 @@ void t_find_file( struct task* task, struct file_query* query ) {
    str_deinit( &path );
 }
 
-bool identify_file( struct task* task, struct file_query* query ) {
+static bool identify_file( struct task* task, struct file_query* query ) {
    // Absolute path.
    if ( c_is_absolute_path( query->given_path ) ) {
       str_append( query->path, query->given_path );
@@ -567,7 +567,8 @@ bool identify_file( struct task* task, struct file_query* query ) {
    }
 }
 
-bool identify_file_relative( struct task* task, struct file_query* query ) {
+static bool identify_file_relative( struct task* task,
+   struct file_query* query ) {
    // Try directory of current file.
    if ( query->offset_file ) {
       str_copy( query->path, query->offset_file->path.value,
@@ -615,7 +616,8 @@ bool identify_file_relative( struct task* task, struct file_query* query ) {
    return false;
 }
 
-struct file_entry* add_file( struct task* task, struct file_query* query ) {
+static struct file_entry* add_file( struct task* task,
+   struct file_query* query ) {
    struct file_entry* entry = task->file_entries;
    while ( entry ) {
       if ( c_same_fileid( &query->fileid, &entry->file_id ) ) {
@@ -626,7 +628,7 @@ struct file_entry* add_file( struct task* task, struct file_query* query ) {
    return create_file_entry( task, query );
 }
 
-struct file_entry* create_file_entry( struct task* task,
+static struct file_entry* create_file_entry( struct task* task,
    struct file_query* query ) {
    struct file_entry* entry = mem_alloc( sizeof( *entry ) );
    entry->next = NULL;
@@ -641,7 +643,7 @@ struct file_entry* create_file_entry( struct task* task,
    return entry;
 }
 
-void link_file_entry( struct task* task, struct file_entry* entry ) {
+static void link_file_entry( struct task* task, struct file_entry* entry ) {
    if ( task->file_entries ) {
       struct file_entry* prev = task->file_entries;
       while ( prev->next ) {
@@ -729,7 +731,7 @@ struct indexed_string* t_intern_string_copy( struct task* task,
    return intern_string( task, &task->str_table, value, length, true );
 }
 
-struct indexed_string* intern_string( struct task* task,
+static struct indexed_string* intern_string( struct task* task,
    struct str_table* table, const char* value, int length, bool copy_value ) {
    // Indexed strings are stored in a binary search tree.
    struct indexed_string* parent_lchild = NULL;
@@ -1105,7 +1107,7 @@ void t_init_pos_id( struct pos* pos, int id ) {
    t_init_pos( pos, id, 0, 0 );
 }
 
-void init_ref( struct ref* ref, int type ) {
+static void init_ref( struct ref* ref, int type ) {
    ref->next = NULL;
    ref->type = type;
    ref->nullable = false;

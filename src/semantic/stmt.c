@@ -144,7 +144,7 @@ void s_test_func_block( struct semantic* semantic, struct func* func,
    }
 }
 
-void test_block( struct semantic* semantic, struct stmt_test* test,
+static void test_block( struct semantic* semantic, struct stmt_test* test,
    struct builtin_aliases* builtin_aliases, struct block* block ) {
    if ( ! test->manual_scope ) {
       s_add_scope( semantic, false );
@@ -180,7 +180,7 @@ static void init_builtin_aliases( struct semantic* semantic,
    }
 }
 
-void bind_builtin_aliases( struct semantic* semantic,
+static void bind_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases ) {
    if ( aliases->append.used ) {
       struct name* name = t_extend_name( semantic->ns->body, "append" );
@@ -188,7 +188,7 @@ void bind_builtin_aliases( struct semantic* semantic,
    }
 }
 
-void test_block_item( struct semantic* semantic, struct stmt_test* test,
+static void test_block_item( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    struct stmt_test nested_test;
    s_init_stmt_test( &nested_test, test );
@@ -248,7 +248,7 @@ void test_block_item( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_case( struct semantic* semantic, struct stmt_test* test,
+static void test_case( struct semantic* semantic, struct stmt_test* test,
    struct case_label* label ) {
    struct stmt_test* switch_test = test->parent;
    while ( switch_test && ! switch_test->switch_stmt ) {
@@ -324,8 +324,8 @@ void test_case( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_default_case( struct semantic* semantic, struct stmt_test* test,
-   struct case_label* label ) {
+static void test_default_case( struct semantic* semantic,
+   struct stmt_test* test, struct case_label* label ) {
    struct stmt_test* switch_test = test->parent;
    while ( switch_test && ! switch_test->switch_stmt ) {
       switch_test = switch_test->parent;
@@ -361,7 +361,7 @@ void test_default_case( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_assert( struct semantic* semantic, struct stmt_test* test,
+static void test_assert( struct semantic* semantic, struct stmt_test* test,
    struct assert* assert ) {
    s_test_bool_expr( semantic, assert->cond );
    if ( assert->is_static ) {
@@ -418,7 +418,7 @@ void test_assert( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_stmt( struct semantic* semantic, struct stmt_test* test,
+static void test_stmt( struct semantic* semantic, struct stmt_test* test,
    struct node* node ) {
    switch ( node->type ) {
    case NODE_BLOCK:
@@ -490,7 +490,7 @@ void test_stmt( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_if( struct semantic* semantic, struct stmt_test* test,
+static void test_if( struct semantic* semantic, struct stmt_test* test,
    struct if_stmt* stmt ) {
    s_add_scope( semantic, false );
    test_heavy_cond( semantic, test, &stmt->cond );
@@ -528,7 +528,7 @@ void test_if( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
+static void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
    struct heavy_cond* cond ) {
    if ( cond->var ) {
       s_test_local_var( semantic, cond->var );
@@ -563,7 +563,7 @@ void test_heavy_cond( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_cond( struct semantic* semantic, struct cond* cond ) {
+static void test_cond( struct semantic* semantic, struct cond* cond ) {
    if ( cond->u.node->type == NODE_VAR ) {
       s_test_local_var( semantic, cond->u.var );
       // NOTE: For now, we don't check to see if the variable or its
@@ -574,7 +574,7 @@ void test_cond( struct semantic* semantic, struct cond* cond ) {
    }
 }
 
-void test_switch( struct semantic* semantic, struct stmt_test* test,
+static void test_switch( struct semantic* semantic, struct stmt_test* test,
    struct switch_stmt* stmt ) {
    test->switch_stmt = stmt;
    s_add_scope( semantic, false );
@@ -595,8 +595,8 @@ void test_switch( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
-   struct switch_stmt* stmt ) {
+static void test_switch_cond( struct semantic* semantic,
+   struct stmt_test* test, struct switch_stmt* stmt ) {
    test_heavy_cond( semantic, test, &stmt->cond );
    // Only condition of a primitive type is supported.
    if ( ! s_is_primitive_type( &test->cond_type ) ) {
@@ -608,7 +608,7 @@ void test_switch_cond( struct semantic* semantic, struct stmt_test* test,
 }
 
 // Just check any of the variables appearing before the first case for now.
-void warn_switch_skipped_init( struct semantic* semantic,
+static void warn_switch_skipped_init( struct semantic* semantic,
    struct block* block ) {
    struct var* last_var = NULL;
    struct list_iter i;
@@ -637,7 +637,7 @@ void warn_switch_skipped_init( struct semantic* semantic,
    }
 }
 
-void test_while( struct semantic* semantic, struct stmt_test* test,
+static void test_while( struct semantic* semantic, struct stmt_test* test,
    struct while_stmt* stmt ) {
    s_add_scope( semantic, false );
    test->in_loop = true;
@@ -659,7 +659,7 @@ void test_while( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_do( struct semantic* semantic, struct stmt_test* test,
+static void test_do( struct semantic* semantic, struct stmt_test* test,
    struct do_stmt* stmt ) {
    s_add_scope( semantic, false );
    test->in_loop = true;
@@ -691,7 +691,7 @@ void test_do( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_for( struct semantic* semantic, struct stmt_test* test,
+static void test_for( struct semantic* semantic, struct stmt_test* test,
    struct for_stmt* stmt ) {
    test->in_loop = true;
    s_add_scope( semantic, false );
@@ -750,7 +750,7 @@ void test_for( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_foreach( struct semantic* semantic, struct stmt_test* test,
+static void test_foreach( struct semantic* semantic, struct stmt_test* test,
    struct foreach_stmt* stmt ) {
    test->in_loop = true;
    s_add_scope( semantic, false );
@@ -807,7 +807,7 @@ void test_foreach( struct semantic* semantic, struct stmt_test* test,
    s_pop_scope( semantic );
 }
 
-void test_jump( struct semantic* semantic, struct stmt_test* test,
+static void test_jump( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    switch ( stmt->type ) {
    case JUMP_BREAK:
@@ -818,7 +818,7 @@ void test_jump( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_break( struct semantic* semantic, struct stmt_test* test,
+static void test_break( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_loop && ! target->switch_stmt ) {
@@ -852,7 +852,7 @@ static void diag_early_leave( struct semantic* semantic, struct pos* pos ) {
    diag_leave( semantic, pos, false );
 }
 
-void test_continue( struct semantic* semantic, struct stmt_test* test,
+static void test_continue( struct semantic* semantic, struct stmt_test* test,
    struct jump* stmt ) {
    struct stmt_test* target = test;
    while ( target && ! target->in_loop ) {
@@ -872,8 +872,8 @@ void test_continue( struct semantic* semantic, struct stmt_test* test,
    test->flow = FLOW_DEAD;
 }
 
-void test_script_jump( struct semantic* semantic, struct stmt_test* test,
-   struct script_jump* stmt ) {
+static void test_script_jump( struct semantic* semantic,
+   struct stmt_test* test, struct script_jump* stmt ) {
    static const char* names[] = { "terminate", "restart", "suspend" };
    STATIC_ASSERT( ARRAY_SIZE( names ) == SCRIPT_JUMP_TOTAL );
    if ( ! semantic->func_test->script ) {
@@ -887,7 +887,7 @@ void test_script_jump( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_return( struct semantic* semantic, struct stmt_test* test,
+static void test_return( struct semantic* semantic, struct stmt_test* test,
    struct return_stmt* stmt ) {
    if ( ! semantic->func_test->func ) {
       s_diag( semantic, DIAG_POS_ERR, &stmt->pos,
@@ -917,8 +917,8 @@ void test_return( struct semantic* semantic, struct stmt_test* test,
    test->flow = FLOW_DEAD;
 }
 
-void test_return_value( struct semantic* semantic, struct stmt_test* test,
-   struct return_stmt* stmt ) {
+static void test_return_value( struct semantic* semantic,
+   struct stmt_test* test, struct return_stmt* stmt ) {
    struct func* func = semantic->func_test->func;
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -983,7 +983,7 @@ void test_return_value( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_goto( struct semantic* semantic, struct stmt_test* test,
+static void test_goto( struct semantic* semantic, struct stmt_test* test,
    struct goto_stmt* stmt ) {
    stmt->buildmsg = semantic->func_test->enclosing_buildmsg;
    struct list_iter i;
@@ -1009,7 +1009,7 @@ static void test_label( struct semantic* semantic, struct stmt_test* test,
    label->buildmsg = semantic->func_test->enclosing_buildmsg;
 }
 
-void test_paltrans( struct semantic* semantic, struct stmt_test* test,
+static void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    struct paltrans* stmt ) {
    test_paltrans_arg( semantic, stmt->number, false );
    struct palrange* range = stmt->ranges;
@@ -1050,7 +1050,7 @@ void test_paltrans( struct semantic* semantic, struct stmt_test* test,
    }
 }
 
-void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
+static void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
    bool require_fixed_type ) {
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
@@ -1065,14 +1065,15 @@ void test_paltrans_arg( struct semantic* semantic, struct expr* arg,
    }
 }
 
-void test_palrange_colorisation( struct semantic* semantic,
+static void test_palrange_colorisation( struct semantic* semantic,
    struct palrange* range ) {
    test_paltrans_arg( semantic, range->value.colorisation.red, false );
    test_paltrans_arg( semantic, range->value.colorisation.green, false );
    test_paltrans_arg( semantic, range->value.colorisation.blue, false );
 }
 
-void test_palrange_tint( struct semantic* semantic, struct palrange* range ) {
+static void test_palrange_tint( struct semantic* semantic,
+   struct palrange* range ) {
    test_paltrans_arg( semantic, range->value.tint.amount, false );
    test_paltrans_arg( semantic, range->value.tint.red, false );
    test_paltrans_arg( semantic, range->value.tint.green, false );
@@ -1128,7 +1129,8 @@ static struct buildmsg* find_buildmsg( struct stmt_test* start,
    return NULL;
 }
 
-void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
+static void test_expr_stmt( struct semantic* semantic,
+   struct expr_stmt* stmt ) {
    struct list_iter i;
    list_iterate( &stmt->expr_list, &i );
    bool require_assign = ( list_size( &stmt->expr_list ) > 1 );
@@ -1154,7 +1156,7 @@ void test_expr_stmt( struct semantic* semantic, struct expr_stmt* stmt ) {
    }
 }
 
-void check_dup_label( struct semantic* semantic ) {
+static void check_dup_label( struct semantic* semantic ) {
    struct list_iter i;
    list_iterate( semantic->func_test->labels, &i );
    while ( ! list_end( &i ) ) {

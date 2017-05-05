@@ -105,7 +105,7 @@ bool p_read_dirc( struct parse* parse ) {
    return false;
 }
 
-enum dirc identify_dirc( struct parse* parse ) {
+static enum dirc identify_dirc( struct parse* parse ) {
    struct streamtk_iter iter;
    p_init_streamtk_iter( parse, &iter );
    p_next_stream( parse, &iter );
@@ -134,7 +134,7 @@ enum dirc identify_dirc( struct parse* parse ) {
    return dirc;
 }
 
-enum dirc identify_named_dirc( const char* name ) {
+static enum dirc identify_named_dirc( const char* name ) {
    static const struct {
       const char* name;
       int dirc;
@@ -162,7 +162,7 @@ enum dirc identify_named_dirc( const char* name ) {
    return table[ i ].dirc;
 }
 
-void read_identified_dirc( struct parse* parse, struct pos* pos,
+static void read_identified_dirc( struct parse* parse, struct pos* pos,
    enum dirc dirc ) {
    switch ( dirc ) {
    case DIRC_DEFINE:
@@ -204,7 +204,7 @@ void read_identified_dirc( struct parse* parse, struct pos* pos,
    }
 }
 
-void read_define( struct parse* parse ) {
+static void read_define( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    struct macro_reading reading;
@@ -214,7 +214,8 @@ void read_define( struct parse* parse ) {
    finish_macro( parse, &reading );
 }
 
-void read_macro_name( struct parse* parse, struct macro_reading* reading ) {
+static void read_macro_name( struct parse* parse,
+   struct macro_reading* reading ) {
    p_test_preptk( parse, TK_ID );
    if ( ! valid_macro_name( parse->token->text ) ) {
       p_diag( parse, DIAG_POS_ERR, &parse->token->pos,
@@ -233,7 +234,7 @@ inline bool valid_macro_name( const char* name ) {
    return ( strcmp( name, "defined" ) != 0 );
 }
 
-struct macro* alloc_macro( struct parse* parse ) {
+static struct macro* alloc_macro( struct parse* parse ) {
    struct macro* macro;
    if ( parse->macro_free ) {
       macro = parse->macro_free;
@@ -256,14 +257,15 @@ struct macro* alloc_macro( struct parse* parse ) {
    return macro;
 }
 
-void read_macro_param_list( struct parse* parse,
+static void read_macro_param_list( struct parse* parse,
    struct macro_reading* reading ) {
    if ( parse->token->type == TK_PAREN_L ) {
       read_param_list( parse, reading );
    }
 }
 
-void read_param_list( struct parse* parse, struct macro_reading* reading ) {
+static void read_param_list( struct parse* parse,
+   struct macro_reading* reading ) {
    p_test_preptk( parse, TK_PAREN_L );
    p_read_preptk( parse );
    // Named parameters.
@@ -310,7 +312,7 @@ void read_param_list( struct parse* parse, struct macro_reading* reading ) {
    reading->macro->func_like = true;
 }
 
-struct macro_param* alloc_param( struct parse* parse ) {
+static struct macro_param* alloc_param( struct parse* parse ) {
    struct macro_param* param = parse->macro_param_free;
    if ( param ) {
       parse->macro_param_free = param->next;
@@ -323,7 +325,7 @@ struct macro_param* alloc_param( struct parse* parse ) {
    return param;
 }
 
-void append_param( struct macro* macro, struct macro_param* param ) {
+static void append_param( struct macro* macro, struct macro_param* param ) {
    if ( macro->param_head ) {
       macro->param_tail->next = param;
    }
@@ -334,13 +336,14 @@ void append_param( struct macro* macro, struct macro_param* param ) {
    ++macro->param_count;
 }
 
-void read_macro_body( struct parse* parse, struct macro_reading* reading ) {
+static void read_macro_body( struct parse* parse,
+   struct macro_reading* reading ) {
    if ( parse->token->type != TK_NL ) {
       read_body( parse, reading );
    }
 }
 
-void read_body( struct parse* parse, struct macro_reading* reading ) {
+static void read_body( struct parse* parse, struct macro_reading* reading ) {
    if ( parse->token->type == TK_HORZSPACE ) {
       p_read_preptk( parse );
    }
@@ -364,7 +367,8 @@ void read_body( struct parse* parse, struct macro_reading* reading ) {
    }
 }
 
-void read_body_item( struct parse* parse, struct macro_reading* reading ) {
+static void read_body_item( struct parse* parse,
+   struct macro_reading* reading ) {
    // `#` operator.
    if ( parse->token->type == TK_HASH ) {
       if ( reading->macro->func_like ) {
@@ -421,7 +425,7 @@ void read_body_item( struct parse* parse, struct macro_reading* reading ) {
    p_read_stream( parse );
 }
 
-bool valid_macro_param( struct parse* parse, struct macro* macro ) {
+static bool valid_macro_param( struct parse* parse, struct macro* macro ) {
    struct macro_param* param = macro->param_head;
    while ( param && param->name ) {
       if ( strcmp( parse->token->text, param->name ) == 0 ) {
@@ -432,7 +436,7 @@ bool valid_macro_param( struct parse* parse, struct macro* macro ) {
    return false;
 }
 
-void append_token( struct macro* macro, struct token* token ) {
+static void append_token( struct macro* macro, struct token* token ) {
    if ( macro->body ) {
       macro->body_tail->next = token;
    }
@@ -442,7 +446,8 @@ void append_token( struct macro* macro, struct token* token ) {
    macro->body_tail = token;
 }
 
-void finish_macro( struct parse* parse, struct macro_reading* reading ) {
+static void finish_macro( struct parse* parse,
+   struct macro_reading* reading ) {
    struct macro* prev_macro = p_find_macro( parse, reading->macro->name );
    if ( prev_macro ) {
       if ( ! ( prev_macro->predef == PREDEFMACRO_NONE ) ) {
@@ -484,7 +489,7 @@ struct macro* p_find_macro( struct parse* parse, const char* name ) {
    return macro;
 }
 
-bool same_macro( struct macro* a, struct macro* b ) {
+static bool same_macro( struct macro* a, struct macro* b ) {
    // Macros need to be of the same kind.
    if ( a->func_like != b->func_like ) {
       return false;
@@ -528,7 +533,7 @@ bool same_macro( struct macro* a, struct macro* b ) {
    return true;
 }
 
-void free_macro( struct parse* parse, struct macro* macro ) {
+static void free_macro( struct parse* parse, struct macro* macro ) {
    // Reuse parameters.
    if ( macro->param_head ) {
       macro->param_tail->next = parse->macro_param_free;
@@ -544,7 +549,7 @@ void free_macro( struct parse* parse, struct macro* macro ) {
    parse->macro_free = macro;
 }
 
-void append_macro( struct parse* parse, struct macro* macro ) {
+static void append_macro( struct parse* parse, struct macro* macro ) {
    struct macro* prev = NULL;
    struct macro* curr = parse->macro_head;
    while ( curr && strcmp( curr->name, macro->name ) < 0 ) {
@@ -570,7 +575,7 @@ void p_clear_macros( struct parse* parse ) {
    }
 }
 
-void read_include( struct parse* parse ) {
+static void read_include( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_expanpreptk( parse );
    p_test_preptk( parse, TK_LIT_STRING );
@@ -581,7 +586,7 @@ void read_include( struct parse* parse ) {
    p_load_included_source( parse, path, &pos );
 }
 
-void read_error( struct parse* parse, struct pos* pos ) {
+static void read_error( struct parse* parse, struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    struct str message;
@@ -595,7 +600,7 @@ void read_error( struct parse* parse, struct pos* pos ) {
    p_bail( parse );
 }
 
-void read_line( struct parse* parse ) {
+static void read_line( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_LIT_DECIMAL );
@@ -615,7 +620,7 @@ void read_line( struct parse* parse ) {
    p_add_altern_file_name( parse, filename, line );
 }
 
-void read_undef( struct parse* parse ) {
+static void read_undef( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_ID );
@@ -637,7 +642,7 @@ void read_undef( struct parse* parse ) {
    p_test_preptk( parse, TK_NL );
 }
 
-struct macro* remove_macro( struct parse* parse, const char* name ) {
+static struct macro* remove_macro( struct parse* parse, const char* name ) {
    struct macro* macro_prev = NULL;
    struct macro* macro = parse->macro_head;
    while ( macro ) {
@@ -665,7 +670,7 @@ struct macro* remove_macro( struct parse* parse, const char* name ) {
    return macro;
 }
 
-void read_if( struct parse* parse, struct pos* pos ) {
+static void read_if( struct parse* parse, struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    push_ifdirc( parse, parse->token->text, pos );
    int value = p_eval_prep_expr( parse );
@@ -675,7 +680,8 @@ void read_if( struct parse* parse, struct pos* pos ) {
    }
 }
 
-void push_ifdirc( struct parse* parse, const char* name, struct pos* pos ) {
+static void push_ifdirc( struct parse* parse, const char* name,
+   struct pos* pos ) {
    struct ifdirc* entry;
    if ( parse->ifdirc_free ) {
       entry = parse->ifdirc_free;
@@ -693,7 +699,7 @@ void push_ifdirc( struct parse* parse, const char* name, struct pos* pos ) {
    parse->ifdirc = entry;
 }
 
-bool pop_ifdirc( struct parse* parse ) {
+static bool pop_ifdirc( struct parse* parse ) {
    if ( parse->ifdirc ) {
       struct ifdirc* entry = parse->ifdirc;
       parse->ifdirc = entry->prev;
@@ -705,7 +711,7 @@ bool pop_ifdirc( struct parse* parse ) {
 }
 
 // Handles #ifdef/#ifndef.
-void read_ifdef( struct parse* parse, struct pos* pos ) {
+static void read_ifdef( struct parse* parse, struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    push_ifdirc( parse, parse->token->text, pos );
    p_read_preptk( parse );
@@ -724,19 +730,20 @@ bool p_is_macro_defined( struct parse* parse, const char* name ) {
    return ( p_find_macro( parse, name ) != NULL );
 }
 
-void find_elif( struct parse* parse ) {
+static void find_elif( struct parse* parse ) {
    struct endif_search search;
    init_endif_search( &search, true );
    find_endif( parse, &search );
 }
 
-void init_endif_search( struct endif_search* search, bool execute_else ) {
+static void init_endif_search( struct endif_search* search,
+   bool execute_else ) {
    search->depth = 1;
    search->done = false;
    search->execute_else = execute_else;
 }
 
-void find_endif( struct parse* parse, struct endif_search* search ) {
+static void find_endif( struct parse* parse, struct endif_search* search ) {
    while ( ! search->done ) {
       if ( parse->token->type == TK_NL ) {
          p_read_preptk( parse );
@@ -757,7 +764,7 @@ void find_endif( struct parse* parse, struct endif_search* search ) {
    }
 }
 
-void read_search_dirc( struct parse* parse, struct endif_search* search,
+static void read_search_dirc( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    if ( strcmp( parse->token->text, "ifdef" ) == 0 ||
       strcmp( parse->token->text, "ifndef" ) == 0 ||
@@ -780,7 +787,7 @@ void read_search_dirc( struct parse* parse, struct endif_search* search,
    }
 }
 
-void read_elif( struct parse* parse, struct endif_search* search,
+static void read_elif( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    int value = p_eval_prep_expr( parse );
@@ -802,7 +809,7 @@ void read_elif( struct parse* parse, struct endif_search* search,
    }
 }
 
-void read_else( struct parse* parse, struct endif_search* search,
+static void read_else( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
@@ -826,7 +833,7 @@ void read_else( struct parse* parse, struct endif_search* search,
    }
 }
 
-void read_endif( struct parse* parse, struct endif_search* search,
+static void read_endif( struct parse* parse, struct endif_search* search,
    struct pos* pos ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
@@ -842,7 +849,7 @@ void read_endif( struct parse* parse, struct endif_search* search,
    }
 }
 
-void skip_section( struct parse* parse, struct pos* pos ) {
+static void skip_section( struct parse* parse, struct pos* pos ) {
    struct endif_search search;
    init_endif_search( &search, false );
    read_search_dirc( parse, &search, pos );
@@ -933,7 +940,7 @@ void p_define_cmdline_macros( struct parse* parse ) {
 }
 
 // Reads #region/#endregion. These directives have no effect.
-void read_region( struct parse* parse ) {
+static void read_region( struct parse* parse ) {
    p_test_preptk( parse, TK_ID );
    p_read_preptk( parse );
    p_test_preptk( parse, TK_NL );

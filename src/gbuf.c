@@ -14,7 +14,7 @@ void gbuf_init( struct gbuf* buffer ) {
    add_segment( buffer );
 }
 
-void add_segment( struct gbuf* buffer ) {
+static void add_segment( struct gbuf* buffer ) {
    if ( ! buffer->segment || ! buffer->segment->next ) {
       struct gbuf_seg* segment = alloc_segment();
       if ( buffer->head_segment ) {
@@ -30,7 +30,7 @@ void add_segment( struct gbuf* buffer ) {
    }
 }
 
-struct gbuf_seg* alloc_segment( void ) {
+static struct gbuf_seg* alloc_segment( void ) {
    struct gbuf_seg* segment = mem_alloc( sizeof( *segment ) );
    segment->next = NULL;
    segment->used = 0;
@@ -61,7 +61,7 @@ char* gbuf_alloc_block( struct gbuf* buffer ) {
    return block;
 }
 
-size_t count_bytes_used( struct gbuf* buffer ) {
+static size_t count_bytes_used( struct gbuf* buffer ) {
    size_t total = 0;
    struct gbuf_seg* segment = buffer->head_segment;
    while ( segment ) {

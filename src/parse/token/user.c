@@ -25,7 +25,7 @@ void p_read_tk( struct parse* parse ) {
    parse->tk_length = token->length;
 }
 
-void read_peeked_token( struct parse* parse ) {
+static void read_peeked_token( struct parse* parse ) {
    if ( parse->parser_tkque.size > 0 ) {
       parse->token = p_shift_entry( parse, &parse->parser_tkque );
    }
@@ -34,7 +34,7 @@ void read_peeked_token( struct parse* parse ) {
    }
 }
 
-void read_token( struct parse* parse ) {
+static void read_token( struct parse* parse ) {
    if ( parse->lang == LANG_BCS ) {
       read_token_bcs( parse );
    }
@@ -43,7 +43,7 @@ void read_token( struct parse* parse ) {
    }
 }
 
-void read_token_bcs( struct parse* parse ) {
+static void read_token_bcs( struct parse* parse ) {
    top:
    p_read_stream( parse );
    switch ( parse->token->type ) {
@@ -221,7 +221,7 @@ void read_token_bcs( struct parse* parse ) {
    }
 }
 
-void read_token_acs( struct parse* parse ) {
+static void read_token_acs( struct parse* parse ) {
    top:
    p_read_stream( parse );
    switch ( parse->token->type ) {
@@ -268,7 +268,7 @@ void p_next_tk( struct parse* parse, struct parsertk_iter* iter ) {
    }
 }
 
-struct token* push_token( struct parse* parse ) {
+static struct token* push_token( struct parse* parse ) {
    struct queue_entry* entry = p_push_entry( parse, &parse->parser_tkque );
    entry->token = p_alloc_token( parse );
    entry->token_allocated = true;

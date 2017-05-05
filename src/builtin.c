@@ -370,7 +370,7 @@ void t_create_builtins( struct task* task, int lang ) {
    }
 }
 
-void init_setup( struct setup* setup, struct task* task, int lang ) {
+static void init_setup( struct setup* setup, struct task* task, int lang ) {
    setup->task = task;
    setup->func = NULL;
    setup->param = NULL;
@@ -380,7 +380,7 @@ void init_setup( struct setup* setup, struct task* task, int lang ) {
    setup->lang = lang;
 }
 
-void setup_func( struct setup* setup, int entry ) {
+static void setup_func( struct setup* setup, int entry ) {
    struct func* func = t_alloc_func();
    t_init_pos_id( &func->object.pos, INTERNALFILE_COMPILER );
    func->object.resolved = true;
@@ -420,7 +420,7 @@ void setup_func( struct setup* setup, int entry ) {
    }
 }
 
-void setup_return_type( struct setup* setup ) {
+static void setup_return_type( struct setup* setup ) {
    int spec = SPEC_VOID;
    if ( ! (
       setup->format[ 0 ] == '\0' ||
@@ -451,7 +451,7 @@ void setup_return_type( struct setup* setup ) {
    setup->func->return_spec = spec;
 }
 
-void setup_param_list( struct setup* setup ) {
+static void setup_param_list( struct setup* setup ) {
    switch ( setup->lang ) {
    case LANG_ACS:
    case LANG_ACS95:
@@ -462,7 +462,7 @@ void setup_param_list( struct setup* setup ) {
    }
 }
 
-void setup_param_list_acs( struct setup* setup ) {
+static void setup_param_list_acs( struct setup* setup ) {
    // In ACS and ACS95, we're just interested in the parameter count.
    bool optional = false;
    while ( setup->format[ 0 ] ) {
@@ -479,7 +479,7 @@ void setup_param_list_acs( struct setup* setup ) {
    }
 }
 
-void setup_param_list_bcs( struct setup* setup ) {
+static void setup_param_list_bcs( struct setup* setup ) {
    const char* format = setup->format;
    bool optional = false;
    while ( format[ 0 ] ) {
@@ -516,7 +516,7 @@ void setup_param_list_bcs( struct setup* setup ) {
    setup->param_tail = NULL;
 }
 
-void setup_default_value( struct setup* setup, struct param* param,
+static void setup_default_value( struct setup* setup, struct param* param,
    int param_number ) {
    switch ( setup->func->type ) {
       struct func_ded* ded;
@@ -536,7 +536,7 @@ void setup_default_value( struct setup* setup, struct param* param,
    param->default_value = setup->task->dummy_expr;
 }
 
-void setup_empty_string_default_value( struct setup* setup,
+static void setup_empty_string_default_value( struct setup* setup,
    struct param* param ) {
    if ( ! setup->empty_string_expr ) {
       struct indexed_string* string = t_intern_string( setup->task, "", 0 );
@@ -554,7 +554,7 @@ void setup_empty_string_default_value( struct setup* setup,
    param->default_value = setup->empty_string_expr;
 }
 
-void append_param( struct setup* setup, struct param* param ) {
+static void append_param( struct setup* setup, struct param* param ) {
    if ( setup->param ) {
       setup->param_tail->next = param;
    }

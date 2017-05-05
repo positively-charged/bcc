@@ -38,13 +38,13 @@ void cache_save_archive( struct cache* cache, struct field_writer* writer ) {
    save_archive( &saver );
 }
 
-void save_archive( struct saver* saver ) {
+static void save_archive( struct saver* saver ) {
    WF( saver, F_ARCHIVE );
    save_table( saver );
    WF( saver, F_END );
 }
 
-void save_table( struct saver* saver ) {
+static void save_table( struct saver* saver ) {
    struct cache_entry* entry = saver->cache->entries.head;
    while ( entry ) {
       save_entry( saver, entry );
@@ -52,7 +52,7 @@ void save_table( struct saver* saver ) {
    }
 }
 
-void save_entry( struct saver* saver, struct cache_entry* entry ) {
+static void save_entry( struct saver* saver, struct cache_entry* entry ) {
    WF( saver, F_ENTRY );
    WS( saver, F_PATH, entry->path.value );
    WV( saver, F_COMPILETIME, &entry->compile_time );
@@ -61,7 +61,8 @@ void save_entry( struct saver* saver, struct cache_entry* entry ) {
    WF( saver, F_END );
 }
 
-void save_dependency_list( struct saver* saver, struct cache_entry* entry ) {
+static void save_dependency_list( struct saver* saver,
+   struct cache_entry* entry ) {
    struct cache_dependency* dep = entry->dependency;
    while ( dep ) {
       WF( saver, F_DEPENDENCY );
@@ -102,19 +103,19 @@ void cache_restore_archive( struct cache* cache,
    restore_archive( &restorer );
 }
 
-void restore_archive( struct restorer* restorer ) {
+static void restore_archive( struct restorer* restorer ) {
    RF( restorer, F_ARCHIVE );
    restore_table( restorer );
    RF( restorer, F_END );
 }
 
-void restore_table( struct restorer* restorer ) {
+static void restore_table( struct restorer* restorer ) {
    while ( f_peek( restorer->r ) == F_ENTRY ) {
       restore_entry( restorer );
    }
 }
 
-void restore_entry( struct restorer* restorer ) {
+static void restore_entry( struct restorer* restorer ) {
    RF( restorer, F_ENTRY );
    struct cache_entry* entry = cache_alloc_entry();
    str_append( &entry->path, RS( restorer, F_PATH ) );
@@ -125,14 +126,14 @@ void restore_entry( struct restorer* restorer ) {
    cache_append_entry( &restorer->cache->entries, entry );
 }
 
-void restore_dependency_list( struct restorer* restorer,
+static void restore_dependency_list( struct restorer* restorer,
    struct cache_entry* entry ) {
    while ( f_peek( restorer->r ) == F_DEPENDENCY ) {
       restore_dependency( restorer, entry );
    }
 }
 
-void restore_dependency( struct restorer* restorer,
+static void restore_dependency( struct restorer* restorer,
    struct cache_entry* entry ) {
    RF( restorer, F_DEPENDENCY );
    struct cache_dependency* dep = cache_alloc_dependency( restorer->cache,
