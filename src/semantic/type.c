@@ -706,3 +706,12 @@ void s_reveal( struct type_info* type ) {
       break;
    }
 }
+
+bool s_is_str( struct type_info* type ) {
+   return ( s_describe_type( type ) == TYPEDESC_PRIMITIVE &&
+      type->spec == SPEC_STR );
+}
+
+bool s_is_struct_ref( struct type_info* type ) {
+   return ( s_describe_type( type ) == TYPEDESC_STRUCTREF );
+}

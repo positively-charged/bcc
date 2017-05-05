@@ -134,6 +134,7 @@ static void test_subscript_str( struct semantic* semantic,
    struct subscript* subscript );
 static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct access* access );
+static bool is_ns( struct result* result );
 static void test_access_struct( struct semantic* semantic,
    struct expr_test* test, struct access* access, struct result* lside,
    struct result* result );
@@ -1654,24 +1655,31 @@ static void test_access( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_suffix( semantic, test, &lside, access->lside );
-   if ( s_is_struct( &lside.type ) ) {
+   if ( s_is_struct_ref( &lside.type ) ) {
       test_access_struct( semantic, test, access, &lside, result );
    }
-   else if ( lside.object && lside.object->node.type == NODE_NAMESPACE ) {
+   else if ( is_ns( &lside ) ) {
       test_access_ns( semantic, test, access, &lside, result );
    }
    else if ( s_is_array_ref( &lside.type ) ) {
       test_access_array( semantic, test, access, &lside, result );
    }
-   else if ( s_is_value_type( &lside.type ) &&
-      lside.type.spec == SPEC_STR ) {
+   else if ( s_is_str( &lside.type ) ) {
       test_access_str( semantic, test, access, &lside, result );
    }
    else {
+      struct str string;
+      str_init( &string );
+      s_present_type( &lside.type, &string ); 
       s_diag( semantic, DIAG_POS_ERR, &access->pos,
-         "left operand does not support member access" );
+         "left operand (`%s`) does not support member access", string.value );
+      str_deinit( &string );
       s_bail( semantic );
    }
+}
+
+static bool is_ns( struct result* result ) {
+   return ( result->object && result->object->node.type == NODE_NAMESPACE );
 }
 
 static void test_access_struct( struct semantic* semantic,
