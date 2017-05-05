@@ -231,10 +231,11 @@ static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call );
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv );
-static bool perform_conversion( struct conversion* conv,
-   struct type_info* from );
+static bool perform_conversion( struct semantic* semantic,
+   struct conversion* conv, struct expr_test* operand,
+   struct result* result );
 static void unsupported_conversion( struct semantic* semantic,
-   struct type_info* from, int to_spec, struct pos* pos );
+   struct conversion* conv, struct expr_test* operand );
 static void test_compound_literal( struct semantic* semantic,
    struct expr_test* test, struct result* result,
    struct compound_literal* literal );
@@ -2939,67 +2940,82 @@ static void test_memcpy( struct semantic* semantic, struct expr_test* test,
 
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv ) {
-   struct expr_test nested_test;
-   s_init_expr_test( &nested_test, true, false );
-   s_test_expr( semantic, &nested_test, conv->expr );
-   if ( ! perform_conversion( conv, &nested_test.type ) ) {
-      unsupported_conversion( semantic, &nested_test.type, conv->spec,
-         &conv->expr->pos );
+   struct expr_test operand;
+   s_init_expr_test( &operand, true, false );
+   test_nested_expr( semantic, test, &operand, conv->expr );
+   if ( ! perform_conversion( semantic, conv, &operand, result ) ) {
+      unsupported_conversion( semantic, conv, &operand );
       s_bail( semantic );
    }
-   conv->spec_from = nested_test.type.spec;
-   conv->from_ref = ( nested_test.type.ref != NULL );
-   s_init_type_info_scalar( &result->type, s_spec( semantic, conv->spec ) );
-   result->complete = true;
-   result->usable = true;
 }
 
-static bool perform_conversion( struct conversion* conv,
-   struct type_info* from ) { 
-   if ( s_is_value_type( from ) ) {
+static bool perform_conversion( struct semantic* semantic,
+   struct conversion* conv, struct expr_test* operand,
+   struct result* result ) {
+   switch ( s_describe_type( &operand->type ) ) {
+   case TYPEDESC_PRIMITIVE:
       // Converting from a string to either an integer or a fixed-point number
-      // requires a lot of generated code. For now, use a library function to
-      // perform these conversions.
+      // requires a lot of generated code. For now, do not do these conversions
+      // as part of the compiler. Instead, use a library function to perform
+      // these conversions.
       switch ( conv->spec ) {
       case SPEC_INT:
       case SPEC_FIXED:
       case SPEC_BOOL:
       case SPEC_STR:
-         switch ( from->spec ) {
+         switch ( operand->type.spec ) {
          case SPEC_INT:
          case SPEC_FIXED:
          case SPEC_BOOL:
+            conv->spec_from = operand->type.spec;
+            s_init_type_info_scalar( &result->type,
+               s_spec( semantic, conv->spec ) );
+            result->complete = true;
+            result->usable = true;
             return true;
+         default:
+            break;
          }
+         break;
       default:
-         return false;
+         break;
       }
-   }
-   else {
+      return false;
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
       switch ( conv->spec ) {
       case SPEC_BOOL:
+         conv->from_ref = true;
+         s_init_type_info_scalar( &result->type,
+            s_spec( semantic, conv->spec ) );
+         result->complete = true;
+         result->usable = true;
          return true;
       default:
-         return false;
+         break;
       }
+      return false;
+   default:
+      return false;
    }
 }
 
 static void unsupported_conversion( struct semantic* semantic,
-   struct type_info* from, int to_spec, struct pos* pos ) {
-   struct str from_s;
-   str_init( &from_s );
-   s_present_type( from, &from_s );
-   struct type_info to;
-   s_init_type_info_scalar( &to, to_spec );
-   struct str to_s;
-   str_init( &to_s );
-   s_present_type( &to, &to_s );
-   s_diag( semantic, DIAG_POS_ERR, pos,
-      "conversion from `%s` to `%s` unsupported", from_s.value,
-      to_s.value );
-   str_deinit( &from_s );
-   str_deinit( &to_s );
+   struct conversion* conv, struct expr_test* operand ) {
+   struct str from;
+   str_init( &from );
+   s_present_type( &operand->type, &from );
+   struct type_info type;
+   s_init_type_info_scalar( &type, conv->spec );
+   struct str to;
+   str_init( &to );
+   s_present_type( &type, &to );
+   s_diag( semantic, DIAG_POS_ERR, &conv->expr->pos,
+      "conversion from `%s` to `%s` unsupported", from.value, to.value );
+   str_deinit( &from );
+   str_deinit( &to );
 }
 
 static void test_compound_literal( struct semantic* semantic,
