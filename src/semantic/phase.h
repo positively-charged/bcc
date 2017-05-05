@@ -248,5 +248,6 @@ bool s_is_ref( struct type_info* type );
 bool s_common_type( struct type_info* a, struct type_info* b,
    struct type_info* result );
 bool s_is_void( struct type_info* type );
+void s_reveal( struct type_info* type );
 
 #endif

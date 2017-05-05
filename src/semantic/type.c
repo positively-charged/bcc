@@ -322,25 +322,37 @@ bool s_common_type( struct type_info* a, struct type_info* b,
 }
 
 bool s_instance_of( struct type_info* type, struct type_info* instance ) {
-   // Reference.
-   if ( ! type->dim && type->ref ) {
-      if ( instance->ref && instance->ref->type == REF_NULL ) {
-         return type->ref->nullable;
+   bool valid = false;
+   switch ( s_describe_type( type ) ) {
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+      if ( s_is_null( instance ) ) {
+         valid = type->ref->nullable;
       }
       else if ( ! type->ref->nullable ) {
-         return s_same_type( type, instance ) && ! instance->ref->nullable;
+         valid = ( s_same_type( type, instance ) &&
+            ! instance->ref->nullable );
       }
       else {
-         return s_same_type( type, instance );
+         valid = s_same_type( type, instance );
       }
+      break;
+   case TYPEDESC_ENUM:
+      {
+         struct type_info revealed_type;
+         s_init_type_info_copy( &revealed_type, instance );
+         s_reveal( &revealed_type );
+         valid = s_same_type( type, &revealed_type );
+      }
+      break;
+   case TYPEDESC_PRIMITIVE:
+      valid = s_same_type( type, instance );
+      break;
+   default:
+      break;
    }
-   // Enumeration.
-   else if ( s_is_value_type( type ) && type->enumeration ) {
-      return ( instance->enumeration == type->enumeration );
-   }
-   else {
-      return s_same_type( type, instance );
-   }
+   return valid;
 }
 
 void s_present_type( struct type_info* type, struct str* string ) {
@@ -357,7 +369,7 @@ void s_present_type( struct type_info* type, struct str* string ) {
 
 static void present_extended_spec( struct structure* structure,
    struct enumeration* enumeration, int spec, struct str* string ) {
-   if ( enumeration ) {
+   if ( spec == SPEC_ENUM ) {
       if ( enumeration->name ) {
          struct str name;
          str_init( &name );
@@ -681,4 +693,16 @@ bool s_is_ref( struct type_info* type ) {
 bool s_is_void( struct type_info* type ) {
    return ( s_describe_type( type ) == TYPEDESC_PRIMITIVE &&
       type->spec == SPEC_VOID );
+}
+
+void s_reveal( struct type_info* type ) {
+   switch ( s_describe_type( type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      if ( type->enumeration ) {
+         type->spec = SPEC_ENUM;
+      }
+      break;
+   default:
+      break;
+   }
 }

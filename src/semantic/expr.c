@@ -865,6 +865,7 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
    struct result lside;
    init_result( &lside );
    test_operand( semantic, test, &lside, assign->lside );
+   s_reveal( &lside.type );
    if ( ! lside.modifiable ) {
       s_diag( semantic, DIAG_POS_ERR, &assign->pos,
          "cannot assign to left operand" );
@@ -1326,6 +1327,7 @@ static void test_inc( struct semantic* semantic, struct expr_test* test,
    struct result operand;
    init_result( &operand );
    test_operand( semantic, test, &operand, inc->operand );
+   s_reveal( &operand.type );
    if ( ! operand.modifiable ) {
       s_diag( semantic, DIAG_POS_ERR, &inc->pos,
          "operand cannot be %s", inc->dec ?
