@@ -82,8 +82,6 @@ static void check_dup_scripts( struct semantic* semantic );
 static void match_dup_script( struct semantic* semantic, struct script* script,
    struct script* prev_script, bool imported );
 static void assign_script_numbers( struct semantic* semantic );
-static void calc_map_var_size( struct semantic* semantic );
-static void calc_map_value_index( struct semantic* semantic );
 static void bind_private_name( struct name* name, struct object* object );
 static void bind_func_name( struct semantic* semantic, struct name* name,
    struct object* object );
@@ -196,8 +194,6 @@ static void test_acs( struct semantic* semantic ) {
    test_module_acs( semantic, semantic->main_lib );
    check_dup_scripts( semantic );
    assign_script_numbers( semantic );
-   calc_map_var_size( semantic );
-   calc_map_value_index( semantic );
 }
 
 static void test_module_acs( struct semantic* semantic, struct library* lib ) {
@@ -278,8 +274,6 @@ static void test_bcs( struct semantic* semantic ) {
    test_objects_bodies( semantic );
    check_dup_scripts( semantic );
    assign_script_numbers( semantic );
-   calc_map_var_size( semantic );
-   calc_map_value_index( semantic );
    // TODO: Refactor this.
    if ( ! semantic->main_lib->importable ) {
       struct list_iter i;
@@ -1237,46 +1231,6 @@ static void assign_script_numbers( struct semantic* semantic ) {
       }
       else {
          script->assigned_number = script->number->value;
-      }
-      list_next( &i );
-   }
-}
-
-static void calc_map_var_size( struct semantic* semantic ) {
-   // Imported variables.
-   struct list_iter i;
-   list_iterate( &semantic->main_lib->dynamic, &i );
-   while ( ! list_end( &i ) ) {
-      struct library* lib = list_data( &i );
-      struct list_iter k;
-      list_iterate( &lib->vars, &k );
-      while ( ! list_end( &k ) ) {
-         s_calc_var_size( list_data( &k ) );
-         list_next( &k );
-      }
-      list_next( &i );
-   }
-   // External variables.
-   list_iterate( &semantic->main_lib->external_vars, &i );
-   while ( ! list_end( &i ) ) {
-      s_calc_var_size( list_data( &i ) );
-      list_next( &i );
-   }
-   // Variables.
-   list_iterate( &semantic->main_lib->vars, &i );
-   while ( ! list_end( &i ) ) {
-      s_calc_var_size( list_data( &i ) );
-      list_next( &i );
-   }
-}
-
-static void calc_map_value_index( struct semantic* semantic ) {
-   struct list_iter i;
-   list_iterate( &semantic->main_lib->vars, &i );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( var->initial ) {
-         s_calc_var_value_index( var );
       }
       list_next( &i );
    }

@@ -1553,7 +1553,7 @@ static void test_subscript( struct semantic* semantic, struct expr_test* test,
    else {
       struct str string;
       str_init( &string );
-      s_present_type( &lside.type, &string ); 
+      s_present_type( &lside.type, &string );
       s_diag( semantic, DIAG_POS_ERR, &subscript->pos,
          "subscript operation not supported for given operand (`%s`)",
          string.value );
@@ -1591,9 +1591,6 @@ static void test_subscript_array( struct semantic* semantic,
             result->folded = true;
          }
          result->dim = lside->dim->next;
-      }
-      else {
-         
       }
       break;
    case SUBSCRIPTRESULT_STRUCT:

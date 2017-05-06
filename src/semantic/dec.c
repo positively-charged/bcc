@@ -1656,6 +1656,10 @@ static bool test_var_finish( struct semantic* semantic, struct var* var ) {
    if ( var->storage == STORAGE_WORLD || var->storage == STORAGE_GLOBAL ) {
       test_worldglobal_var( semantic, var );
    }
+   s_calc_var_size( var );
+   if ( var->initial ) {
+      s_calc_var_value_index( var );
+   }
    return true;
 }
 
@@ -1813,6 +1817,7 @@ static void test_auto_var( struct semantic* semantic, struct var* var ) {
       var->force_local_scope );
    var->object.resolved = true;
    describe_var( var );
+   s_calc_var_size( var );
 }
 
 static void assign_inferred_type( struct semantic* semantic, struct var* var,
@@ -1848,7 +1853,6 @@ static void assign_inferred_type( struct semantic* semantic, struct var* var,
 
 void s_test_local_var( struct semantic* semantic, struct var* var ) {
    s_test_var( semantic, var );
-   s_calc_var_size( var );
    if ( var->initial ) {
       s_calc_var_value_index( var );
    }
