@@ -250,7 +250,8 @@ static void visit_local_var( struct codegen* codegen, struct var* var ) {
             write_multi_initz_acs( codegen, var );
          }
          else {
-            if ( ! var->initial->multi && var->value->string_initz ) {
+            if ( ! var->initial->multi &&
+               var->value->type == VALUE_STRINGINITZ ) {
                write_string_initz( codegen, var, var->value, true );
             }
             else {
@@ -286,7 +287,7 @@ static void visit_world_var( struct codegen* codegen, struct var* var ) {
       if ( var->initial->multi ) {
          write_multi_initz( codegen, var );
       }
-      else if ( var->value->string_initz ) {
+      else if ( var->value->type == VALUE_STRINGINITZ ) {
          write_string_initz( codegen, var, var->value, true );
       }
       else {
@@ -308,7 +309,7 @@ static void write_multi_initz( struct codegen* codegen, struct var* var ) {
    struct value* value = var->value;
    while ( value ) {
       int index = 0;
-      if ( value->string_initz ) {
+      if ( value->type == VALUE_STRINGINITZ ) {
          struct indexed_string_usage* usage =
             ( struct indexed_string_usage* ) value->expr->root;
          index = value->index + usage->string->length + 1;
@@ -338,7 +339,7 @@ static void write_multi_initz( struct codegen* codegen, struct var* var ) {
    // -----------------------------------------------------------------------
    value = var->value;
    while ( value ) {
-      if ( value->string_initz ) {
+      if ( value->type == VALUE_STRINGINITZ ) {
          // Don't include the NUL character if the element to contain the
          // character has been nullified.
          struct indexed_string_usage* usage =

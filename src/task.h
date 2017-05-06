@@ -703,7 +703,6 @@ struct value {
       VALUE_FUNC
    } type;
    int index;
-   bool string_initz;
 };
 
 struct multi_value {

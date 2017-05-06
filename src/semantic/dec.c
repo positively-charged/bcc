@@ -1442,7 +1442,6 @@ static bool test_string_initz( struct semantic* semantic, struct dim* dim,
          dim->length = string->length + 1;
       }
    }
-   value->string_initz = true;
    value->type = VALUE_STRINGINITZ;
    return true;
 }
@@ -2529,7 +2528,7 @@ static void alloc_value_index( struct value_index_alloc* alloc,
       }
       else {
          alloc->value->index = alloc->index;
-         if ( alloc->value->string_initz ) {
+         if ( alloc->value->type == VALUE_STRINGINITZ ) {
             alloc->index += dim->next->length;
          }
          else {
@@ -2568,7 +2567,7 @@ static void alloc_value_index_struct( struct value_index_alloc* alloc,
       }
       else {
          alloc->value->index = alloc->index;
-         if ( alloc->value->string_initz ) {
+         if ( alloc->value->type == VALUE_STRINGINITZ ) {
             alloc->index += member->dim->length;
          }
          else {

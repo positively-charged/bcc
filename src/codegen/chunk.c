@@ -558,11 +558,12 @@ static void write_aini( struct codegen* codegen, struct var* var ) {
    while ( value ) {
       // Nullify uninitialized space.
       if ( count < value->index && ( ( value->expr->value &&
-         ! value->string_initz ) || value->string_initz ) ) {
+         value->type != VALUE_STRINGINITZ ) ||
+         value->type == VALUE_STRINGINITZ ) ) {
          c_add_int_zero( codegen, value->index - count );
          count = value->index;
       }
-      if ( value->string_initz ) {
+      if ( value->type == VALUE_STRINGINITZ ) {
          struct indexed_string_usage* usage =
             ( struct indexed_string_usage* ) value->expr->root;
          for ( int i = 0; i < usage->string->length; ++i ) {
@@ -589,7 +590,7 @@ static int count_nonzero_initz( struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
-      if ( value->string_initz ) {
+      if ( value->type == VALUE_STRINGINITZ ) {
          struct indexed_string_usage* usage =
             ( struct indexed_string_usage* ) value->expr->root;
          count = value->index + usage->string->length;
@@ -620,11 +621,12 @@ static void write_initz( struct codegen* codegen, struct initz_w* writing,
       int index = writing->base + value->index;
       // Nullify uninitialized space.
       if ( writing->done < index && ( ( value->expr->value &&
-         ! value->string_initz ) || value->string_initz ) ) {
+         value->type != VALUE_STRINGINITZ ) ||
+         value->type == VALUE_STRINGINITZ ) ) {
          c_add_int_zero( codegen, index - writing->done );
          writing->done = index;
       }
-      if ( value->string_initz ) {
+      if ( value->type == VALUE_STRINGINITZ ) {
          struct indexed_string_usage* usage =
             ( struct indexed_string_usage* ) value->expr->root;
          for ( int i = 0; i < usage->string->length; ++i ) {

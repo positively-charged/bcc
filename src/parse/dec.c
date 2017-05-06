@@ -1430,7 +1430,6 @@ static struct value* alloc_value( void ) {
    value->next = NULL;
    value->type = VALUE_OTHER;
    value->index = 0;
-   value->string_initz = false;
    return value;
 }
 
