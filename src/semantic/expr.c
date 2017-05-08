@@ -179,7 +179,8 @@ static void test_remaining_arg( struct semantic* semantic,
 static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    struct type_info* type, const char* from, struct type_info* required_type,
    const char* where, int number );
-static void present_func( struct call_test* test, struct str* msg );
+static void present_func( struct semantic* semantic, struct call_test* test,
+   struct str* msg );
 static void test_call_func( struct semantic* semantic, struct call_test* test,
    struct call* call );
 static void test_call_ded( struct semantic* semantic, struct call_test* test,
@@ -2098,8 +2099,8 @@ static void test_call_args( struct semantic* semantic,
          test->format_param ? "regular " : "" );
       struct str str;
       str_init( &str );
-      present_func( test, &str );
-      s_diag( semantic, DIAG_POS, &call->pos,
+      present_func( semantic, test, &str );
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &call->pos,
          "%s needs %s%d %sargument%s", str.value,
          test->min_param != test->max_param ? "at least " : "",
          test->min_param, test->format_param ? "regular " : "",
@@ -2112,8 +2113,8 @@ static void test_call_args( struct semantic* semantic,
          test->format_param ? "regular " : "" );
       struct str str;
       str_init( &str );
-      present_func( test, &str );
-      s_diag( semantic, DIAG_POS, &call->pos,
+      present_func( semantic, test, &str );
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &call->pos,
          "%s takes %s%d %sargument%s", str.value,
          test->min_param != test->max_param ? "at most " : "",
          test->max_param, test->format_param ? "regular " : "",
@@ -2193,9 +2194,11 @@ static void arg_mismatch( struct semantic* semantic, struct pos* pos,
    str_deinit( &type_s );
 }
 
-static void present_func( struct call_test* test, struct str* msg ) {
+static void present_func( struct semantic* semantic, struct call_test* test,
+   struct str* msg ) {
    if ( test->func ) {
-      if ( test->func->name ) {
+      if ( test->func->name &&
+         test->func->name != semantic->task->blank_name ) {
          struct str name;
          str_init( &name );
          t_copy_name( test->func->name, false, &name );
