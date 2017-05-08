@@ -301,8 +301,27 @@ static void push_operand_result( struct codegen* codegen,
    struct result* result, struct node* node ) {
    visit_operand( codegen, result, node );
    if ( result->dim ) {
-      c_pcd( codegen, PCD_PUSHNUMBER, result->diminfo_start );
-      c_update_dimtrack( codegen );
+      switch ( result->storage ) {
+      case STORAGE_MAP:
+         if ( result->diminfo_start > 0 ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, result->diminfo_start );
+            c_update_dimtrack( codegen );
+         }
+         else {
+            c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+            result->status = R_ARRAYINDEX;
+         }
+         break;
+      case STORAGE_LOCAL:
+      case STORAGE_WORLD:
+      case STORAGE_GLOBAL:
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+         result->status = R_ARRAYINDEX;
+         break;
+      default:
+         UNREACHABLE();
+         t_bail( codegen->task );
+      }
    }
 }
 
@@ -519,44 +538,41 @@ static void eq_ref( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
    struct result lside;
    init_result( &lside, true );
-   visit_operand( codegen, &lside, binary->lside );
+   push_operand_result( codegen, &lside, binary->lside );
    struct result rside;
    init_result( &rside, true );
-   visit_operand( codegen, &rside, binary->rside );
-   if ( lside.null || rside.null ) {
-      // NOTE: If this if-statement fails, then one of the null values will
-      // remain on the stack. Since failing the if-statement indicates a false
-      // result, and the null value for array and structure references is 0, we
-      // leave the null value pushed and use it as the result value.
-      STATIC_ASSERT( NULLVALUE == 0 );
-      if ( ( lside.null && rside.null ) ||
-         ( lside.null && rside.status == R_ARRAYINDEX ) ||
-         ( rside.null && lside.status == R_ARRAYINDEX ) ) {
-         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
-      }
+   push_operand_result( codegen, &rside, binary->rside );
+   STATIC_ASSERT( NULLVALUE == 0 );
+   if ( lside.null && rside.null ) {
+      c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
    }
-   // For two references to be the same, they must point to the same array and
-   // have the same offset. The offset is not required if the variables are
-   // directly available.
-   else if ( lside.index == rside.index && lside.status == rside.status ) {
-      if ( lside.status == R_ARRAYINDEX ) {
+   else if ( ( lside.null && ! rside.null ) ||
+      ( rside.null && ! lside.null ) ) {
+      // For array references (shared array offsets).
+      if ( ( lside.null && rside.diminfo_start > 0 ) ||
+         ( rside.null && lside.diminfo_start > 0 ) ) {
          c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
       }
-      // Variables compared directly, so the references are the same.
+      // For a direct array reference, the offset will be 0, which is the
+      // same as the null value. But an array is obviously not null. So use
+      // the PCD_ANDLOGICAL instruction to drop the two values off the stack
+      // and generate a 0 result (since both values are 0).
       else {
-         c_pcd( codegen, PCD_PUSHNUMBER,
-            ( binary->op == BOP_EQ ) ? 1 : 0 );
+         c_pcd( codegen, PCD_ANDLOGICAL );
       }
    }
    else {
-      if ( lside.status == R_ARRAYINDEX ) {
-         c_pcd( codegen, PCD_DROP );
+      // For two references to be the same, they must point to the same array
+      // and have the same offset.
+      if ( lside.index == rside.index ) {
+         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
       }
-      if ( rside.status == R_ARRAYINDEX ) {
+      else {
          c_pcd( codegen, PCD_DROP );
+         c_pcd( codegen, PCD_DROP );
+         c_pcd( codegen, PCD_PUSHNUMBER,
+            ( binary->op == BOP_EQ ) ? 0 : 1 );
       }
-      c_pcd( codegen, PCD_PUSHNUMBER,
-         ( binary->op == BOP_EQ ) ? 0 : 1 );
    }
    result->status = R_VALUE;
 }
@@ -643,14 +659,33 @@ static void push_logical_operand( struct codegen* codegen,
    struct result result;
    init_result( &result, true );
    result.skip_negate = true;
-   visit_operand( codegen, &result, node );
+   push_operand_result( codegen, &result, node );
    convert_to_boolean( codegen, &result, spec );
 }
 
 // NOTE: Doesn't actually convert a value to 0 or 1. Should rename.
 static void convert_to_boolean( struct codegen* codegen, struct result* result,
    int spec ) {
-   if ( ! result->ref ) {
+   if ( result->dim ) {
+      // For direct array references, the offset 0 will always be pushed.
+      // Negate the offset to produce a boolean true.
+      switch ( result->storage ) {
+      case STORAGE_MAP:
+         if ( result->diminfo_start == 0 ) {
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+         }
+         break;
+      case STORAGE_LOCAL:
+      case STORAGE_WORLD:
+      case STORAGE_GLOBAL:
+         c_pcd( codegen, PCD_NEGATELOGICAL );
+         break;
+      default:
+         UNREACHABLE();
+         t_bail( codegen->task );
+      }
+   }
+   else if ( ! result->ref ) {
       if ( spec == SPEC_STR ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
