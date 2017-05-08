@@ -30,6 +30,8 @@ static void write_string_initz( struct codegen* codegen, struct var* var,
 static void nullify_array( struct codegen* codegen, int storage, int index,
    int start, int size );
 static void write_multi_initz_acs( struct codegen* codegen, struct var* var );
+static void assign_nested_func_indexes( struct codegen* codegen,
+   struct func* nested_funcs );
 static void assign_nested_call_ids( struct codegen* codegen,
    struct func* nested_funcs );
 static void init_nestedfunc_writing( struct nestedfunc_writing* writing,
@@ -115,6 +117,7 @@ static void write_script( struct codegen* codegen, struct script* script ) {
    codegen->func = &record;
    script->offset = c_tell( codegen );
    if ( script->nested_funcs ) {
+      assign_nested_func_indexes( codegen, script->nested_funcs );
       assign_nested_call_ids( codegen, script->nested_funcs );
    }
    alloc_param_indexes( &record, script->params );
@@ -140,6 +143,7 @@ static void write_func( struct codegen* codegen, struct func* func ) {
    struct func_user* impl = func->impl;
    impl->obj_pos = c_tell( codegen );
    if ( impl->nested_funcs ) {
+      assign_nested_func_indexes( codegen, impl->nested_funcs );
       assign_nested_call_ids( codegen, impl->nested_funcs );
    }
    alloc_param_indexes( &record, func->params );
@@ -470,6 +474,19 @@ static void write_multi_initz_acs( struct codegen* codegen, struct var* var ) {
       c_pcd( codegen, PCD_PUSHNUMBER, value->expr->value );
       c_update_element( codegen, var->storage, var->index, AOP_NONE );
       value = value->next;
+   }
+}
+
+static void assign_nested_func_indexes( struct codegen* codegen,
+   struct func* nested_funcs ) {
+   struct func* func = nested_funcs;
+   // Start index at 1 because 0 is reserved for the null value.
+   int index = 1;
+   while ( func ) {
+      struct func_user* impl = func->impl;
+      impl->index = index;
+      ++index;
+      func = impl->next_nested;
    }
 }
 

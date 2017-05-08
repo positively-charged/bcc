@@ -591,12 +591,8 @@ static void write_binary_ref_func( struct codegen* codegen,
 
 static void eq_func( struct codegen* codegen, struct result* result,
    struct binary* binary ) {
-   struct result lside;
-   init_result( &lside, true );
-   visit_operand( codegen, &lside, binary->lside );
-   struct result rside;
-   init_result( &rside, true );
-   visit_operand( codegen, &rside, binary->rside );
+   push_operand( codegen, binary->lside );
+   push_operand( codegen, binary->rside );
    c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
    result->status = R_VALUE;
 }
@@ -2306,7 +2302,9 @@ static void visit_func( struct codegen* codegen, struct result* result,
    struct func* func ) {
    if ( func->type == FUNC_USER ) {
       struct func_user* impl = func->impl;
-      c_pcd( codegen, PCD_PUSHFUNCTION, impl->index );
+      c_pcd( codegen, ( impl->local ) ?
+         PCD_PUSHNUMBER : PCD_PUSHFUNCTION,
+         impl->index );
       result->status = R_VALUE;
    }
    else if ( func->type == FUNC_ASPEC ) {
