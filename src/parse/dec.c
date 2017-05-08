@@ -1710,32 +1710,46 @@ bool p_is_paren_type( struct parse* parse ) {
       case TK_BOOL:
       case TK_STR:
          {
-            // Make sure we are not dealing with a conversion call.
             struct parsertk_iter iter;
             p_init_parsertk_iter( parse, &iter );
             p_next_tk( parse, &iter );
             p_next_tk( parse, &iter );
-            if ( iter.token->type == TK_PAREN_L ) {
+            switch ( iter.token->type ) {
+            case TK_PAREN_R:
+            case TK_BRACKET_L:
+               return true;
+            case TK_PAREN_L:
                p_next_tk( parse, &iter );
+               // At this point, we are either inside the parameter list of a
+               // function literal or inside a conversion call.  
                switch ( iter.token->type ) {
                case TK_RAW:
-               case TK_INT:
-               case TK_FIXED:
-               case TK_BOOL:
-               case TK_STR:
                case TK_ENUM:
                case TK_STRUCT:
                case TK_TYPENAME:
                case TK_VOID:
                case TK_PAREN_R:
                   return true;
+               case TK_INT:
+               case TK_FIXED:
+               case TK_BOOL:
+               case TK_STR:
+                  p_next_tk( parse, &iter );
+                  // At this point in a parameter, a left parenthesis cannot
+                  // appear. If it does, it signifies a nested conversion call.
+                  return ( iter.token->type != TK_PAREN_L );
+               case TK_ID:
+               case TK_UPMOST:
+               case TK_NAMESPACE:
+                  return p_peek_type_path_from_iter( parse, &iter );
                default:
                   break;
                }
+               break;
+            default:
+               break;
             }
-            else {
-               return true;
-            }
+            break;
          }
          break;
       case TK_ID:
