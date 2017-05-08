@@ -2962,19 +2962,34 @@ static bool perform_conversion( struct semantic* semantic,
    struct result* result ) {
    switch ( s_describe_type( &operand->type ) ) {
    case TYPEDESC_PRIMITIVE:
+      switch ( conv->spec ) {
       // Converting from a string to either an integer or a fixed-point number
       // requires a lot of generated code. For now, do not do these conversions
       // as part of the compiler. Instead, use a library function to perform
       // these conversions.
-      switch ( conv->spec ) {
       case SPEC_INT:
       case SPEC_FIXED:
-      case SPEC_BOOL:
-      case SPEC_STR:
          switch ( operand->type.spec ) {
          case SPEC_INT:
          case SPEC_FIXED:
          case SPEC_BOOL:
+            conv->spec_from = operand->type.spec;
+            s_init_type_info_scalar( &result->type,
+               s_spec( semantic, conv->spec ) );
+            result->complete = true;
+            result->usable = true;
+            return true;
+         default:
+            break;
+         }
+         break;
+      case SPEC_STR:
+      case SPEC_BOOL:
+         switch ( operand->type.spec ) {
+         case SPEC_INT:
+         case SPEC_FIXED:
+         case SPEC_BOOL:
+         case SPEC_STR:
             conv->spec_from = operand->type.spec;
             s_init_type_info_scalar( &result->type,
                s_spec( semantic, conv->spec ) );
