@@ -392,7 +392,7 @@ static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    }
    // Append message.
    const char* format = va_arg( *args, const char* );
-   str_append_format( &msg->text, format, args );
+   str_append_format_va( &msg->text, format, args );
 }
 
 static void print_diag( struct task* task, struct diag_msg* msg ) {

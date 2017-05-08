@@ -235,7 +235,15 @@ void str_append_number( struct str* str, int number ) {
    str_append( str, buffer );
 }
 
-void str_append_format( struct str* str, const char* format, va_list* args ) {
+void str_append_format( struct str* str, const char* format, ... ) {
+   va_list args;
+   va_start( args, format );
+   str_append_format_va( str, format, &args );
+   va_end( args );
+}
+
+void str_append_format_va( struct str* str, const char* format,
+   va_list* args ) {
    va_list args_copy;
    va_copy( args_copy, *args );
    int length = vsnprintf( NULL, 0, format, *args );

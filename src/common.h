@@ -59,7 +59,9 @@ void str_grow( struct str*, int length );
 void str_append( struct str*, const char* cstr );
 void str_append_sub( struct str*, const char* cstr, int length );
 void str_append_number( struct str*, int number );
-void str_append_format( struct str* str, const char* format, va_list* args );
+void str_append_format( struct str* str, const char* format, ... );
+void str_append_format_va( struct str* str, const char* format,
+   va_list* args );
 void str_clear( struct str* );
 
 // Singly linked list
