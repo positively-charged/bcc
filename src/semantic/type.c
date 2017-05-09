@@ -16,6 +16,7 @@ static void present_spec( int spec, struct str* string );
 static void present_ref( struct ref* ref, struct str* string );
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
+static struct ref* dup_ref( struct ref* ref );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
@@ -586,17 +587,20 @@ enum subscript_result s_subscript_array_ref( struct semantic* semantic,
 
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot ) {
-   snapshot->ref = type->ref;
-   if ( snapshot->ref && snapshot->ref->implicit ) {
-      snapshot->ref = s_dup_ref( snapshot->ref );
+   if ( type->ref && type->ref->implicit ) {
+      snapshot->ref = dup_ref( type->ref );
+   }
+   else {
+      snapshot->ref = type->ref;
    }
    snapshot->structure = type->structure;
    snapshot->enumeration = type->enumeration;
    snapshot->dim = type->dim;
    snapshot->spec = type->spec;
+   snapshot->storage = type->storage;
 }
 
-struct ref* s_dup_ref( struct ref* ref ) {
+struct ref* dup_ref( struct ref* ref ) {
    size_t size = 0;
    switch ( ref->type ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;
@@ -607,9 +611,10 @@ struct ref* s_dup_ref( struct ref* ref ) {
       UNREACHABLE()
       return NULL;
    }
-   void* block = mem_alloc( size );
-   memcpy( block, ref, size );
-   return block;
+   struct ref* dup = mem_alloc( size );
+   memcpy( dup, ref, size );
+   dup->implicit = false;
+   return dup;
 }
 
 bool s_is_onedim_int_array( struct type_info* type ) {

@@ -93,6 +93,7 @@ struct type_snapshot {
    struct enumeration* enumeration;
    struct dim* dim;
    int spec;
+   int storage;
 };
 
 struct type_iter {
@@ -237,7 +238,6 @@ bool s_is_enumerator( struct type_info* type );
 bool s_is_null( struct type_info* type );
 bool s_is_nullable( struct type_info* type );
 bool s_in_msgbuild_block( struct semantic* semantic );
-struct ref* s_dup_ref( struct ref* ref );
 bool s_is_array_ref( struct type_info* type );
 bool s_is_struct( struct type_info* type );
 bool s_is_onedim_int_array_ref( struct semantic* semantic,

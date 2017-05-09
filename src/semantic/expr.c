@@ -2331,7 +2331,9 @@ static void test_sure( struct semantic* semantic, struct expr_test* test,
       semantic->lib->uses_nullable_refs = true;
    }
    else {
-      sure->ref = s_dup_ref( operand.type.ref );
+      struct type_snapshot snapshot;
+      s_take_type_snapshot( &operand.type, &snapshot );
+      sure->ref = snapshot.ref;
       if ( sure->ref->nullable ) {
          sure->ref->nullable = false;
          semantic->lib->uses_nullable_refs = true;
@@ -2339,9 +2341,8 @@ static void test_sure( struct semantic* semantic, struct expr_test* test,
       else {
          sure->already_safe = true;
       }
-      s_init_type_info( &result->type, sure->ref, operand.type.structure,
-         operand.type.enumeration, NULL, operand.type.spec,
-         operand.type.storage );
+      s_init_type_info( &result->type, snapshot.ref, snapshot.structure,
+         snapshot.enumeration, NULL, snapshot.spec, snapshot.storage );
       result->data_origin = operand.data_origin;
       result->complete = true;
       result->usable = true;
