@@ -982,15 +982,17 @@ static void write_conditional( struct codegen* codegen, struct result* result,
    struct c_point* exit_point = c_create_point( codegen );
    c_append_node( codegen, &exit_point->node );
    exit_jump->point = exit_point;
+   struct result* operand = ( middle.null ) ? &right : &middle;
    result->ref = cond->ref;
-   result->structure = right.structure;
-   result->storage = right.storage;
-   result->index = right.index;
-   result->status = right.status;
+   result->structure = operand->structure;
+   result->storage = operand->storage;
+   result->index = operand->index;
+   result->status = operand->status;
 }
 
 static void write_middleless_conditional( struct codegen* codegen,
    struct result* result, struct conditional* cond ) {
+   // Condition and left operand.
    struct result left;
    init_result( &left, true );
    push_operand_result( codegen, &left, cond->left );
@@ -999,11 +1001,20 @@ static void write_middleless_conditional( struct codegen* codegen,
    struct c_jump* exit_jump = c_create_jump( codegen, PCD_IFGOTO );
    c_append_node( codegen, &exit_jump->node );
    c_pcd( codegen, PCD_DROP );
-   push_operand( codegen, cond->right );
+   // Right operand.
+   struct result right;
+   init_result( &right, true );
+   push_operand_result( codegen, &right, cond->right );
+   // Done.
    struct c_point* exit_point = c_create_point( codegen );
    c_append_node( codegen, &exit_point->node );
    exit_jump->point = exit_point;
-   result->status = R_VALUE;
+   struct result* operand = ( left.null ) ? &right : &left;
+   result->ref = cond->ref;
+   result->structure = operand->structure;
+   result->storage = operand->storage;
+   result->index = operand->index;
+   result->status = operand->status;
 }
 
 static void visit_prefix( struct codegen* codegen, struct result* result,
@@ -1250,7 +1261,8 @@ static void visit_subscript( struct codegen* codegen, struct result* result,
       subscript_str( codegen, subscript, result );
    }
    else {
-      UNREACHABLE()
+      UNREACHABLE();
+      t_bail( codegen->task );
    }
 }
 
