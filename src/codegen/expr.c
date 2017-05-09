@@ -368,9 +368,9 @@ static bool has_dim_info( struct result* result ) {
 
 static void push_initz( struct codegen* codegen, struct ref* ref,
    struct node* initz ) {
-   struct result rside;
-   init_result( &rside, true );
-   push_operand_result( codegen, &rside, initz );
+   struct result result;
+   init_result( &result, true );
+   push_operand_result( codegen, &result, initz );
 }
 
 static void visit_operand( struct codegen* codegen, struct result* result,
@@ -761,19 +761,24 @@ static void assign_array_reference( struct codegen* codegen,
          c_pcd( codegen, PCD_DUP );
       }
       c_pcd( codegen, PCD_DUP );
-      // Copy offset-to-first-element.
+      // Copy array offset.
       struct result rside;
       init_result( &rside, true );
       visit_operand( codegen, &rside, assign->rside );
       c_update_element( codegen, lside->storage, lside->index, AOP_NONE );
-      // Copy offset-to-dimension-information.
+      // Copy dimension information offset.
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
       c_pcd( codegen, PCD_ADD );
-      if ( rside.dim ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, rside.diminfo_start );
+      if ( rside.null ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       }
       else {
-         c_push_dimtrack( codegen );
+         if ( rside.dim ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, rside.diminfo_start );
+         }
+         else {
+            c_push_dimtrack( codegen );
+         }
       }
       c_update_element( codegen, lside->storage, lside->index, AOP_NONE );
       if ( result->push ) {
@@ -787,20 +792,27 @@ static void assign_array_reference( struct codegen* codegen,
       }
    }
    else {
+      // Push array offset.
       struct result rside;
       init_result( &rside, true );
       visit_operand( codegen, &rside, assign->rside );
       if ( result->push ) {
          c_pcd( codegen, PCD_DUP );
       }
-      c_update_indexed( codegen, lside->storage, lside->index, AOP_NONE );
-      if ( rside.dim ) {
-         c_pcd( codegen, PCD_PUSHNUMBER, rside.diminfo_start );
+      // Push dimension information offset.
+      if ( rside.null ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
       }
       else {
-         c_push_dimtrack( codegen );
+         if ( rside.dim ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, rside.diminfo_start );
+         }
+         else {
+            c_push_dimtrack( codegen );
+         }
       }
       c_update_indexed( codegen, lside->storage, lside->index + 1, AOP_NONE );
+      c_update_indexed( codegen, lside->storage, lside->index, AOP_NONE );
       if ( result->push ) {
          result->ref = rside.ref;
          result->structure = rside.structure;
@@ -947,6 +959,28 @@ static void assign_value( struct codegen* codegen, struct assign* assign,
          result->status = R_VALUE;
       }
    }
+}
+
+void c_init_local_var( struct codegen* codegen, struct var* var ) {
+   struct result rside;
+   init_result( &rside, true );
+   push_operand_result( codegen, &rside, var->value->expr->root );
+   // Copy dimension information offset.
+   if ( var->ref && var->ref->type == REF_ARRAY ) {
+      if ( rside.null ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      }
+      else {
+         if ( rside.dim ) {
+            c_pcd( codegen, PCD_PUSHNUMBER, rside.diminfo_start );
+         }
+         else {
+            c_push_dimtrack( codegen );
+         }
+      }
+      c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
+   }
+   c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
 }
 
 static void visit_conditional( struct codegen* codegen, struct result* result,

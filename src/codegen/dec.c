@@ -273,12 +273,7 @@ static void visit_local_var( struct codegen* codegen, struct var* var ) {
          }
       }
       if ( var->value ) {
-         c_push_initz_expr( codegen, var->ref, var->value->expr );
-         c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index );
-         if ( var->ref && var->ref->type == REF_ARRAY ) {
-            c_push_dimtrack( codegen );
-            c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, var->index + 1 );
-         }
+         c_init_local_var( codegen, var );
       }
       break;
    default:
