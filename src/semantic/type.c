@@ -646,6 +646,18 @@ bool s_is_null( struct type_info* type ) {
    return ( type->ref && type->ref->type == REF_NULL );
 }
 
+bool s_is_nullable( struct type_info* type ) {
+   switch ( s_describe_type( type ) ) {
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_NULLREF:
+      return type->ref->nullable;
+   default:
+      return false;
+   }
+}
+
 bool s_is_struct( struct type_info* type ) {
    return ( ! type->dim && (
       ( type->ref && type->ref->type == REF_STRUCTURE ) ||

@@ -46,6 +46,9 @@ static bool perform_bop_primitive( struct semantic* semantic,
    struct result* result );
 static bool perform_bop_ref( struct semantic* semantic, struct binary* binary,
    struct result* lside, struct result* rside, struct result* result );
+static bool perform_bop_ref_compare( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result );
 static void invalid_bop( struct semantic* semantic, struct binary* binary,
    struct result* operand );
 static void fold_bop( struct semantic* semantic, struct binary* binary,
@@ -542,20 +545,38 @@ static bool perform_bop_ref( struct semantic* semantic, struct binary* binary,
    switch ( binary->op ) {
    case BOP_EQ:
    case BOP_NEQ:
-      if ( s_describe_type( &lside->type ) == TYPEDESC_FUNCREF ||
-         s_describe_type( &rside->type ) == TYPEDESC_FUNCREF ) {
-         binary->operand_type = BINARYOPERAND_REFFUNC;
-      }
-      else {
-         binary->operand_type = BINARYOPERAND_REF;
-      }
-      s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
-      result->complete = true;
-      result->usable = true;
-      return true;
+      return perform_bop_ref_compare( semantic, binary, lside, rside, result );
    default:
       return false;
    }
+}
+
+static bool perform_bop_ref_compare( struct semantic* semantic,
+   struct binary* binary, struct result* lside, struct result* rside,
+   struct result* result ) {
+   if ( s_describe_type( &lside->type ) == TYPEDESC_FUNCREF ||
+      s_describe_type( &rside->type ) == TYPEDESC_FUNCREF ) {
+      binary->operand_type = BINARYOPERAND_REFFUNC;
+   }
+   else {
+      binary->operand_type = BINARYOPERAND_REF;
+   }
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_BOOL ) );
+   result->complete = true;
+   result->usable = true;
+   // I had a bug in my BCS code in which I compared an anonymous struct
+   // element of an array to null (this operation will always return false,
+   // since a struct element is always a valid reference), but what I really
+   // wanted to do is compare a reference member of that anonymous struct
+   // element to null. So when comparing to null, to avoid potential bugs, if
+   // the result will always be the same, notify the user about it.
+   if ( ( s_is_null( &lside->type ) && ! s_is_nullable( &rside->type ) ) ||
+      ( s_is_null( &rside->type ) && ! s_is_nullable( &lside->type ) ) ) {
+      s_diag( semantic, DIAG_NOTE | DIAG_POS, &binary->pos,
+         "this comparison will always be %s",
+         binary->op == BOP_EQ ? "false" : "true" );
+   }
+   return true;
 }
 
 static void invalid_bop( struct semantic* semantic, struct binary* binary,
