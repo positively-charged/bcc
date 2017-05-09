@@ -7,6 +7,13 @@ enum { FIXEDNUMBER_WHOLE = 1 << 16 };
 enum { NULLVALUE = 0 };
 enum { EXTENDEDASPEC_STARTID = 256 };
 
+enum result_description {
+   RESULTDESC_ARRAY,
+   RESULTDESC_REF,
+   RESULTDESC_STRUCT,
+   RESULTDESC_PRIMITIVE
+};
+
 struct result {
    struct ref* ref;
    struct structure* structure;
@@ -26,12 +33,16 @@ struct result {
    bool skip_negate;
    bool null;
    bool safe;
+   bool direct;
 };
 
 static void init_result( struct result* result, bool push );
+static enum result_description describe_result( struct result* result );
 static void push_operand( struct codegen* codegen, struct node* node );
 static void push_operand_result( struct codegen* codegen,
    struct result* result, struct node* node );
+static bool in_shared_array( struct codegen* codegen, struct result* result );
+static bool has_dim_info( struct result* result );
 static void push_initz( struct codegen* codegen, struct ref* ref,
    struct node* initz );
 static void visit_operand( struct codegen* codegen, struct result* result,
@@ -289,6 +300,22 @@ static void init_result( struct result* result, bool push ) {
    result->skip_negate = false;
    result->null = false;
    result->safe = false;
+   result->direct = false;
+}
+
+static enum result_description describe_result( struct result* result ) {
+   if ( result->dim ) {
+      return RESULTDESC_ARRAY;
+   }
+   else if ( result->ref ) {
+      return RESULTDESC_REF;
+   }
+   else if ( result->structure ) {
+      return RESULTDESC_STRUCT;
+   }
+   else {
+      return RESULTDESC_PRIMITIVE;
+   }
 }
 
 static void push_operand( struct codegen* codegen, struct node* node ) {
@@ -300,29 +327,43 @@ static void push_operand( struct codegen* codegen, struct node* node ) {
 static void push_operand_result( struct codegen* codegen,
    struct result* result, struct node* node ) {
    visit_operand( codegen, result, node );
-   if ( result->dim ) {
-      switch ( result->storage ) {
-      case STORAGE_MAP:
-         if ( result->diminfo_start > 0 ) {
+   switch ( describe_result( result ) ) {
+   case RESULTDESC_ARRAY:
+      if ( in_shared_array( codegen, result ) ) {
+         if ( has_dim_info( result ) ) {
             c_pcd( codegen, PCD_PUSHNUMBER, result->diminfo_start );
             c_update_dimtrack( codegen );
          }
-         else {
+      }
+      else {
+         if ( result->status == R_NONE ) {
             c_pcd( codegen, PCD_PUSHNUMBER, 0 );
             result->status = R_ARRAYINDEX;
          }
-         break;
-      case STORAGE_LOCAL:
-      case STORAGE_WORLD:
-      case STORAGE_GLOBAL:
+      }
+      break;
+   case RESULTDESC_STRUCT:
+      if ( result->status == R_NONE ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          result->status = R_ARRAYINDEX;
-         break;
-      default:
-         UNREACHABLE();
-         t_bail( codegen->task );
       }
+      break;
+   case RESULTDESC_REF:
+   case RESULTDESC_PRIMITIVE:
+      break;
+   default:
+      UNREACHABLE();
+      t_bail( codegen->task );
    }
+}
+
+static bool in_shared_array( struct codegen* codegen, struct result* result ) {
+   return ( codegen->shary.used && result->storage == STORAGE_MAP &&
+      result->index == codegen->shary.index );
+}
+
+static bool has_dim_info( struct result* result ) {
+   return ( result->diminfo_start > 0 );
 }
 
 static void push_initz( struct codegen* codegen, struct ref* ref,
@@ -548,17 +589,23 @@ static void eq_ref( struct codegen* codegen, struct result* result,
    }
    else if ( ( lside.null && ! rside.null ) ||
       ( rside.null && ! lside.null ) ) {
-      // For array references (shared array offsets).
-      if ( ( lside.null && rside.diminfo_start > 0 ) ||
-         ( rside.null && lside.diminfo_start > 0 ) ) {
-         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
-      }
-      // For a direct array reference, the offset will be 0, which is the
-      // same as the null value. But an array is obviously not null. So use
-      // the PCD_ANDLOGICAL instruction to drop the two values off the stack
-      // and generate a 0 result (since both values are 0).
-      else {
+      // A direct array or struct reference is always valid. Depending on the
+      // operation, force a true or false result.
+      if ( ( lside.null && rside.direct ) || ( rside.null && lside.direct ) ) {
+         // Assume the equal operation here. Since a valid reference is not
+         // equal to null, we want false as the result here. Since one of the
+         // operands is null, which has a 0 value, executing PCD_ANDLOGICAL
+         // will give us a 0, regardless of the offset.
          c_pcd( codegen, PCD_ANDLOGICAL );
+         // Negate the result of the equal operation to get the result for the
+         // not-equal operation. (`a != b` is the same as `! ( a == b )`.)
+         if ( binary->op == BOP_NEQ ) {
+            c_pcd( codegen, PCD_NEGATELOGICAL );
+         }
+      }
+      // For array references (shared array offsets).
+      else {
+         c_pcd( codegen, ( binary->op == BOP_EQ ) ? PCD_EQ : PCD_NE );
       }
    }
    else {
@@ -662,30 +709,29 @@ static void push_logical_operand( struct codegen* codegen,
 // NOTE: Doesn't actually convert a value to 0 or 1. Should rename.
 static void convert_to_boolean( struct codegen* codegen, struct result* result,
    int spec ) {
-   if ( result->dim ) {
-      // For direct array references, the offset 0 will always be pushed.
-      // Negate the offset to produce a boolean true.
-      switch ( result->storage ) {
-      case STORAGE_MAP:
-         if ( result->diminfo_start == 0 ) {
-            c_pcd( codegen, PCD_NEGATELOGICAL );
-         }
-         break;
-      case STORAGE_LOCAL:
-      case STORAGE_WORLD:
-      case STORAGE_GLOBAL:
-         c_pcd( codegen, PCD_NEGATELOGICAL );
-         break;
-      default:
-         UNREACHABLE();
-         t_bail( codegen->task );
+   switch ( describe_result( result ) ) {
+   case RESULTDESC_ARRAY:
+   case RESULTDESC_STRUCT:
+      // A direct array or struct reference is always valid. Push a 1 and use
+      // the PCD_ORLOGICAL instruction to force a true result, regardless of
+      // what the offset might be. For an indirect reference, the offset will
+      // always be non-zero, so no additional code is necessary.
+      if ( result->direct ) {
+         c_pcd( codegen, PCD_PUSHNUMBER, 1 );
+         c_pcd( codegen, PCD_ORLOGICAL );
       }
-   }
-   else if ( ! result->ref ) {
+      break;
+   case RESULTDESC_PRIMITIVE:
       if ( spec == SPEC_STR ) {
          c_pcd( codegen, PCD_PUSHNUMBER, 0 );
          c_pcd( codegen, PCD_CALLFUNC, 2, EXTFUNC_GETCHAR );
       }
+      break;
+   case RESULTDESC_REF:
+      break;
+   default:
+      UNREACHABLE();
+      t_bail( codegen->task );
    }
 }
 
@@ -1223,10 +1269,15 @@ static void subscript_array( struct codegen* codegen,
       result->ref = lside->ref;
       result->structure = lside->structure;
       result->dim = lside->dim->next;
-      result->diminfo_start = lside->diminfo_start + 1;
+      // For an array that is passed by reference, move to the dimension
+      // information of the sub-array.
+      if ( has_dim_info( lside ) ) {
+         result->diminfo_start = lside->diminfo_start + 1;
+      }
       result->storage = lside->storage;
       result->index = lside->index;
       result->status = R_ARRAYINDEX;
+      result->direct = lside->direct;
    }
    // Reference element.
    else if ( lside->ref ) {
@@ -1252,6 +1303,7 @@ static void subscript_array( struct codegen* codegen,
       result->storage = lside->storage;
       result->index = lside->index;
       result->status = R_ARRAYINDEX;
+      result->direct = lside->direct;
    }
    // Primitive element.
    else {
@@ -1433,6 +1485,7 @@ static void access_structure_member( struct codegen* codegen,
       result->storage = lside->storage;
       result->index = lside->index;
       result->status = R_ARRAYINDEX;
+      result->direct = lside->direct;
    }
    // Reference member.
    else if ( member->ref ) {
@@ -1458,6 +1511,7 @@ static void access_structure_member( struct codegen* codegen,
       result->storage = lside->storage;
       result->index = lside->index;
       result->status = R_ARRAYINDEX;
+      result->direct = lside->direct;
    }
    // Primitive member.
    else {
@@ -1972,6 +2026,7 @@ static void visit_sure( struct codegen* codegen, struct result* result,
    result->index = operand.index;
    result->status = operand.status;
    result->safe = true;
+   result->direct = operand.direct;
 }
 
 static void write_null_check( struct codegen* codegen ) {
@@ -2156,6 +2211,7 @@ static void visit_var( struct codegen* codegen, struct result* result,
          result->storage = var->storage;
          result->index = var->index;
       }
+      result->direct = true;
    }
    // Reference variable.
    else if ( var->ref ) {
@@ -2181,6 +2237,7 @@ static void visit_var( struct codegen* codegen, struct result* result,
          result->storage = var->storage;
          result->index = var->index;
       }
+      result->direct = true;
    }
    // Primitive variable.
    else {
