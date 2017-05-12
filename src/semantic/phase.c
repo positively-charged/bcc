@@ -1119,31 +1119,38 @@ static void test_objects_bodies_ns( struct semantic* semantic,
    semantic->ns_fragment = fragment;
    semantic->strong_type = fragment->strict;
    struct list_iter i;
-   list_iterate( &fragment->scripts, &i );
+   list_iterate( &fragment->runnables, &i );
    while ( ! list_end( &i ) ) {
-      s_test_script( semantic, list_data( &i ) );
-      list_next( &i );
-   }
-   // Test only the bodies of functions found in the main library. For an
-   // imported library, function bodies are stripped away during parsing, so
-   // there is nothing to test.
-   if ( semantic->lib == semantic->main_lib ) {
-      list_iterate( &fragment->funcs, &i );
-      while ( ! list_end( &i ) ) {
-         struct func* func = list_data( &i );
-         if ( func->type == FUNC_USER ) {
-            s_test_func_body( semantic, func );
+      struct node* node = list_data( &i );
+      switch ( node->type ) {
+      case NODE_SCRIPT:
+         s_test_script( semantic,
+            ( struct script* ) node );
+         break;
+      case NODE_FUNC:
+         // Test only the bodies of functions found in the main library. For
+         // an imported library, function bodies are stripped away during
+         // parsing, so there is nothing to test.
+         if ( semantic->lib == semantic->main_lib ) {
+            struct func* func = ( struct func* ) node;
+            if ( func->type == FUNC_USER ) {
+               s_test_func_body( semantic, func );
+            }
          }
-         list_next( &i );
+         break;
+      case NODE_NAMESPACEFRAGMENT:
+         test_objects_bodies_ns( semantic,
+            ( struct ns_fragment* ) node );
+         break;
+      default:
+         UNREACHABLE();
+         s_bail( semantic );
       }
-   }
-   list_iterate( &fragment->fragments, &i );
-   while ( ! list_end( &i ) ) {
-      test_objects_bodies_ns( semantic, list_data( &i ) );
       list_next( &i );
    }
    semantic->ns_fragment = parent_fragment;
    semantic->ns = parent_fragment->ns;
+   semantic->strong_type = parent_fragment->strict;
 }
 
 static void check_dup_scripts( struct semantic* semantic ) {

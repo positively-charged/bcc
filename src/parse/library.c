@@ -153,6 +153,7 @@ static void read_namespace( struct parse* parse ) {
    fragment->strict = qualifiers.strict;
    t_append_unresolved_namespace_object( parent_fragment, &fragment->object );
    list_append( &parent_fragment->objects, fragment );
+   list_append( &parent_fragment->runnables, fragment );
    list_append( &parent_fragment->fragments, fragment );
    parse->ns_fragment = fragment;
    p_read_tk( parse );

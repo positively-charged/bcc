@@ -1114,6 +1114,8 @@ struct ns_fragment {
    struct list objects;
    struct list funcs;
    struct list scripts;
+   // Contains functions, scripts, and namespace fragments.
+   struct list runnables;
    struct list fragments;
    struct list usings;
    // Enables: strong typing; block scoping of local objects.

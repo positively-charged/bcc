@@ -1848,6 +1848,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
          p_add_unresolved( parse, &func->object );
          list_append( &parse->lib->funcs, func );
          list_append( &parse->ns_fragment->funcs, func );
+         list_append( &parse->ns_fragment->runnables, func );
       }
       else {
          if ( ! ( ( struct func_user* ) func->impl )->local ) {
@@ -1924,6 +1925,7 @@ static void read_func( struct parse* parse, struct dec* dec ) {
          else {
             list_append( &parse->lib->funcs, func );
             list_append( &parse->ns_fragment->funcs, func );
+            list_append( &parse->ns_fragment->runnables, func );
          }
       }
    }
@@ -2530,6 +2532,7 @@ static struct script* add_script( struct parse* parse,
    list_append( &parse->lib->scripts, script );
    list_append( &parse->lib->objects, script );
    list_append( &parse->ns_fragment->scripts, script );
+   list_append( &parse->ns_fragment->runnables, script );
    return script;
 }
 

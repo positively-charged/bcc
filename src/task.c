@@ -165,6 +165,7 @@ struct ns_fragment* t_alloc_ns_fragment( void ) {
    list_init( &fragment->objects );
    list_init( &fragment->funcs );
    list_init( &fragment->scripts );
+   list_init( &fragment->runnables );
    list_init( &fragment->fragments );
    list_init( &fragment->usings );
    fragment->strict = false;
