@@ -585,13 +585,21 @@ enum subscript_result s_subscript_array_ref( struct semantic* semantic,
    }
 }
 
+// NOTE: This function only makes sure that the data referenced by @type will
+// be valid throughout compilation; it does not create new instances of the
+// data unless it is necessary. Be careful when editing the data returned by
+// this function because multiple objects might be sharing the same instance.
+// Maybe avoid this whole situation and just allocate new instances every time? 
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot ) {
-   if ( type->ref && type->ref->implicit ) {
-      snapshot->ref = dup_ref( type->ref );
-   }
-   else {
-      snapshot->ref = type->ref;
+   s_take_fine_type_snapshot( type, snapshot, false );
+}
+
+void s_take_fine_type_snapshot( struct type_info* type,
+   struct type_snapshot* snapshot, bool force_dup_ref ) {
+   snapshot->ref = type->ref;
+   if ( snapshot->ref && ( snapshot->ref->implicit || force_dup_ref ) ) {
+      snapshot->ref = dup_ref( snapshot->ref );
    }
    snapshot->structure = type->structure;
    snapshot->enumeration = type->enumeration;

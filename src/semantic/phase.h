@@ -220,6 +220,8 @@ bool s_is_scalar( struct type_info* type );
 bool s_is_str_value_type( struct type_info* type );
 void s_take_type_snapshot( struct type_info* type,
    struct type_snapshot* snapshot );
+void s_take_fine_type_snapshot( struct type_info* type,
+   struct type_snapshot* snapshot, bool force_dup_ref );
 bool s_is_onedim_int_array( struct type_info* type );
 bool s_is_int_value( struct type_info* type );
 bool s_is_str_value( struct type_info* type );

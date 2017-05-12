@@ -2332,7 +2332,8 @@ static void test_sure( struct semantic* semantic, struct expr_test* test,
    }
    else {
       struct type_snapshot snapshot;
-      s_take_type_snapshot( &operand.type, &snapshot );
+      s_take_fine_type_snapshot( &operand.type, &snapshot,
+         operand.type.ref->nullable );
       sure->ref = snapshot.ref;
       if ( sure->ref->nullable ) {
          sure->ref->nullable = false;
