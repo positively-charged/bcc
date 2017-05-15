@@ -1785,7 +1785,6 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    dec.pos = parse->tk_pos;
    dec.name = parse->task->blank_name;
    dec.name_pos = parse->tk_pos;
-   dec.private_visibility = true;
    dec.anon = true;
    if ( parse->local_vars ) {
       dec.area = DEC_LOCAL;
@@ -1798,6 +1797,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    if ( parse->tk == TK_STATIC ) {
       dec.static_qual = true;
       dec.static_qual_pos = parse->tk_pos;
+      dec.private_visibility = true;
       p_read_tk( parse );
    }
    // Function keyword.
