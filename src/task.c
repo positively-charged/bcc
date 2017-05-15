@@ -138,6 +138,8 @@ void t_init( struct task* task, struct options* options, jmp_buf* bail,
    str_append( &task->acs_lib_dir, compiler_dir->value );
    str_append( &task->acs_lib_dir, OS_PATHSEP );
    str_append( &task->acs_lib_dir, "lib/acs" );
+
+   list_init( &task->structures );
 }
 
 struct ns* t_alloc_ns( struct name* name ) {

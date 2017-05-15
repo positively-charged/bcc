@@ -375,18 +375,15 @@ static void setup_diminfo( struct codegen* codegen ) {
       list_next( &i );
    }
    // Structures.
-   list_iterate( &codegen->task->library_main->objects, &i );
+   list_iterate( &codegen->task->structures, &i );
    while ( ! list_end( &i ) ) {
-      struct object* object = list_data( &i );
-      if ( object->node.type == NODE_STRUCTURE ) {
-         struct structure* structure = ( struct structure* ) object;
-         struct structure_member* member = structure->member;
-         while ( member ) {
-            if ( member->dim ) {
-               member->diminfo_start = append_dim( codegen, member->dim );
-            }
-            member = member->next;
+      struct structure* structure = list_data( &i );
+      struct structure_member* member = structure->member;
+      while ( member ) {
+         if ( member->dim ) {
+            member->diminfo_start = append_dim( codegen, member->dim );
          }
+         member = member->next;
       }
       list_next( &i );
    }

@@ -551,6 +551,7 @@ static void read_struct_def( struct parse* parse, struct dec* dec ) {
       list_append( &parse->ns_fragment->objects, structure );
       list_append( &parse->lib->objects, structure );
    }
+   list_append( &parse->task->structures, structure );
    if ( dec->implicit_type_alias.specified ) {
       struct dec implicit_dec;
       p_init_dec( &implicit_dec );

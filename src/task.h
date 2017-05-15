@@ -1250,6 +1250,9 @@ struct task {
    struct str acs_lib_dir;
    // The file printed in the last diagnostic.
    struct include_history_entry* last_diag_file;
+   // All structs found during compilation, including local structs and structs
+   // in imported libraries.
+   struct list structures;
 };
 
 #define DIAG_NONE 0
