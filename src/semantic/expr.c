@@ -8,6 +8,7 @@ struct result {
    struct type_info type;
    struct func* func;
    struct var* data_origin;
+   struct structure_member* data_origin_member;
    struct object* object;
    struct dim* dim;
    int value;
@@ -263,6 +264,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    s_init_type_info_scalar( &test->type, SPEC_VOID );
    test->name_offset = NULL;
    test->var = NULL;
+   test->structure_member = NULL;
    test->func = NULL;
    test->result_required = result_required;
    test->has_str = false;
@@ -335,6 +337,7 @@ static void test_root_with_result( struct semantic* semantic,
       s_bail( semantic );
    }
    test->var = result->data_origin;
+   test->structure_member = result->data_origin_member;
    test->func = result->func;
    expr->spec = result->type.spec;
    expr->folded = result->folded;
@@ -347,6 +350,7 @@ static void init_result( struct result* result ) {
    s_init_type_info_scalar( &result->type, SPEC_VOID );
    result->func = NULL;
    result->data_origin = NULL;
+   result->data_origin_member = NULL;
    result->object = NULL;
    result->dim = NULL;
    result->value = 0;
@@ -932,12 +936,15 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
       s_bail( semantic );
    }
    if ( s_is_ref_type( &lside.type ) && rside.data_origin ) {
-      rside.data_origin->addr_taken = true;
       if ( ! rside.data_origin->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &assign->pos,
             "non-private right operand (references only work with private map "
             "variables)" );
          s_bail( semantic );
+      }
+      rside.data_origin->addr_taken = true;
+      if ( rside.data_origin_member ) {
+         rside.data_origin_member->addr_taken = true;
       }
    }
    // Record the fact that the object was modified.
@@ -1124,7 +1131,6 @@ static void test_conditional( struct semantic* semantic,
    cond->left_spec = left.type.spec;
    if ( s_is_ref_type( &middle.type ) ) {
       if ( middle.data_origin ) {
-         middle.data_origin->addr_taken = true;
          if ( ! middle.data_origin->hidden ) {
             s_diag( semantic, DIAG_POS_ERR, &cond->pos,
                "non-private %s (references only work with private "
@@ -1132,14 +1138,21 @@ static void test_conditional( struct semantic* semantic,
                "left operand" );
             s_bail( semantic );
          }
+         middle.data_origin->addr_taken = true;
+         if ( middle.data_origin_member ) {
+            middle.data_origin_member->addr_taken = true;
+         }
       }
       if ( right.data_origin ) {
-         right.data_origin->addr_taken = true;
          if ( ! right.data_origin->hidden ) {
             s_diag( semantic, DIAG_POS_ERR, &cond->pos,
                "non-private right operand (references only work with private "
                "map variables)" );
             s_bail( semantic );
+         }
+         right.data_origin->addr_taken = true;
+         if ( right.data_origin_member ) {
+            right.data_origin_member->addr_taken = true;
          }
       }
    }
@@ -2184,12 +2197,15 @@ static void test_remaining_arg( struct semantic* semantic,
    }
    ++test->num_args;
    if ( s_is_ref_type( &arg.type ) && arg.var ) {
-      arg.var->addr_taken = true;
       if ( ! arg.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &expr->pos,
             "non-private argument (references only work with private "
             "map variables)" );
          s_bail( semantic );
+      }
+      arg.var->addr_taken = true;
+      if ( arg.structure_member ) {
+         arg.structure_member->addr_taken = true;
       }
    }
    if ( test->call->constant && ! expr->folded ) {
@@ -2772,6 +2788,7 @@ static void select_structure_member( struct semantic* semantic,
       s_decay( semantic, &result->type );
       result->dim = member->dim;
       result->data_origin = lside->data_origin;
+      result->data_origin_member = member;
    }
    // Reference member.
    else if ( member->ref ) {
@@ -2785,6 +2802,7 @@ static void select_structure_member( struct semantic* semantic,
          member->spec, storage );
       s_decay( semantic, &result->type );
       result->data_origin = lside->data_origin;
+      result->data_origin_member = member;
    }
    // Primitive member.
    else {

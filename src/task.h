@@ -234,6 +234,7 @@ struct structure_member {
    int size;
    int diminfo_start;
    bool head_instance;
+   bool addr_taken;
 };
 
 struct ref {

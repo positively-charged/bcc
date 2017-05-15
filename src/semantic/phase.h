@@ -74,6 +74,7 @@ struct expr_test {
    struct buildmsg* buildmsg;
    struct name* name_offset;
    struct var* var;
+   struct structure_member* structure_member;
    struct func* func;
    union {
       struct ref ref;

@@ -380,7 +380,7 @@ static void setup_diminfo( struct codegen* codegen ) {
       struct structure* structure = list_data( &i );
       struct structure_member* member = structure->member;
       while ( member ) {
-         if ( member->dim ) {
+         if ( member->dim && member->addr_taken ) {
             member->diminfo_start = append_dim( codegen, member->dim );
          }
          member = member->next;

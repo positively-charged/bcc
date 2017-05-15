@@ -900,6 +900,7 @@ struct structure_member* t_alloc_structure_member( void ) {
    member->size = 0;
    member->diminfo_start = 0;
    member->head_instance = false;
+   member->addr_taken = false;
    return member;
 }
 

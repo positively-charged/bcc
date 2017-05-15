@@ -1391,12 +1391,15 @@ static bool test_scalar_initz( struct semantic* semantic,
       value->type = VALUE_FUNC;
    }
    if ( s_is_ref_type( &test->initz_type ) && expr.var ) {
-      expr.var->addr_taken = true;
       if ( ! expr.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
             "non-private initializer (references only work with private map "
             "variables)" );
          s_bail( semantic );
+      }
+      expr.var->addr_taken = true;
+      if ( expr.structure_member ) {
+         expr.structure_member->addr_taken = true;
       }
    }
    return true;
@@ -2145,12 +2148,15 @@ static bool test_param_default_value( struct semantic* semantic,
       s_bail( semantic );
    }
    if ( s_is_ref_type( &expr.type ) && expr.var ) {
-      expr.var->addr_taken = true;
       if ( ! expr.var->hidden ) {
          s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
             "non-private default argument (references only work with private "
             "map variables)" );
          s_bail( semantic );
+      }
+      expr.var->addr_taken = true;
+      if ( expr.structure_member ) {
+         expr.structure_member->addr_taken = true;
       }
    }
    param->default_value_tested = true;
