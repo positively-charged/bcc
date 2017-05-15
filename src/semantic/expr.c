@@ -1708,8 +1708,8 @@ static void test_access_struct( struct semantic* semantic,
       get_structure_member( semantic, test, access, lside );
    access->rside = &member->object.node;
    select_structure_member( semantic, lside, result, member );
-   result->data_origin = lside->data_origin;
-   if ( lside->type.ref && lside->type.ref->nullable ) {
+   // Null check.
+   if ( lside->type.ref->nullable ) {
       semantic->lib->uses_nullable_refs = true;
    }
 }
@@ -2771,6 +2771,7 @@ static void select_structure_member( struct semantic* semantic,
          member->enumeration, member->dim, member->spec, storage );
       s_decay( semantic, &result->type );
       result->dim = member->dim;
+      result->data_origin = lside->data_origin;
    }
    // Reference member.
    else if ( member->ref ) {
@@ -2783,6 +2784,7 @@ static void select_structure_member( struct semantic* semantic,
       s_init_type_info( &result->type, NULL, member->structure, NULL, NULL,
          member->spec, storage );
       s_decay( semantic, &result->type );
+      result->data_origin = lside->data_origin;
    }
    // Primitive member.
    else {
