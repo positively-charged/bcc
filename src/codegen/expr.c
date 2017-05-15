@@ -1821,16 +1821,20 @@ static void visit_sample_call( struct codegen* codegen, struct result* result,
       ! operand.safe ) {
       write_null_check( codegen );
    }
-   struct list_iter i;
-   list_iterate( &call->args, &i );
-   // TODO: Use common code to push arguments for function and function
-   // reference.
-   struct param* param = call->ref_func->params;
-   while ( ! list_end( &i ) ) {
-      c_push_initz_expr( codegen, param->ref, list_data( &i ) );
-      c_pcd( codegen, PCD_SWAP );
-      param = param->next;
-      list_next( &i );
+   // Push arguments.
+   if ( list_size( &call->args ) > 0 ) {
+      int caller = c_alloc_script_var( codegen );
+      c_update_indexed( codegen, STORAGE_LOCAL, caller, AOP_NONE );
+      struct list_iter i;
+      list_iterate( &call->args, &i );
+      struct param* param = call->ref_func->params;
+      while ( ! list_end( &i ) ) {
+         push_arg( codegen, param, list_data( &i ) );
+         param = param->next;
+         list_next( &i );
+      }
+      push_indexed( codegen, STORAGE_LOCAL, caller );
+      c_dealloc_last_script_var( codegen );
    }
    c_pcd( codegen, PCD_CALLSTACK );
    // Reference-type result. 

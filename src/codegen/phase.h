@@ -132,8 +132,10 @@ void c_push_bool_expr( struct codegen* codegen, struct expr* cond );
 void c_push_bool_cond_var( struct codegen* codegen, struct var* var );
 void c_push_initz_expr( struct codegen* codegen, struct ref* ref,
    struct expr* expr );
-void c_update_indexed( struct codegen* codegen, int, int, int );
-void c_update_element( struct codegen* codegen, int, int, int );
+void c_update_indexed( struct codegen* codegen, int storage, int index,
+   int op );
+void c_update_element( struct codegen* codegen, int storage, int index,
+   int op );
 void c_add_block_visit( struct codegen* codegen );
 void c_pop_block_visit( struct codegen* codegen );
 void c_write_block( struct codegen* codegen, struct block* stmt );
