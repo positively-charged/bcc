@@ -286,8 +286,9 @@ int t_full_name_length( struct name* name ) {
 
 void t_init_object( struct object* object, int node_type ) {
    object->node.type = node_type;
-   object->resolved = false;
    object->depth = 0;
+   object->resolved = false;
+   t_init_pos_id( &object->pos, INTERNALFILE_COMPILER );
    object->next = NULL;
    object->next_scope = NULL;
 }

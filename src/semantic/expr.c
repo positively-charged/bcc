@@ -1973,7 +1973,8 @@ static void test_call_operand( struct semantic* semantic,
       operand->type.ref->type == REF_FUNCTION ) {
       struct ref_func* func = ( struct ref_func* ) operand->type.ref;
       test->params = func->params;
-      test->min_param = func->min_param;
+      // Ignore default arguments for function references.
+      test->min_param = func->max_param;
       test->max_param = func->max_param;
       if ( operand->type.ref->nullable ) {
          semantic->lib->uses_nullable_refs = true;
