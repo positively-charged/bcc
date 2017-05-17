@@ -694,14 +694,30 @@ struct initial {
 struct value {
    struct initial initial;
    struct expr* expr;
-   struct var* var;
-   struct func* func;
    struct value* next;
+   union {
+      struct {
+         struct indexed_string* string;
+      } string;
+      struct {
+         struct indexed_string* string;
+      } stringinitz;
+      struct {
+         struct func* func;
+      } funcref;
+      struct {
+         struct var* var;
+         int offset;
+         int diminfo;
+      } arrayref;
+   } more;
    enum {
-      VALUE_OTHER,
+      VALUE_EXPR,
       VALUE_STRING,
       VALUE_STRINGINITZ,
-      VALUE_FUNC
+      VALUE_FUNCREF,
+      VALUE_ARRAYREF,
+      VALUE_TOTAL,
    } type;
    int index;
 };

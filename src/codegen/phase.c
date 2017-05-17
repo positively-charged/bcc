@@ -11,6 +11,7 @@ static void publish( struct codegen* codegen );
 static void clarify_vars( struct codegen* codegen );
 static void alloc_dim_counter_var( struct codegen* codegen );
 static void clarify_funcs( struct codegen* codegen );
+static void assign_func_indexes( struct codegen* codegen );
 static void setup_shary( struct codegen* codegen );
 static void setup_diminfo( struct codegen* codegen );
 static int append_dim( struct codegen* codegen, struct dim* dim );
@@ -20,8 +21,7 @@ static void patch_initz( struct codegen* codegen );
 static void patch_initz_list( struct codegen* codegen, struct list* vars );
 static void patch_value( struct codegen* codegen, struct value* value );
 static void sort_vars( struct codegen* codegen );
-static bool array_var( struct var* var );
-static bool scalar_var( struct var* var );
+static bool is_initz_zero( struct value* value );
 static void assign_indexes( struct codegen* codegen );
 static void create_assert_strings( struct codegen* codegen );
 static void append_acs_strings( struct codegen* codegen );
@@ -137,6 +137,7 @@ static void publish( struct codegen* codegen ) {
    }
    clarify_vars( codegen );
    clarify_funcs( codegen );
+   assign_func_indexes( codegen );
    switch ( codegen->lang ) {
    case LANG_BCS:
       setup_shary( codegen );
@@ -344,6 +345,19 @@ static void clarify_funcs( struct codegen* codegen ) {
    }
 }
 
+static void assign_func_indexes( struct codegen* codegen ) {
+   int index = 0;
+   struct list_iter i;
+   list_iterate( &codegen->funcs, &i );
+   while ( ! list_end( &i ) ) {
+      struct func* func = list_data( &i );
+      struct func_user* impl = func->impl;
+      impl->index = index;
+      ++index;
+      list_next( &i );
+   }
+}
+
 // Shared-array layout:
 // - null-element/dimension-counter
 // - dimension-information
@@ -452,24 +466,22 @@ static void patch_initz_list( struct codegen* codegen, struct list* vars ) {
 }
 
 static void patch_value( struct codegen* codegen, struct value* value ) {
-   if ( value->var ) {
-      value->expr->value += value->var->index;
-   }
-   else if ( value->func ) {
-      struct func_user* impl = value->func->impl; 
-      value->expr->value = impl->index;
-   }
-   else {
-      if ( value->expr->has_str && value->type != VALUE_STRINGINITZ ) {
-         struct indexed_string* string = t_lookup_string( codegen->task,
-            value->expr->value );
-         // In ACS, one can add strings to numbers, so an invalid string index
-         // is possible, so make sure we have a valid string.
-         if ( string ) {
-            c_append_string( codegen, string );
-            value->expr->value = string->index_runtime;
-         }
-      }
+   switch ( value->type ) {
+   case VALUE_ARRAYREF:
+      value->more.arrayref.offset =
+         value->more.arrayref.var->index + value->expr->value;
+      value->more.arrayref.diminfo = value->more.arrayref.var->diminfo_start;
+      break;
+   case VALUE_STRING:
+      c_append_string( codegen, value->more.string.string );
+      break;
+   case VALUE_FUNCREF:
+   case VALUE_STRINGINITZ:
+   case VALUE_EXPR:
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
    }
 } 
 
@@ -504,35 +516,32 @@ static void sort_vars( struct codegen* codegen ) {
    while ( list_size( &codegen->vars ) > 0 ) {
       struct var* var = list_shift( &codegen->vars );
       // Arrays.
-      if ( array_var( var ) && ! var->hidden ) {
+      if ( c_is_public_array( var ) ) {
          list_append( &arrays, var );
       }
       // Scalars, with-no-value.
-      else if ( scalar_var( var ) && ( ! var->value ||
-         var->value->expr->value == 0 ) && ! var->hidden ) {
+      else if ( c_is_public_zero_scalar_var( var ) ) {
          list_append( &zero_scalars, var );
       }
       // Scalars, with-value.
-      else if ( scalar_var( var ) && var->value &&
-         var->value->expr->value != 0 && ! var->hidden ) {
+      else if ( c_is_public_nonzero_scalar_var( var ) ) {
          list_append( &nonzero_scalars, var );
       }
       // Scalars, with-value, hidden.
-      else if ( scalar_var( var ) && var->value &&
-         var->value->expr->value != 0 && var->hidden ) {
+      else if ( c_is_hidden_nonzero_scalar_var( var ) ) {
          list_append( &zerohidden_scalars, var );
       }
       // Scalars, with-no-value, hidden.
-      else if ( scalar_var( var ) && ( ! var->value ||
-         var->value->expr->value == 0 ) && var->hidden ) {
+      else if ( c_is_hidden_zero_scalar_var( var ) ) {
          list_append( &nonzerohidden_scalars, var );
       }
       // Arrays, hidden.
-      else if ( array_var( var ) && var->hidden ) {
+      else if ( c_is_hidden_array( var ) ) {
          list_append( &hidden_arrays, var );
       }
       else {
          UNREACHABLE();
+         c_bail( codegen );
       }
    }
    list_merge( &codegen->vars, &arrays );
@@ -543,19 +552,85 @@ static void sort_vars( struct codegen* codegen ) {
    list_merge( &codegen->vars, &hidden_arrays );
 }
 
-inline bool array_var( struct var* var ) {
-   return ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ||
+bool c_is_array( struct var* var ) {
+   switch ( var->desc ) {
+   case DESC_ARRAY:
+   case DESC_STRUCTVAR:
+      return true;
+   case DESC_REFVAR:
       // An array reference consists of the offset to the first element of the
       // array and the offset to the dimension information, so we need two
       // scalar variables to store the information. However, it's not desirable
       // to waste two indexes, so use an array instead.
-      ( var->desc == DESC_REFVAR && var->ref->type == REF_ARRAY ) );
+      return ( var->ref->type == REF_ARRAY );
+   default:
+      return false;
+   }
 }
 
-inline bool scalar_var( struct var* var ) {
-   return ( var->desc == DESC_PRIMITIVEVAR || ( var->desc == DESC_REFVAR &&
-      ( var->ref->type == REF_STRUCTURE || var->ref->type == REF_FUNCTION ) )
-   );
+bool c_is_public_array( struct var* var ) {
+   return ( c_is_array( var ) && ! var->hidden );
+}
+
+bool c_is_hidden_array( struct var* var ) {
+   return ( c_is_array( var ) && var->hidden );
+}
+
+bool c_is_scalar_var( struct var* var ) {
+   switch ( var->desc ) {
+   case DESC_PRIMITIVEVAR:
+      return true;
+   case DESC_REFVAR:
+      return ( var->ref->type == REF_STRUCTURE ||
+         var->ref->type == REF_FUNCTION );
+   default:
+      return false;
+   }
+}
+
+static bool is_initz_zero( struct value* value ) {
+   if ( value ) {
+      STATIC_ASSERT( VALUE_TOTAL == 5 );
+      switch ( value->type ) {
+      case VALUE_EXPR:
+         return ( value->expr->value == 0 );
+      case VALUE_STRING:
+         return ( value->more.string.string->index_runtime == 0 );
+      case VALUE_FUNCREF:
+         {
+            struct func_user* impl = value->more.funcref.func->impl;
+            return ( impl->index == 0 );
+         }
+         break;
+      default:
+         break;
+      }
+   }
+   return true;
+}
+
+bool c_is_zero_scalar_var( struct var* var ) {
+   return ( c_is_scalar_var( var ) && is_initz_zero( var->value ) );
+}
+
+bool c_is_nonzero_scalar_var( struct var* var ) {
+   return ( c_is_scalar_var( var ) && ! is_initz_zero( var->value ) );
+}
+
+bool c_is_public_zero_scalar_var( struct var* var ) {
+   return ( c_is_zero_scalar_var( var ) && ! var->hidden );
+}
+
+bool c_is_public_nonzero_scalar_var( struct var* var ) {
+   return ( c_is_nonzero_scalar_var( var ) && ! var->hidden );
+}
+
+bool c_is_hidden_zero_scalar_var( struct var* var ) {
+   return ( c_is_zero_scalar_var( var ) && var->hidden );
+}
+
+bool c_is_hidden_nonzero_scalar_var( struct var* var ) {
+   return ( c_is_nonzero_scalar_var( var ) && var->hidden );
 }
 
 static void assign_indexes( struct codegen* codegen ) {
@@ -587,16 +662,6 @@ static void assign_indexes( struct codegen* codegen ) {
          codegen->shary.dim_counter = index;
          ++index;
       }
-   }
-   // Functions.
-   index = 0;
-   list_iterate( &codegen->funcs, &i );
-   while ( ! list_end( &i ) ) {
-      struct func* func = list_data( &i );
-      struct func_user* impl = func->impl;
-      impl->index = index;
-      ++index;
-      list_next( &i );
    }
 }
 
@@ -638,4 +703,8 @@ static void append_acs_strings( struct codegen* codegen ) {
       }
       string = string->next;
    }
+}
+
+void c_bail( struct codegen* codegen ) {
+   t_bail( codegen->task );
 }

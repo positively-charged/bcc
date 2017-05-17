@@ -5,6 +5,19 @@
 
 #define STR_ENCRYPTION_CONSTANT 157135
 
+struct value_writing {
+   int count;
+};
+
+struct atag_writing {
+   struct var* var;
+   struct value* value;
+   struct list_iter iter;
+   int index;
+   int base;
+   bool shary;
+};
+
 static void do_sptr( struct codegen* codegen );
 static void do_svct( struct codegen* codegen );
 static bool svct_script( struct script* script );
@@ -20,7 +33,18 @@ static bool aray_var( struct var* var );
 static void do_aini( struct codegen* codegen );
 static bool aini_var( struct var* var );
 static void write_aini( struct codegen* codegen, struct var* var );
-static int count_nonzero_initz( struct var* var );
+static int count_nonzero_value( struct codegen* codegen,
+   struct var* var );
+static int nonzero_value_end_index( struct codegen* codegen,
+   struct value* value );
+static bool nonzero_value( struct codegen* codegen, struct value* value );
+static void init_value_writing( struct value_writing* writing );
+static void write_value_list( struct codegen* codegen,
+   struct value_writing* writing, struct value* value );
+static void write_multi_value_list( struct codegen* codegen,
+   struct value_writing* writing, struct value* value, int base );
+static void write_value( struct codegen* codegen,
+   struct value_writing* writing, struct value* value, int base );
 static void write_aini_shary( struct codegen* codegen );
 static int count_shary_initz( struct codegen* codegen );
 static void write_diminfo( struct codegen* codegen );
@@ -38,8 +62,16 @@ static bool mstr_var( struct var* var );
 static void do_astr( struct codegen* codegen );
 static bool astr_var( struct var* var );
 static void do_atag( struct codegen* codegen );
-static void write_atag_chunk( struct codegen* codegen, struct var* var );
-static void write_atag_shary( struct codegen* codegen );
+static void init_atag_writing_var( struct atag_writing* writing,
+   struct var* var );
+static void init_atag_writing_shary( struct codegen* codegen,
+   struct atag_writing* writing );
+static void init_atag_writing( struct atag_writing* writing, int index );
+static void iterate_atag( struct codegen* codegen,
+   struct atag_writing* writing );
+static void next_atag( struct atag_writing* writing );
+static void write_atag_chunk( struct codegen* codegen,
+   struct atag_writing* writing );
 static void do_sary( struct codegen* codegen );
 static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
    int index, struct list* vars );
@@ -441,43 +473,70 @@ static void do_strl( struct codegen* codegen ) {
 }
 
 static void do_mini( struct codegen* codegen ) {
-   struct var* first_var = NULL;
-   int count = 0;
    struct list_iter i;
    list_iterate( &codegen->vars, &i );
-   while ( ! list_end( &i ) ) {
+   struct var* first_var = NULL;
+   while ( ! list_end( &i ) && ! first_var ) {
       struct var* var = list_data( &i );
       if ( mini_var( var ) ) {
-         if ( ! first_var ) {
-            first_var = var;
-         }
-         ++count;
+         first_var = var;
       }
       list_next( &i );
    }
-   if ( ! count ) {
+   struct var* last_var = first_var;
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( mini_var( var ) ) {
+         last_var = var;
+      }
+      list_next( &i );
+   }
+   if ( ! first_var ) {
       return;
    }
+   int count = ( last_var->index + 1 ) - first_var->index;
    c_add_str( codegen, "MINI" );
    c_add_int( codegen,
       sizeof( int ) + // Index of first variable in the sequence.
       sizeof( int ) * count ); // Initializers.
    c_add_int( codegen, first_var->index );
    list_iterate( &codegen->vars, &i );
-   while ( ! list_end( &i ) ) {
+   while ( ! list_end( &i ) && list_data( &i ) != first_var ) {
+      list_next( &i );
+   }
+   bool processed_last_var = false;
+   while ( ! list_end( &i ) && ! processed_last_var ) {
       struct var* var = list_data( &i );
       if ( mini_var( var ) ) {
-         c_add_int( codegen, var->value->expr->value );
+         switch ( var->value->type ) {
+         case VALUE_EXPR:
+            c_add_int( codegen, var->value->expr->value );
+            break;
+         case VALUE_STRING:
+            c_add_int( codegen,
+               var->value->more.string.string->index_runtime );
+            break;
+         case VALUE_FUNCREF:
+            {
+               struct func_user* impl = var->value->more.funcref.func->impl;
+               c_add_int( codegen, impl->index );
+            }
+            break;
+         default:
+            UNREACHABLE();
+            c_bail( codegen );
+         }
       }
+      else {
+         c_add_int( codegen, 0 );
+      }
+      processed_last_var = ( var == last_var );
       list_next( &i );
    }
 }
 
 inline bool mini_var( struct var* var ) {
-   bool ref_var = ( var->desc == DESC_REFVAR &&
-      ( var->ref->type == REF_STRUCTURE || var->ref->type == REF_FUNCTION ) );
-   return ( var->desc == DESC_PRIMITIVEVAR || ref_var ) && var->value &&
-      var->value->expr->value != 0;
+   return c_is_nonzero_scalar_var( var );
 }
 
 static void do_aray( struct codegen* codegen ) {
@@ -540,11 +599,11 @@ static void do_aini( struct codegen* codegen ) {
 }
 
 inline bool aini_var( struct var* var ) {
-   return aray_var( var ) && var->value;
+   return ( aray_var( var ) && var->value );
 }
 
 static void write_aini( struct codegen* codegen, struct var* var ) {
-   int count = count_nonzero_initz( var );
+   int count = count_nonzero_value( codegen, var );
    if ( ! count ) {
       return;
    }
@@ -553,99 +612,127 @@ static void write_aini( struct codegen* codegen, struct var* var ) {
       sizeof( int ) + // Array index.
       sizeof( int ) * count ); // Number of elements to initialize.
    c_add_int( codegen, var->index );
-   count = 0;
-   struct value* value = var->value;
-   while ( value ) {
-      // Nullify uninitialized space.
-      if ( count < value->index && ( ( value->expr->value &&
-         value->type != VALUE_STRINGINITZ ) ||
-         value->type == VALUE_STRINGINITZ ) ) {
-         c_add_int_zero( codegen, value->index - count );
-         count = value->index;
-      }
-      if ( value->type == VALUE_STRINGINITZ ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         for ( int i = 0; i < usage->string->length; ++i ) {
-            c_add_int( codegen, usage->string->value[ i ] );
-         }
-         count += usage->string->length;
-      }
-      else if ( value->var && value->var->desc == DESC_ARRAY ) {
-         c_add_int( codegen, value->var->index );
-         c_add_int( codegen, value->var->diminfo_start );
-         count += 2;
-      }
-      else {
-         if ( value->expr->value != 0 ) {
-            c_add_int( codegen, value->expr->value );
-            ++count;
-         }
-      }
-      value = value->next;
-   }
+   struct value_writing writing;
+   init_value_writing( &writing );
+   write_value_list( codegen, &writing, var->value );
 }
 
-static int count_nonzero_initz( struct var* var ) {
+static int count_nonzero_value( struct codegen* codegen,
+   struct var* var ) {
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
-      if ( value->type == VALUE_STRINGINITZ ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         count = value->index + usage->string->length;
-      }
-      else if ( value->var && value->var->desc == DESC_ARRAY ) {
-         // Offset of the array initializer and offset of the dimension
-         // information.
-         count = value->index + 2;
-      }
-      else {
-         if ( value->expr->value != 0 ) {
-            count = value->index + 1;
-         }
+      int index = nonzero_value_end_index( codegen, value );
+      if ( index > 0 ) {
+         count = index;
       }
       value = value->next;
    }
    return count;
 }
 
-struct initz_w {
-   int base;
-   int done;
-};
-
-static void write_initz( struct codegen* codegen, struct initz_w* writing,
+static int nonzero_value_end_index( struct codegen* codegen,
    struct value* value ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+      if ( value->expr->value != 0 ) {
+         return value->index + 1;
+      }
+      break;
+   case VALUE_STRING:
+      if ( value->more.string.string->length > 0 ) {
+         return value->index + 1;
+      }
+      break;
+   case VALUE_STRINGINITZ:
+      if ( value->more.stringinitz.string->length != 0 ) {
+         return value->index + value->more.stringinitz.string->length;
+      }
+      break;
+   case VALUE_ARRAYREF:
+      // Offset of the array initializer and offset of the dimension
+      // information.
+      return value->index + 2;
+   case VALUE_FUNCREF:
+      {
+         struct func_user* impl = value->more.funcref.func->impl;
+         if ( impl->index != 0 ) {
+            return value->index + 1;
+         }
+      }
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
+   }
+   return 0;
+}
+
+static bool nonzero_value( struct codegen* codegen, struct value* value ) {
+   return ( nonzero_value_end_index( codegen, value ) > 0 );
+}
+
+static void init_value_writing( struct value_writing* writing ) {
+   writing->count = 0;
+}
+
+static void write_value_list( struct codegen* codegen,
+   struct value_writing* writing, struct value* value ) {
+   write_multi_value_list( codegen, writing, value, 0 );
+}
+
+static void write_multi_value_list( struct codegen* codegen,
+   struct value_writing* writing, struct value* value, int base ) {
    while ( value ) {
-      int index = writing->base + value->index;
-      // Nullify uninitialized space.
-      if ( writing->done < index && ( ( value->expr->value &&
-         value->type != VALUE_STRINGINITZ ) ||
-         value->type == VALUE_STRINGINITZ ) ) {
-         c_add_int_zero( codegen, index - writing->done );
-         writing->done = index;
-      }
-      if ( value->type == VALUE_STRINGINITZ ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         for ( int i = 0; i < usage->string->length; ++i ) {
-            c_add_int( codegen, usage->string->value[ i ] );
-         }
-         writing->done += usage->string->length;
-      }
-      else if ( value->var && value->var->desc == DESC_ARRAY ) {
-         c_add_int( codegen, value->var->index );
-         c_add_int( codegen, value->var->diminfo_start );
-         writing->done += 2;
-      }
-      else {
-         if ( value->expr->value ) {
-            c_add_int( codegen, value->expr->value );
-            ++writing->done;
-         }
+      if ( nonzero_value( codegen, value ) ) {
+         write_value( codegen, writing, value, base );
       }
       value = value->next;
+   }
+}
+
+static void write_value( struct codegen* codegen,
+   struct value_writing* writing, struct value* value, int base ) {
+   // Nullify uninitialized space.
+   int index = base + value->index;
+   if ( writing->count < index ) {
+      c_add_int_zero( codegen, index - writing->count );
+      writing->count = index;
+   }
+   // Write value.
+   switch ( value->type ) {
+   case VALUE_EXPR:
+      c_add_int( codegen, value->expr->value );
+      ++writing->count;
+      break;
+   case VALUE_STRING:
+      c_add_int( codegen, value->more.string.string->index_runtime );
+      ++writing->count;
+      break;
+   case VALUE_STRINGINITZ:
+      {
+         struct indexed_string* string = value->more.stringinitz.string;
+         for ( int i = 0; i < string->length; ++i ) {
+            c_add_int( codegen, string->value[ i ] );
+         }
+         writing->count += string->length;
+      }
+      break;
+   case VALUE_FUNCREF:
+      {
+         struct func_user* impl = value->more.funcref.func->impl;
+         c_add_int( codegen, impl->index );
+         ++writing->count;
+      }
+      break;
+   case VALUE_ARRAYREF:
+      c_add_int( codegen, value->more.arrayref.offset );
+      c_add_int( codegen, value->more.arrayref.diminfo );
+      writing->count += 2;
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
    }
 }
 
@@ -655,18 +742,19 @@ static void write_aini_shary( struct codegen* codegen ) {
       sizeof( int ) +
       sizeof( int ) * count_shary_initz( codegen ) );
    c_add_int( codegen, codegen->shary.index );
-   // Insert null element.
+   // Write null-element/dimension-tracker.
    c_add_int( codegen, 0 );
-   // Insert array dimension information.
+   // Write array dimension information.
    write_diminfo( codegen );
-   // Initialize variables.
+   // Write initializers.
+   struct value_writing writing;
+   init_value_writing( &writing );
    struct list_iter i;
    list_iterate( &codegen->shary.vars, &i );
-   struct initz_w writing = { 0, 0 };
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      writing.base = var->index - codegen->shary.data_offset;
-      write_initz( codegen, &writing, var->value );
+      write_multi_value_list( codegen, &writing, var->value,
+         var->index - codegen->shary.data_offset );
       list_next( &i );
    }
 }
@@ -683,7 +771,7 @@ static int count_shary_initz( struct codegen* codegen ) {
    list_iterate( &codegen->shary.vars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      int count = count_nonzero_initz( var );
+      int count = count_nonzero_value( codegen, var );
       if ( count != 0 ) {
          index = var->index + count;
       }
@@ -952,74 +1040,67 @@ static void do_atag( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->desc == DESC_STRUCTVAR ) {
-         write_atag_chunk( codegen, var );
+         struct atag_writing writing;
+         init_atag_writing_var( &writing, var );
+         write_atag_chunk( codegen, &writing );
       }
       list_next( &i );
    }
    if ( codegen->shary.used ) {
-      write_atag_shary( codegen );
+      struct atag_writing writing;
+      init_atag_writing_shary( codegen, &writing );
+      write_atag_chunk( codegen, &writing );
    }
 }
 
-static void write_atag_chunk( struct codegen* codegen, struct var* var ) {
-   enum { CHUNK_VERSION = 0 };
-   enum {
-      TAG_INTEGER,
-      TAG_STRING,
-      TAG_FUNCTION
-   };
-   int count = 0;
-   struct value* value = var->value;
-   while ( value ) {
-      switch ( value->type ) {
-      case VALUE_STRING:
-      case VALUE_FUNC:
-         count = value->index + 1;
-         break;
-      default:
-         break;
-      }
-      value = value->next;
+static void init_atag_writing_var( struct atag_writing* writing,
+   struct var* var ) {
+   init_atag_writing( writing, var->index );
+   writing->var = var;
+}
+
+static void init_atag_writing_shary( struct codegen* codegen,
+   struct atag_writing* writing ) {
+   init_atag_writing( writing, codegen->shary.index );
+   writing->shary = true;
+}
+
+static void init_atag_writing( struct atag_writing* writing, int index ) {
+   writing->var = NULL;
+   writing->value = NULL;
+   writing->index = index;
+   writing->base = 0;
+   writing->shary = false;
+}
+
+static void iterate_atag( struct codegen* codegen,
+   struct atag_writing* writing ) {
+   if ( writing->shary ) {
+      list_iterate( &codegen->shary.vars, &writing->iter );
+      next_atag( writing );
    }
-   if ( ! count ) {
-      return;
+   else {
+      writing->value = writing->var->value;
    }
-   c_add_str( codegen, "ATAG" );
-   c_add_int( codegen,
-      // Version.
-      sizeof( char ) +
-      // Array number.
-      sizeof( int ) +
-      // Number of elements to tag.
-      sizeof( char ) * count );
-   c_add_byte( codegen, CHUNK_VERSION );
-   c_add_int( codegen, var->index );
-   value = var->value;
-   int written = 0;
-   while ( written < count ) {
-      // Implicit values.
-      if (
-         value->type == VALUE_STRING ||
-         value->type == VALUE_FUNC ) {
-         while ( written < value->index ) {
-            c_add_byte( codegen, TAG_INTEGER );
-            ++written;
+}
+
+static void next_atag( struct atag_writing* writing ) {
+   writing->value = NULL;
+   if ( writing->shary ) {
+      while ( ! list_end( &writing->iter ) ) {
+         struct var* var = list_data( &writing->iter );
+         list_next( &writing->iter );
+         if ( var->value ) {
+            writing->value = var->value;
+            writing->base = var->index;
+            break;
          }
       }
-      if ( value->type == VALUE_STRING ) {
-         c_add_byte( codegen, TAG_STRING );
-         ++written;
-      }
-      else if ( value->type == VALUE_FUNC ) {
-         c_add_byte( codegen, TAG_FUNCTION );
-         ++written;
-      }
-      value = value->next;
    }
 }
 
-// TODO: Refactor.
-static void write_atag_shary( struct codegen* codegen ) {
+static void write_atag_chunk( struct codegen* codegen,
+   struct atag_writing* writing ) {
    enum { CHUNK_VERSION = 0 };
    enum {
       TAG_INTEGER,
@@ -1027,23 +1108,26 @@ static void write_atag_shary( struct codegen* codegen ) {
       TAG_FUNCTION
    };
    int count = 0;
-   struct list_iter i;
-   list_iterate( &codegen->shary.vars, &i );
-   while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      struct value* value = var->value;
+   iterate_atag( codegen, writing );
+   while ( writing->value ) {
+      struct value* value = writing->value;
       while ( value ) {
          switch ( value->type ) {
          case VALUE_STRING:
-         case VALUE_FUNC:
-            count = var->index + value->index + 1;
+         case VALUE_FUNCREF:
+            count = writing->base + value->index + 1;
+            break;
+         case VALUE_EXPR:
+         case VALUE_STRINGINITZ:
+         case VALUE_ARRAYREF:
             break;
          default:
-            break;
+            UNREACHABLE();
+            c_bail( codegen );
          }
          value = value->next;
       }
-      list_next( &i );
+      next_atag( writing );
    }
    if ( ! count ) {
       return;
@@ -1057,33 +1141,41 @@ static void write_atag_shary( struct codegen* codegen ) {
       // Number of elements to tag.
       sizeof( char ) * count );
    c_add_byte( codegen, CHUNK_VERSION );
-   c_add_int( codegen, codegen->shary.index );
+   c_add_int( codegen, writing->index );
    int written = 0;
-   list_iterate( &codegen->shary.vars, &i );
-   while ( written < count ) {
-      struct var* var = list_data( &i );
-      struct value* value = var->value;
+   iterate_atag( codegen, writing );
+   while ( writing->value ) {
+      struct value* value = writing->value;
       while ( value ) {
          // Implicit values.
          if (
             value->type == VALUE_STRING ||
-            value->type == VALUE_FUNC ) {
-            while ( written < var->index + value->index ) {
+            value->type == VALUE_FUNCREF ) {
+            while ( written < writing->base + value->index ) {
                c_add_byte( codegen, TAG_INTEGER );
                ++written;
             }
          }
-         if ( value->type == VALUE_STRING ) {
+         switch ( value->type ) {
+         case VALUE_STRING:
             c_add_byte( codegen, TAG_STRING );
             ++written;
-         }
-         else if ( value->type == VALUE_FUNC ) {
+            break;
+         case VALUE_FUNCREF:
             c_add_byte( codegen, TAG_FUNCTION );
             ++written;
+            break;
+         case VALUE_EXPR:
+         case VALUE_STRINGINITZ:
+         case VALUE_ARRAYREF:
+            break;
+         default:
+            UNREACHABLE();
+            c_bail( codegen );
          }
          value = value->next;
       }
-      list_next( &i );
+      next_atag( writing );
    }
 }
 

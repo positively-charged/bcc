@@ -1426,10 +1426,8 @@ static struct value* alloc_value( void ) {
    struct value* value = mem_alloc( sizeof( *value ) );
    init_initial( &value->initial, false );
    value->expr = NULL;
-   value->var = NULL;
-   value->func = NULL;
    value->next = NULL;
-   value->type = VALUE_OTHER;
+   value->type = VALUE_EXPR;
    value->index = 0;
    return value;
 }

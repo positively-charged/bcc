@@ -1382,13 +1382,33 @@ static bool test_scalar_initz( struct semantic* semantic,
       }
    }
    test->has_str = expr.has_str;
-   value->var = expr.var;
-   value->func = expr.func;
-   if ( expr.has_str ) {
-      value->type = VALUE_STRING;
-   }
-   else if ( expr.func ) {
-      value->type = VALUE_FUNC;
+   switch ( s_describe_type( &expr.type ) ) {
+   case TYPEDESC_ARRAYREF:
+      value->more.arrayref.var = expr.var;
+      value->type = VALUE_ARRAYREF;
+      break;
+   case TYPEDESC_FUNCREF:
+      value->more.funcref.func = expr.func;
+      value->type = VALUE_FUNCREF;
+      break;
+   case TYPEDESC_STRUCTREF:
+   case TYPEDESC_NULLREF:
+      break;
+   case TYPEDESC_PRIMITIVE:
+      if ( expr.has_str ) {
+         // In ACS, one can add strings and numbers, so an invalid string index
+         // is possible. Make sure we have a valid string.
+         struct indexed_string* string = t_lookup_string( semantic->task,
+            value->expr->value );
+         if ( string ) {
+            value->more.string.string = string;
+            value->type = VALUE_STRING;
+         }
+      }
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
    }
    if ( s_is_ref_type( &test->initz_type ) && expr.var ) {
       if ( ! expr.var->hidden ) {
@@ -1446,6 +1466,7 @@ static bool test_string_initz( struct semantic* semantic, struct dim* dim,
       }
    }
    value->type = VALUE_STRINGINITZ;
+   value->more.stringinitz.string = string;
    return true;
 }
 
