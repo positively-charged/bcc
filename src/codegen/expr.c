@@ -1465,7 +1465,7 @@ static void visit_access( struct codegen* codegen, struct result* result,
    case ACCESS_ARRAY:
       init_result( &lside, true );
       visit_suffix( codegen, &lside, access->lside );
-      if ( lside.ref && lside.ref->nullable && ! lside.safe ) {
+      if ( ! lside.dim && lside.ref && lside.ref->nullable && ! lside.safe ) {
          write_null_check( codegen );
       }
       switch ( access->rside->type ) {
