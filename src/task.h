@@ -710,13 +710,18 @@ struct value {
          int offset;
          int diminfo;
       } arrayref;
+      struct {
+         struct var* var;
+         int offset;
+      } structref;
    } more;
    enum {
       VALUE_EXPR,
       VALUE_STRING,
       VALUE_STRINGINITZ,
-      VALUE_FUNCREF,
       VALUE_ARRAYREF,
+      VALUE_STRUCTREF,
+      VALUE_FUNCREF,
       VALUE_TOTAL,
    } type;
    int index;

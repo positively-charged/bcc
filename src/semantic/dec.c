@@ -1387,11 +1387,14 @@ static bool test_scalar_initz( struct semantic* semantic,
       value->more.arrayref.var = expr.var;
       value->type = VALUE_ARRAYREF;
       break;
+   case TYPEDESC_STRUCTREF:
+      value->more.structref.var = expr.var;
+      value->type = VALUE_STRUCTREF;
+      break;
    case TYPEDESC_FUNCREF:
       value->more.funcref.func = expr.func;
       value->type = VALUE_FUNCREF;
       break;
-   case TYPEDESC_STRUCTREF:
    case TYPEDESC_NULLREF:
       break;
    case TYPEDESC_PRIMITIVE:

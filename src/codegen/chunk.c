@@ -516,6 +516,9 @@ static void do_mini( struct codegen* codegen ) {
             c_add_int( codegen,
                var->value->more.string.string->index_runtime );
             break;
+         case VALUE_STRUCTREF:
+            c_add_int( codegen, var->value->more.structref.offset );
+            break;
          case VALUE_FUNCREF:
             {
                struct func_user* impl = var->value->more.funcref.func->impl;
@@ -653,6 +656,8 @@ static int nonzero_value_end_index( struct codegen* codegen,
       // Offset of the array initializer and offset of the dimension
       // information.
       return value->index + 2;
+   case VALUE_STRUCTREF:
+      return value->index + 1;
    case VALUE_FUNCREF:
       {
          struct func_user* impl = value->more.funcref.func->impl;
@@ -718,17 +723,21 @@ static void write_value( struct codegen* codegen,
          writing->count += string->length;
       }
       break;
+   case VALUE_ARRAYREF:
+      c_add_int( codegen, value->more.arrayref.offset );
+      c_add_int( codegen, value->more.arrayref.diminfo );
+      writing->count += 2;
+      break;
+   case VALUE_STRUCTREF:
+      c_add_int( codegen, value->more.structref.offset );
+      ++writing->count;
+      break;
    case VALUE_FUNCREF:
       {
          struct func_user* impl = value->more.funcref.func->impl;
          c_add_int( codegen, impl->index );
          ++writing->count;
       }
-      break;
-   case VALUE_ARRAYREF:
-      c_add_int( codegen, value->more.arrayref.offset );
-      c_add_int( codegen, value->more.arrayref.diminfo );
-      writing->count += 2;
       break;
    default:
       UNREACHABLE();
@@ -1120,6 +1129,7 @@ static void write_atag_chunk( struct codegen* codegen,
          case VALUE_EXPR:
          case VALUE_STRINGINITZ:
          case VALUE_ARRAYREF:
+         case VALUE_STRUCTREF:
             break;
          default:
             UNREACHABLE();
@@ -1164,10 +1174,6 @@ static void write_atag_chunk( struct codegen* codegen,
          case VALUE_FUNCREF:
             c_add_byte( codegen, TAG_FUNCTION );
             ++written;
-            break;
-         case VALUE_EXPR:
-         case VALUE_STRINGINITZ:
-         case VALUE_ARRAYREF:
             break;
          default:
             UNREACHABLE();

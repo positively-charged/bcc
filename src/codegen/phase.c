@@ -472,6 +472,10 @@ static void patch_value( struct codegen* codegen, struct value* value ) {
          value->more.arrayref.var->index + value->expr->value;
       value->more.arrayref.diminfo = value->more.arrayref.var->diminfo_start;
       break;
+   case VALUE_STRUCTREF:
+      value->more.structref.offset = value->more.structref.var->index +
+         value->expr->value;
+      break;
    case VALUE_STRING:
       c_append_string( codegen, value->more.string.string );
       break;
@@ -590,7 +594,7 @@ bool c_is_scalar_var( struct var* var ) {
 
 static bool is_initz_zero( struct value* value ) {
    if ( value ) {
-      STATIC_ASSERT( VALUE_TOTAL == 5 );
+      STATIC_ASSERT( VALUE_TOTAL == 6 );
       switch ( value->type ) {
       case VALUE_EXPR:
          return ( value->expr->value == 0 );
@@ -602,6 +606,8 @@ static bool is_initz_zero( struct value* value ) {
             return ( impl->index == 0 );
          }
          break;
+      case VALUE_STRUCTREF:
+         return false;
       default:
          break;
       }
