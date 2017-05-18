@@ -131,7 +131,7 @@ static void test_subscript( struct semantic* semantic, struct expr_test* test,
 static void test_subscript_array( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct result* lside,
    struct subscript* subscript );
-static void warn_bounds_violation( struct semantic* semantic,
+static bool warn_bounds_violation( struct semantic* semantic,
    struct subscript* subscript, const char* subject, int upper_bound );
 static void test_subscript_str( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct result* lside,
@@ -1610,9 +1610,10 @@ static void test_subscript_array( struct semantic* semantic,
       s_bail( semantic );
    }
    // Out-of-bounds warning for a constant index.
+   bool out_of_bounds = false;
    if ( lside->dim && lside->dim->length && subscript->index->folded ) {
-      warn_bounds_violation( semantic, subscript, "dimension-length",
-         lside->dim->length );
+      out_of_bounds = warn_bounds_violation( semantic, subscript,
+         "dimension-length", lside->dim->length );
    }
    enum subscript_result element = s_subscript_array_ref( semantic,
       &lside->type, &result->type );
@@ -1620,11 +1621,6 @@ static void test_subscript_array( struct semantic* semantic,
    case SUBSCRIPTRESULT_SUBARRAY:
       result->data_origin = lside->data_origin;
       if ( lside->dim ) {
-         if ( subscript->index->folded ) {
-            result->value = lside->value +
-               lside->dim->element_size * subscript->index->value;
-            result->folded = true;
-         }
          result->dim = lside->dim->next;
       }
       break;
@@ -1640,18 +1636,40 @@ static void test_subscript_array( struct semantic* semantic,
    if ( lside->type.ref->nullable ) {
       semantic->lib->uses_nullable_refs = true;
    }
+   // Compile-time evaluation.
+   switch ( element ) {
+   case SUBSCRIPTRESULT_SUBARRAY:
+   case SUBSCRIPTRESULT_STRUCT:
+      if ( lside->folded && subscript->index->folded && ! out_of_bounds ) {
+         result->value = lside->value +
+            lside->dim->element_size * subscript->index->value;
+         result->folded = true;
+      }
+      break;
+   case SUBSCRIPTRESULT_REF:
+   case SUBSCRIPTRESULT_PRIMITIVE:
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
 }
 
-static void warn_bounds_violation( struct semantic* semantic,
+static bool warn_bounds_violation( struct semantic* semantic,
    struct subscript* subscript, const char* subject, int upper_bound ) {
    if ( subscript->index->value < 0 ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
          "index out-of-bounds: index (%d) < 0", subscript->index->value );
+      return true;
    }
    else if ( subscript->index->value >= upper_bound ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &subscript->index->pos,
          "index out-of-bounds: index (%d) >= %s (%d)",
          subscript->index->value, subject, upper_bound );
+      return true;
+   }
+   else {
+      return false;
    }
 }
 
@@ -2814,6 +2832,18 @@ static void select_structure_member( struct semantic* semantic,
    }
    result->complete = true;
    result->usable = true;
+   // Compile-time evaluation.
+   switch ( s_describe_type( &result->type ) ) {
+   case TYPEDESC_ARRAYREF:
+   case TYPEDESC_STRUCTREF:
+      if ( lside->folded ) {
+         result->value = lside->value + member->offset;
+         result->folded = true;
+      }
+      break;
+   default:
+      break;
+   }
 }
 
 static void select_func( struct semantic* semantic, struct result* result,
