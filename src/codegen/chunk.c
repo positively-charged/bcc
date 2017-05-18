@@ -1175,6 +1175,11 @@ static void write_atag_chunk( struct codegen* codegen,
             c_add_byte( codegen, TAG_FUNCTION );
             ++written;
             break;
+         case VALUE_EXPR:
+         case VALUE_STRINGINITZ:
+         case VALUE_ARRAYREF:
+         case VALUE_STRUCTREF:
+            break;
          default:
             UNREACHABLE();
             c_bail( codegen );

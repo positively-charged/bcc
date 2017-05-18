@@ -76,12 +76,7 @@ struct expr_test {
    struct var* var;
    struct structure_member* structure_member;
    struct func* func;
-   union {
-      struct ref ref;
-      struct ref_struct structure;
-      struct ref_array array;
-      struct ref_func func;
-   } temp_ref;
+   int dim_depth;
    bool result_required;
    bool has_str;
    bool undef_erred;

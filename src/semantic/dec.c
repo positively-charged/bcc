@@ -1385,6 +1385,8 @@ static bool test_scalar_initz( struct semantic* semantic,
    switch ( s_describe_type( &expr.type ) ) {
    case TYPEDESC_ARRAYREF:
       value->more.arrayref.var = expr.var;
+      value->more.arrayref.structure_member = expr.structure_member;
+      value->more.arrayref.diminfo = expr.dim_depth;
       value->type = VALUE_ARRAYREF;
       break;
    case TYPEDESC_STRUCTREF:

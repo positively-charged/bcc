@@ -707,8 +707,9 @@ struct value {
       } funcref;
       struct {
          struct var* var;
-         int offset;
-         int diminfo;
+         struct structure_member* structure_member;
+         int offset;  // Offset to array.
+         int diminfo; // Offset to dimension information.
       } arrayref;
       struct {
          struct var* var;

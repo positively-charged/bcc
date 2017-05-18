@@ -470,7 +470,16 @@ static void patch_value( struct codegen* codegen, struct value* value ) {
    case VALUE_ARRAYREF:
       value->more.arrayref.offset =
          value->more.arrayref.var->index + value->expr->value;
-      value->more.arrayref.diminfo = value->more.arrayref.var->diminfo_start;
+      if ( value->more.arrayref.structure_member ) {
+         value->more.arrayref.diminfo =
+            value->more.arrayref.structure_member->diminfo_start +
+            value->more.arrayref.diminfo;
+      }
+      else {
+         value->more.arrayref.diminfo =
+            value->more.arrayref.var->diminfo_start +
+            value->more.arrayref.diminfo;
+      }
       break;
    case VALUE_STRUCTREF:
       value->more.structref.offset = value->more.structref.var->index +
