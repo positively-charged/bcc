@@ -49,7 +49,6 @@ static void write_diminfo( struct codegen* codegen );
 static void do_load( struct codegen* codegen );
 static void do_mimp( struct codegen* codegen );
 static void do_aimp( struct codegen* codegen );
-static bool aimp_array( struct var* var );
 static void do_mexp( struct codegen* codegen );
 static bool mexp_array( struct var* var );
 static bool mexp_zeroinit_scalar( struct var* var );
@@ -853,51 +852,43 @@ static void do_mimp( struct codegen* codegen ) {
    str_deinit( &str );
 }
 
-// NOTE: This chunk might cause any subsequent chunk to be misaligned.
+// NOTE: acc does not pad this chunk at the end, so this chunk might cause any
+// subsequent chunk to be misaligned.
 static void do_aimp( struct codegen* codegen ) {
-   int count = 0;
-   int size = sizeof( int );
+   if ( list_size( &codegen->imported_arrays ) == 0 ) {
+      return;
+   }
+   int size =
+      // Number of imported arrays.
+      sizeof( int );
    struct list_iter i;
-   list_iterate( &codegen->imported_vars, &i );
+   list_iterate( &codegen->imported_arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( aimp_array( var ) ) {
-         size +=
-            // Array index.
-            sizeof( int ) +
-            // Array size.
-            sizeof( int ) +
-            // Name of array.
-            t_full_name_length( var->name ) + 1;
-         ++count;
-      }
+      size +=
+         // Array index.
+         sizeof( int ) +
+         // Array size.
+         sizeof( int ) +
+         // Array name, plus one for the NUL character.
+         t_full_name_length( var->name ) + 1;
       list_next( &i );
-   }
-   if ( ! count ) {
-      return;
    }
    c_add_str( codegen, "AIMP" );
    c_add_int( codegen, size );
-   c_add_int( codegen, count );
+   c_add_int( codegen, list_size( &codegen->imported_arrays ) );
    struct str str;
    str_init( &str );
-   list_iterate( &codegen->imported_vars, &i );
+   list_iterate( &codegen->imported_arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( aimp_array( var ) ) {
-         c_add_int( codegen, var->index );
-         c_add_int( codegen, var->size );
-         t_copy_name( var->name, true, &str );
-         c_add_sized( codegen, str.value, str.length + 1 );
-      }
+      c_add_int( codegen, var->index );
+      c_add_int( codegen, var->size );
+      t_copy_name( var->name, true, &str );
+      c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
    str_deinit( &str );
-}
-
-inline bool aimp_array( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ( var->desc == DESC_ARRAY ||
-      var->desc == DESC_STRUCTVAR ) );
 }
 
 static void do_mexp( struct codegen* codegen ) {
