@@ -1881,7 +1881,8 @@ static void test_access_array( struct semantic* semantic,
    }
    access->type = ACCESS_ARRAY;
    access->rside = &name->object->node;
-   if ( lside->type.ref && lside->type.ref->nullable ) {
+   // Null check.
+   if ( lside->type.ref->nullable ) {
       semantic->lib->uses_nullable_refs = true;
    }
 }

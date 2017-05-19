@@ -35,9 +35,9 @@ static bool aini_var( struct var* var );
 static void write_aini( struct codegen* codegen, struct var* var );
 static int count_nonzero_value( struct codegen* codegen,
    struct var* var );
-static int nonzero_value_end_index( struct codegen* codegen,
-   struct value* value );
-static bool nonzero_value( struct codegen* codegen, struct value* value );
+static bool is_zero_value( struct codegen* codegen, struct value* value );
+static bool is_nonzero_value( struct codegen* codegen, struct value* value );
+static int get_value_size( struct codegen* codegen, struct value* value );
 static void init_value_writing( struct value_writing* writing );
 static void write_value_list( struct codegen* codegen,
    struct value_writing* writing, struct value* value );
@@ -625,56 +625,58 @@ static int count_nonzero_value( struct codegen* codegen,
    int count = 0;
    struct value* value = var->value;
    while ( value ) {
-      int index = nonzero_value_end_index( codegen, value );
-      if ( index > 0 ) {
-         count = index;
+      if ( is_nonzero_value( codegen, value ) ) {
+         count = value->index + get_value_size( codegen, value );
       }
       value = value->next;
    }
    return count;
 }
 
-static int nonzero_value_end_index( struct codegen* codegen,
-   struct value* value ) {
+static bool is_zero_value( struct codegen* codegen, struct value* value ) {
    switch ( value->type ) {
+      struct func_user* impl;
    case VALUE_EXPR:
-      if ( value->expr->value != 0 ) {
-         return value->index + 1;
-      }
-      break;
+      return ( value->expr->value == 0 );
    case VALUE_STRING:
-      if ( value->more.string.string->length > 0 ) {
-         return value->index + 1;
-      }
-      break;
+      return ( value->more.string.string->length == 0 );
    case VALUE_STRINGINITZ:
-      if ( value->more.stringinitz.string->length != 0 ) {
-         return value->index + value->more.stringinitz.string->length;
-      }
-      break;
+      return ( value->more.stringinitz.string->length == 0 );
    case VALUE_ARRAYREF:
-      // Offset of the array initializer and offset of the dimension
-      // information.
-      return value->index + 2;
    case VALUE_STRUCTREF:
-      return value->index + 1;
+      return false;
    case VALUE_FUNCREF:
-      {
-         struct func_user* impl = value->more.funcref.func->impl;
-         if ( impl->index != 0 ) {
-            return value->index + 1;
-         }
-      }
-      break;
+      impl = value->more.funcref.func->impl;
+      return ( impl->index == 0 );
    default:
       UNREACHABLE();
       c_bail( codegen );
    }
-   return 0;
+   return false;
 }
 
-static bool nonzero_value( struct codegen* codegen, struct value* value ) {
-   return ( nonzero_value_end_index( codegen, value ) > 0 );
+static bool is_nonzero_value( struct codegen* codegen, struct value* value ) {
+   return ( ! is_zero_value( codegen, value ) );
+}
+
+static int get_value_size( struct codegen* codegen, struct value* value ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+   case VALUE_STRING:
+   case VALUE_STRUCTREF:
+   case VALUE_FUNCREF:
+      return 1;
+   case VALUE_STRINGINITZ:
+      // NOTE: NUL character not included.
+      return value->more.stringinitz.string->length;
+   case VALUE_ARRAYREF:
+      // Offset to the array and offset to the dimension information.
+      return 2;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
+      return 0;
+   }
 }
 
 static void init_value_writing( struct value_writing* writing ) {
@@ -689,7 +691,7 @@ static void write_value_list( struct codegen* codegen,
 static void write_multi_value_list( struct codegen* codegen,
    struct value_writing* writing, struct value* value, int base ) {
    while ( value ) {
-      if ( nonzero_value( codegen, value ) ) {
+      if ( is_nonzero_value( codegen, value ) ) {
          write_value( codegen, writing, value, base );
       }
       value = value->next;

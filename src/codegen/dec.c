@@ -23,8 +23,15 @@ static void alloc_funcscopevars_indexes( struct func_record* func,
    struct list* vars );
 static void visit_local_var( struct codegen* codegen, struct var* var );
 static void visit_world_var( struct codegen* codegen, struct var* var );
-static void write_multi_initz( struct codegen* codegen,
-   struct var* var );
+static void write_multi_initz( struct codegen* codegen, struct var* var );
+static bool is_zero_local_value( struct codegen* codegen,
+   struct value* value );
+static bool is_nonzero_local_value( struct codegen* codegen,
+   struct value* value );
+static int get_local_value_size( struct codegen* codegen,
+   struct value* value );
+static void write_local_value( struct codegen* codegen, struct var* var,
+   struct value* value, int zeroed_segment_start, int zeroed_segment_end );
 static void write_string_initz( struct codegen* codegen, struct var* var,
    struct value* value, bool include_nul );
 static void nullify_array( struct codegen* codegen, int storage, int index,
@@ -254,13 +261,7 @@ static void visit_local_var( struct codegen* codegen, struct var* var ) {
             write_multi_initz_acs( codegen, var );
          }
          else {
-            if ( ! var->initial->multi &&
-               var->value->type == VALUE_STRINGINITZ ) {
-               write_string_initz( codegen, var, var->value, true );
-            }
-            else {
-               write_multi_initz( codegen, var );
-            }
+            write_multi_initz( codegen, var );
          }
       }
       break;
@@ -300,64 +301,137 @@ static void write_multi_initz( struct codegen* codegen, struct var* var ) {
    // Determine segment of the array to nullify.
    // -----------------------------------------------------------------------
    // The segment begins at the first element with a value of zero, or at the
-   // first unitialized element. The segment ends at the element after the
+   // first uninitialized element. The segment ends at the element after the
    // last element with a value of zero, or at the element after the last
-   // unintialized element. The end-point element is not nullified.
-   int start = 0;
-   int end = 0;
+   // uninitialized element. The end-point element is not nullified.
+   int zeroed_segment_start = 0;
+   int zeroed_segment_end = 0;
    struct value* value = var->value;
    while ( value ) {
-      int index = 0;
-      if ( value->type == VALUE_STRINGINITZ ) {
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         index = value->index + usage->string->length + 1;
+      int value_end = value->index;
+      if ( is_nonzero_local_value( codegen, value ) ) {
+         value_end += get_local_value_size( codegen, value );
+      }
+      int next_value_start = 0;
+      if ( value->next ) {
+         next_value_start = value->next->index;
       }
       else {
-         index = value->index;
-         bool zero = ( value->expr->folded && value->expr->value == 0 );
-         bool lib_string = ( value->expr->has_str &&
-            codegen->task->library_main->importable );
-         if ( ! zero || lib_string ) {
-            ++index;
-         }
+         next_value_start = var->size;
       }
-      int next_index = ( value->next ? value->next->index : var->size );
-      if ( index != next_index ) {
-         if ( ! end ) {
-            start = index;
+      if ( value_end < next_value_start ) {
+         if ( zeroed_segment_end == 0 ) {
+            zeroed_segment_start = value_end;
          }
-         end = next_index;
+         zeroed_segment_end = next_value_start;
       }
       value = value->next;
    }
-   if ( start != end ) {
-      nullify_array( codegen, var->storage, var->index, start, end - start );
+   if ( zeroed_segment_start < zeroed_segment_end ) {
+      nullify_array( codegen, var->storage, var->index, zeroed_segment_start,
+         zeroed_segment_end - zeroed_segment_start );
    }
    // Assign values to elements.
    // -----------------------------------------------------------------------
    value = var->value;
    while ( value ) {
-      if ( value->type == VALUE_STRINGINITZ ) {
-         // Don't include the NUL character if the element to contain the
-         // character has been nullified.
-         struct indexed_string_usage* usage =
-            ( struct indexed_string_usage* ) value->expr->root;
-         int nul_index = value->index + usage->string->length;
-         bool include_nul = ( ! ( nul_index >= start && nul_index < end ) );
-         write_string_initz( codegen, var, value, include_nul );
-      }
-      else {
-         bool zero = ( value->expr->folded && value->expr->value == 0 );
-         bool lib_string = ( value->expr->has_str &&
-            codegen->task->library_main->importable );
-         if ( ! zero || lib_string ) {
-            c_pcd( codegen, PCD_PUSHNUMBER, value->index );
-            c_push_expr( codegen, value->expr );
-            c_update_element( codegen, var->storage, var->index, AOP_NONE );
-         }
+      if ( is_nonzero_local_value( codegen, value ) ) {
+         write_local_value( codegen, var, value, zeroed_segment_start,
+            zeroed_segment_end );
       }
       value = value->next;
+   }
+}
+
+static bool is_zero_local_value( struct codegen* codegen,
+   struct value* value ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+      return ( value->expr->folded && value->expr->value == 0 );
+   case VALUE_STRING:
+      return ( value->more.string.string->length == 0 &&
+         // In a library, a string literal will be tagged, so assume that the
+         // resulting string index will not be 0.
+         ! codegen->task->library_main->importable );
+   case VALUE_STRINGINITZ:
+      return ( value->more.stringinitz.string->length == 0 );
+   case VALUE_ARRAYREF:
+   case VALUE_STRUCTREF:
+      return false;
+   case VALUE_FUNCREF:
+      if ( value->more.funcref.func ) {
+         struct func_user* impl = value->more.funcref.func->impl;
+         return ( impl->index == 0 &&
+            // In a library, a function reference will be tagged, so assume
+            // that the resulting function index will not be 0.
+            ! codegen->task->library_main->importable );
+      }
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
+   }
+   return false;
+}
+
+static bool is_nonzero_local_value( struct codegen* codegen,
+   struct value* value ) {
+   return ( ! is_zero_local_value( codegen, value ) );
+}
+
+static int get_local_value_size( struct codegen* codegen,
+   struct value* value ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+   case VALUE_STRING:
+   case VALUE_STRUCTREF:
+   case VALUE_FUNCREF:
+      return 1;
+   case VALUE_STRINGINITZ:
+      // NOTE: Plus one for the NUL character.
+      return value->more.stringinitz.string->length + 1;
+   case VALUE_ARRAYREF:
+      // Offset to the array and offset to the dimension information.
+      return 2;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
+      return 0;
+   }
+}
+
+static void write_local_value( struct codegen* codegen, struct var* var,
+   struct value* value, int zeroed_segment_start, int zeroed_segment_end ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+   case VALUE_STRING:
+   case VALUE_STRUCTREF:
+   case VALUE_FUNCREF:
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
+      c_push_expr( codegen, value->expr );
+      c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      break;
+   case VALUE_STRINGINITZ:
+      {
+         // Optimization: Do not include the NUL character if the element that
+         // will contain the NUL character has been zeroed already.
+         int nul_index = value->index + value->more.stringinitz.string->length;
+         bool include_nul = ( ! ( nul_index >= zeroed_segment_start &&
+            nul_index < zeroed_segment_end ) );
+         write_string_initz( codegen, var, value, include_nul );
+      }
+      break;
+   case VALUE_ARRAYREF:
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index );
+      c_push_expr( codegen, value->expr );
+      c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      c_pcd( codegen, PCD_PUSHNUMBER, value->index + 1 );
+      c_push_dimtrack( codegen );
+      c_update_element( codegen, var->storage, var->index, AOP_NONE );
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
    }
 }
 
