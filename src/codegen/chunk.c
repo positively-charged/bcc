@@ -1006,7 +1006,7 @@ inline bool astr_var( struct var* var ) {
 
 static void do_atag( struct codegen* codegen ) {
    struct list_iter i;
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( var->desc == DESC_STRUCTVAR ) {
