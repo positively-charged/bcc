@@ -173,6 +173,8 @@ static void test_format_item( struct semantic* semantic,
    struct expr_test* test, struct format_item* item );
 static void test_array_format_item( struct semantic* semantic,
    struct expr_test* expr_test, struct format_item* item );
+static bool is_printable_array( struct semantic* semantic,
+   struct type_info* type );
 static void test_int_arg( struct semantic* semantic, struct expr_test* test,
    struct expr* expr );
 static void test_buildmsg( struct semantic* semantic,
@@ -2093,14 +2095,9 @@ static void test_array_format_item( struct semantic* semantic,
    struct expr_test arg;
    s_init_expr_test( &arg, false, false );
    test_nested_expr( semantic, test, &arg, item->value );
-   static struct ref_array array = {
-      { NULL, { 0, 0, 0 }, REF_ARRAY, true, false }, 1, STORAGE_MAP, 0 };
-   struct type_info required_type;
-   s_init_type_info( &required_type, &array.ref, NULL, NULL, NULL,
-      s_spec( semantic, SPEC_INT ), STORAGE_MAP );
-   if ( ! s_instance_of( &required_type, &arg.type ) ) {
-      s_type_mismatch( semantic, "argument", &arg.type,
-         "required", &required_type, &item->value->pos );
+   if ( ! is_printable_array( semantic, &arg.type ) ) {
+      s_diag( semantic, DIAG_POS_ERR, &item->value->pos,
+         "argument is not a printable array (a one-dimensional int array)" );
       s_bail( semantic );
    }
    if ( item->extra ) {
@@ -2110,6 +2107,24 @@ static void test_array_format_item( struct semantic* semantic,
          test_int_arg( semantic, test, extra->length );
       }
    }
+}
+
+static bool is_printable_array( struct semantic* semantic,
+   struct type_info* type ) {
+   if ( s_describe_type( type ) == TYPEDESC_ARRAYREF ) {
+      struct type_info element_type;
+      s_subscript_array_ref( semantic, type, &element_type );
+      if ( s_describe_type( &element_type ) == TYPEDESC_PRIMITIVE ) {
+         switch ( element_type.spec ) {
+         case SPEC_INT:
+         case SPEC_RAW:
+            return true;
+         default:
+            break;
+         }
+      }
+   }
+   return false;
 }
 
 static void test_int_arg( struct semantic* semantic, struct expr_test* test,
@@ -2909,10 +2924,9 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct expr_test arg;
    s_init_expr_test( &arg, false, false );
    test_nested_expr( semantic, test, &arg, call->array );
-   if ( ! s_is_onedim_int_array_ref( semantic, &arg.type ) ) {
+   if ( ! is_printable_array( semantic, &arg.type ) ) {
       s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
-         "array argument not a one-dimensional, "
-         "integer element-type array-reference" );
+         "argument is not a one-dimensional int array" );
       s_bail( semantic );
    }
    // Array-offset.
