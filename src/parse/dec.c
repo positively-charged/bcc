@@ -696,6 +696,13 @@ static void read_visibility( struct parse* parse, struct dec* dec ) {
          dec->static_qual = true;
          dec->static_qual_pos = parse->tk_pos;
          p_read_tk( parse );
+         switch ( parse->lang ) {
+         case LANG_ACS:
+            dec->object = DECOBJ_VAR;
+            break;
+         default:
+            break;
+         }
       }
    }
    read_object( parse, dec );
@@ -707,18 +714,20 @@ static bool is_private_read( struct dec* dec ) {
 
 static void read_object( struct parse* parse, struct dec* dec ) {
    // Function keyword.
-   if ( parse->tk == TK_FUNCTION ) {
-      dec->object = DECOBJ_FUNC;
-      p_read_tk( parse );
-   }
-   else {
-      switch ( parse->lang ) {
-      case LANG_ACS:
-      case LANG_ACS95:
-         dec->object = DECOBJ_VAR;
-         break;
-      default:
-         break;
+   if ( dec->object == DECOBJ_UNDECIDED ) {
+      if ( parse->tk == TK_FUNCTION ) {
+         dec->object = DECOBJ_FUNC;
+         p_read_tk( parse );
+      }
+      else {
+         switch ( parse->lang ) {
+         case LANG_ACS:
+         case LANG_ACS95:
+            dec->object = DECOBJ_VAR;
+            break;
+         default:
+            break;
+         }
       }
    }
    // Storage.
@@ -826,7 +835,6 @@ static void read_spec( struct parse* parse, struct spec_reading* spec ) {
    spec->pos = parse->tk_pos;
    switch ( parse->lang ) {
    case LANG_ACS:
-   case LANG_ACS95:
       switch ( parse->tk ) {
       case TK_INT:
       case TK_BOOL:
@@ -836,6 +844,18 @@ static void read_spec( struct parse* parse, struct spec_reading* spec ) {
          break;
       case TK_VOID:
          spec->type = SPEC_VOID;
+         p_read_tk( parse );
+         break;
+      default:
+         missing_spec( parse, spec );
+         p_bail( parse );
+      }
+      break;
+   case LANG_ACS95:
+      switch ( parse->tk ) {
+      case TK_INT:
+      case TK_STR:
+         spec->type = SPEC_RAW;
          p_read_tk( parse );
          break;
       default:
@@ -1903,15 +1923,21 @@ static void read_func( struct parse* parse, struct dec* dec ) {
    read_func_param_list( parse, func );
    p_test_tk( parse, TK_PAREN_R );
    p_read_tk( parse );
+   // Typedef.
    if ( dec->type_alias ) {
       func->type = FUNC_ALIAS;
-   }
-   else if ( parse->tk == TK_SEMICOLON ) {
-      func->impl = t_alloc_func_user();
+      p_test_tk( parse, TK_SEMICOLON );
       p_read_tk( parse );
    }
+   // Function.
    else {
-      read_func_body( parse, dec, func );
+      if ( parse->tk == TK_SEMICOLON && parse->lang == LANG_BCS ) {
+         func->impl = t_alloc_func_user();
+         p_read_tk( parse );
+      }
+      else {
+         read_func_body( parse, dec, func );
+      }
    }
    if ( dec->area == DEC_TOP ) {
       p_add_unresolved( parse, &func->object );

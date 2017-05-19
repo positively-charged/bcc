@@ -278,7 +278,7 @@ initializer-list:
 
 function:
    <function-keyword> <function-return> <identifier> (
-      <parameter-list-declaration> ) <block-statement>
+      <parameter-list-declaration> ) <function-body>
 
 function-keyword:
    function
@@ -303,6 +303,10 @@ parameter:
 parameter-name:
    <identifier>
    E
+
+function-body:
+   <block-statement>
+   ;
 
 type-alias:
    typedef <extended-specifier> <reference> <type-alias-instance-list>
