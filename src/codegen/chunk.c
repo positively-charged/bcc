@@ -48,7 +48,6 @@ static int count_shary_initz( struct codegen* codegen );
 static void write_diminfo( struct codegen* codegen );
 static void do_load( struct codegen* codegen );
 static void do_mimp( struct codegen* codegen );
-static bool mimp_var( struct var* var );
 static void do_aimp( struct codegen* codegen );
 static bool aimp_array( struct var* var );
 static void do_mexp( struct codegen* codegen );
@@ -824,41 +823,34 @@ static void do_load( struct codegen* codegen ) {
    }
 }
 
-// NOTE: This chunk might cause any subsequent chunk to be misaligned.
+// NOTE: acc does not pad this chunk at the end, so this chunk might cause any
+// subsequent chunk to be misaligned.
 static void do_mimp( struct codegen* codegen ) {
    int size = 0;
    struct list_iter i;
-   list_iterate( &codegen->imported_vars, &i );
+   list_iterate( &codegen->imported_scalars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( mimp_var( var ) ) {
-         size += sizeof( int ) + t_full_name_length( var->name ) + 1;
-      }
+      size += sizeof( int ) + // Index of variable.
+         t_full_name_length( var->name ) + 1; // Plus one for NUL character.
       list_next( &i );
    }
-   if ( ! size ) {
+   if ( size == 0 ) {
       return;
    }
    c_add_str( codegen, "MIMP" );
    c_add_int( codegen, size );
    struct str str;
    str_init( &str );
-   list_iterate( &codegen->imported_vars, &i );
+   list_iterate( &codegen->imported_scalars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( mimp_var( var ) ) {
-         c_add_int( codegen, var->index );
-         t_copy_name( var->name, true, &str );
-         c_add_sized( codegen, str.value, str.length + 1 );
-      }
+      c_add_int( codegen, var->index );
+      t_copy_name( var->name, true, &str );
+      c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
    str_deinit( &str );
-}
-
-inline bool mimp_var( struct var* var ) {
-   return ( var->storage == STORAGE_MAP && ( var->desc == DESC_PRIMITIVEVAR ||
-      var->desc == DESC_REFVAR ) );
 }
 
 // NOTE: This chunk might cause any subsequent chunk to be misaligned.
