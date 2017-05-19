@@ -946,19 +946,19 @@ static void do_mexp( struct codegen* codegen ) {
 static void do_mstr( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->scalars, &i );
    while ( ! list_end( &i ) ) {
       if ( mstr_var( list_data( &i ) ) ) {
          ++count;
       }
       list_next( &i );
    }
-   if ( ! count ) {
+   if ( count == 0 ) {
       return;
    }
    c_add_str( codegen, "MSTR" );
    c_add_int( codegen, sizeof( int ) * count );
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->scalars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( mstr_var( var ) ) {
