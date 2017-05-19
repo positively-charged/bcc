@@ -29,9 +29,7 @@ static void do_strl( struct codegen* codegen );
 static void do_mini( struct codegen* codegen );
 static void write_mini_value( struct codegen* codegen, struct value* value );
 static void do_aray( struct codegen* codegen );
-static bool aray_var( struct var* var );
 static void do_aini( struct codegen* codegen );
-static bool aini_var( struct var* var );
 static void write_aini( struct codegen* codegen, struct var* var );
 static int count_nonzero_value( struct codegen* codegen,
    struct var* var );
@@ -571,19 +569,11 @@ static void do_aray( struct codegen* codegen ) {
    }
 }
 
-inline bool aray_var( struct var* var ) {
-   return ( var->desc == DESC_ARRAY || var->desc == DESC_STRUCTVAR ||
-      ( var->desc == DESC_REFVAR && var->ref->type == REF_ARRAY ) );
-}
-
 static void do_aini( struct codegen* codegen ) {
    struct list_iter i;
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->arrays, &i );
    while ( ! list_end( &i ) ) {
-      struct var* var = list_data( &i );
-      if ( aini_var( var ) ) {
-         write_aini( codegen, var );
-      }
+      write_aini( codegen, list_data( &i ) );
       list_next( &i );
    }
    if ( codegen->shary.used ) {
@@ -591,13 +581,9 @@ static void do_aini( struct codegen* codegen ) {
    }
 }
 
-inline bool aini_var( struct var* var ) {
-   return ( aray_var( var ) && var->value );
-}
-
 static void write_aini( struct codegen* codegen, struct var* var ) {
    int count = count_nonzero_value( codegen, var );
-   if ( ! count ) {
+   if ( count == 0 ) {
       return;
    }
    c_add_str( codegen, "AINI" );
@@ -762,11 +748,11 @@ static void write_aini_shary( struct codegen* codegen ) {
 
 static int count_shary_initz( struct codegen* codegen ) {
    int count = 0;
-   // null-element/dimension-tracker.
+   // Null-element/dimension-tracker.
    ++count;
-   // dimension-information.
+   // Dimension information.
    count += codegen->shary.diminfo_size;
-   // data.
+   // Data.
    int index = count;
    struct list_iter i;
    list_iterate( &codegen->shary.vars, &i );
