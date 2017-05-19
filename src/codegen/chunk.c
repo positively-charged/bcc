@@ -976,7 +976,7 @@ inline bool mstr_var( struct var* var ) {
 static void do_astr( struct codegen* codegen ) {
    int count = 0;
    struct list_iter i;
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( astr_var( var ) ) {
@@ -984,12 +984,12 @@ static void do_astr( struct codegen* codegen ) {
       }
       list_next( &i );
    }
-   if ( ! count ) {
+   if ( count == 0 ) {
       return;
    }
    c_add_str( codegen, "ASTR" );
    c_add_int( codegen, sizeof( int ) * count );
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( astr_var( var ) ) {
