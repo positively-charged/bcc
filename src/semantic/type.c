@@ -17,6 +17,7 @@ static void present_ref( struct ref* ref, struct str* string );
 static void present_dim( struct type_info* type, struct str* string );
 static void present_param_list( struct param* param, struct str* string );
 static struct ref* dup_ref( struct ref* ref );
+static void set_storage( struct type_info* type, int storage );
 
 void s_init_type_info( struct type_info* type, struct ref* ref,
    struct structure* structure, struct enumeration* enumeration,
@@ -736,4 +737,38 @@ bool s_is_str( struct type_info* type ) {
 
 bool s_is_struct_ref( struct type_info* type ) {
    return ( s_describe_type( type ) == TYPEDESC_STRUCTREF );
+}
+
+bool s_same_storageignored_type( struct type_info* a, struct type_info* b ) {
+   struct type_info temp_a;
+   struct type_info temp_b;
+   s_init_type_info_copy( &temp_a, a );
+   s_init_type_info_copy( &temp_b, b );
+   set_storage( &temp_a, STORAGE_MAP );
+   set_storage( &temp_b, STORAGE_MAP );
+   return s_same_type( &temp_a, &temp_b );
+}
+
+void set_storage( struct type_info* type, int storage ) {
+   if ( type->ref ) {
+      if ( ! type->ref->implicit ) {
+         create_implicit_ref( type );
+      }
+      switch ( type->ref->type ) {
+      case REF_ARRAY:
+         {
+            struct ref_array* array = ( struct ref_array* ) type->ref;
+            array->storage = storage;
+         }
+         break;
+      case REF_STRUCTURE:
+         {
+            struct ref_struct* structure = ( struct ref_struct* ) type->ref;
+            structure->storage = storage;
+         }
+         break;
+      default:
+         break;
+      }
+   }
 }

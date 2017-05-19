@@ -3015,9 +3015,12 @@ static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct expr_test src;
    s_init_expr_test( &src, false, false );
    test_nested_expr( semantic, test, &src, call->source );
-   if ( ! s_same_type( &src.type, &dst.type ) ) {
+   if ( ! s_same_storageignored_type( &src.type, &dst.type ) ) {
       s_type_mismatch( semantic, "source", &src.type,
          "destination", &dst.type, &call->source->pos );
+      s_diag( semantic, DIAG_NOTE | DIAG_POS, &call->source->pos,
+         "the source and destination arguments can have different storage "
+         "types" );
       s_bail( semantic );
    }
    // Source-offset.
