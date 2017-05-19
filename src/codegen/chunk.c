@@ -542,19 +542,11 @@ static void write_mini_value( struct codegen* codegen, struct value* value ) {
 }
 
 static void do_aray( struct codegen* codegen ) {
-   int count = 0;
-   struct list_iter i;
-   list_iterate( &codegen->vars, &i );
-   while ( ! list_end( &i ) ) {
-      if ( aray_var( list_data( &i ) ) ) {
-         ++count;
-      }
-      list_next( &i );
-   }
+   int count = list_size( &codegen->arrays );
    if ( codegen->shary.used ) {
       ++count;
    }
-   if ( ! count ) {
+   if ( count == 0 ) {
       return;
    }
    struct {
@@ -563,14 +555,13 @@ static void do_aray( struct codegen* codegen ) {
    } entry;
    c_add_str( codegen, "ARAY" );
    c_add_int( codegen, sizeof( entry ) * count );
-   list_iterate( &codegen->vars, &i );
+   struct list_iter i;
+   list_iterate( &codegen->arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( aray_var( var ) ) {
-         entry.number = var->index;
-         entry.size = var->size;
-         c_add_sized( codegen, &entry, sizeof( entry ) );
-      }
+      entry.number = var->index;
+      entry.size = var->size;
+      c_add_sized( codegen, &entry, sizeof( entry ) );
       list_next( &i );
    }
    if ( codegen->shary.used ) {
