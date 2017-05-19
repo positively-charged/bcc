@@ -49,7 +49,11 @@ void c_init( struct codegen* codegen, struct task* task ) {
    codegen->runtime_index = 0;
    list_init( &codegen->used_strings );
    list_init( &codegen->vars );
+   list_init( &codegen->scalars );
+   list_init( &codegen->arrays );
    list_init( &codegen->imported_vars );
+   list_init( &codegen->imported_scalars );
+   list_init( &codegen->imported_arrays );
    list_init( &codegen->funcs );
    list_init( &codegen->shary.vars );
    list_init( &codegen->shary.dims );
@@ -563,6 +567,29 @@ static void sort_vars( struct codegen* codegen ) {
    list_merge( &codegen->vars, &zerohidden_scalars );
    list_merge( &codegen->vars, &nonzerohidden_scalars );
    list_merge( &codegen->vars, &hidden_arrays );
+   struct list_iter i;
+   list_iterate( &codegen->vars, &i );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( c_is_scalar_var( var ) ) {
+         list_append( &codegen->scalars, var );
+      }
+      else {
+         list_append( &codegen->arrays, var );
+      }
+      list_next( &i );
+   }
+   list_iterate( &codegen->imported_vars, &i );
+   while ( ! list_end( &i ) ) {
+      struct var* var = list_data( &i );
+      if ( c_is_scalar_var( var ) ) {
+         list_append( &codegen->imported_scalars, var );
+      }
+      else {
+         list_append( &codegen->imported_arrays, var );
+      }
+      list_next( &i );
+   }
 }
 
 bool c_is_array( struct var* var ) {

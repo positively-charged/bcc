@@ -87,8 +87,12 @@ struct codegen {
    struct indexed_string* assert_prefix;
    int runtime_index;
    struct list used_strings;
-   struct list vars;
+   struct list vars;    // Includes both scalar variables and arrays.
+   struct list scalars; // Includes only scalar variables.
+   struct list arrays;  // Includes only array variables.
    struct list imported_vars;
+   struct list imported_scalars;
+   struct list imported_arrays;
    struct list funcs;
    struct {
       struct list vars;

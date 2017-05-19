@@ -27,7 +27,7 @@ static void do_func( struct codegen* codegen );
 static void do_fnam( struct codegen* codegen );
 static void do_strl( struct codegen* codegen );
 static void do_mini( struct codegen* codegen );
-static bool mini_var( struct var* var );
+static void write_mini_value( struct codegen* codegen, struct value* value );
 static void do_aray( struct codegen* codegen );
 static bool aray_var( struct var* var );
 static void do_aini( struct codegen* codegen );
@@ -474,11 +474,11 @@ static void do_strl( struct codegen* codegen ) {
 
 static void do_mini( struct codegen* codegen ) {
    struct list_iter i;
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->scalars, &i );
    struct var* first_var = NULL;
    while ( ! list_end( &i ) && ! first_var ) {
       struct var* var = list_data( &i );
-      if ( mini_var( var ) ) {
+      if ( c_is_nonzero_scalar_var( var ) ) {
          first_var = var;
       }
       list_next( &i );
@@ -486,7 +486,7 @@ static void do_mini( struct codegen* codegen ) {
    struct var* last_var = first_var;
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
-      if ( mini_var( var ) ) {
+      if ( c_is_nonzero_scalar_var( var ) ) {
          last_var = var;
       }
       list_next( &i );
@@ -500,35 +500,15 @@ static void do_mini( struct codegen* codegen ) {
       sizeof( int ) + // Index of first variable in the sequence.
       sizeof( int ) * count ); // Initializers.
    c_add_int( codegen, first_var->index );
-   list_iterate( &codegen->vars, &i );
+   list_iterate( &codegen->scalars, &i );
    while ( ! list_end( &i ) && list_data( &i ) != first_var ) {
       list_next( &i );
    }
    bool processed_last_var = false;
    while ( ! list_end( &i ) && ! processed_last_var ) {
       struct var* var = list_data( &i );
-      if ( mini_var( var ) ) {
-         switch ( var->value->type ) {
-         case VALUE_EXPR:
-            c_add_int( codegen, var->value->expr->value );
-            break;
-         case VALUE_STRING:
-            c_add_int( codegen,
-               var->value->more.string.string->index_runtime );
-            break;
-         case VALUE_STRUCTREF:
-            c_add_int( codegen, var->value->more.structref.offset );
-            break;
-         case VALUE_FUNCREF:
-            {
-               struct func_user* impl = var->value->more.funcref.func->impl;
-               c_add_int( codegen, impl->index );
-            }
-            break;
-         default:
-            UNREACHABLE();
-            c_bail( codegen );
-         }
+      if ( c_is_nonzero_scalar_var( var ) ) {
+         write_mini_value( codegen, var->value );
       }
       else {
          c_add_int( codegen, 0 );
@@ -538,8 +518,27 @@ static void do_mini( struct codegen* codegen ) {
    }
 }
 
-inline bool mini_var( struct var* var ) {
-   return c_is_nonzero_scalar_var( var );
+static void write_mini_value( struct codegen* codegen, struct value* value ) {
+   switch ( value->type ) {
+   case VALUE_EXPR:
+      c_add_int( codegen, value->expr->value );
+      break;
+   case VALUE_STRING:
+      c_add_int( codegen, value->more.string.string->index_runtime );
+      break;
+   case VALUE_STRUCTREF:
+      c_add_int( codegen, value->more.structref.offset );
+      break;
+   case VALUE_FUNCREF:
+      {
+         struct func_user* impl = value->more.funcref.func->impl;
+         c_add_int( codegen, impl->index );
+      }
+      break;
+   default:
+      UNREACHABLE();
+      c_bail( codegen );
+   }
 }
 
 static void do_aray( struct codegen* codegen ) {
