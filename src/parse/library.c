@@ -943,6 +943,7 @@ static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    // Read library from source file.
    lib = t_add_library( parse->task );
    lib->lang = p_determine_lang_from_file_path( file->full_path.value );
+   lib->imported = true;
    list_append( &parse->task->libraries, lib );
    if ( lib->lang == LANG_BCS && parse->lib->lang == LANG_ACS ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
