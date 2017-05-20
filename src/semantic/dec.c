@@ -72,14 +72,14 @@ struct param_list_test {
 struct builtin_aliases {
    struct {
       struct alias alias;
-      struct temp_magic_id magic_id;
+      struct magic_id magic_id;
    } name;
 };
 
 struct builtin_script_aliases {
    struct {
       struct alias alias;
-      struct temp_magic_id magic_id;
+      struct magic_id magic_id;
    } name;
 };
 
@@ -2349,8 +2349,8 @@ static void bind_builtin_aliases( struct semantic* semantic,
    s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
 
-void s_init_magic_id( struct temp_magic_id* magic_id, int name ) {
-   t_init_object( &magic_id->object, NODE_TEMPMAGICID );
+void s_init_magic_id( struct magic_id* magic_id, int name ) {
+   t_init_object( &magic_id->object, NODE_MAGICID );
    magic_id->object.resolved = true;
    magic_id->string = NULL;
    magic_id->name = name;

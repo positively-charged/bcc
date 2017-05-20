@@ -252,6 +252,6 @@ void s_reveal( struct type_info* type );
 bool s_is_str( struct type_info* type );
 bool s_is_struct_ref( struct type_info* type );
 bool s_same_storageignored_type( struct type_info* a, struct type_info* b );
-void s_init_magic_id( struct temp_magic_id* magic_id, int name );
+void s_init_magic_id( struct magic_id* magic_id, int name );
 
 #endif

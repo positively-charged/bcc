@@ -78,7 +78,6 @@ static void read_cast( struct parse* parse, struct expr_reading* reading,
    struct paren_reading* paren );
 static void read_paren_expr( struct parse* parse,
    struct expr_reading* reading );
-static void read_magic_id( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
@@ -1317,27 +1316,4 @@ static void read_paren_expr( struct parse* parse,
    p_read_tk( parse );
    paren->inside = nested_expr.node;
    reading->node = &paren->node;
-}
-
-static void read_magic_id( struct parse* parse,
-   struct expr_reading* reading ) {
-   struct magic_id* magic_id = mem_alloc( sizeof( *magic_id ) );
-   magic_id->node.type = NODE_MAGICID;
-   magic_id->pos = parse->tk_pos;
-   magic_id->string = NULL;
-   magic_id->name = MAGICID_NAMESPACE;
-   switch ( parse->tk ) {
-   case TK_NAMESPACENAME:
-      break;
-   case TK_FUNCTIONNAME:
-      magic_id->name = MAGICID_FUNCTION;
-      break;
-   case TK_SCRIPTNAME:
-      magic_id->name = MAGICID_SCRIPT;
-      break;
-   default:
-      UNREACHABLE();
-   }
-   p_read_tk( parse );
-   reading->node = &magic_id->node;
 }

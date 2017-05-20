@@ -303,7 +303,7 @@ static void test_imported_acs_libs( struct semantic* semantic ) {
 }
 
 static void init_builtin_namespace_aliases( struct semantic* semantic ) {
-   struct temp_magic_id* magic_id = mem_alloc( sizeof( *magic_id ) );
+   struct magic_id* magic_id = mem_alloc( sizeof( *magic_id ) );
    s_init_magic_id( magic_id, MAGICID_NAMESPACE );
    struct alias* alias = s_alloc_alias();
    alias->object.resolved = true;

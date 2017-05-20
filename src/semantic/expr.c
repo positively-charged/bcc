@@ -153,7 +153,7 @@ static void test_access_ns( struct semantic* semantic,
    struct result* result );
 static void select_ns_magic_id( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct access* access,
-   struct temp_magic_id* magic_id );
+   struct magic_id* magic_id );
 static void select_ns_object( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct object* object );
 static void test_access_array( struct semantic* semantic,
@@ -242,11 +242,9 @@ static void select_ns( struct semantic* semantic, struct result* result,
 static void select_alias( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct alias* alias );
 static void select_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct temp_magic_id* magic_id );
-static void expand_magic_id_once( struct semantic* semantic,
-   struct temp_magic_id* magic_id );
-static void expand_temp_magic_id( struct semantic* semantic,
-   struct temp_magic_id* magic_id );
+   struct result* result, struct magic_id* magic_id );
+static void expand_magic_id( struct semantic* semantic,
+   struct magic_id* magic_id );
 static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_memcpy( struct semantic* semantic, struct expr_test* test,
@@ -269,10 +267,6 @@ static void test_upmost( struct semantic* semantic, struct result* result );
 static void test_current_namespace( struct semantic* semantic,
    struct result* result );
 static void test_null( struct result* result );
-static void test_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct magic_id* magic_id );
-static void expand_magic_id( struct semantic* semantic,
-   struct magic_id* magic_id );
 
 void s_init_expr_test( struct expr_test* test, bool result_required,
    bool suggest_paren_assign ) {
@@ -1826,9 +1820,9 @@ static void test_access_ns( struct semantic* semantic,
    }
    access->type = ACCESS_NAMESPACE;
    switch ( object->node.type ) {
-   case NODE_TEMPMAGICID:
+   case NODE_MAGICID:
       select_ns_magic_id( semantic, test, result, access,
-         ( struct temp_magic_id* ) object );
+         ( struct magic_id* ) object );
       break;
    default:
       select_ns_object( semantic, test, result, object );
@@ -1855,7 +1849,7 @@ void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
 
 static void select_ns_magic_id( struct semantic* semantic,
    struct expr_test* test, struct result* result, struct access* access,
-   struct temp_magic_id* magic_id ) {
+   struct magic_id* magic_id ) {
    select_magic_id( semantic, test, result, magic_id );
    access->rside = &test->magic_id_usage->node;
 }
@@ -2497,10 +2491,6 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
    case NODE_NULL:
       test_null( result );
       break;
-   case NODE_MAGICID:
-      test_magic_id( semantic, test, result,
-         ( struct magic_id* ) node );
-      break;
    default:
       UNREACHABLE();
    }
@@ -2676,9 +2666,9 @@ static void test_found_object( struct semantic* semantic,
       }
    }
    switch ( object->node.type ) {
-   case NODE_TEMPMAGICID:
+   case NODE_MAGICID:
       select_magic_id( semantic, test, result,
-         ( struct temp_magic_id* ) object );
+         ( struct magic_id* ) object );
       usage->object = &test->magic_id_usage->node;
       break;
    default:
@@ -2959,16 +2949,16 @@ static void select_alias( struct semantic* semantic, struct expr_test* test,
 }
 
 static void select_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct temp_magic_id* magic_id ) {
-   expand_magic_id_once( semantic, magic_id );
+   struct result* result, struct magic_id* magic_id ) {
+   expand_magic_id( semantic, magic_id );
    struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
    string_usage->string = magic_id->string;
    test->magic_id_usage = string_usage;
    test_string( semantic, test, result, string_usage->string );
 }
 
-static void expand_magic_id_once( struct semantic* semantic,
-   struct temp_magic_id* magic_id ) {
+static void expand_magic_id( struct semantic* semantic,
+   struct magic_id* magic_id ) {
    struct str name;
    str_init( &name );
    switch ( magic_id->name ) {
@@ -3278,61 +3268,4 @@ static void test_null( struct result* result ) {
    result->complete = true;
    result->usable = true;
    result->folded = true;
-}
-
-static void test_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct magic_id* magic_id ) {
-   expand_magic_id( semantic, magic_id );
-   test_string( semantic, test, result, magic_id->string );
-}
-
-static void expand_magic_id( struct semantic* semantic,
-   struct magic_id* magic_id ) {
-   struct str name;
-   str_init( &name );
-   switch ( magic_id->name ) {
-   case MAGICID_NAMESPACE:
-      if ( semantic->ns == semantic->task->upmost_ns ) {
-         str_append( &name, "" );
-      }
-      else {
-         t_copy_name( semantic->ns->name, true, &name );
-      }
-      break;
-   case MAGICID_FUNCTION:
-      if ( ! ( semantic->func_test && semantic->func_test->func ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &magic_id->pos,
-            "using %s outside a function",
-            p_get_token_info( TK_FUNCTIONNAME )->shared_text );
-         s_bail( semantic );
-      }
-      if ( semantic->func_test->func->name ) {
-         t_copy_name( semantic->func_test->func->name, false, &name );
-      }
-      else {
-         // TODO: Create a nicer name.
-         str_append( &name, "" );
-      }
-      break;
-   case MAGICID_SCRIPT:
-      if ( ! ( semantic->func_test && semantic->func_test->script ) ) {
-         s_diag( semantic, DIAG_POS_ERR, &magic_id->pos,
-            "using %s outside a script",
-            p_get_token_info( TK_SCRIPTNAME )->shared_text );
-         s_bail( semantic );
-      }
-      if ( semantic->func_test->script->named_script ) {
-         struct indexed_string* string = t_lookup_string( semantic->task,
-            semantic->func_test->script->number->value );
-         str_append( &name, string->value );
-      }
-      else {
-         str_append_number( &name,
-            semantic->func_test->script->number->value );
-      }
-      break;
-   }
-   magic_id->string = t_intern_string_copy( semantic->task,
-      name.value, name.length );
-   str_deinit( &name );
 }

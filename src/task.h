@@ -126,8 +126,6 @@ struct node {
       NODE_COMPOUNDLITERAL,
       NODE_MAGICID,
       NODE_BUILDMSG,
-      // 60
-      NODE_TEMPMAGICID,
    } type;
 };
 
@@ -319,20 +317,13 @@ struct compound_literal {
 // __FUNCTION__  | Name of the current function.
 // __SCRIPT__    | Name or number of the current script.
 struct magic_id {
-   struct node node;
-   struct pos pos;
+   struct object object;
    struct indexed_string* string;
    enum {
       MAGICID_NAMESPACE,
       MAGICID_FUNCTION,
       MAGICID_SCRIPT,
    } name;
-};
-
-struct temp_magic_id {
-   struct object object;
-   struct indexed_string* string;
-   int name;
 };
 
 struct unary {
