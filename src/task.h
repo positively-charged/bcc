@@ -126,6 +126,8 @@ struct node {
       NODE_COMPOUNDLITERAL,
       NODE_MAGICID,
       NODE_BUILDMSG,
+      // 60
+      NODE_TEMPMAGICID,
    } type;
 };
 
@@ -325,6 +327,12 @@ struct magic_id {
       MAGICID_FUNCTION,
       MAGICID_SCRIPT,
    } name;
+};
+
+struct temp_magic_id {
+   struct object object;
+   struct indexed_string* string;
+   int name;
 };
 
 struct unary {

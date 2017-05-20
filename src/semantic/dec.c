@@ -69,6 +69,20 @@ struct param_list_test {
    bool need_public_spec;
 };
 
+struct builtin_aliases {
+   struct {
+      struct alias alias;
+      struct object object;
+   } name;
+};
+
+struct builtin_script_aliases {
+   struct {
+      struct alias alias;
+      struct temp_magic_id magic_id;
+   } name;
+};
+
 struct value_list {
    struct value* head;
    struct value* tail;
@@ -223,6 +237,9 @@ static void default_value_mismatch( struct semantic* semantic,
    struct type_info* type, struct pos* pos );
 static int get_param_number( struct func* func, struct param* target );
 static bool test_external_func( struct semantic* semantic, struct func* func );
+static void init_builtin_aliases( struct semantic* semantic,
+   struct func* func );
+static void init_magic_id( struct temp_magic_id* magic_id, int name );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script );
@@ -243,6 +260,8 @@ static void test_script_param_list( struct semantic* semantic,
    struct script* script );
 static void test_script_body( struct semantic* semantic,
    struct script* script );
+static void init_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases, struct script* script );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    struct expr_test expr;
@@ -2307,6 +2326,18 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    }
 }
 
+static void init_builtin_aliases( struct semantic* semantic,
+   struct func* func ) {
+
+}
+
+static void init_magic_id( struct temp_magic_id* magic_id, int name ) {
+   t_init_object( &magic_id->object, NODE_TEMPMAGICID );
+   magic_id->object.resolved = true;
+   magic_id->string = NULL;
+   magic_id->name = name;
+}
+
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script ) {
@@ -2419,6 +2450,8 @@ static void test_script_param_list( struct semantic* semantic,
 static void test_script_body( struct semantic* semantic,
    struct script* script ) {
    s_add_scope( semantic, true );
+   struct builtin_script_aliases aliases;
+   init_builtin_script_aliases( semantic, &aliases, script );
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
@@ -2436,6 +2469,17 @@ static void test_script_body( struct semantic* semantic,
    semantic->topfunc_test = NULL;
    semantic->func_test = NULL;
    s_pop_scope( semantic );
+}
+
+static void init_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases, struct script* script ) {
+   init_magic_id( &aliases->name.magic_id, MAGICID_SCRIPT );
+   struct alias* alias = &aliases->name.alias;
+   s_init_alias( alias );
+   alias->object.resolved = true;
+   alias->target = &aliases->name.magic_id.object;
+   struct name* name = t_extend_name( semantic->ns->body, "__script__" );
+   s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
 
 void s_calc_var_size( struct var* var ) {

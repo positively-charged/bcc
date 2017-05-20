@@ -82,6 +82,7 @@ static void read_magic_id( struct parse* parse, struct expr_reading* reading );
 
 void p_init_expr_reading( struct expr_reading* reading, bool in_constant,
    bool skip_assign, bool skip_call, bool expect_expr ) {
+   t_init_pos_id( &reading->pos, INTERNALFILE_COMPILER );
    reading->node = NULL;
    reading->output_node = NULL;
    reading->in_constant = in_constant;
@@ -591,7 +592,6 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
       break;
    case TK_NAMESPACENAME:
    case TK_FUNCTIONNAME:
-   case TK_SCRIPTNAME:
       read_magic_id( parse, reading );
       break;
    default:
