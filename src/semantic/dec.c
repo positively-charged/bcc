@@ -239,6 +239,8 @@ static int get_param_number( struct func* func, struct param* target );
 static bool test_external_func( struct semantic* semantic, struct func* func );
 static void init_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases, struct func* func );
+static void bind_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script );
@@ -261,6 +263,8 @@ static void test_script_body( struct semantic* semantic,
    struct script* script );
 static void init_builtin_script_aliases( struct semantic* semantic,
    struct builtin_script_aliases* aliases, struct script* script );
+static void bind_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
    struct expr_test expr;
@@ -2298,6 +2302,9 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
    s_add_scope( semantic, true );
    struct builtin_aliases aliases;
    init_builtin_aliases( semantic, &aliases, func );
+   if ( semantic->lib->lang == LANG_BCS ) {
+      bind_builtin_aliases( semantic, &aliases );
+   }
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
@@ -2334,6 +2341,10 @@ static void init_builtin_aliases( struct semantic* semantic,
    s_init_alias( alias );
    alias->object.resolved = true;
    alias->target = &aliases->name.magic_id.object;
+}
+
+static void bind_builtin_aliases( struct semantic* semantic,
+   struct builtin_aliases* aliases ) {
    struct name* name = t_extend_name( semantic->ns->body, "__function__" );
    s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
@@ -2459,6 +2470,9 @@ static void test_script_body( struct semantic* semantic,
    s_add_scope( semantic, true );
    struct builtin_script_aliases aliases;
    init_builtin_script_aliases( semantic, &aliases, script );
+   if ( semantic->lib->lang == LANG_BCS ) {
+      bind_builtin_script_aliases( semantic, &aliases );
+   }
    struct param* param = script->params;
    while ( param ) {
       if ( param->name ) {
@@ -2485,6 +2499,10 @@ static void init_builtin_script_aliases( struct semantic* semantic,
    s_init_alias( alias );
    alias->object.resolved = true;
    alias->target = &aliases->name.magic_id.object;
+}
+
+static void bind_builtin_script_aliases( struct semantic* semantic,
+   struct builtin_script_aliases* aliases ) {
    struct name* name = t_extend_name( semantic->ns->body, "__script__" );
    s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
