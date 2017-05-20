@@ -239,7 +239,6 @@ static int get_param_number( struct func* func, struct param* target );
 static bool test_external_func( struct semantic* semantic, struct func* func );
 static void init_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases, struct func* func );
-static void init_magic_id( struct temp_magic_id* magic_id, int name );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
    struct script* script );
@@ -2330,7 +2329,7 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
 
 static void init_builtin_aliases( struct semantic* semantic,
    struct builtin_aliases* aliases, struct func* func ) {
-   init_magic_id( &aliases->name.magic_id, MAGICID_FUNCTION );
+   s_init_magic_id( &aliases->name.magic_id, MAGICID_FUNCTION );
    struct alias* alias = &aliases->name.alias;
    s_init_alias( alias );
    alias->object.resolved = true;
@@ -2339,7 +2338,7 @@ static void init_builtin_aliases( struct semantic* semantic,
    s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
 
-static void init_magic_id( struct temp_magic_id* magic_id, int name ) {
+void s_init_magic_id( struct temp_magic_id* magic_id, int name ) {
    t_init_object( &magic_id->object, NODE_TEMPMAGICID );
    magic_id->object.resolved = true;
    magic_id->string = NULL;
@@ -2481,7 +2480,7 @@ static void test_script_body( struct semantic* semantic,
 
 static void init_builtin_script_aliases( struct semantic* semantic,
    struct builtin_script_aliases* aliases, struct script* script ) {
-   init_magic_id( &aliases->name.magic_id, MAGICID_SCRIPT );
+   s_init_magic_id( &aliases->name.magic_id, MAGICID_SCRIPT );
    struct alias* alias = &aliases->name.alias;
    s_init_alias( alias );
    alias->object.resolved = true;

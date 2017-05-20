@@ -103,7 +103,6 @@ static void read_token_bcs( struct parse* parse ) {
          const char* name;
          enum tk tk;
       } table[] = {
-         { "__namespace__", TK_NAMESPACENAME },
          { "assert", TK_ASSERT },
          { "auto", TK_AUTO },
          { "bool", TK_BOOL },

@@ -151,6 +151,11 @@ static struct structure_member* get_structure_member(
 static void test_access_ns( struct semantic* semantic,
    struct expr_test* test, struct access* access, struct result* lside,
    struct result* result );
+static void select_ns_magic_id( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct access* access,
+   struct temp_magic_id* magic_id );
+static void select_ns_object( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct object* object );
 static void test_access_array( struct semantic* semantic,
    struct expr_test* test, struct access* access, struct result* lside,
    struct result* result );
@@ -237,8 +242,7 @@ static void select_ns( struct semantic* semantic, struct result* result,
 static void select_alias( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct alias* alias );
 static void select_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct name_usage* usage,
-   struct temp_magic_id* magic_id );
+   struct result* result, struct temp_magic_id* magic_id );
 static void expand_magic_id_once( struct semantic* semantic,
    struct temp_magic_id* magic_id );
 static void expand_temp_magic_id( struct semantic* semantic,
@@ -278,6 +282,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    test->var = NULL;
    test->structure_member = NULL;
    test->func = NULL;
+   test->magic_id_usage = NULL;
    test->dim_depth = 0;
    test->result_required = result_required;
    test->has_str = false;
@@ -1819,6 +1824,44 @@ static void test_access_ns( struct semantic* semantic,
          longjmp( test->bail, 1 );
       }
    }
+   access->type = ACCESS_NAMESPACE;
+   switch ( object->node.type ) {
+   case NODE_TEMPMAGICID:
+      select_ns_magic_id( semantic, test, result, access,
+         ( struct temp_magic_id* ) object );
+      break;
+   default:
+      select_ns_object( semantic, test, result, object );
+      access->rside = &object->node;
+   }
+}
+
+void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
+   const char* object_name, struct pos* pos ) {
+   if ( ns == semantic->task->upmost_ns ) {
+      s_diag( semantic, DIAG_POS_ERR, pos,
+         "`%s` not found in upmost namespace", object_name );
+   }
+   else {
+      struct str name;
+      str_init( &name );
+      t_copy_name( ns->name, true, &name );
+      s_diag( semantic, DIAG_POS_ERR, pos,
+         "`%s` not found in namespace `%s`", object_name,
+         name.value );
+      str_deinit( &name );
+   }
+}
+
+static void select_ns_magic_id( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct access* access,
+   struct temp_magic_id* magic_id ) {
+   select_magic_id( semantic, test, result, magic_id );
+   access->rside = &test->magic_id_usage->node;
+}
+
+static void select_ns_object( struct semantic* semantic,
+   struct expr_test* test, struct result* result, struct object* object ) {
    switch ( object->node.type ) {
    case NODE_CONSTANT:
       select_constant( semantic, test, result, 
@@ -1847,25 +1890,6 @@ static void test_access_ns( struct semantic* semantic,
    default:
       UNREACHABLE();
       s_bail( semantic );
-   }
-   access->type = ACCESS_NAMESPACE;
-   access->rside = &object->node;
-}
-
-void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
-   const char* object_name, struct pos* pos ) {
-   if ( ns == semantic->task->upmost_ns ) {
-      s_diag( semantic, DIAG_POS_ERR, pos,
-         "`%s` not found in upmost namespace", object_name );
-   }
-   else {
-      struct str name;
-      str_init( &name );
-      t_copy_name( ns->name, true, &name );
-      s_diag( semantic, DIAG_POS_ERR, pos,
-         "`%s` not found in namespace `%s`", object_name,
-         name.value );
-      str_deinit( &name );
    }
 }
 
@@ -2653,8 +2677,9 @@ static void test_found_object( struct semantic* semantic,
    }
    switch ( object->node.type ) {
    case NODE_TEMPMAGICID:
-      select_magic_id( semantic, test, result, usage,
+      select_magic_id( semantic, test, result,
          ( struct temp_magic_id* ) object );
+      usage->object = &test->magic_id_usage->node;
       break;
    default:
       select_object( semantic, test, result, object );
@@ -2934,23 +2959,15 @@ static void select_alias( struct semantic* semantic, struct expr_test* test,
 }
 
 static void select_magic_id( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct name_usage* usage,
-   struct temp_magic_id* magic_id ) {
+   struct result* result, struct temp_magic_id* magic_id ) {
    expand_magic_id_once( semantic, magic_id );
    struct indexed_string_usage* string_usage = t_alloc_indexed_string_usage();
    string_usage->string = magic_id->string;
-   usage->object = &string_usage->node;
+   test->magic_id_usage = string_usage;
    test_string( semantic, test, result, string_usage->string );
 }
 
 static void expand_magic_id_once( struct semantic* semantic,
-   struct temp_magic_id* magic_id ) {
-   if ( ! magic_id->string ) {
-      expand_temp_magic_id( semantic, magic_id );
-   }
-}
-
-static void expand_temp_magic_id( struct semantic* semantic,
    struct temp_magic_id* magic_id ) {
    struct str name;
    str_init( &name );
@@ -2973,6 +2990,14 @@ static void expand_temp_magic_id( struct semantic* semantic,
       else {
          // TODO: Create a nicer name.
          str_append( &name, "" );
+      }
+      break;
+   case MAGICID_NAMESPACE:
+      if ( semantic->ns == semantic->task->upmost_ns ) {
+         str_append( &name, "" );
+      }
+      else {
+         t_copy_name( semantic->ns->name, true, &name );
       }
       break;
    default:

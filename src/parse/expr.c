@@ -590,9 +590,6 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_PAREN_L:
       read_paren( parse, reading );
       break;
-   case TK_NAMESPACENAME:
-      read_magic_id( parse, reading );
-      break;
    default:
       p_unexpect_diag( parse );
       // For areas of code where an expression is to be expected. Only show

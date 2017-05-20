@@ -76,6 +76,7 @@ struct expr_test {
    struct var* var;
    struct structure_member* structure_member;
    struct func* func;
+   struct indexed_string_usage* magic_id_usage;
    int dim_depth;
    bool result_required;
    bool has_str;
@@ -251,5 +252,6 @@ void s_reveal( struct type_info* type );
 bool s_is_str( struct type_info* type );
 bool s_is_struct_ref( struct type_info* type );
 bool s_same_storageignored_type( struct type_info* a, struct type_info* b );
+void s_init_magic_id( struct temp_magic_id* magic_id, int name );
 
 #endif

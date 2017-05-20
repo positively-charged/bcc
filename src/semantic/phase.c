@@ -31,6 +31,7 @@ static void test_module_acs( struct semantic* semantic, struct library* lib );
 static void test_module_item_acs( struct semantic* semantic,
    struct node* node );
 static void test_bcs( struct semantic* semantic );
+static void init_builtin_namespace_aliases( struct semantic* semantic );
 static void test_imported_acs_libs( struct semantic* semantic );
 static void bind_names( struct semantic* semantic );
 static void bind_namespace( struct semantic* semantic,
@@ -267,6 +268,7 @@ static void test_module_item_acs( struct semantic* semantic,
 }
 
 static void test_bcs( struct semantic* semantic ) {
+   init_builtin_namespace_aliases( semantic );
    test_imported_acs_libs( semantic );
    bind_names( semantic );
    perform_usings( semantic );
@@ -298,6 +300,17 @@ static void test_imported_acs_libs( struct semantic* semantic ) {
       list_next( &i );
    }
    semantic->trigger_err = false;
+}
+
+static void init_builtin_namespace_aliases( struct semantic* semantic ) {
+   struct temp_magic_id* magic_id = mem_alloc( sizeof( *magic_id ) );
+   s_init_magic_id( magic_id, MAGICID_NAMESPACE );
+   struct alias* alias = s_alloc_alias();
+   alias->object.resolved = true;
+   alias->target = &magic_id->object;
+   struct name* name = t_extend_name(
+      semantic->task->upmost_ns->body, "__namespace__" );
+   s_bind_name( semantic, name, &alias->object );
 }
 
 static void bind_names( struct semantic* semantic ) {
@@ -971,6 +984,10 @@ struct object* s_get_ns_object( struct ns* ns, const char* object_name,
          object = object->next_scope;
       }
       if ( object->depth == 0 ) {
+         if ( object && object->node.type == NODE_ALIAS ) {
+            struct alias* alias = ( struct alias* ) object;
+            object = alias->target;
+         }
          return object;
       }
    }

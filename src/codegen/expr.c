@@ -1478,6 +1478,7 @@ static void visit_access( struct codegen* codegen, struct result* result,
          break;
       default:
          UNREACHABLE();
+         c_bail( codegen );
       }
       break;
    case ACCESS_NAMESPACE:
@@ -1498,10 +1499,15 @@ static void visit_access( struct codegen* codegen, struct result* result,
          visit_func( codegen, result,
             ( struct func* ) access->rside );
          break;
+      case NODE_INDEXED_STRING_USAGE:
+         visit_indexed_string_usage( codegen, result,
+            ( struct indexed_string_usage* ) access->rside );
+         break;
       case NODE_NAMESPACE:
          break;
       default:
          UNREACHABLE();
+         c_bail( codegen );
       }
       break;
    case ACCESS_STR:
