@@ -72,7 +72,7 @@ struct param_list_test {
 struct builtin_aliases {
    struct {
       struct alias alias;
-      struct object object;
+      struct temp_magic_id magic_id;
    } name;
 };
 
@@ -238,7 +238,7 @@ static void default_value_mismatch( struct semantic* semantic,
 static int get_param_number( struct func* func, struct param* target );
 static bool test_external_func( struct semantic* semantic, struct func* func );
 static void init_builtin_aliases( struct semantic* semantic,
-   struct func* func );
+   struct builtin_aliases* aliases, struct func* func );
 static void init_magic_id( struct temp_magic_id* magic_id, int name );
 static void init_func_test( struct func_test* test, struct func_test* parent,
    struct func* func, struct list* labels, struct list* funcscope_vars,
@@ -2297,6 +2297,8 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
       s_bail( semantic );
    }
    s_add_scope( semantic, true );
+   struct builtin_aliases aliases;
+   init_builtin_aliases( semantic, &aliases, func );
    struct param* param = func->params;
    while ( param ) {
       if ( param->name ) {
@@ -2327,8 +2329,14 @@ void s_test_func_body( struct semantic* semantic, struct func* func ) {
 }
 
 static void init_builtin_aliases( struct semantic* semantic,
-   struct func* func ) {
-
+   struct builtin_aliases* aliases, struct func* func ) {
+   init_magic_id( &aliases->name.magic_id, MAGICID_FUNCTION );
+   struct alias* alias = &aliases->name.alias;
+   s_init_alias( alias );
+   alias->object.resolved = true;
+   alias->target = &aliases->name.magic_id.object;
+   struct name* name = t_extend_name( semantic->ns->body, "__function__" );
+   s_bind_local_name( semantic, name, &aliases->name.alias.object, true );
 }
 
 static void init_magic_id( struct temp_magic_id* magic_id, int name ) {

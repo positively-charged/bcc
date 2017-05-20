@@ -2966,6 +2966,18 @@ static void expand_temp_magic_id( struct semantic* semantic,
             semantic->func_test->script->number->value );
       }
       break;
+   case MAGICID_FUNCTION:
+      if ( semantic->func_test->func->name ) {
+         t_copy_name( semantic->func_test->func->name, false, &name );
+      }
+      else {
+         // TODO: Create a nicer name.
+         str_append( &name, "" );
+      }
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
    }
    magic_id->string = t_intern_string_copy( semantic->task,
       name.value, name.length );

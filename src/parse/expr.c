@@ -591,7 +591,6 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
       read_paren( parse, reading );
       break;
    case TK_NAMESPACENAME:
-   case TK_FUNCTIONNAME:
       read_magic_id( parse, reading );
       break;
    default:
