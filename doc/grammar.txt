@@ -447,6 +447,7 @@ statement:
    <palette-translation>
    <assert>
    <buildmsg>
+   <inline-assembly>
    <empty-statement>
    <expression-statement>
 
@@ -589,19 +590,26 @@ buildmsg-statement:
 buildmsg:
    buildmsg ( <expression> ) <block-statement>
 
-inline-asm:
-   > <id> <nl>
-   > <id> <inline-asm-args> <nl>
+inline-assembly:
+   > <inline-assembly-opcode> <nl>
+   > <inline-assembly-opcode> <inline-assembly-argument-list> <nl>
 
-inline-asm-args:
+inline-assembly-opcode:
+   <identifier>
+   terminate
+   restart
+   suspend
+   goto
+
+inline-assembly-argument-list:
+   <inline-assembly-argument>
+   <inline-assembly-argument-list> , <inline-assembly-argument>
+
+inline-assembly-argument:
    <number>
-   <id>
+   <identifier>
    <string>
-   ( <expr )
-   <inline-asm-args> , <number>
-   <inline-asm-args> , <id>
-   <inline-asm-args> , <string>
-   <inline-asm-args> , ( <expr> )
+   ( <expression> )
 
 empty-statement:
    ;

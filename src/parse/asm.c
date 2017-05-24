@@ -5,6 +5,7 @@
 #include "codegen/pcode.h"
 
 static struct inline_asm* alloc_inline_asm( void );
+static void read_opcode( struct parse* parse, struct inline_asm* inline_asm );
 static void read_arg( struct parse* parse, struct inline_asm* inline_asm );
 static struct inline_asm_arg* alloc_inline_asm_arg( struct pos* pos );
 
@@ -13,10 +14,7 @@ void p_read_asm( struct parse* parse, struct stmt_reading* reading ) {
    struct inline_asm* inline_asm = alloc_inline_asm();
    p_test_tk( parse, TK_GT );
    p_read_tk( parse );
-   p_test_tk( parse, TK_ID );
-   inline_asm->name = parse->tk_text;
-   inline_asm->pos = parse->tk_pos;
-   p_read_tk( parse );
+   read_opcode( parse, inline_asm );
    if ( parse->tk != TK_NL ) {
       while ( true ) {
          read_arg( parse, inline_asm );
@@ -43,6 +41,24 @@ static struct inline_asm* alloc_inline_asm( void ) {
    inline_asm->opcode = 0;
    inline_asm->obj_pos = 0;
    return inline_asm;
+}
+
+static void read_opcode( struct parse* parse, struct inline_asm* inline_asm ) {
+   switch ( parse->tk ) {
+   case TK_ID:
+   case TK_TERMINATE:
+   case TK_RESTART:
+   case TK_SUSPEND:
+   case TK_GOTO:
+      inline_asm->name = parse->tk_text;
+      inline_asm->pos = parse->tk_pos;
+      p_read_tk( parse );
+      break;
+   default:
+      p_unexpect_diag( parse );
+      p_unexpect_last_name( parse, NULL, "instruction name" );
+      p_bail( parse );
+   }
 }
 
 static void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
