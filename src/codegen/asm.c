@@ -52,12 +52,17 @@ static void write_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
 
 static void write_expr_arg( struct codegen* codegen,
    struct inline_asm_arg* arg ) {
-   c_arg( codegen, arg->value.expr->value );
+   struct indexed_string* string = NULL;
    if ( arg->value.expr->has_str ) {
-      struct indexed_string* string = t_lookup_string( codegen->task,
-         arg->value.expr->value );
+      string = t_lookup_string( codegen->task, arg->value.expr->value );
       if ( string ) {
          c_append_string( codegen, string );
       }
+   }
+   if ( string ) {
+      c_arg( codegen, string->index_runtime );
+   }
+   else {
+      c_arg( codegen, arg->value.expr->value );
    }
 }
