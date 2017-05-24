@@ -492,6 +492,7 @@ struct token* p_peek_tk( struct parse* parse );
 void p_present_token( struct str* str, enum tk tk );
 const char* p_present_token_temp( struct parse* parse, enum tk tk );
 int p_extract_literal_value( struct parse* parse );
+int p_extract_fixed_literal_value( const char* text );
 void p_load_included_source( struct parse* parse, const char* file_path,
    struct pos* pos );
 void p_read_script( struct parse* parse );

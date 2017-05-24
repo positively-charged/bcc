@@ -67,8 +67,15 @@ static void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
    if (
       parse->tk == TK_LIT_DECIMAL ||
       parse->tk == TK_LIT_OCTAL ||
-      parse->tk == TK_LIT_HEX ) {
+      parse->tk == TK_LIT_HEX ||
+      parse->tk == TK_LIT_BINARY ||
+      parse->tk == TK_LIT_RADIX ||
+      parse->tk == TK_LIT_CHAR ) {
       arg->value.number = p_extract_literal_value( parse );
+      p_read_tk( parse );
+   }
+   else if ( parse->tk == TK_LIT_FIXED ) {
+      arg->value.number = p_extract_fixed_literal_value( parse->tk_text );
       p_read_tk( parse );
    }
    // FIXME: missing maximum string length check.

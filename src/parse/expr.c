@@ -35,7 +35,6 @@ static struct inc* alloc_inc( struct pos pos, bool dec );
 static void read_primary( struct parse* parse, struct expr_reading* reading );
 static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading );
-static int extract_fixed_literal_value( const char* text );
 static void read_conversion( struct parse* parse,
    struct expr_reading* reading );
 static void read_suffix( struct parse* parse, struct expr_reading* reading );
@@ -807,12 +806,12 @@ static void read_fixed_literal( struct parse* parse,
    struct expr_reading* reading ) {
    struct fixed_literal* literal = mem_slot_alloc( sizeof( *literal ) );
    literal->node.type = NODE_FIXED_LITERAL;
-   literal->value = extract_fixed_literal_value( parse->tk_text );
+   literal->value = p_extract_fixed_literal_value( parse->tk_text );
    reading->node = &literal->node;
    p_read_tk( parse );
 }
 
-static int extract_fixed_literal_value( const char* text ) {
+int p_extract_fixed_literal_value( const char* text ) {
    double value = atof( text );
    return
       // Whole.
