@@ -466,6 +466,7 @@ static void test_arg( struct semantic* semantic, struct test* test,
       bool unknown = false;
       switch ( *test->format ) {
       case 'n': match = ( arg->type == INLINE_ASM_ARG_NUMBER ); break;
+      case 's': match = ( arg->type == INLINE_ASM_ARG_STRING ); break;
       case 'l': match = ( arg->type == INLINE_ASM_ARG_ID ); break;
       case 'v': match = ( arg->type == INLINE_ASM_ARG_ID ); break;
       case 'a': match = ( arg->type == INLINE_ASM_ARG_ID ); break;
@@ -506,6 +507,7 @@ static void test_arg( struct semantic* semantic, struct test* test,
       test_expr_arg( semantic, arg );
       break;
    case 'n':
+   case 's':
       break;
    default:
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,

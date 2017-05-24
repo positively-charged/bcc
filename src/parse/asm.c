@@ -55,6 +55,15 @@ static void read_arg( struct parse* parse, struct inline_asm* inline_asm ) {
       arg->value.number = p_extract_literal_value( parse );
       p_read_tk( parse );
    }
+   // FIXME: missing maximum string length check.
+   else if ( parse->tk == TK_LIT_STRING ) {
+      arg->type = INLINE_ASM_ARG_STRING;
+      struct indexed_string* string = t_intern_string( parse->task,
+         parse->tk_text, parse->tk_length );
+      string->in_source_code = true;
+      arg->value.string = string;
+      p_read_tk( parse );
+   }
    else if ( parse->tk == TK_ID ) {
       arg->type = INLINE_ASM_ARG_ID;
       arg->value.id = parse->tk_text;

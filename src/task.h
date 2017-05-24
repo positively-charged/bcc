@@ -1079,6 +1079,7 @@ struct inline_asm_arg {
    enum {
       INLINE_ASM_ARG_NUMBER,
       INLINE_ASM_ARG_ID,
+      INLINE_ASM_ARG_STRING,
       INLINE_ASM_ARG_EXPR,
       INLINE_ASM_ARG_LABEL,
       INLINE_ASM_ARG_VAR,
@@ -1088,6 +1089,7 @@ struct inline_asm_arg {
    union {
       int number;
       const char* id;
+      struct indexed_string* string;
       struct expr* expr;
       struct label* label;
       struct var* var;

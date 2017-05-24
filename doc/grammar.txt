@@ -596,9 +596,11 @@ inline-asm:
 inline-asm-args:
    <number>
    <id>
+   <string>
    ( <expr )
    <inline-asm-args> , <number>
    <inline-asm-args> , <id>
+   <inline-asm-args> , <string>
    <inline-asm-args> , ( <expr> )
 
 empty-statement:
