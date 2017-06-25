@@ -609,7 +609,7 @@ void s_take_fine_type_snapshot( struct type_info* type,
    snapshot->storage = type->storage;
 }
 
-struct ref* dup_ref( struct ref* ref ) {
+static struct ref* dup_ref( struct ref* ref ) {
    size_t size = 0;
    switch ( ref->type ) {
    case REF_ARRAY: size = sizeof( struct ref_array ); break;
@@ -749,7 +749,7 @@ bool s_same_storageignored_type( struct type_info* a, struct type_info* b ) {
    return s_same_type( &temp_a, &temp_b );
 }
 
-void set_storage( struct type_info* type, int storage ) {
+static void set_storage( struct type_info* type, int storage ) {
    if ( type->ref ) {
       if ( ! type->ref->implicit ) {
          create_implicit_ref( type );

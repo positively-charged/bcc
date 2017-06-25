@@ -208,7 +208,7 @@ static void do_svct( struct codegen* codegen ) {
    }
 }
 
-inline bool svct_script( struct script* script ) {
+inline static bool svct_script( struct script* script ) {
    enum { DEFAULT_SCRIPT_SIZE = 20 };
    return ( script->size > DEFAULT_SCRIPT_SIZE );
 }
@@ -968,7 +968,7 @@ static void do_mstr( struct codegen* codegen ) {
    }
 }
 
-inline bool mstr_var( struct var* var ) {
+inline static bool mstr_var( struct var* var ) {
    return ( var->desc == DESC_PRIMITIVEVAR && var->initial_has_str ) ||
       ( var->desc == DESC_REFVAR && var->ref->type == REF_FUNCTION );
 }
@@ -999,7 +999,7 @@ static void do_astr( struct codegen* codegen ) {
    }
 }
 
-inline bool astr_var( struct var* var ) {
+inline static bool astr_var( struct var* var ) {
    return ( var->desc == DESC_ARRAY && ( var->initial_has_str ||
       ( var->ref && var->ref->type == REF_FUNCTION ) ) );
 }
@@ -1200,7 +1200,7 @@ static void write_sary_chunk( struct codegen* codegen, const char* chunk_name,
    }
 }
 
-inline bool script_array( struct var* var ) {
+inline static bool script_array( struct var* var ) {
    return ( var->storage == STORAGE_LOCAL && ( var->dim ||
       ( ! var->ref && var->structure ) ) ); 
 }

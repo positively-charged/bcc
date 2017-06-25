@@ -355,7 +355,7 @@ static void read_enum( struct parse* parse, struct dec* dec ) {
    }
 }
 
-inline bool is_enum_def( struct parse* parse ) {
+inline static bool is_enum_def( struct parse* parse ) {
    return parse->tk == TK_ENUM && (
       p_peek( parse ) == TK_BRACE_L ||
       p_peek( parse ) == TK_COLON || ( ( p_peek( parse ) == TK_ID ||
@@ -525,7 +525,7 @@ static void read_struct( struct parse* parse, struct dec* dec ) {
    }
 }
 
-inline bool is_struct_def( struct parse* parse ) {
+inline static bool is_struct_def( struct parse* parse ) {
    return ( parse->tk == TK_STRUCT && ( p_peek( parse ) == TK_BRACE_L ||
       ( ( p_peek( parse ) == TK_ID || p_peek( parse ) == TK_TYPENAME ) &&
          p_peek_2nd( parse ) == TK_BRACE_L ) ) );
@@ -1205,7 +1205,7 @@ static void read_name( struct parse* parse, struct dec* dec ) {
    }
 }
 
-inline bool is_name( struct parse* parse, struct dec* dec ) {
+inline static bool is_name( struct parse* parse, struct dec* dec ) {
    return ( ( dec->type_alias && parse->tk == TK_TYPENAME ) ||
       ( ! dec->type_alias && parse->tk == TK_ID ) );
 }

@@ -339,7 +339,7 @@ static void write_switch_casegoto( struct codegen* codegen,
    set_jumps_point( codegen, stmt->jump_break, exit_point );
 }
 
-inline bool string_switch( struct switch_stmt* stmt ) {
+inline static bool string_switch( struct switch_stmt* stmt ) {
    return ( stmt->cond.expr ?
       stmt->cond.expr->spec == SPEC_STR :
       stmt->cond.var->spec == SPEC_STR );

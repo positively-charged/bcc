@@ -229,7 +229,7 @@ static void read_macro_name( struct parse* parse,
    p_read_stream( parse );
 }
 
-inline bool valid_macro_name( const char* name ) {
+inline static bool valid_macro_name( const char* name ) {
    // At this time, only one name is reserved and cannot be used.
    return ( strcmp( name, "defined" ) != 0 );
 }
