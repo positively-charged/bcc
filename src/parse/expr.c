@@ -1017,7 +1017,7 @@ static void read_call_args( struct parse* parse, struct expr_reading* reading,
 
 static struct format_item* read_format_item_list( struct parse* parse ) {
    struct format_item* head = NULL;
-   struct format_item* tail;
+   struct format_item* tail = NULL;
    while ( true ) {
       struct format_item* item = read_format_item( parse );
       if ( head ) {

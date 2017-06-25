@@ -2861,7 +2861,7 @@ static void push_ref_array_length( struct codegen* codegen,
 
 static void copy_struct( struct codegen* codegen, struct result* result,
    struct memcpy_call* call ) {
-   int dst_ofs;
+   int dst_ofs = 0;
    struct result dst;
    init_result( &dst, true );
    visit_operand( codegen, &dst, call->destination->root );
@@ -2871,7 +2871,7 @@ static void copy_struct( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_ADD );
       c_pcd( codegen, PCD_ASSIGNSCRIPTVAR, dst_ofs );
    }
-   int src_ofs;
+   int src_ofs = 0;
    struct result src;
    init_result( &src, true );
    visit_operand( codegen, &src, call->source->root );

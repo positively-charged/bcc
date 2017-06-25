@@ -684,7 +684,7 @@ static void restore_namespace( struct restorer* restorer, bool upmost ) {
 static void restore_namespace_path( struct restorer* restorer ) {
    // Restore namespace path.
    struct ns_path* head = NULL;
-   struct ns_path* tail;
+   struct ns_path* tail = NULL;
    while ( f_peek( restorer->r ) == F_NAMESPACE ) {
       RF( restorer, F_NAMESPACE );
       struct ns_path* path = mem_alloc( sizeof( *path ) );
@@ -901,7 +901,7 @@ static void restore_spec( struct restorer* restorer,
 
 static struct path* restore_path( struct restorer* restorer ) {
    struct path* head = NULL;
-   struct path* tail;
+   struct path* tail = NULL;
    if ( f_peek( restorer->r ) == F_PATH ) {
       RF( restorer, F_PATH );
       while ( f_peek( restorer->r ) != F_END ) {
@@ -926,7 +926,7 @@ static struct path* restore_path( struct restorer* restorer ) {
 
 static struct ref* restore_ref( struct restorer* restorer ) {
    struct ref* head = NULL;
-   struct ref* tail;
+   struct ref* tail = NULL;
    while ( f_peek( restorer->r ) == F_REF ) {
       RF( restorer, F_REF );
       struct pos pos;
@@ -982,7 +982,7 @@ static struct ref* restore_specific_ref( struct restorer* restorer,
 
 static struct dim* restore_dim( struct restorer* restorer ) {
    struct dim* head = NULL;
-   struct dim* tail;
+   struct dim* tail = NULL;
    while ( f_peek( restorer->r ) == F_DIM ) {
       struct dim* dim = t_alloc_dim();
       RF( restorer, F_DIM );
@@ -1133,7 +1133,7 @@ static void restore_impl( struct restorer* restorer, struct func* func ) {
 
 static struct param* restore_param_list( struct restorer* restorer ) {
    struct param* head = NULL;
-   struct param* tail;
+   struct param* tail = NULL;
    while ( f_peek( restorer->r ) == F_PARAM ) {
       RF( restorer, F_PARAM );
       struct param* param = t_alloc_param();
