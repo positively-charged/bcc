@@ -2551,7 +2551,7 @@ static char read_ch( struct parse* parse ) {
    enum { LOOKAHEAD_AMOUNT = 3 };
    enum { SAFE_AMOUNT = SOURCE_BUFFER_SIZE - LOOKAHEAD_AMOUNT };
    if ( source->buffer_pos >= SAFE_AMOUNT ) {
-      int unread = SOURCE_BUFFER_SIZE - source->buffer_pos;
+      size_t unread = SOURCE_BUFFER_SIZE - source->buffer_pos;
       memcpy( source->buffer, source->buffer + source->buffer_pos, unread );
       size_t count = fread( source->buffer + unread,
          sizeof( source->buffer[ 0 ] ), SOURCE_BUFFER_SIZE - unread,

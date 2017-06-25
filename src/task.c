@@ -714,7 +714,7 @@ struct text_buffer* t_get_text_buffer( struct task* task,
       buffer->prev = task->text_buffer;
       enum { INITIAL_SIZE = 1 << 15 };
       unsigned int size = INITIAL_SIZE;
-      while ( size < min_free_size ) {
+      while ( size < ( unsigned int ) min_free_size ) {
          size <<= 1;
       }
       buffer->start = mem_alloc( sizeof( char ) * size );
