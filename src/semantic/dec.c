@@ -131,7 +131,6 @@ static void merge_ref( struct semantic* semantic, struct spec_test* test,
    struct type_alias* alias );
 static void merge_func_type( struct semantic* semantic, struct spec_test* test,
    struct func* func_alias );
-static struct ref* get_last_ref_part( struct ref* ref );
 static bool test_var_ref( struct semantic* semantic, struct var* var );
 static void init_ref_test( struct ref_test* test, struct ref* ref, int spec,
    bool need_public_spec );
@@ -856,13 +855,6 @@ static void merge_func_type( struct semantic* semantic, struct spec_test* test,
          "variable of function type" );
       s_bail( semantic );
    }
-}
-
-static struct ref* get_last_ref_part( struct ref* ref ) {
-   while ( ref && ref->next ) {
-      ref = ref->next;
-   }
-   return ref;
 }
 
 static bool test_var_ref( struct semantic* semantic, struct var* var ) {

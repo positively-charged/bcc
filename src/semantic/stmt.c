@@ -1146,7 +1146,6 @@ static void test_expr_stmt( struct semantic* semantic,
    struct list_iter i;
    list_iterate( &stmt->expr_list, &i );
    bool require_assign = ( list_size( &stmt->expr_list ) > 1 );
-   struct expr* first_expr = list_head( &stmt->expr_list );
    while ( ! list_end( &i ) ) {
       struct expr* expr = list_data( &i );
       switch ( semantic->lang ) {

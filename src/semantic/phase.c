@@ -534,9 +534,6 @@ static void hide_private_objects( struct semantic* semantic ) {
    while ( ! list_end( &i ) ) {
       struct object* object = list_data( &i );
       switch ( object->node.type ) {
-         struct constant* constant;
-         struct var* var;
-         struct func* func;
       case NODE_CONSTANT:
          unbind_name(
             ( ( struct constant* ) object )->name, object );
