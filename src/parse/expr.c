@@ -752,7 +752,7 @@ static int convert_numerictoken_to_int( struct parse* parse, int base ) {
       p_bail( parse );
    }
    if ( ( value == LONG_MAX && errno == ERANGE ) ||
-      value > ( long ) ENGINE_MAX_INT_VALUE ) {
+      ENGINE_MAX_INT_VALUE - value < 0 ) {
       p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
          "numeric value `%s` is too large", parse->tk_text );
       p_bail( parse );
