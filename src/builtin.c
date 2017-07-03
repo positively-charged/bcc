@@ -348,12 +348,8 @@ void t_create_builtins( struct task* task, int lang ) {
       ARRAY_SIZE( g_deds ) +
       ARRAY_SIZE( g_formats ) +
       ARRAY_SIZE( g_interns ) };
-   if ( ARRAY_SIZE( g_funcs ) != TOTAL_IMPLS ) {
-      t_diag( task, DIAG_INTERNAL | DIAG_ERR,
-         "builtin function declarations (%zu) != implementations (%zu)",
-         ARRAY_SIZE( g_funcs ), TOTAL_IMPLS );
-      t_bail( task );
-   }
+   STATIC_ASSERT( ARRAY_SIZE( g_funcs ) == TOTAL_IMPLS,
+      builtin_function_declarations_not_equal_implementations );
    if ( lang == LANG_ACS95 ) {
       // Dedicated functions.
       for ( int entry = 0; entry < BOUND_DED_ACS95; ++entry ) {
