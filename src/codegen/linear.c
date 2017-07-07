@@ -202,7 +202,7 @@ static void add_pushbytes( struct codegen* codegen, va_list* args ) {
    if ( count > 0 ) {
       c_opc( codegen, PCD_PUSHBYTES );
       c_arg( codegen, count );
-      for ( int i = 0; i < count; i ) {
+      for ( int i = 0; i < count; ++i ) {
          c_arg( codegen, va_arg( *args, int ) );
       }
    }
@@ -213,7 +213,7 @@ static void add_casegotosorted( struct codegen* codegen, va_list* args ) {
    if ( count > 0 ) {
       c_opc( codegen, PCD_CASEGOTOSORTED );
       c_arg( codegen, count );
-      for ( int i = 0; i < count; i ) {
+      for ( int i = 0; i < count; ++i ) {
          c_arg( codegen, va_arg( *args, int ) );
          c_arg( codegen, va_arg( *args, int ) );
       }
