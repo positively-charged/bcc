@@ -1179,6 +1179,7 @@ struct using_item {
 
 struct import_dirc {
    const char* file_path;
+   struct library* lib;
    struct pos pos;
 };
 

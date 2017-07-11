@@ -47,6 +47,7 @@ static enum tk determine_bcs_pseudo_dirc( struct parse* parse );
 static void read_include( struct parse* parse );
 static void read_define( struct parse* parse );
 static void read_import( struct parse* parse, struct pos* pos );
+static struct import_dirc* alloc_import_dirc( void );
 static void read_library( struct parse* parse, struct pos* pos,
    bool first_object );
 static void read_library_name( struct parse* parse, struct pos* pos );
@@ -61,6 +62,8 @@ static bool in_main_module( struct parse* parse );
 static void finish_wadauthor( struct parse* parse );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
+static void append_imported_lib( struct parse* parse, struct import_dirc* dirc,
+   struct library* lib );
 static void determine_needed_library_links( struct parse* parse );
 static void determine_hidden_objects( struct parse* parse );
 static void collect_private_objects( struct parse* parse, struct library* lib,
@@ -723,11 +726,19 @@ static void read_import( struct parse* parse, struct pos* pos ) {
    p_test_tk( parse, parse->lang == LANG_BCS ? TK_ID : TK_IMPORT );
    p_read_tk( parse );
    p_test_tk( parse, TK_LIT_STRING );
-   struct import_dirc* dirc = mem_alloc( sizeof( *dirc ) );
+   struct import_dirc* dirc = alloc_import_dirc();
    dirc->file_path = parse->tk_text;
    dirc->pos = parse->tk_pos;
    list_append( &parse->lib->import_dircs, dirc ); 
    p_read_tk( parse );
+}
+
+static struct import_dirc* alloc_import_dirc( void ) {
+   struct import_dirc* dirc = mem_alloc( sizeof( *dirc ) );
+   dirc->file_path = NULL;
+   dirc->lib = NULL;
+   t_init_pos_id( &dirc->pos, INTERNALFILE_COMPILER );
+   return dirc;
 }
 
 static void read_library( struct parse* parse, struct pos* pos,
@@ -973,24 +984,37 @@ static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    }
    have_lib:
    lib->imported = true;
-   // Append library.
-   list_iterate( &parse->task->library_main->dynamic, &i );
+   append_imported_lib( parse, dirc, lib );
+}
+
+static void append_imported_lib( struct parse* parse, struct import_dirc* dirc,
+   struct library* lib ) {
+   struct list_iter i;
+   list_iterate( &parse->lib->import_dircs, &i );
    while ( ! list_end( &i ) ) {
-      struct library* another_lib = list_data( &i );
-      if ( lib == another_lib ) {
+      struct import_dirc* prev_dirc = list_data( &i );
+      if ( prev_dirc->lib == lib ) {
          p_diag( parse, DIAG_WARN | DIAG_POS, &dirc->pos,
             "duplicate import of library" );
+         p_diag( parse, DIAG_NOTE | DIAG_POS, &prev_dirc->pos,
+            "library previously imported here" );
          return;
       }
       list_next( &i );
    }
-   list_append( &parse->task->library_main->dynamic, lib );
-   if ( lib->lang == LANG_ACS ) {
-      list_append( &parse->task->library_main->dynamic_acs, lib );
+   list_append( &parse->lib->dynamic, lib );
+   switch ( lib->lang ) {
+   case LANG_BCS:
+      list_append( &parse->lib->dynamic_bcs, lib );
+      break;
+   case LANG_ACS:
+      list_append( &parse->lib->dynamic_acs, lib );
+      break;
+   default:
+      UNREACHABLE();
+      p_bail( parse );
    }
-   else {
-      list_append( &parse->task->library_main->dynamic_bcs, lib );
-   }
+   dirc->lib = lib;
 }
 
 static void determine_needed_library_links( struct parse* parse ) {
