@@ -23,6 +23,12 @@ struct ns_qual {
    bool strict;
 };
 
+struct library_request {
+   struct import_dirc* dirc;
+   struct file_entry* file;
+   struct library* lib;
+};
+
 static void read_main_module( struct parse* parse );
 static void read_module( struct parse* parse );
 static void read_module_item( struct parse* parse );
@@ -60,8 +66,16 @@ static void read_wadauthor( struct parse* parse, struct pos* pos,
    bool wadauthor );
 static bool in_main_module( struct parse* parse );
 static void finish_wadauthor( struct parse* parse );
-static void read_imported_libs( struct parse* parse );
+static void perform_library_imports( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
+static void init_library_request( struct library_request* request,
+   struct import_dirc* dirc, struct file_entry* file );
+static void load_imported_lib( struct parse* parse,
+   struct library_request* request );
+static void load_imported_lib_from_storage( struct parse* parse,
+   struct library_request* request );
+static void read_imported_lib( struct parse* parse,
+   struct library_request* request, struct library* lib );
 static void append_imported_lib( struct parse* parse, struct import_dirc* dirc,
    struct library* lib );
 static void determine_needed_library_links( struct parse* parse );
@@ -73,7 +87,7 @@ static void unbind_namespaces( struct parse* parse );
 
 void p_read_target_lib( struct parse* parse ) {
    read_main_module( parse );
-   read_imported_libs( parse );
+   perform_library_imports( parse );
    list_append( &parse->task->libraries, parse->task->library_main );
    determine_needed_library_links( parse );
    determine_hidden_objects( parse );
@@ -911,7 +925,7 @@ void p_add_unresolved( struct parse* parse, struct object* object ) {
    t_append_unresolved_namespace_object( parse->ns_fragment, object );
 }
 
-static void read_imported_libs( struct parse* parse ) {
+static void perform_library_imports( struct parse* parse ) {
    struct list_iter i;
    list_iterate( &parse->lib->import_dircs, &i );
    while ( ! list_end( &i ) ) {
@@ -934,38 +948,80 @@ static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
          "library attempting to import itself" );
       p_bail( parse );
    }
-   // See if the library is already loaded.
-   struct library* lib = NULL;
-   struct list_iter i;
-   list_iterate( &parse->task->libraries, &i );
-   while ( ! list_end( &i ) ) {
-      lib = list_data( &i );
-      if ( lib->file == file ) {
-         goto have_lib;
-      }
-      list_next( &i );
-   }
-   // Load library from cache.
-   if ( parse->cache ) {
-      lib = cache_get( parse->cache, file );
-      if ( lib ) {
-         goto have_lib;
-      }
-   }
-   // Read library from source file.
-   lib = t_add_library( parse->task );
-   lib->lang = p_determine_lang_from_file_path( file->full_path.value );
-   lib->imported = true;
-   list_append( &parse->task->libraries, lib );
-   if ( lib->lang == LANG_BCS && parse->lib->lang == LANG_ACS ) {
+   // Load library.
+   struct library_request request;
+   init_library_request( &request, dirc, file );
+   load_imported_lib( parse, &request );
+   // BCS has some new constructs, like namespaces, that are not valid in ACS,
+   // so disable importing of BCS libraries into ACS.
+   if ( request.lib->lang == LANG_BCS && parse->lib->lang == LANG_ACS ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
          "importing BCS library into ACS library" );
       p_bail( parse );
    }
+   append_imported_lib( parse, dirc, request.lib );
+}
+
+static void init_library_request( struct library_request* request,
+   struct import_dirc* dirc, struct file_entry* file ) {
+   request->dirc = dirc;
+   request->file = file;
+   request->lib = NULL;
+}
+
+static void load_imported_lib( struct parse* parse,
+   struct library_request* request ) {
+   // Return the library if it is already loaded.
+   struct list_iter i;
+   list_iterate( &parse->task->libraries, &i );
+   while ( ! list_end( &i ) ) {
+      struct library* lib = list_data( &i );
+      if ( lib->file == request->file ) {
+         request->lib = lib;
+         return;
+      }
+      list_next( &i );
+   }
+   // Otherwise, load a fresh copy of the library.
+   load_imported_lib_from_storage( parse, request );
+}
+
+// NOTE: I don't like how this function looks. Both the cache and this function
+// can create the library. It feels better to create the library here only, and
+// then pass the library to the cache.
+static void load_imported_lib_from_storage( struct parse* parse,
+   struct library_request* request ) {
+   struct library* lib = NULL;
+   // Try loading the library from the cache.
+   bool cached = false;
+   if ( parse->cache ) {
+      lib = cache_get( parse->cache, request->file );
+      cached = ( lib != NULL );
+   }
+   if ( ! cached ) {
+      lib = t_add_library( parse->task );
+   }
+   // Common initialization for cached and freshly-read libraries.
+   lib->lang = p_determine_lang_from_file_path(
+      request->file->full_path.value );
+   lib->imported = true;
+   list_append( &parse->task->libraries, lib );
+   // Read library from source file.
+   if ( ! cached ) {
+      read_imported_lib( parse, request, lib );
+      if ( parse->cache ) {
+         cache_add( parse->cache, lib );
+      }
+   }
+   request->lib = lib;
+}
+
+static void read_imported_lib( struct parse* parse,
+   struct library_request* request, struct library* lib ) {
    parse->lang = lib->lang;
    parse->lang_limits = t_get_lang_limits( lib->lang );
    parse->lib = lib;
-   p_load_imported_lib_source( parse, dirc, file );
+   p_load_imported_lib_source( parse, request->dirc, request->file );
    parse->ns_fragment = lib->upmost_ns_fragment;
    parse->ns = parse->ns_fragment->ns;
    p_clear_macros( parse );
@@ -975,16 +1031,10 @@ static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
    parse->lib = parse->task->library_main;
    // An imported library must have a #library directive.
    if ( ! lib->header ) {
-      p_diag( parse, DIAG_POS_ERR, &dirc->pos,
+      p_diag( parse, DIAG_POS_ERR, &request->dirc->pos,
          "imported library missing #library directive" );
       p_bail( parse );
    }
-   if ( parse->cache ) {
-      cache_add( parse->cache, lib );
-   }
-   have_lib:
-   lib->imported = true;
-   append_imported_lib( parse, dirc, lib );
 }
 
 static void append_imported_lib( struct parse* parse, struct import_dirc* dirc,
