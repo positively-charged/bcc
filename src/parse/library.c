@@ -61,11 +61,6 @@ static bool in_main_module( struct parse* parse );
 static void finish_wadauthor( struct parse* parse );
 static void read_imported_libs( struct parse* parse );
 static void import_lib( struct parse* parse, struct import_dirc* dirc );
-static struct library* get_previously_processed_lib( struct parse* parse,
-   struct file_entry* file );
-static struct library* find_lib( struct parse* parse,
-   struct file_entry* file );
-static void append_imported_lib( struct parse* parse, struct library* lib );
 static void determine_needed_library_links( struct parse* parse );
 static void determine_hidden_objects( struct parse* parse );
 static void collect_private_objects( struct parse* parse, struct library* lib,

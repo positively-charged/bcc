@@ -51,9 +51,6 @@ static struct buildmsg* read_buildmsg( struct parse* parse,
 static void read_expr_stmt( struct parse* parse,
    struct stmt_reading* reading );
 static struct label* alloc_label( const char* name, struct pos* pos );
-static struct import* read_single_import( struct parse* parse );
-static struct import_item* read_selected_import_items( struct parse* parse );
-static struct import_item* read_import_item( struct parse* parse );
 static void read_assert( struct parse* parse, struct stmt_reading* reading );
 static struct assert* alloc_assert( struct pos* pos );
 

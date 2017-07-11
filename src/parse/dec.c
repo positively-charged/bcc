@@ -99,8 +99,6 @@ static void read_ref( struct parse* parse, struct ref_reading* reading );
 static void read_struct_ref( struct parse* parse,
    struct ref_reading* reading );
 static bool is_array_ref( struct parse* parse );
-static void read_ref_storage( struct parse* parse,
-   struct ref_reading* reading );
 static void read_array_ref( struct parse* parse, struct ref_reading* reading );
 static void read_ref_func( struct parse* parse, struct ref_reading* reading );
 static void read_after_ref( struct parse* parse, struct dec* dec );

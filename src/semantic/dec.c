@@ -209,7 +209,6 @@ static void present_ref_element( struct initz_pres* pres, struct dim* dim,
    struct structure_member* member );
 static void refnotinit( struct semantic* semantic, struct initz_pres* pres,
    struct pos* pos );
-static void calc_dim_size( struct dim*, struct structure* );
 static bool test_func_return_spec( struct semantic* semantic,
    struct func* func );
 static bool test_func_ref( struct semantic* semantic, struct func* func );

@@ -125,10 +125,6 @@ static void visit_cast( struct codegen* codegen, struct result* result,
    struct cast* cast );
 static void visit_suffix( struct codegen* codegen, struct result* result,
    struct node* node );
-static void visit_object( struct codegen* codegen, struct result* result,
-   struct node* node );
-static void visit_object_part( struct codegen* codegen, struct result* result,
-   struct node* node );
 static void visit_subscript( struct codegen* codegen, struct result* result,
    struct subscript* subscript );
 static void subscript_array( struct codegen* codegen,
