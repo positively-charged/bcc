@@ -917,6 +917,12 @@ static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
          "library not found: %s", dirc->file_path );
       p_bail( parse );
    }
+   // Circular imports not allowed.
+   if ( file == parse->lib->file ) {
+      p_diag( parse, DIAG_POS_ERR, &dirc->pos,
+         "library attempting to import itself" );
+      p_bail( parse );
+   }
    // See if the library is already loaded.
    struct library* lib = NULL;
    struct list_iter i;
