@@ -152,7 +152,6 @@ struct ns* t_alloc_ns( struct name* name ) {
    ns->body_enums = t_extend_name( name, ".!e." );
    ns->links = NULL;
    list_init( &ns->fragments );
-   ns->defined = false;
    ns->hidden = false;
    return ns;
 }

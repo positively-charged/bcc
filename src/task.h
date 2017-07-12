@@ -1118,7 +1118,6 @@ struct ns {
    struct name* body_enums;
    struct ns_link* links;
    struct list fragments;
-   bool defined;
    bool hidden;
 };
 
