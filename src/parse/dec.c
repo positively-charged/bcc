@@ -2186,7 +2186,7 @@ static void init_script_reading( struct script_reading* reading,
    reading->param_tail = NULL;
    reading->num_param = 0;
    reading->type = SCRIPT_TYPE_CLOSED;
-   reading->flags = 0;
+   reading->flags = SCRIPT_FLAG_NONE;
    reading->param_specified = false;
 }
 
@@ -2534,24 +2534,13 @@ static void read_script_body( struct parse* parse,
 
 static struct script* add_script( struct parse* parse,
    struct script_reading* reading ) {
-   struct script* script = mem_alloc( sizeof( *script ) );
-   script->node.type = NODE_SCRIPT;
+   struct script* script = t_alloc_script();
    script->pos = reading->pos;
    script->number = reading->number;
    script->type = reading->type;
    script->flags = reading->flags;
    script->params = reading->param;
-   script->body = NULL;
-   script->nested_funcs = NULL;
-   script->nested_calls = NULL;
-   list_init( &script->labels );
-   list_init( &script->vars );
-   list_init( &script->funcscope_vars );
-   script->assigned_number = 0;
    script->num_param = reading->num_param;
-   script->offset = 0;
-   script->size = 0;
-   script->named_script = false;
    list_append( &parse->lib->scripts, script );
    list_append( &parse->lib->objects, script );
    list_append( &parse->ns_fragment->scripts, script );

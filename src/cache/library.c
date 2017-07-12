@@ -33,14 +33,15 @@ enum {
    F_EXPR,
    F_FILEMAP,
    F_FILEPATH,
+   F_FLAGS,
    F_FUNC,
    F_HASREFMEMBER,
    F_ID,
    F_INDEX,
    F_INSTANCE,
    F_LATENT,
-   F_LIB,
    // 20
+   F_LIB,
    F_LINE,
    F_MAXPARAM,
    F_MINPARAM,
@@ -50,19 +51,20 @@ enum {
    F_NAMESPACEFRAGMENT,
    F_NULLABLE,
    F_OBJECT,
-   F_OFFSET,
    // 30
+   F_OFFSET,
    F_OPCODE,
    F_PARAM,
    F_PATH,
    F_POS,
    F_REF,
    F_RETURNSPEC,
+   F_SCRIPT,
    F_SCRIPTCALLABLE,
    F_SIZE,
+   // 40
    F_SPEC,
    F_STORAGE,
-   // 40
    F_STORAGEINDEX,
    F_STRICT,
    F_STRUCTURE,
@@ -71,9 +73,9 @@ enum {
    F_TYPE,
    F_TYPEALIAS,
    F_VALUE,
+   // 50
    F_VALUESTRING,
    F_VAR,
-   // 50
    F_UNREACHABLE,
    F_UPMOST,
 };
@@ -115,6 +117,7 @@ static void save_impl( struct saver* saver, struct func* func );
 static void save_param_list( struct saver* saver, struct param* param );
 static void save_const_expr( struct saver* saver, struct expr* expr );
 static void save_object( struct saver* saver, struct object* object );
+static void save_script( struct saver* saver, struct script* script );
 static void save_pos( struct saver* saver, struct pos* pos );
 static int map_file( struct saver* saver, int id );
 static const char* name_s( struct saver* saver, struct name* name, bool full );
@@ -178,10 +181,18 @@ static void save_namespace_path( struct saver* saver,
 
 static void save_namespace_member_list( struct saver* saver,
    struct ns_fragment* fragment ) {
+   // Objects.
    struct list_iter i;
    list_iterate( &fragment->objects, &i );
    while ( ! list_end( &i ) ) {
       save_namespace_member( saver, list_data( &i ) );
+      list_next( &i );
+   }
+   // Scripts.
+   // Scripts are saved for the purpose of generating warnings.
+   list_iterate( &fragment->scripts, &i );
+   while ( ! list_end( &i ) ) {
+      save_script( saver, list_data( &i ) );
       list_next( &i );
    }
 }
@@ -545,6 +556,16 @@ static void save_object( struct saver* saver, struct object* object ) {
    WF( saver, F_END );
 }
 
+// NOTE: Script parameters are not saved.
+static void save_script( struct saver* saver, struct script* script ) {
+   WF( saver, F_SCRIPT );
+   save_pos( saver, &script->pos );
+   save_const_expr( saver, script->number );
+   WV( saver, F_TYPE, &script->type );
+   WV( saver, F_FLAGS, &script->flags );
+   WF( saver, F_END );
+}
+
 static void save_pos( struct saver* saver, struct pos* pos ) {
    WF( saver, F_POS );
    WV( saver, F_LINE, &pos->line );
@@ -631,6 +652,7 @@ static struct param* restore_param_list( struct restorer* restorer );
 static struct expr* restore_const_expr( struct restorer* restorer );
 static void restore_object( struct restorer* restorer, struct object* object,
    int node );
+static void restore_script( struct restorer* restorer );
 static void restore_pos( struct restorer* restorer, struct pos* pos );
 static struct file_entry* map_id( struct restorer* restorer, int id );
 
@@ -746,8 +768,18 @@ static void restore_namespace_list( struct restorer* restorer ) {
 }
 
 static void restore_namespace_member_list( struct restorer* restorer ) {
-   while ( f_peek( restorer->r ) != F_END ) {
-      restore_namespace_member( restorer );
+   bool done = false;
+   while ( ! done ) {
+      switch ( f_peek( restorer->r ) ) {
+      case F_SCRIPT:
+         restore_script( restorer );
+         break;
+      case F_END:
+         done = true;
+         break;
+      default:
+         restore_namespace_member( restorer );
+      }
    }
 }
 
@@ -1219,6 +1251,20 @@ static void restore_object( struct restorer* restorer, struct object* object,
    t_init_object( object, node );
    restore_pos( restorer, &object->pos );
    RF( restorer, F_END );
+}
+
+static void restore_script( struct restorer* restorer ) {
+   RF( restorer, F_SCRIPT );
+   struct script* script = t_alloc_script();
+   restore_pos( restorer, &script->pos );
+   script->number = restore_const_expr( restorer );
+   RV( restorer, F_TYPE, &script->type );
+   RV( restorer, F_FLAGS, &script->flags );
+   RF( restorer, F_END );
+   list_append( &restorer->lib->scripts, script );
+   list_append( &restorer->lib->objects, script );
+   list_append( &restorer->ns_fragment->scripts, script );
+   list_append( &restorer->ns_fragment->runnables, script );
 }
 
 static void restore_pos( struct restorer* restorer, struct pos* pos ) {

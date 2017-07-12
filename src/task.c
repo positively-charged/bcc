@@ -1168,3 +1168,25 @@ const char* t_get_lang_lib_dir( struct task* task, int lang ) {
       return NULL;
    }
 }
+
+struct script* t_alloc_script( void ) {
+   struct script* script = mem_alloc( sizeof( *script ) );
+   script->node.type = NODE_SCRIPT;
+   t_init_pos_id( &script->pos, INTERNALFILE_COMPILER );
+   script->number = NULL;
+   script->type = SCRIPT_TYPE_CLOSED;
+   script->flags = SCRIPT_FLAG_NONE;
+   script->params = NULL;
+   script->body = NULL;
+   script->nested_funcs = NULL;
+   script->nested_calls = NULL;
+   list_init( &script->labels );
+   list_init( &script->vars );
+   list_init( &script->funcscope_vars );
+   script->assigned_number = 0;
+   script->num_param = 0;
+   script->offset = 0;
+   script->size = 0;
+   script->named_script = false;
+   return script;
+}

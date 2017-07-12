@@ -1007,6 +1007,7 @@ struct script {
       SCRIPT_TYPE_TOTAL = SCRIPT_TYPE_NEXTFREENUMBER
    } type;
    enum {
+      SCRIPT_FLAG_NONE = 0x0,
       SCRIPT_FLAG_NET = 0x1,
       SCRIPT_FLAG_CLIENTSIDE = 0x2
    } flags;
@@ -1356,5 +1357,6 @@ struct include_history_entry* t_alloc_include_history_entry(
 struct include_history_entry* t_decode_include_history_entry(
    struct task* task, int id );
 const char* t_get_lang_lib_dir( struct task* task, int lang );
+struct script* t_alloc_script( void );
 
 #endif
