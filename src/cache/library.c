@@ -44,15 +44,14 @@ enum {
    F_LINE,
    F_MAXPARAM,
    F_MINPARAM,
-   F_UPMOST,
    F_NAME,
    F_NAMEPOS,
    F_NAMESPACE,
    F_NAMESPACEFRAGMENT,
    F_NULLABLE,
    F_OBJECT,
-   // 30
    F_OFFSET,
+   // 30
    F_OPCODE,
    F_PARAM,
    F_PATH,
@@ -62,9 +61,10 @@ enum {
    F_SCRIPTCALLABLE,
    F_SIZE,
    F_SPEC,
-   // 40
    F_STORAGE,
+   // 40
    F_STORAGEINDEX,
+   F_STRICT,
    F_STRUCTURE,
    F_STRUCTUREMEMBER,
    F_TEXT,
@@ -75,6 +75,7 @@ enum {
    F_VAR,
    // 50
    F_UNREACHABLE,
+   F_UPMOST,
 };
 
 struct saver {
@@ -88,8 +89,12 @@ static void save_lib( struct saver* saver );
 static void save_file_map( struct saver* saver );
 static void save_namespace( struct saver* saver,
    struct ns_fragment* fragment );
+static void save_namespace_path( struct saver* saver,
+   struct ns_fragment* fragment );
 static void save_namespace_member( struct saver* saver,
    struct object* object );
+static void save_namespace_member_list( struct saver* saver,
+   struct ns_fragment* fragment );
 static void save_constant( struct saver* saver, struct constant* constant );
 static void save_enumeration( struct saver* saver,
    struct enumeration* enumeration );
@@ -153,25 +158,32 @@ static void save_file_map( struct saver* saver ) {
 static void save_namespace( struct saver* saver,
    struct ns_fragment* fragment ) {
    WF( saver, F_NAMESPACEFRAGMENT );
-   // Save namespace path.
-   if ( fragment->path ) {
-      struct ns_path* path = fragment->path;
-      while ( path ) {
-         WF( saver, F_NAMESPACE );
-         WS( saver, F_TEXT, path->text );
-         save_pos( saver, &path->pos );
-         WF( saver, F_END );
-         path = path->next;
-      }
+   WV( saver, F_STRICT, &fragment->strict );
+   save_namespace_path( saver, fragment );
+   save_namespace_member_list( saver, fragment );
+   WF( saver, F_END );
+}
+
+static void save_namespace_path( struct saver* saver,
+   struct ns_fragment* fragment ) {
+   struct ns_path* path = fragment->path;
+   while ( path ) {
+      WF( saver, F_NAMESPACE );
+      WS( saver, F_TEXT, path->text );
+      save_pos( saver, &path->pos );
+      WF( saver, F_END );
+      path = path->next;
    }
-   // Save members.
+}
+
+static void save_namespace_member_list( struct saver* saver,
+   struct ns_fragment* fragment ) {
    struct list_iter i;
    list_iterate( &fragment->objects, &i );
    while ( ! list_end( &i ) ) {
       save_namespace_member( saver, list_data( &i ) );
       list_next( &i );
    }
-   WF( saver, F_END );
 }
 
 static void save_namespace_member( struct saver* saver,
@@ -226,8 +238,13 @@ static void save_namespace_member( struct saver* saver,
       }
       break;
    case NODE_NAMESPACEFRAGMENT:
-      save_namespace( saver,
-         ( struct ns_fragment* ) object );
+      {
+         struct ns_fragment* fragment =
+            ( struct ns_fragment* ) object;
+         if ( ! fragment->hidden ) {
+            save_namespace( saver, fragment );
+         }
+      }
       break;
    default:
       UNREACHABLE();
@@ -590,7 +607,8 @@ static void restore_lib( struct restorer* restorer );
 static void restore_file_map( struct restorer* restorer );
 static void restore_namespace( struct restorer* restorer, bool upmost );
 static void restore_namespace_path( struct restorer* restorer );
-static void setup_namespaces( struct restorer* restorer );
+static void restore_namespace_list( struct restorer* restorer );
+static void restore_namespace_member_list( struct restorer* restorer );
 static void restore_namespace_member( struct restorer* restorer );
 static void restore_constant( struct restorer* restorer );
 static struct enumeration* restore_enumeration( struct restorer* restorer );
@@ -669,12 +687,16 @@ static void restore_namespace( struct restorer* restorer, bool upmost ) {
       t_append_unresolved_namespace_object( parent_fragment,
          &restorer->ns_fragment->object );
       list_append( &parent_fragment->objects, restorer->ns_fragment );
+      list_append( &parent_fragment->runnables, restorer->ns_fragment );
+      list_append( &parent_fragment->fragments, restorer->ns_fragment );
    }
+   RV( restorer, F_STRICT, &restorer->ns_fragment->strict );
    restore_namespace_path( restorer );
-   setup_namespaces( restorer );
-   // Restore namespace members.
-   while ( f_peek( restorer->r ) != F_END ) {
-      restore_namespace_member( restorer );
+   restore_namespace_list( restorer );
+   restore_namespace_member_list( restorer );
+   if ( ! upmost ) {
+      list_append( &restorer->ns_fragment->ns->fragments,
+         restorer->ns_fragment );
    }
    restorer->ns_fragment = parent_fragment;
    restorer->ns = parent_ns;
@@ -704,7 +726,7 @@ static void restore_namespace_path( struct restorer* restorer ) {
    restorer->ns_fragment->path = head;
 }
 
-static void setup_namespaces( struct restorer* restorer ) {
+static void restore_namespace_list( struct restorer* restorer ) {
    if ( restorer->ns_fragment->path ) {
       struct ns_path* path = restorer->ns_fragment->path;
       while ( path ) {
@@ -720,10 +742,13 @@ static void setup_namespaces( struct restorer* restorer ) {
          path = path->next;
       }
    }
-   else {
-      restorer->ns = restorer->task->upmost_ns;
-   }
    restorer->ns_fragment->ns = restorer->ns;
+}
+
+static void restore_namespace_member_list( struct restorer* restorer ) {
+   while ( f_peek( restorer->r ) != F_END ) {
+      restore_namespace_member( restorer );
+   }
 }
 
 static void restore_namespace_member( struct restorer* restorer ) {
@@ -1080,6 +1105,7 @@ static void restore_func( struct restorer* restorer ) {
    RF( restorer, F_END );
    list_append( &restorer->lib->objects, func );
    list_append( &restorer->ns_fragment->objects, func );
+   list_append( &restorer->ns_fragment->runnables, func );
    if ( func->type == FUNC_USER ) {
       list_append( &restorer->lib->funcs, func );
       list_append( &restorer->ns_fragment->funcs, func );
