@@ -42,9 +42,11 @@ class task {
 
 class config {
    public $make;
+   public $strip_exe;
 
    public function __construct() {
       $this->make = MAKE_GNU;
+      $this->strip_exe = false;
    }
 }
 
@@ -138,8 +140,9 @@ function make( $task, $target, $args ) {
 
 function make_gnu( $task, $target, $args ) {
    $code = 1;
-   $command = sprintf( 'make -I %s -f %s\\%s %s', MAKEFILE_DIR, MAKEFILE_DIR,
+   $command = sprintf( 'make -I %s -f %s\\%s %s%s', MAKEFILE_DIR, MAKEFILE_DIR,
       $target == TARGET_X64 ? 'build_x64.mk' : 'build_x86.mk',
+      $task->config->strip_exe ? ' STRIP_EXE=1' : '',
       implode( ' ', $args ) );
    system( $command, $code );
    if ( $code != 0 ) {
@@ -150,8 +153,9 @@ function make_gnu( $task, $target, $args ) {
 
 function make_pomake( $task, $target, $args ) {
    $code = 1;
-   $command = sprintf( 'pomake /f %s\\%s %s', MAKEFILE_POMAKE_DIR,
+   $command = sprintf( 'pomake /f %s\\%s %s%s', MAKEFILE_POMAKE_DIR,
       $target == TARGET_X64 ? 'build_x64.mk' : 'build_x86.mk',
+      $task->config->strip_exe ? ' STRIP_EXE=1' : '',
       implode( ' ', $args ) );
    system( $command, $code );
    if ( $code != 0 ) {

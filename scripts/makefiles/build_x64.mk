@@ -16,6 +16,6 @@ OPTIONS=$(CCFLAGS) $(INCLUDE)
 LIB = \
    -LIBPATH:"$(PELLESC_DIR)\Lib\Win64" \
    -LIBPATH:"$(PELLESC_DIR)\Lib"
-LINKFLAGS = -subsystem:console -machine:x64
+LINKFLAGS = -subsystem:console -machine:x64 -debug -debugtype:coff
 
 include common.mk

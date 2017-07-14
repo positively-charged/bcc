@@ -42,7 +42,9 @@ OBJECTS=\
 # Compile executable.
 $(BUILD_DIR)/$(EXE): $(OBJECTS)
 	polink $(LIB) $(LINKFLAGS) -out:"$@" $**
+!ifdef STRIP_EXE
 	strip $@
+!endif
 
 # Compile: src/
 $(BUILD_DIR)/builtin.o: \
