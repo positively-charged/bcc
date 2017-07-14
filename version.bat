@@ -1,0 +1,1 @@
+@php .\scripts\version.php %*
