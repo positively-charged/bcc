@@ -1960,7 +1960,7 @@ static void read_func( struct parse* parse, struct dec* dec ) {
          func->hidden = true;
       }
    }
-   if ( dec->static_qual && ! dec->area == DEC_LOCAL ) {
+   if ( dec->static_qual && ! ( dec->area == DEC_LOCAL ) ) {
       p_diag( parse, DIAG_POS_ERR, &dec->name_pos,
          "only a nested function can be static-qualified" );
       p_bail( parse );
