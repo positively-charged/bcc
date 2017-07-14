@@ -12,37 +12,59 @@ define( 'BUILD_DIR', PROJECT_DIR . '\\build' );
 define( 'BUILD_X86_DIR', BUILD_DIR . '\\x86' );
 define( 'BUILD_X64_DIR', BUILD_DIR . '\\x64' );
 define( 'MAKEFILE_DIR', __DIR__ . '\\makefiles' );
+define( 'MAKEFILE_POMAKE_DIR', MAKEFILE_DIR . '\\pomake' );
 define( 'RELEASE_DIR', PROJECT_DIR . '\\releases' );
+define( 'CONFIG_FILE', PROJECT_DIR . '\\config.php' );
 define( 'EXIT_SUCCESS', 0 );
 define( 'EXIT_FAILURE', 1 );
 define( 'TARGET_X86', 0 );
 define( 'TARGET_X64', 1 );
 define( 'TARGET_DEFAULT', TARGET_X64 );
 define( 'EXE_NAME', 'bcc.exe' );
+define( 'MAKE_GNU', 0 );
+define( 'MAKE_POMAKE', 1 );
 
 class task {
    public $argv;
    public $script_path;
+   public $config;
    public $command;
    public $command_args;
 
    public function __construct( $argv ) {
       $this->argv = $argv;
       $this->script_path = $argv[ 0 ];
+      $this->config = new config();
       $this->command = '';
       $this->command_args = [];
+   }
+}
+
+class config {
+   public $make;
+
+   public function __construct() {
+      $this->make = MAKE_GNU;
    }
 }
 
 function run( $argv ) {
    try {
       $task = new task( $argv );
+      read_config( $task );
       read_command( $task );
       execute_command( $task );
       exit( EXIT_SUCCESS );
    }
    catch ( Exception $e ) {
       exit( EXIT_FAILURE );
+   }
+}
+
+function read_config( $task ) {
+   if ( file_exists( CONFIG_FILE ) ) {
+      $config = $task->config;
+      require_once CONFIG_FILE;
    }
 }
 
@@ -101,6 +123,20 @@ function compile_target( $task, $target ) {
 }
 
 function make( $task, $target, $args ) {
+   switch ( $task->config->make ) {
+   case MAKE_GNU:
+      make_gnu( $task, $target, $args );
+      break;
+   case MAKE_POMAKE:
+      make_pomake( $task, $target, $args );
+      break;
+   default:
+      show_err( $task, 'invalid make option' );
+      bail();
+   }
+}
+
+function make_gnu( $task, $target, $args ) {
    $code = 1;
    $command = sprintf( 'make -I %s -f %s\\%s %s', MAKEFILE_DIR, MAKEFILE_DIR,
       $target == TARGET_X64 ? 'build_x64.mk' : 'build_x86.mk',
@@ -108,6 +144,18 @@ function make( $task, $target, $args ) {
    system( $command, $code );
    if ( $code != 0 ) {
       show_err( $task, 'failed to execute make command' );
+      bail();
+   }
+}
+
+function make_pomake( $task, $target, $args ) {
+   $code = 1;
+   $command = sprintf( 'pomake /f %s\\%s %s', MAKEFILE_POMAKE_DIR,
+      $target == TARGET_X64 ? 'build_x64.mk' : 'build_x86.mk',
+      implode( ' ', $args ) );
+   system( $command, $code );
+   if ( $code != 0 ) {
+      show_err( $task, 'failed to execute pomake command' );
       bail();
    }
 }
