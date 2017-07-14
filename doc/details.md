@@ -29,7 +29,7 @@
 
 The library specified as an argument to the compiler is called _the main library_. First, the main library is preprocessed and parsed. Then, each library imported by the main library is preprocessed and parsed. The preprocessor starts afresh for every library, so macros defined in one library will not be available in another library. Macros defined on the command-line are only available during the preprocessing of the main library.
 
---
+---
 
 In an imported library, the predefined macro, `__IMPORTED__`, is available. It is defined as `1`. This macro is useful for identifying the error where the user imports a library using `#include` instead of `#import`:
 
@@ -83,6 +83,7 @@ You can have as many private variables in your library as you like. When the max
 Variables can be declared `extern`. An external variable declaration is not actually a real variable. All it does is tell the compiler that such a variable exists in some library. The compiler will tell the game to import the variable when the game runs. Along with external variable declarations, external function declarations are also supported:
 
 <h6>File: <i>lib1.bcs</i></h6>
+
 ```
 #library "lib1"
 
@@ -91,6 +92,7 @@ void F() {}
 ```
 
 <h6>File: <i>lib2.bcs</i></h6>
+
 ```
 #library "lib2"
 
@@ -106,6 +108,7 @@ script "Main" open {
 The game cannot use an external variable unless it knows which library has the variable. To instruct the game to look in some library so it can find the external variable, use `#linklibrary`:
 
 <h6>File: <i>lib2.bcs (Fixed)</i></h6>
+
 ```
 #library "lib2"
 
@@ -129,6 +132,7 @@ External declarations and the `#linklibrary` directive are probably not all that
 The header file organization style of C/C++ is supported by BCS. To avoid conflicts with C/C++ header files, it is suggested you give your header files a `.h.bcs` file extension, although it is not mandatory to do so:
 
 <h6>Header file: <i>lib1.h.bcs</i></h6>
+
 ```
 #ifndef LIB1_H_BCS
 #define LIB1_H_BCS
@@ -142,6 +146,7 @@ extern void F();
 ```
 
 <h6>Source (library) file: <i>lib1.bcs</i></h6>
+
 ```
 #library "lib1"
 
@@ -152,6 +157,7 @@ void F() {}
 ```
 
 <h6>File: <i>main.bcs</i></h6>
+
 ```
 #include "zcommon.h.bcs"
 #include "lib1.h.bcs"
@@ -165,6 +171,7 @@ script "Main" open {
 If the name of your header file ends with `.h.bcs`, the `.bcs` extension does not need to be specified in an `#include` directive:
 
 <h6>File: <i>main.bcs (Now with shorter include paths)</i></h6>
+
 ```
 #include "zcommon.h"
 #include "lib1.h"
@@ -220,7 +227,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 A nested namespace can be declared in one go:
 
@@ -230,7 +237,7 @@ namespace A { namespace B { namespace C {} } }
 namespace A.B.C {}
 ```
 
---
+---
 
 To avoid confusion with `global` variables, the global namespace is called _the upmost namespace_. The `upmost` keyword refers to the upmost namespace:
 
@@ -356,7 +363,7 @@ enum { C = 123 };
 void F() { Print( d: v ); }
 ```
 
---
+---
 
 When declaring an array, the length of _any_ dimension can be omitted. The length will be determined based on the number of values found in the brace initializer. So if the array is initialized with 5 values, the length of the dimension will be 5:
 
@@ -385,7 +392,7 @@ int years[][] = {
 };
 ```
 
---
+---
 
 An array can be initialized with a string. Each character of the string, including the NUL character, initializes an element of the array. If the dimension length is omitted, the dimension length will be the length of the string, plus 1 for the NUL character. The array must be one-dimensional and have either `int` or `raw` element type:
 
@@ -393,7 +400,7 @@ An array can be initialized with a string. Each character of the string, includi
 int letters[] = "abc"; // Same as: int letters[] = { 'a', 'b', 'c', '\0' };
 ```
 
---
+---
 
 World and global variables can be declared inside a script (or a function). It is the same thing as declaring the variable outside the script, except that the name of the variable will not be visible to code outside the script.
 
@@ -404,7 +411,7 @@ script "DeathCounter" death {
 }
 ```
 
---
+---
 
 You can specify the length of world and global arrays. World and global arrays can be multidimensional.
 
@@ -417,7 +424,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Enumerations, structures, and type aliases can be nested inside scripts or functions.
 
@@ -536,7 +543,7 @@ enum {
 };
 ```
 
---
+---
 
 The value of an enumerator can be set explicitly. The next value will increase starting from the new value:
 
@@ -548,7 +555,7 @@ enum {
 };
 ```
 
---
+---
 
 An enumeration has a base type. The value of every enumerator will be of the base type. By default, `int` is the base type, but you can change it. If `int` is not the base type, then you must explicitly set the value of every enumerator:
 
@@ -569,7 +576,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Enumerations can be named and then used as a variable type. The only thing special about enumeration variables is that they must be initialized and updated with one of the enumerators:
 
@@ -586,7 +593,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 If you don't want to type the `enum` keyword when declaring an enumeration variable, you can name the enumeration with a <a href="#type-names">type name</a>. This will implicitly create a <a href="#type-aliases">type alias</a> that refers to the enumeration:
 
@@ -600,7 +607,7 @@ enum FruitT {
 FruitT f = FRUIT_PEAR; // Same as: enum FruitT f = FRUIT_PEAR;
 ```
 
---
+---
 
 The last enumerator can have a comma after it:
 
@@ -657,7 +664,7 @@ function void F() {}
 void F() {}
 ```
 
---
+---
 
 For a function that returns a value, it is not necessary to have a return statement at the end of the function. As long as the function ultimately returns a value, you can nest the return statements:
 
@@ -673,7 +680,7 @@ int Abs( int number ) {
 }
 ```
 
---
+---
 
 A parameter can lack a name. You won't be able to use such a parameter, but you still need to pass an argument for it. This can be used to indicate a parameter is no longer used. This works for script parameters as well.
 
@@ -687,7 +694,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 In a function, the magic identifier, `__FUNCTION__`, is a string literal that contains the name of the current function:
 
@@ -714,7 +721,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Builtin functions now support default arguments that are strings. This means you can use `MorphActor()` with a single argument, as is allowed by the [wiki page](http://zdoom.org/wiki/MorphActor), and it will work as intended:
 
@@ -739,7 +746,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Functions can be nested arbitrarily deep:
 
@@ -760,7 +767,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 A nested function can access the local variables located outside of it:
 
@@ -777,7 +784,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Nested functions can have `auto` as the return type. The compiler will deduce the return type from the returned value. If no value is returned, the return type will be `void`:
 
@@ -793,7 +800,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 Passing around a reference to a nested function is not allowed at this time.
 
@@ -929,7 +936,7 @@ script "Main" () {}
 script "Main" {}
 ```
 
---
+---
 
 In a script, the magic identifier, `__SCRIPT__`, is a string literal that contains either the name or number of the current script:
 
@@ -1472,7 +1479,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 An array has a function called `length()`. This function returns the length of the array dimension:
 
@@ -1526,7 +1533,7 @@ script "Main" open {
 }
 ```
 
---
+---
 
 For `strcpy()`, the `a:` is optional, unless you want to use the extra parameters:
 
