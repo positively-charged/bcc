@@ -286,8 +286,31 @@ static void read_namespace_member( struct parse* parse ) {
       p_read_tk( parse );
    }
    else {
-      p_diag( parse, DIAG_POS_ERR, &parse->tk_pos,
+      struct pos pos = parse->tk_pos;
+      p_diag( parse, DIAG_POS_ERR | DIAG_SYNTAX, &pos,
          "unexpected %s", p_present_token_temp( parse, parse->tk ) );
+      if ( parse->tk == TK_HASH ) {
+         p_diag( parse, DIAG_POS | DIAG_NOTE, &pos,
+            "ACS-style directives cannot appear inside a namespace block" );
+         // Directive-specific tip.
+         p_read_tk( parse );
+         enum tk dirc = determine_bcs_pseudo_dirc( parse );
+         switch ( dirc ) {
+         case TK_DEFINE:
+         case TK_LIBDEFINE:
+            p_diag( parse, DIAG_POS | DIAG_NOTE, &pos,
+               "to create a constant inside a namespace block, "
+               "you can use an enum or the preprocessor-based #define" );
+            break;
+         case TK_INCLUDE:
+            p_diag( parse, DIAG_POS | DIAG_NOTE, &pos,
+               "to #include inside a namespace block, you can use the "
+               "preprocessor-based #include" );
+            break;
+         default:
+            break;
+         }
+      }
       p_bail( parse );
    }
 }
