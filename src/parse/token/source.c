@@ -54,12 +54,12 @@ void p_load_main_source( struct parse* parse ) {
    init_request( &request, NULL, parse->task->options->source_file );
    load_source( parse, &request );
    if ( request.source ) {
-      parse->lib->file = request.file;
-      parse->lib->file_pos.id = request.file->id;
       append_file( parse->lib, request.file );
       create_entry( parse, &request, false );
       create_include_history_entry( parse, 0 );
       t_update_err_file_dir( parse->task, request.file->full_path.value );
+      parse->lib->file_pos.id = request.source->file_entry_id;
+      parse->lib->file = request.file;
    }
    else {
       p_diag( parse, DIAG_ERR,
@@ -75,11 +75,11 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    init_request_module( &request, file ); 
    load_module( parse, &request );
    if ( request.source ) {
-      parse->lib->file = file;
-      parse->lib->file_pos.id = file->id;
       append_file( parse->lib, file );
       create_entry( parse, &request, true );
       create_include_history_entry_imported( parse, dirc );
+      parse->lib->file_pos.id = request.source->file_entry_id;
+      parse->lib->file = file;
    }
    else {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
