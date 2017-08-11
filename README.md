@@ -31,7 +31,7 @@ BCS is an extension of ACS. BCS is mostly compatible with ACS and provides many 
 * `foreach` loop
 * `?:` operator
 
-See the [details](https://github.com/wormt/bcc/blob/bcs/doc/details.md) file for an overview of the features.
+See the [wiki](https://github.com/wormt/bcc/wiki) for an overview of the features.
 
 ### ACS/ACS95
 <kbd>bcc</kbd> can also compile ACS and ACS95 code. ACS95 is the ACS scripting language that was used for scripting Hexen. The name, ACS95, is invented by <kbd>bcc</kbd> to distinguish between the two languages.
