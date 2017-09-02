@@ -36,7 +36,7 @@ int StriCmp( str a, str b, int length = -1 ) {
 
 // Get substring.
 str StrMid( str string, int start, int length ) {
-   return StrParam( msgbuild: ( msgbuild auto() ) {
+   return buildmsg ( StrParam() ) {
       if ( start < 0 ) {
          start = 0;
       }
@@ -47,7 +47,7 @@ str StrMid( str string, int start, int length ) {
          append( c: c );
          ++i;
       }
-   } );
+   }
 }
 
 // Get substring, starting at offset 0.
@@ -62,7 +62,7 @@ str StrRight( str string, int length ) {
 
 // Get string as uppercase. Character encoding assumed to be ASCII.
 str StrToUpper( str string ) {
-   return StrParam( msgbuild: ( msgbuild auto() ) {
+   return buildmsg ( StrParam() ) {
       foreach ( auto ch; string ) {
          if ( ch >= 97 && ch <= 122 ) {
             append( c: ch - 32 );
@@ -71,12 +71,12 @@ str StrToUpper( str string ) {
             append( c: ch );
          }
       }
-   } );
+   }
 }
 
 // Get string as lowercase.
 str StrToLower( str string ) {
-   return StrParam( msgbuild: ( msgbuild auto() ) {
+   return buildmsg ( StrParam() ) {
       foreach ( auto ch; string ) {
          if ( ch >= 65 && ch <= 90 ) {
             append( c: ch + 32 );
@@ -85,14 +85,14 @@ str StrToLower( str string ) {
             append( c: ch );
          }
       }
-   } );
+   }
 }
 
 // Supports up to 10 arguments, integer or string.
 void Printf( str format, raw arg1 = 0, raw arg2 = 0, raw arg3 = 0,
    raw arg4 = 0, raw arg5 = 0, raw arg6 = 0, raw arg7 = 0, raw arg8 = 0,
    raw arg9 = 0, raw arg10 = 0 ) {
-   Print( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( Print() ) {
       int num = 0;
       int pos = 0;
       while ( num < 10 ) {
@@ -140,7 +140,7 @@ void Printf( str format, raw arg1 = 0, raw arg2 = 0, raw arg3 = 0,
          ++num;
       }
       done:
-   } );
+   }
 }
 
 }

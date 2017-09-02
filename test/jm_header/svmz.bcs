@@ -289,7 +289,7 @@ void DisplayMinEscapeesFail() {
 
 void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessageBold( HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 ) ) {
       auto minEscapees = GetMinEscapees();
       auto numEscapees = Escapee.GetCount();
       // Change the color of the statistic to green to indicate success.
@@ -301,7 +301,7 @@ void DisplayEscapeeStats() {
          append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
             d: minEscapees );
       }
-   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+   }
 }
 
 private int GetNumAlive() {

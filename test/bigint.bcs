@@ -28,33 +28,35 @@ strict namespace BigInt {
 // ==========================================================================
 
 str Add( str a, str b ) {
-   return StrParam( msgbuild: ( msgbuild auto() ) {
+   return buildmsg ( StrParam() ) {
       // Calculate sum.
-      str sum = StrParam( msgbuild: ( msgbuild auto() ) {
-         int i_a = a.length() - 1;
-         int i_b = b.length() - 1;
-         int carry = 0;
-         while ( i_a >= 0 || i_b >= 0 ) {
-            int sum = ( i_a >= 0 ? a[ i_a ] - '0' : 0 ) +
-               ( i_b >= 0 ? b[ i_b ] - '0' : 0 ) + carry;
-            append( d: sum - ( int( sum >= 10 ) * 10 ) );
-            carry = int( sum >= 10 );
-            --i_a;
-            --i_b;
+      str sum = ( auto() ) {
+         return buildmsg ( StrParam() ) {
+            int i_a = a.length() - 1;
+            int i_b = b.length() - 1;
+            int carry = 0;
+            while ( i_a >= 0 || i_b >= 0 ) {
+               int sum = ( i_a >= 0 ? a[ i_a ] - '0' : 0 ) +
+                  ( i_b >= 0 ? b[ i_b ] - '0' : 0 ) + carry;
+               append( d: sum - ( int( sum >= 10 ) * 10 ) );
+               carry = int( sum >= 10 );
+               --i_a;
+               --i_b;
+            }
+            append( c: carry * '1' );
          }
-         append( c: carry * '1' );
-      } );
+      }();
       // Output sum.
       int i = sum.length() - 1;
       while ( i >= 0 ) {
          append( c: sum[ i ] );
          --i;
       }
-   } );
+   }
 }
 
 str Sub( str a, str b ) {
-   return StrParam( msgbuild: ( msgbuild auto() ) {
+   return buildmsg ( StrParam() ) {
       // Negative.
       if ( Lt( a, b ) ) {
          append( c: '-' );
@@ -63,20 +65,22 @@ str Sub( str a, str b ) {
          b = temp_a;
       }
       // Calculate difference.
-      str diff = StrParam( msgbuild: ( msgbuild auto() ) {
-         int i_a = a.length() - 1;
-         int i_b = b.length() - 1;
-         int borrow = 0;
-         while ( i_a >= 0 || i_b >= 0 ) {
-            int digit_a = ( i_a >= 0 ? a[ i_a ] - '0' : 0 );
-            int digit_b = ( i_b >= 0 ? b[ i_b ] - '0' : 0 );
-            append( d: ( digit_a - borrow ) +
-               ( int( digit_a - borrow < digit_b ) * 10 ) - digit_b );
-            borrow = int( digit_a - borrow < digit_b );
-            --i_a;
-            --i_b;
+      str diff = ( auto() ) {
+         return buildmsg ( StrParam() ) {
+            int i_a = a.length() - 1;
+            int i_b = b.length() - 1;
+            int borrow = 0;
+            while ( i_a >= 0 || i_b >= 0 ) {
+               int digit_a = ( i_a >= 0 ? a[ i_a ] - '0' : 0 );
+               int digit_b = ( i_b >= 0 ? b[ i_b ] - '0' : 0 );
+               append( d: ( digit_a - borrow ) +
+                  ( int( digit_a - borrow < digit_b ) * 10 ) - digit_b );
+               borrow = int( digit_a - borrow < digit_b );
+               --i_a;
+               --i_b;
+            }
          }
-      } );
+      }();
       // Output difference.
       int i = diff.length() - 1;
       while ( i >= 1 && diff[ i ] == '0' ) {
@@ -86,7 +90,7 @@ str Sub( str a, str b ) {
          append( c: diff[ i ] );
          --i;
       }
-   } );
+   }
 }
 
 bool Lt( str a, str b ) {

@@ -156,9 +156,10 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
 
 private void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessageBold(
+      HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 ) ) {
       if ( Hs.IsSet() ) {
-         DrawHsTime();
+         append( s: CreateHsTimeMessage() );
          append( s: "\n" );
       }
       // Skip invisible spots.
@@ -183,7 +184,7 @@ private void ShowTable() {
             s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
             s: "\n\n" );
       }
-   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+   }
 }
 
 private void ClearTable() {
@@ -192,7 +193,8 @@ private void ClearTable() {
 
 private void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessage(
+      HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 ) ) {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
          append( s: "\n" );
       }
@@ -203,7 +205,7 @@ private void ShowIndividualTime( int tics ) {
          s: ZeroPad( minutes ), d: minutes, s: ":", 
          s: ZeroPad( seconds ), d: seconds, s: "\cu.",
          s: ZeroPad( centiseconds ), d: centiseconds );
-   }; HUDMSG_PLAIN, INDITIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+   }
 }
 
 private void ClearIndividualTime() {
@@ -283,11 +285,13 @@ private void SaveHs( int player, int tics ) {
    Luk.StoreDate( HS_RDATE );
 }
 
-private msgbuild void DrawHsTime() {
-   append( s: "\cnRecord: \cb",
-      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
-      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
-      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+private str CreateHsTimeMessage() {
+   return buildmsg ( StrParam() ) {
+      append( s: "\cnRecord: \cb",
+         s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+         s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+         s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+   }
 }
 
 private void AnnounceHs() {

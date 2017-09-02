@@ -417,7 +417,8 @@ script 980 enter {
 
 private function void Show() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessage( HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3,
+      DISPLAY_TIME, 1.0 ) ) {
       append(
          s: "\cf", s: gName, s: " - ",
          s: "MAP", s: Jm.Utility.ZeroPad( gNumber ),
@@ -437,19 +438,21 @@ private function void Show() {
             s: SoloRanker.GetHsAuthorName()
          );
       }
-   }; HUDMSG_FADEOUT | HUDMSG_LOG, 412, 0, 1.5, 0.3, DISPLAY_TIME, 1.0 );
+   }
 }
 
 // Removes the whitespace found in the par time, so it looks nicer when shown
 // in the map message.
 private function void SetPar( str par ) {
-   gPar = StrParam( msgbuild: ( msgbuild auto() ) {
-      foreach ( int ch; par ) {
-         if ( ch != ' ' ) {
-            append( c: ch );
+   gPar = ( auto() ) {
+      return buildmsg ( StrParam() ) {
+         foreach ( int ch; par ) {
+            if ( ch != ' ' ) {
+               append( c: ch );
+            }
          }
       }
-   } );
+   }();
 }
 
 }
@@ -1135,9 +1138,10 @@ script "SoloRanker.ClientQuit" ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessageBold(
+      HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 ) ) {
       if ( Hs.IsSet() ) {
-         DrawHsTime();
+         append( s: CreateHsTimeMessage() );
          append( s: "\n" );
       }
       // Skip invisible spots.
@@ -1162,7 +1166,7 @@ private function void ShowTable() {
             s: ZeroPad( spot.centiseconds ), d: spot.centiseconds,
             s: "\n\n" );
       }
-   }; HUDMSG_PLAIN, TBL_LINEID, 0, TBL_X, TBL_Y, 0.0 );
+   }
 }
 
 private function void ClearTable() {
@@ -1171,7 +1175,8 @@ private function void ClearTable() {
 
 private function void ShowIndividualTime( int tics ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessage(
+      HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y, 0.0 ) ) {
       for ( auto i = 0; i < RANK_LIMIT_MAX; ++i ) {
          append( s: "\n" );
       }
@@ -1182,7 +1187,7 @@ private function void ShowIndividualTime( int tics ) {
          s: ZeroPad( minutes ), d: minutes, s: ":", 
          s: ZeroPad( seconds ), d: seconds, s: "\cu.",
          s: ZeroPad( centiseconds ), d: centiseconds );
-   }; HUDMSG_PLAIN, INDI_TIME_LINEID, 0, TBL_X, TBL_Y , 0.0 );
+   }
 }
 
 private function void ClearIndividualTime() {
@@ -1262,11 +1267,13 @@ private function void SaveHs( int player, int tics ) {
    Luk.StoreDate( HS_RDATE );
 }
 
-private function msgbuild void DrawHsTime() {
-   append( s: "\cnRecord: \cb",
-      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
-      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
-      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+private str CreateHsTimeMessage() {
+   return buildmsg ( StrParam() ) {
+      Append( s: "\cnRecord: \cb",
+         s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+         s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+         s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+   }
 }
 
 private function void AnnounceHs() {
@@ -1421,13 +1428,14 @@ script 961 ( int player ) disconnect {
 
 private function void ShowTable() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessageBold(
+      HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 ) ) {
       if ( Hs.IsSet() ) {
-         DrawHsTime();
+         append( s: CreateHsTimeMessage() );
          append( s: "\n\n" );
       }
       if ( gPointsLeft == 0 ) {
-         DrawTime();
+         append( s: CreateTimeMessage() );
          append( s: "\n\n" );
       }
       append( s : "\cfMain Helpers", s: "\n\n" );
@@ -1441,27 +1449,30 @@ private function void ShowTable() {
                d: gTable.spots[ i ].points );
          }
       }
-   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }
 }
 
-private function msgbuild void DrawTime() {
-   // Custom end message.
-   if ( gEndMessage ) {
-      append( s: "\ci", s: gEndMessage );
-   }
-   else {
-      append( s: Utility.IsOnline() ? "\ciTeamtime: " : "\crTime: ", s: "\cb",
-         s: ZeroPad( gMinutes ), d: gMinutes, s: ":",
-         s: ZeroPad( gSeconds ), d: gSeconds, s: "\cs.",
-         s: ZeroPad( gCentiseconds ), d: gCentiseconds );
+private str CreateTimeMessage() {
+   return buildmsg ( StrParam() ) {
+      // Custom end message.
+      if ( gEndMessage ) {
+         append( s: "\ci", s: gEndMessage );
+      }
+      else {
+         append( s: Utility.IsOnline() ? "\ciTeamtime: " : "\crTime: ", s: "\cb",
+            s: ZeroPad( gMinutes ), d: gMinutes, s: ":",
+            s: ZeroPad( gSeconds ), d: gSeconds, s: "\cs.",
+            s: ZeroPad( gCentiseconds ), d: gCentiseconds );
+      }
    }
 }
 
 private function void ShowGoals() {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessage(
+      HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 ) ) {
       if ( gPointsLeft == 0 ) {
-         DrawTime();
+         append( s: CreateTimeMessage() );
       }
       append( s: "\n\n" );
       auto labelColor = ( gPointsLeft == 0 ) ? "\cd" : "\cc";
@@ -1476,7 +1487,7 @@ private function void ShowGoals() {
          // always one place taken in the score table, which will be the first.
          d: gTable.spots[ 0 ].points, s: labelColor, s: " / ", s: totalColor,
          d: gPointsTotal );
-   }; HUDMSG_PLAIN, TBL_LINEID_OFFSET, 0, TBL_X, TBL_Y, 0.0 );
+   }
 }
 
 function void ClearPointsTable() {
@@ -1594,11 +1605,13 @@ private function void SaveHs( int finishTime ) {
    Luk.StoreInt( HS_RTOTAL_PLAYERS, numConnected );
 }
 
-private function msgbuild void DrawHsTime() {
-   append( s: "\cnRecord: \cb",
-      s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
-      s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
-      s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+private str CreateHsTimeMessage() {
+   return buildmsg ( StrParam() ) {
+      Append( s: "\cnRecord: \cb",
+         s: ZeroPad( gHsMinutes ), d: gHsMinutes, s: ":",
+         s: ZeroPad( gHsSeconds ), d: gHsSeconds, s: "\cs.",
+         s: ZeroPad( gHsCentiseconds ), d: gHsCentiseconds );
+   }
 }
 
 private function void AnnounceHs() {
@@ -1619,7 +1632,8 @@ private function void AnnounceCheat() {
 // Prints high score details table.
 script "TeamRanker.ShowHs" ( raw showTime ) {
    SetFont( "SMALLFONT" );
-   HudMessage( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessage(
+      HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 ) ) {
       append( s: "\ciRecord details", s: "\n\n", s: "\ckDate Set:", s: "\n",
          s: "\cc", s: Utility.GetMonthName( gHsMonth ), s: " ", d: gHsDay,
          s: ", ", d: gHsYear, s: "\n\n", s: "\ckFinish Time:", s: "\n",
@@ -1634,7 +1648,7 @@ script "TeamRanker.ShowHs" ( raw showTime ) {
       if ( gHsUnaccountedPoints > 0 ) {
          append( s: "\cgUnaccounted \cd", d: gHsUnaccountedPoints );
       }
-   }; HUDMSG_FADEOUT, HS_TBL_LINE, 0, HS_TBL_X, HS_TBL_Y, showTime, 1.0 );
+   }
 }
 
 function void PrepareForSvmz() {
@@ -2312,7 +2326,7 @@ function void DisplayMinEscapeesFail() {
 
 function void DisplayEscapeeStats() {
    SetFont( "SMALLFONT" );
-   HudMessageBold( msgbuild: ( msgbuild auto() ) {
+   buildmsg ( HudMessageBold( HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 ) ) {
       auto minEscapees = GetMinEscapees();
       auto numEscapees = Escapee.GetCount();
       // Change the color of the statistic to green to indicate success.
@@ -2324,7 +2338,7 @@ function void DisplayEscapeeStats() {
          append( s: "\ccEscapees: \ck", d: numEscapees, s: "\cc / \ci",
             d: minEscapees );
       }
-   }; HUDMSG_PLAIN, LINE_STATS, 0, 1.5, 0.05, 0.0 );
+   }
 }
 
 private function int GetNumAlive() {
