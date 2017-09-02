@@ -197,10 +197,7 @@ static void read_namespace_qualifier( struct parse* parse,
 }
 
 static void read_namespace_name( struct parse* parse ) {
-   if ( parse->tk == TK_ID ||
-      // An unqualified, unnamed namespace does not do anything useful. Force
-      // an unqualified namespace to have a name.
-      ! ( parse->ns_fragment->strict || parse->ns_fragment->hidden ) ) {
+   if ( parse->tk == TK_ID ) {
       read_namespace_path( parse );
    }
    if ( parse->ns_fragment->path ) {

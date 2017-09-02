@@ -50,7 +50,7 @@ namespace-header:
    <namespace-visibility> strict namespace
    <namespace-visibility> strict namespace <namespace-name>
    <namespace-visibility> namespace <namespace-name>
-   private namespace
+   <namespace-visibility> namespace
 
 namespace-visibility:
    private
@@ -219,7 +219,7 @@ reference-structure:
 
 reference-storage:
    <reference-storage-name>
-   <reference-storage-name> : <decimal>
+   <reference-storage-name> : <decimal-number>
    E
 
 reference-storage-name:
@@ -559,8 +559,8 @@ palette-translation:
    createtranslation ( <expression> , <palette-range-list> )
 
 palette-range-list:
-   <palrange>
-   <palrange-list> , <palrange>
+   <palette-range>
+   <palette-range-list> , <palette-range>
 
 palette-range:
    // NOTE: Assignment is not parsed in the second expression because it will
@@ -584,15 +584,12 @@ assert:
    static assert ( <expression> ) ;
    static assert ( <expression> , <string> ) ;
 
-buildmsg-statement:
-   <buildmsg>
-
 buildmsg:
    buildmsg ( <expression> ) <block-statement>
 
 inline-assembly:
-   > <inline-assembly-opcode> <nl>
-   > <inline-assembly-opcode> <inline-assembly-argument-list> <nl>
+   > <inline-assembly-opcode> <newline>
+   > <inline-assembly-opcode> <inline-assembly-argument-list> <newline>
 
 inline-assembly-opcode:
    <identifier>
@@ -858,6 +855,9 @@ character-escape-sequence:
    \\[oO][0-7]+
    \\[xX][0-9a-fA-F]+
 
+newline:
+   // Newline character
+
 comment:
    [/][/][^\n]+ // Single-line comment.
    [/][*]([^*]*[*]+)+[/] // Multi-line comment.
@@ -921,6 +921,7 @@ context-sensitive-keyword:
    define
    disconnect
    encryptstrings
+   endregion
    enter
    event
    import
@@ -936,6 +937,7 @@ context-sensitive-keyword:
    open
    pickup
    redreturn
+   region
    reopen
    respawn
    unloading
