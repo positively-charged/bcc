@@ -1431,6 +1431,8 @@ special
 276:Ceiling_Stop(int):int,
 277:Sector_SetFloorGlow(int,int,int,int,int):int,
 278:Sector_SetCeilingGlow(int,int,int,int,int):int,
+279:Floor_MoveToValueAndCrush(int,int,int,int;int):int,
+280:Ceiling_MoveToValueAndCrush(int,int,int,int;int):int,
 
 // Extension functions
 -1:GetLineUdmfInt(int,str):int,
