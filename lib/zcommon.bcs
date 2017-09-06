@@ -1316,7 +1316,7 @@ special
 153:Team_GivePoints(int,int,int):int,
 154:Teleport_NoStop(int,int;int):int,
 157:SetGlobalFogParameter(int,int):int,
-158:Fs_Excute(int;int,int,int):int,
+158:Fs_Execute(int;int,int,int):int,
 159:Sector_SetPlaneReflection(int,int,int):int,
 160:Sector_Set3dFloor(int,int,int,int,int):int:0,
 161:Sector_SetContents(int,int,int):int:0,
