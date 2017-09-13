@@ -1535,7 +1535,7 @@ special
 -96:SpawnParticle(int;bool,int,int,fixed,fixed,fixed,fixed,fixed,fixed,fixed,
    fixed,fixed,int,int,int):void,
 -97:SetMusicVolume(fixed):void,
--98:CheckProximity(str,str,fixed;int,int,int):bool,
+-98:CheckProximity(int,str,fixed;int,int,int):bool,
 -99:CheckActorState(int,str;bool):bool,
 
 // Zandronum.
