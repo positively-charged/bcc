@@ -26,6 +26,7 @@ pseudo-directive:
    # include <string>
    # import <string>
    # library <string>
+   # library
    # linklibrary <string>
    # define <identifier> <expression>
    // The zcommon.acs file #defines `true` and `false`. In BCS, `true` and

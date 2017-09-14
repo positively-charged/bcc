@@ -781,11 +781,16 @@ static void read_library( struct parse* parse, struct pos* pos,
    p_read_tk( parse );
    parse->lib->header = true;
    parse->lib->importable = true;
-   if ( parse->tk == TK_LIT_STRING ) {
-      read_library_name( parse, pos );
+   if ( parse->lang == LANG_BCS ) {
+      if ( parse->tk == TK_LIT_STRING ) {
+         read_library_name( parse, pos );
+      }
+      else {
+         parse->lib->name_pos = *pos;
+      }
    }
    else {
-      parse->lib->name_pos = *pos;
+      read_library_name( parse, pos );
    }
    // In ACS, the #library header must be the first object in the module. In
    // BCS, it can appear anywhere.
