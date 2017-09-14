@@ -1,6 +1,10 @@
 #ifndef LIB_ZCOMMON_H_BCS
 #define LIB_ZCOMMON_H_BCS
 
-#import "zcommon.bcs"
+#if defined( __ZANDRONUM__ )
+   #import "zcommon/zandronum.bcs"
+#else
+   #import "zcommon.bcs"
+#endif
 
 #endif
