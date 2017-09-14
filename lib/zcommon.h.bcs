@@ -3,6 +3,8 @@
 
 #if defined( __ZANDRONUM__ )
    #import "zcommon/zandronum.bcs"
+#elif defined( __GZDOOM__ )
+   #import "zcommon/gzdoom.bcs"
 #else
    #import "zcommon.bcs"
 #endif
