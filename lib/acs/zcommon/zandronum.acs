@@ -1,0 +1,1527 @@
+/*
+
+   The following declarations are based on the zcommon/zandronum.bcs file.
+
+*/
+
+// Constants
+// --------------------------------------------------------------------------
+
+#define FALSE 0
+#define TRUE 1
+#define OFF 0
+#define ON 1
+#define NO 0
+#define YES 1
+
+#define LINE_FRONT 0
+#define LINE_BACK 1
+
+#define SIDE_FRONT 0
+#define SIDE_BACK 1
+
+#define TEXTURE_TOP 0
+#define TEXTURE_MIDDLE 1
+#define TEXTURE_BOTTOM 2
+
+#define TEXFLAG_TOP 0x1
+#define TEXFLAG_MIDDLE 0x2
+#define TEXFLAG_BOTTOM 0x4
+#define TEXFLAG_ADDOFFSET 0x8
+
+#define GAME_SINGLE_PLAYER 0
+#define GAME_NET_COOPERATIVE 1
+#define GAME_NET_DEATHMATCH 2
+#define GAME_TITLE_MAP 3
+
+#define CLASS_FIGHTER 0
+#define CLASS_CLERIC 1
+#define CLASS_MAGE 2
+
+#define SKILL_VERY_EASY 0
+#define SKILL_EASY 1
+#define SKILL_NORMAL 2
+#define SKILL_HARD 3
+#define SKILL_VERY_HARD 4
+
+#define BLOCK_NOTHING 0
+#define BLOCK_CREATURES 1
+#define BLOCK_EVERYTHING 2
+#define BLOCK_RAILING 3
+#define BLOCK_PLAYER 4
+
+#define SCROLL 0
+#define CARRY 1
+#define SCROLL_AND_CARRY 2
+
+#define MOD_UNKNOWN 0
+#define MOD_ROCKET 5
+#define MOD_R_SPLASH 6
+#define MOD_PLASMARIFLE 7
+#define MOD_BFG_BOOM 8
+#define MOD_BFG_SPLASH 9
+#define MOD_CHAINSAW 10
+#define MOD_SSHOTGUN 11
+#define MOD_WATER 12
+#define MOD_SLIME 13
+#define MOD_LAVA 14
+#define MOD_CRUSH 15
+#define MOD_TELEFRAG 16
+#define MOD_FALLING 17
+#define MOD_SUICIDE 18
+#define MOD_BARREL 19
+#define MOD_EXIT 20
+#define MOD_SPLASH 21
+#define MOD_HIT 22
+#define MOD_RAILGUN 23
+#define MOD_ICE 24
+#define MOD_DISINTEGRATE 25
+#define MOD_POISON 26
+#define MOD_ELECTRIC 27
+
+#define MOVIE_PLAYED 0
+#define MOVIE_PLAYED_NOVIDEO 1
+#define MOVIE_PLAYED_ABORTED 2
+#define MOVIE_FAILED -1
+
+#define PROP_FROZEN 0
+#define PROP_NOTARGET 1
+#define PROP_INSTANTWEAPONSWITCH 2
+#define PROP_FLY 3
+#define PROP_TOTALLYFROZEN 4
+#define PROP_INVULNERABILITY 5
+#define PROP_STRENGTH 6
+#define PROP_INVISIBILITY 7
+#define PROP_RADIATIONSUIT 8
+#define PROP_ALLMAP 9
+#define PROP_INFRARED 10
+#define PROP_WEAPONLEVEL2 11
+#define PROP_FLIGHT 12
+#define PROP_SPEED 15
+#define PROP_BUDDHA 16
+
+#define INPUT_OLDBUTTONS 0
+#define INPUT_BUTTONS 1
+#define INPUT_PITCH 2
+#define INPUT_YAW 3
+#define INPUT_ROLL 4
+#define INPUT_FORWARDMOVE 5
+#define INPUT_SIDEMOVE 6
+#define INPUT_UPMOVE 7
+
+#define MODINPUT_OLDBUTTONS 8
+#define MODINPUT_BUTTONS 9
+#define MODINPUT_PITCH 10
+#define MODINPUT_YAW 11
+#define MODINPUT_ROLL 12
+#define MODINPUT_FORWARDMOVE 13
+#define MODINPUT_SIDEMOVE 14
+#define MODINPUT_UPMOVE 15
+
+#define BT_ATTACK 0x1
+#define BT_USE 0x2
+#define BT_JUMP 0x4
+#define BT_CROUCH 0x8
+#define BT_TURN180 0x10
+#define BT_ALTATTACK 0x20
+#define BT_RELOAD 0x40
+#define BT_ZOOM 0x80
+#define BT_SPEED 0x100
+#define BT_STRAFE 0x200
+#define BT_MOVERIGHT 0x400
+#define BT_MOVELEFT 0x800
+#define BT_BACK 0x1000
+#define BT_FORWARD 0x2000
+#define BT_RIGHT 0x4000
+#define BT_LEFT 0x8000
+#define BT_LOOKUP 0x10000
+#define BT_LOOKDOWN 0x20000
+#define BT_MOVEUP 0x40000
+#define BT_MOVEDOWN 0x80000
+#define BT_SHOWSCORES 0x100000
+#define BT_USER1 0x200000
+#define BT_USER2 0x400000
+#define BT_USER3 0x800000
+#define BT_USER4 0x1000000
+
+#define CR_UNTRANSLATED -1
+#define CR_BRICK 0
+#define CR_TAN 1
+#define CR_GRAY 2
+#define CR_GREY CR_GRAY
+#define CR_GREEN 3
+#define CR_BROWN 4
+#define CR_GOLD 5
+#define CR_RED 6
+#define CR_BLUE 7
+#define CR_ORANGE 8
+#define CR_WHITE 9
+#define CR_YELLOW 10
+#define CR_BLACK 12
+#define CR_LIGHTBLUE 13
+#define CR_CREAM 14
+#define CR_OLIVE 15
+#define CR_DARKGREEN 16
+#define CR_DARKRED 17
+#define CR_DARKBROWN 18
+#define CR_PURPLE 19
+#define CR_DARKGRAY 20
+#define CR_DARKGREY CR_DARKGRAY
+#define CR_CYAN 21
+
+#define HUDMSG_PLAIN 0
+#define HUDMSG_FADEOUT 1
+#define HUDMSG_TYPEON 2
+#define HUDMSG_FADEINOUT 3
+
+#define HUDMSG_LOG 0x80000000
+#define HUDMSG_COLORSTRING 0x40000000
+#define HUDMSG_ADDBLEND 0x20000000
+#define HUDMSG_ALPHA 0x10000000
+#define HUDMSG_NOWRAP 0x8000000
+
+#define HUDMSG_LAYER_OVERHUD 0x0
+#define HUDMSG_LAYER_UNDERHUD 0x1000
+#define HUDMSG_LAYER_OVERMAP 0x2000
+
+#define HUDMSG_NOTWITH3DVIEW 0x10000
+#define HUDMSG_NOTWITHFULLMAP 0x20000
+#define HUDMSG_NOTWITHOVERLAYMAP 0x40000
+
+#define MARINEWEAPON_DUMMY 0
+#define MARINEWEAPON_FIST 1
+#define MARINEWEAPON_BERSERKFIST 2
+#define MARINEWEAPON_CHAINSAW 3
+#define MARINEWEAPON_PISTOL 4
+#define MARINEWEAPON_SHOTGUN 5
+#define MARINEWEAPON_SUPERSHOTGUN 6
+#define MARINEWEAPON_CHAINGUN 7
+#define MARINEWEAPON_ROCKETLAUNCHER 8
+#define MARINEWEAPON_PLASMARIFLE 9
+#define MARINEWEAPON_RAILGUN 10
+#define MARINEWEAPON_BFG 11
+
+#define APROP_HEALTH 0
+#define APROP_SPEED 1
+#define APROP_DAMAGE 2
+#define APROP_ALPHA 3
+#define APROP_RENDERSTYLE 4
+#define APROP_SEESOUND 5
+#define APROP_ATTACKSOUND 6
+#define APROP_PAINSOUND 7
+#define APROP_DEATHSOUND 8
+#define APROP_ACTIVESOUND 9
+#define APROP_AMBUSH 10
+#define APROP_INVULNERABLE 11
+#define APROP_JUMPZ 12
+#define APROP_CHASEGOAL 13
+#define APROP_FRIGHTENED 14
+#define APROP_GRAVITY 15
+#define APROP_FRIENDLY 16
+#define APROP_SPAWNHEALTH 17
+#define APROP_DROPPED 18
+#define APROP_NOTARGET 19
+#define APROP_SPECIES 20
+#define APROP_NAMETAG 21
+#define APROP_SCORE 22
+#define APROP_NOTRIGGER 23
+#define APROP_DAMAGEFACTOR 24
+#define APROP_MASTERTID 25
+#define APROP_TARGETTID 26
+#define APROP_TRACERTID 27
+#define APROP_WATERLEVEL 28
+#define APROP_SCALEX 29
+#define APROP_SCALEY 30
+#define APROP_DORMANT 31
+#define APROP_MASS 32
+#define APROP_ACCURACY 33
+#define APROP_STAMINA 34
+#define APROP_HEIGHT 35
+#define APROP_RADIUS 36
+#define APROP_REACTIONTIME 37
+#define APROP_MELEERANGE 38
+#define APROP_VIEWHEIGHT 39
+#define APROP_ATTACKZOFFSET 40
+#define APROP_STENCILCOLOR 41
+/*
+#define APROP_FRICTION 42
+#define APROP_DAMAGEMULTIPLIER 43
+#define APROP_MAXSTEPHEIGHT 44
+#define APROP_MAXDROPOFFHEIGHT 45
+#define APROP_DAMAGETYPE 46
+*/
+
+// Eternity.
+/*
+#define APROP_COUNTER0 100
+#define APROP_COUNTER1 101
+#define APROP_COUNTER2 102
+#define APROP_COUNTER3 103
+#define APROP_COUNTER4 104
+#define APROP_COUNTER5 105
+#define APROP_COUNTER6 106
+#define APROP_COUNTER7 107
+*/
+
+#define STYLE_NONE 0
+#define STYLE_NORMAL 1
+#define STYLE_FUZZY 2
+#define STYLE_SOULTRANS 3
+#define STYLE_OPTFUZZY 4
+#define STYLE_STENCIL 5
+#define STYLE_ADDSTENCIL 6
+#define STYLE_ADDSHADED 7
+#define STYLE_TRANSLUCENT 64
+#define STYLE_ADD 65
+#define STYLE_SHADED 66
+#define STYLE_TRANSLUCENTSTENCIL 67
+#define STYLE_SHADOW 68
+#define STYLE_SUBTRACT 69
+
+#define LEVELINFO_PAR_TIME 0
+#define LEVELINFO_CLUSTERNUM 1
+#define LEVELINFO_LEVELNUM 2
+#define LEVELINFO_TOTAL_SECRETS 3
+#define LEVELINFO_FOUND_SECRETS 4
+#define LEVELINFO_TOTAL_ITEMS 5
+#define LEVELINFO_FOUND_ITEMS 6
+#define LEVELINFO_TOTAL_MONSTERS 7
+#define LEVELINFO_KILLED_MONSTERS 8
+#define LEVELINFO_SUCK_TIME 9
+
+#define PLAYERINFO_TEAM 0
+#define PLAYERINFO_AIMDIST 1
+#define PLAYERINFO_COLOR 2
+#define PLAYERINFO_GENDER 3
+#define PLAYERINFO_NEVERSWITCH 4
+#define PLAYERINFO_MOVEBOB 5
+#define PLAYERINFO_STILLBOB 6
+#define PLAYERINFO_PLAYERCLASS 7
+#define PLAYERINFO_FOV 8
+#define PLAYERINFO_DESIREDFOV 9
+
+#define NOT_BOTTOM 0x1
+#define NOT_MIDDLE 0x2
+#define NOT_TOP 0x4
+#define NOT_FLOOR 0x8
+#define NOT_CEILING 0x10
+
+#define DAMAGE_PLAYERS 0x1
+#define DAMAGE_NONPLAYERS 0x2
+#define DAMAGE_IN_AIR 0x4
+#define DAMAGE_SUBCLASSES_PROTECT 0x8
+/*
+#define DAMAGE_NO_ARMOR 0x16
+*/
+
+#define MRF_OLDEFFECTS 0x0
+#define MRF_ADDSTAMINA 0x1
+#define MRF_FULLHEALTH 0x2
+#define MRF_UNDOBYTOMEOFPOWER 0x4
+#define MRF_UNDOBYCHAOSDEVICE 0x8
+#define MRF_FAILNOTELEFRAG 0x10
+#define MRF_FAILNOLAUGH 0x20
+#define MRF_WHENINVULNERABLE 0x40
+#define MRF_LOSEACTUALWEAPON 0x80
+#define MRF_NEWTIDBEHAVIOUR 0x100
+#define MRF_UNDOBYDEATH 0x200
+#define MRF_UNDOBYDEATHFORCED 0x400
+#define MRF_UNDOBYDEATHSAVES 0x800
+/*
+#define MRF_UNDOALWAYS 0x1000
+#define MRF_TRANSFERTRANSLATION 0x2000
+*/
+
+#define T_ROCK1 41
+#define T_ROCK2 42
+#define T_ROCK3 43
+#define T_DIRT1 44
+#define T_DIRT2 45
+#define T_DIRT3 46
+#define T_DIRT4 47
+#define T_DIRT5 48
+#define T_DIRT6 49
+#define T_STAINEDGLASS1 54
+#define T_STAINEDGLASS2 55
+#define T_STAINEDGLASS3 56
+#define T_STAINEDGLASS4 57
+#define T_STAINEDGLASS5 58
+#define T_STAINEDGLASS6 59
+#define T_STAINEDGLASS7 60
+#define T_STAINEDGLASS8 61
+#define T_STAINEDGLASS9 62
+#define T_STAINEDGLASS0 63
+
+#define T_NONE 0
+#define T_SHOTGUY 1
+#define T_CHAINGUY 2
+#define T_BARON 3
+#define T_ZOMBIE 4
+#define T_IMP 5
+#define T_ARACHNOTRON 6
+#define T_SPIDERMASTERMIND 7
+#define T_DEMON 8
+#define T_SPECTRE 9
+#define T_IMPFIREBALL 10
+#define T_CLIP 11
+#define T_SHELLS 12
+#define T_CACODEMON 19
+#define T_REVENANT 20
+#define T_BRIDGE 21
+#define T_ARMORBONUS 22
+#define T_STIMPACK 23
+#define T_MEDKIT 24
+#define T_SOULSPHERE 25
+#define T_SHOTGUN 27
+#define T_CHAINGUN 28
+#define T_ROCKETLAUNCHER 29
+#define T_PLASMAGUN 30
+#define T_BFG 31
+#define T_CHAINSAW 32
+#define T_SUPERSHOTGUN 33
+#define T_PLASMABOLT 51
+#define T_TRACER 53
+#define T_GREENARMOR 68
+#define T_BLUEARMOR 69
+#define T_CELL 75
+#define T_BLUEKEYCARD 85
+#define T_REDKEYCARD 86
+#define T_YELLOWKEYCARD 87
+#define T_YELLOWSKULLKEY 88
+#define T_REDSKULLKEY 89
+#define T_BLUESKULLKEY 90
+#define T_TEMPLARGEFLAME 98
+#define T_STEALTHBARON 100
+#define T_STEALTHKNIGHT 101
+#define T_STEALTHZOMBIE 102
+#define T_STEALTHSHOTGUY 103
+
+#define T_LOSTSOUL 110
+#define T_VILE 111
+#define T_MANCUBUS 112
+#define T_HELLKNIGHT 113
+#define T_CYBERDEMON 114
+#define T_PAINELEMENTAL 115
+#define T_WOLFSS 116
+#define T_STEALTHARACHNOTRON 117
+#define T_STEALTHVILE 118
+#define T_STEALTHCACODEMON 119
+#define T_STEALTHCHAINGUY 120
+#define T_STEALTHSERGEANT 121
+#define T_STEALTHIMP 122
+#define T_STEALTHMANCUBUS 123
+#define T_STEALTHREVENANT 124
+#define T_BARREL 125
+#define T_CACODEMONSHOT 126
+#define T_ROCKET 127
+#define T_BFGSHOT 128
+#define T_ARACHNOTRONPLASMA 129
+#define T_BLOOD 130
+#define T_PUFF 131
+#define T_MEGASPHERE 132
+#define T_INVULNERABILITY 133
+#define T_BERSERK 134
+#define T_INVISIBILITY 135
+#define T_IRONFEET 136
+#define T_COMPUTERMAP 137
+#define T_LIGHTAMP 138
+#define T_AMMOBOX 139
+#define T_ROCKETAMMO 140
+#define T_ROCKETBOX 141
+#define T_BATTERY 142
+#define T_SHELLBOX 143
+#define T_BACKPACK 144
+#define T_GUTS 145
+#define T_BLOODPOOL 146
+#define T_BLOODPOOL1 147
+#define T_BLOODPOOL2 148
+#define T_FLAMINGBARREL 149
+#define T_BRAINS 150
+#define T_SCRIPTEDMARINE 151
+#define T_HEALTHBONUS 152
+#define T_MANCUBUSSHOT 153
+#define T_BARONBALL 154
+
+#define T_CLINK 1
+#define T_MUMMYLEADER 2
+#define T_BEAST 3
+#define T_MUMMY 4
+#define T_KNIGHT 6
+#define T_IMPLEADER 7
+#define T_MUMMYGHOST 8
+#define T_MUMMYLEADERGHOST 9
+#define T_WIMPYWANDAMMO 11
+#define T_HEFTYWANDAMMO 12
+#define T_ITEMEGG 14
+#define T_ITEMFLIGHT 15
+#define T_ITEMTELEPORT 18
+#define T_WIZARD 19
+#define T_IRONLICH 20
+#define T_ITEMHEALTHPOTION 23
+#define T_ITEMHEALTHFLASH 24
+#define T_ITEMHEALTHFLASK T_ITEMHEALTHFLASH
+#define T_ITEMHEALTHFULL 25
+#define T_CROSSBOW 27
+#define T_BLASTER 28
+#define T_PHOENIXROD 29
+#define T_SKULLROD 30
+#define T_MACE 31
+#define T_GAUNTLETS 32
+#define T_WIMPYCROSSBOWAMMO 33
+#define T_HEFTYCROSSBOWAMMO 34
+#define T_WIMPYMACEAMMO 35
+#define T_HEFTYMACEAMMO 36
+#define T_WIMPYBLASTERAMMO 37
+#define T_HEFTYBLASTERAMMO 38
+#define T_MORPHBLAST 40
+#define T_SHIELD1 68
+#define T_SHIELD2 69
+#define T_ITEMTIMEBOMB 72
+#define T_ITEMTORCH 73
+#define T_BLUEKEY 85
+#define T_GREENKEY 86
+#define T_YELLOWKEY 87
+#define T_SOUND_WIND 110
+#define T_SOUND_WATERFALL 111
+#define T_BEASTBALL 120
+#define T_FEATHER 121
+#define T_CHICKEN 122
+#define T_VOLCANOBALL 123
+#define T_TINYVOLCANOBALL 124
+#define T_POD 125
+#define T_PODGENERATOR 126
+#define T_KNIGHTAXE 127
+#define T_KNIGHTBLOODAXE 128
+#define T_KNIGHTGHOST 129
+#define T_MUMMYHEAD 131
+#define T_SNAKE 132
+#define T_ITEMINVULNERABILITY 133
+#define T_ITEMTOME 134
+#define T_ITEMINVISIBILITY 135
+#define T_ITEMBAGOFHOLDING 136
+#define T_ITEMALLMAP 137
+#define T_SNAKEPROJECTILE 138
+#define T_SNAKEPROJECTILEBIG 139
+#define T_WIZARDSHOT 140
+#define T_DSPARILTELEPORTDEST 141
+#define T_DSPARILONSERPENT 142
+#define T_DSPARILALONE 143
+#define T_SERPENTFIREBALL 144
+#define T_DSPARILBLUESHOT 145
+#define T_DSPARILWIZARDSPAWNER 146
+#define T_CROSSBOWMAINBLAST 147
+#define T_CROSSBOWMINIBLAST 148
+#define T_CROSSBOWPOWERBLAST 149
+#define T_VOLCANO 150
+#define T_POWERWANDMINIBLAST 151
+#define T_POWERWANDBIGGERBLAST 152
+#define T_DEATHBALL 153
+#define T_NOGRAVITYMACEBALL 154
+#define T_BOUNCYMACEBALL 155
+#define T_HEAVYMACEBALL 156
+#define T_RIPPER 157
+#define T_WIMPYSKULLRODAMMO 158
+#define T_HEFTYSKULLRODAMMO 159
+#define T_SKULLRODBLAST 160
+#define T_WIMPYPHOENIXRODAMMO 161
+#define T_HEFTYPHOENIXRODAMMO 162
+#define T_PHOENIXSHOT 163
+#define T_IRONLICHBLUESHOT 164
+#define T_WHIRLWIND 165
+#define T_REDTELEGLITTER 166
+#define T_BLUETELEGLITTER 167
+
+#define T_CENTAUR 1
+#define T_CENTAURLEADER 2
+#define T_DEMON1 3
+#define T_ETTIN 4
+#define T_FIREGARGOYLE 5
+#define T_WATERLURKER 6
+#define T_WATERLURKERLEADER 7
+#define T_WRAITH 8
+#define T_WRAITHBURIED 9
+#define T_FIREBALL1 10
+#define T_MANA1 11
+#define T_MANA2 12
+#define T_ITEMBOOTS 13
+#define T_ITEMPORK 14
+#define T_ITEMSUMMON 16
+#define T_ITEMTPORTOTHER 17
+#define T_BISHOP 19
+#define T_ICEGOLEM 20
+#define T_DRAGONSKINBRACERS 22
+#define T_ITEMBOOSTMANA 26
+#define T_FIGHTERAXE 27
+#define T_FIGHTERHAMMER 28
+#define T_FIGHTERSWORD1 29
+#define T_FIGHTERSWORD2 30
+#define T_FIGHTERSWORD3 31
+#define T_CLERICSTAFF 32
+#define T_CLERICHOLY1 33
+#define T_CLERICHOLY2 34
+#define T_CLERICHOLY3 35
+#define T_MAGESHARDS 36
+#define T_MAGESTAFF1 37
+#define T_MAGESTAFF2 38
+#define T_MAGESTAFF3 39
+#define T_ARROW 50
+#define T_DART 51
+#define T_POISONDART 52
+#define T_RIPPERBALL 53
+#define T_BLADE 64
+#define T_ICESHARD 65
+#define T_FLAME_SMALL 66
+#define T_FLAME_LARGE 67
+#define T_MESHARMOR 68
+#define T_FALCONSHIELD 69
+#define T_PLATINUMHELM 70
+#define T_AMULETOFWARDING 71
+#define T_ITEMFLECHETTE 72
+#define T_ITEMREPULSION 74
+#define T_MANA3 75
+#define T_PUZZSKULL 76
+#define T_PUZZGEMBIG 77
+#define T_PUZZGEMRED 78
+#define T_PUZZGEMGREEN1 79
+#define T_PUZZGEMGREEN2 80
+#define T_PUZZGEMBLUE1 81
+#define T_PUZZGEMBLUE2 82
+#define T_PUZZBOOK1 83
+#define T_PUZZBOOK2 84
+#define T_METALKEY 85
+#define T_SMALLMETALKEY 86
+#define T_AXEKEY 87
+#define T_FIREKEY 88
+#define T_EMERALDKEY 89
+#define T_MACEKEY 90
+#define T_SILVERKEY 91
+#define T_RUSTYKEY 92
+#define T_HORNKEY 93
+#define T_SERPENTKEY 94
+#define T_WATERDRIP 95
+#define T_TEMPSMALLFLAME 96
+#define T_PERMSMALLFLAME 97
+#define T_PERMLARGEFLAME 99
+#define T_DEMON_MASH 100
+#define T_DEMON2_MASH 101
+#define T_ETTIN_MASH 102
+#define T_CENTAUR_MASH 103
+#define T_THRUSTSPIKEUP 104
+#define T_THRUSTSPIKEDOWN 105
+#define T_FLESH_DRIP1 106
+#define T_FLESH_DRIP2 107
+#define T_SPARK_DRIP 108
+
+#define ACTOR_NONE 0x0
+#define ACTOR_WORLD 0x1
+#define ACTOR_PLAYER 0x2
+#define ACTOR_BOT 0x4
+#define ACTOR_VOODOODOLL 0x8
+#define ACTOR_MONSTER 0x10
+#define ACTOR_ALIVE 0x20
+#define ACTOR_DEAD 0x40
+#define ACTOR_MISSILE 0x80
+#define ACTOR_GENERIC 0x100
+
+#define SECSEQ_FLOOR 1
+#define SECSEQ_CEILING 2
+#define SECSEQ_FULLHEIGHT 3
+#define SECSEQ_INTERIOR 4
+
+#define CHAN_AUTO 0
+#define CHAN_WEAPON 1
+#define CHAN_VOICE 2
+#define CHAN_ITEM 3
+#define CHAN_BODY 4
+#define CHAN_5 5
+#define CHAN_6 6
+#define CHAN_7 7
+
+#define CHAN_LISTENERZ 0x8
+#define CHAN_MAYBE_LOCAL 0x10
+#define CHAN_UI 0x20
+#define CHAN_NOPAUSE 0x40
+
+#define ATTN_NONE 0.0
+#define ATTN_NORM 1.0
+#define ATTN_IDLE 1.001
+#define ATTN_STATIC 3.0
+
+#define SOUND_SEE 0
+#define SOUND_ATTACK 1
+#define SOUND_PAIN 2
+#define SOUND_DEATH 3
+#define SOUND_ACTIVE 4
+#define SOUND_USE 5
+#define SOUND_BOUNCE 6
+#define SOUND_WALLBOUNCE 7
+#define SOUND_CRUSHPAIN 8
+#define SOUND_HOWL 9
+
+#define SDF_ABSANGLE 0x1
+#define SDF_PERMANENT 0x2
+
+#define AAPTR_DEFAULT 0x0
+#define AAPTR_NULL 0x1
+#define AAPTR_TARGET 0x2
+#define AAPTR_MASTER 0x4
+#define AAPTR_TRACER 0x8
+#define AAPTR_PLAYER_GETTARGET 0x10
+#define AAPTR_PLAYER_GETCONVERSATION 0x20
+#define AAPTR_PLAYER1 0x40
+#define AAPTR_PLAYER2 0x80
+#define AAPTR_PLAYER3 0x100
+#define AAPTR_PLAYER4 0x200
+#define AAPTR_PLAYER5 0x400
+#define AAPTR_PLAYER6 0x800
+#define AAPTR_PLAYER7 0x1000
+#define AAPTR_PLAYER8 0x2000
+#define AAPTR_FRIENDPLAYER 0x4000
+/*
+#define AAPTR_GET_LINETARGET 0x8000
+*/
+
+#define PTROP_UNSAFETARGET 0x1
+#define PTROP_UNSAFEMASTER 0x2
+#define PTROP_NOSAFEGUARDS PTROP_UNSAFETARGET | PTROP_UNSAFEMASTER
+
+#define SPAC_NONE 0x0
+#define SPAC_CROSS 0x1
+#define SPAC_USE 0x2
+#define SPAC_MCROSS 0x4
+#define SPAC_IMPACT 0x8
+#define SPAC_PUSH 0x10
+#define SPAC_PCROSS 0x20
+#define SPAC_USETHROUGH 0x40
+#define SPAC_ANYCROSS 0x80
+#define SPAC_MUSE 0x100
+#define SPAC_MPUSH 0x200
+#define SPAC_USEBACK 0x400
+
+#define ARMORINFO_CLASSNAME 0
+#define ARMORINFO_SAVEAMOUNT 1
+#define ARMORINFO_SAVEPERCENT 2
+#define ARMORINFO_MAXABSORB 3
+#define ARMORINFO_MAXFULLABSORB 4
+/*
+#define ARMORINFO_ACTUALSAVEAMOUNT 5
+*/
+
+#define TEAM_BLUE 0
+#define TEAM_RED 1
+#define NO_TEAM 2
+
+#define TPROP_NAME 0
+#define TPROP_SCORE 1
+#define TPROP_ISVALID 2
+#define TPROP_NUMPLAYERS 3
+#define TPROP_NUMLIVEPLAYERS 4
+#define TPROP_TEXTCOLOR 5
+#define TPROP_PLAYERSTARTNUM 6
+#define TPROP_SPREAD 7
+#define TPROP_CARRIER 8
+#define TPROP_ASSISTER 9
+#define TPROP_FRAGCOUNT 10
+#define TPROP_DEATHCOUNT 11
+#define TPROP_WINCOUNT 12
+#define TPROP_POINTCOUNT 13
+#define TPROP_RETURNTICS 14
+#define TPROP_TEAMITEM 15
+#define TPROP_WINNERTHEME 16
+#define TPROP_LOSERTHEME 17
+
+#define IS_WAITINGFORPLAYERS 0
+#define IS_FIRSTCOUNTDOWN 1
+#define IS_INPROGRESS 2
+#define IS_BOSSFIGHT 3
+#define IS_WAVECOMPLETE 4
+#define IS_COUNDOWN 5
+#define IS_MISSIONFAILED 6
+
+#define T_GRENADE 216
+#define T_BFG10KSHOT 217
+#define T_DARKIMPFIREBALL 218
+#define T_CACOLANTERNSHOT 219
+#define T_ABADDONSHOT 221
+
+#define T_DARKIMP 155
+#define T_BLOODDEMON 156
+#define T_SSGGUY 157
+#define T_HECTEBUS 158
+#define T_CACOLANTERN 159
+#define T_BELPHEGOR 215
+#define T_ABADDON 220
+
+#define T_PISTOL 162
+#define T_GRENADELAUNCHER 163
+#define T_RAILGUN 164
+#define T_BFG10000 165
+#define T_MINIGUN 214
+
+#define T_MAXHEALTHBONUS 166
+#define T_MAXARMORBONUS 167
+#define T_REDARMOR 168
+
+#define T_TURBOSPHERE 169
+#define T_ANTIGRAVBELT 170
+#define T_TIMEFREEZER 171
+#define T_INFRAGOGGLES 172
+#define T_INFRATRACKER 173
+#define T_TRANSLUCENCY 174
+#define T_DOOMSPHERE 175
+#define T_RANDOMPOWERUP 176
+
+#define T_BLUEFLAG 177
+#define T_REDFLAG 178
+#define T_WHITEFLAG 179
+
+#define T_STRENGTH 180
+#define T_RAGE 181
+#define T_DRAIN 182
+#define T_SPREAD 183
+#define T_RESISTANCE 184
+#define T_REGENERATION 185
+#define T_PROSPERITY 186
+#define T_REFLECTION 187
+#define T_HIGHJUMP 188
+#define T_HASTE 189
+
+#define EV_KEYDOWN 1
+#define EV_KEYREPEAT 2
+#define EV_KEYUP 3
+#define EV_CHAR 4
+#define EV_MOUSEMOVE 5
+#define EV_LBUTTONDOWN 6
+#define EV_LBUTTONUP 7
+#define EV_LBUTTONDBLCLICK 8
+#define EV_MBUTTONDOWN 9
+#define EV_MBUTTONUP 10
+#define EV_MBUTTONDBLCLICK 11
+#define EV_RBUTTONDOWN 12
+#define EV_RBUTTONUP 13
+#define EV_RBUTTONDBLCLICK 14
+#define EV_WHEELDOWN 15
+#define EV_WHEELUP 16
+
+#define GKM_SHIFT 0x100
+#define GKM_CTRL 0x200
+#define GKM_ALT 0x400
+#define GKM_LBUTTON 0x800
+#define GKM_MBUTTON 0x1000
+#define GKM_RBUTTON 0x2000
+
+#define GK_PGDN 1
+#define GK_PGUP 2
+#define GK_HOME 3
+#define GK_END 4
+#define GK_LEFT 5
+#define GK_RIGHT 6
+#define GK_ALERT 7
+#define GK_BACKSPACE 8
+#define GK_TAB 9
+#define GK_LINEFEED 10
+#define GK_DOWN GK_LINEFEED
+#define GK_VTAB 11
+#define GK_UP GK_VTAB
+#define GK_FORMFEED 12
+#define GK_RETURN 13
+#define GK_F1 14
+#define GK_F2 15
+#define GK_F3 16
+#define GK_F4 17
+#define GK_F5 18
+#define GK_F6 19
+#define GK_F7 20
+#define GK_F8 21
+#define GK_F9 22
+#define GK_F10 23
+#define GK_F11 24
+#define GK_F12 25
+#define GK_DEL 26
+#define GK_ESCAPE 27
+#define GK_FREE1 28
+#define GK_FREE2 29
+#define GK_FREE3 30
+#define GK_CESCAPE 31
+
+#define CHANGELEVEL_KEEPFACING 0x1
+#define CHANGELEVEL_RESETINVENTORY 0x2
+#define CHANGELEVEL_NOMONSTERS 0x4
+#define CHANGELEVEL_CHANGESKILL 0x8
+#define CHANGELEVEL_NOINTERMISSION 0x10
+#define CHANGELEVEL_RESETHEALTH 0x20
+#define CHANGELEVEL_PRERAISEWEAPON 0x40
+
+#define NO_CHANGE 32767.0
+
+#define SECF_SILENT 0x1
+#define SECF_NOFALLINGDAMAGE 0x2
+#define SECF_FLOORDROP 0x4
+#define SECF_NORESPAWN 0x8
+/*
+#define SECF_FRICTION 0x10
+#define SECF_PUSH 0x20
+#define SECF_SILENTMOVE 0x40
+#define SECF_DMGTERRAINFX 0x80
+#define SECF_DMGENDGODMODE 0x100
+#define SECF_DMGENDLEVEL 0x200
+#define SECF_DMGHAZARD 0x400
+*/
+
+#define BLOCKF_CREATURES 0x1
+#define BLOCKF_MONSTERS 0x2
+#define BLOCKF_PLAYERS 0x4
+#define BLOCKF_FLOATERS 0x8
+#define BLOCKF_PROJECTILES 0x10
+#define BLOCKF_EVERYTHING 0x20
+#define BLOCKF_RAILING 0x40
+#define BLOCKF_USE 0x80
+#define BLOCKF_SIGHT 0x100
+#define BLOCKF_HITSCAN 0x200
+/*
+#define BLOCKF_SOUND 0x400
+*/
+
+/*
+#define FOGP_DENSITY 0
+#define FOGP_OUTSIDEDENSITY 1
+#define FOGP_SKYFOG 2
+*/
+
+#define PRINTNAME_LEVELNAME -1
+#define PRINTNAME_LEVEL -2
+#define PRINTNAME_SKILL -3
+/*
+#define PRINTNAME_NEXTLEVEL -4
+#define PRINTNAME_NEXTSECRET -5
+*/
+
+#define CSF_NOFAKEFLOORS 0x1
+#define CSF_NOBLOCKALL 0x2
+
+#define FHF_NORANDOMPUFFZ 0x1
+#define FHF_NOIMPACTDECAL 0x2
+
+#define PICKAF_FORCETID 0x1
+#define PICKAF_RETURNTID 0x2
+
+/*
+#define TRANSLATION_ICE 0x100007
+*/
+
+#define MF_SPECIAL 0x1
+#define MF_SOLID 0x2
+#define MF_SHOOTABLE 0x4
+#define MF_NOSECTOR 0x8
+#define MF_NOBLOCKMAP 0x10
+#define MF_AMBUSH 0x20
+#define MF_JUSTHIT 0x40
+#define MF_JUSTATTACKED 0x80
+#define MF_SPAWNCEILING 0x100
+#define MF_NOGRAVITY 0x200
+#define MF_DROPOFF 0x400
+#define MF_PICKUP 0x800
+#define MF_NOCLIP 0x1000
+#define MF_INCHASE 0x2000
+#define MF_FLOAT 0x4000
+#define MF_TELEPORT 0x8000
+#define MF_MISSILE 0x10000
+#define MF_DROPPED 0x20000
+#define MF_SHADOW 0x40000
+#define MF_NOBLOOD 0x80000
+#define MF_CORPSE 0x100000
+#define MF_INFLOAT 0x200000
+#define MF_INBOUNCE 0x200000
+#define MF_COUNTKILL 0x400000
+#define MF_COUNTITEM 0x800000
+#define MF_SKULLFLY 0x1000000
+#define MF_NOTDMATCH 0x2000000
+#define MF_SPAWNSOUNDSOURCE 0x4000000
+#define MF_FRIENDLY 0x8000000
+#define MF_UNMORPHED 0x10000000
+#define MF_NOLIFTDROP 0x20000000
+#define MF_STEALTH 0x40000000
+#define MF_ICECORPSE 0x80000000
+
+#define ML_BLOCKING 0x1
+#define ML_BLOCKMONSTERS 0x2
+#define ML_TWOSIDED 0x4
+#define ML_DONTPEGTOP 0x8
+#define ML_DONTPEGBOTTOM 0x10
+#define ML_SECRET 0x20
+#define ML_SOUNDBLOCK 0x40
+#define ML_DONTDRAW 0x80
+#define ML_MAPPED 0x100
+#define ML_REPEAT_SPECIAL 0x200
+#define ML_ADDTRANS 0x400
+#define ML_MONSTERSCANACTIVATE 0x2000
+#define ML_BLOCK_PLAYERS 0x4000
+#define ML_BLOCKEVERYTHING 0x8000
+#define ML_ZONEBOUNDARY 0x10000
+#define ML_RAILING 0x20000
+#define ML_BLOCK_FLOATERS 0x40000
+#define ML_CLIP_MIDTEX 0x80000
+#define ML_WRAP_MIDTEX 0x100000
+#define ML_3DMIDTEX 0x200000
+#define ML_CHECKSWITCHRANGE 0x400000
+#define ML_FIRSTSIDEONLY 0x800000
+#define ML_BLOCKPROJECTILE 0x1000000
+#define ML_BLOCKUSE 0x2000000
+#define ML_BLOCKSIGHT 0x4000000
+#define ML_BLOCKHITSCAN 0x8000000
+
+/*
+#define QF_RELATIVE 0x1
+#define QF_SCALEDOWN 0x2
+#define QF_SCALEUP 0x4
+#define QF_MAX 0x8
+#define QF_FULLINTENSITY 0x10
+#define QF_WAVE 0x20
+*/
+
+#define WARPF_ABSOLUTEOFFSET 0x1
+#define WARPF_ABSOLUTEANGLE 0x2
+#define WARPF_USECALLERANGLE 0x4
+#define WARPF_NOCHECKPOSITION 0x8
+#define WARPF_INTERPOLATE 0x10
+#define WARPF_WARPINTERPOLATION 0x20
+#define WARPF_COPYINTERPOLATION 0x40
+#define WARPF_STOP 0x80
+#define WARPF_TOFLOOR 0x100
+#define WARPF_TESTONLY 0x200
+#define WARPF_ABSOLUTEPOSITION 0x400
+#define WARPF_BOB 0x800
+#define WARPF_MOVEPTR 0x1000
+#define WARPF_USEPTR 0x2000
+/*
+#define WARPF_COPYVELOCITY 0x4000
+#define WARPF_COPYPITCH 0x8000
+*/
+
+/*
+#define CPXF_ANCESTOR 0x1
+#define CPXF_LESSOREQUAL 0x2
+#define CPXF_NOZ 0x4
+#define CPXF_COUNTDEAD 0x8
+#define CPXF_DEADONLY 0x10
+#define CPXF_EXACT 0x20
+#define CPXF_SETTARGET 0x40
+#define CPXF_SETMASTER 0x80
+#define CPXF_SETTRACER 0x100
+#define CPXF_FARTHEST 0x200
+#define CPXF_CLOSEST 0x400
+#define CPXF_SETONPTR 0x800
+#define CPXF_CHECKSIGHT 0x1000
+*/
+
+#define GAMESTATE_UNSPECIFIED -1
+#define GAMESTATE_WAITFORPLAYERS 0
+#define GAMESTATE_COUNTDOWN 1
+#define GAMESTATE_INPROGRESS 2
+#define GAMESTATE_INRESULTSEQUENCE 3
+
+#define GAMEEVENT_PLAYERFRAGS 0
+#define GAMEEVENT_MEDALS 1
+#define GAMEEVENT_CAPTURES 2
+#define GAMEEVENT_TOUCHES 3
+#define GAMEEVENT_RETURNS 4
+#define GAMEEVENT_ROUND_STARTS 5
+#define GAMEEVENT_ROUND_ENDS 6
+#define GAMEEVENT_ROUND_ABORTED 7
+
+#define DB_ORDER_ASC 0
+#define DB_ORDER_DESC 1
+
+#define TM_SECOND 0
+#define TM_MINUTE 1
+#define TM_HOUR 2
+#define TM_DAY 3
+#define TM_MONTH 4
+#define TM_YEAR 5
+#define TM_WEEKDAY 6
+
+#define INT_MAX 2147483647
+#define INT_MIN -INT_MAX - 1
+
+// Functions
+// --------------------------------------------------------------------------
+
+special
+
+// Action specials
+/*
+1:Polyobj_StartLine,
+*/
+2:Polyobj_RotateLeft(3),
+3:Polyobj_RotateRight(3),
+4:Polyobj_Move(4),
+/*
+5:Polyobj_ExplicitLine,
+*/
+6:Polyobj_MoveTimes8(4),
+7:Polyobj_DoorSwing(4),
+8:Polyobj_DoorSlide(5),
+9:Line_Horizon(0),
+10:Door_Close(2,3),
+11:Door_Open(2,3),
+12:Door_Raise(3,4),
+13:Door_LockedRaise(4,5),
+14:Door_Animated(3,4),
+15:Autosave(0),
+/*
+16:Transfer_WallLight,
+*/
+17:Thing_Raise(1/*,2*/),
+18:StartConversation(1,2),
+19:Thing_Stop(1),
+20:Floor_LowerByValue(3/*,4*/),
+21:Floor_LowerToLowest(2/*,3*/),
+22:Floor_LowerToNearest(2/*,3*/),
+23:Floor_RaiseByValue(3/*,5*/),
+/*
+24:Floor_RaiseToHighest,
+*/
+25:Floor_RaiseToNearest(2/*,4*/),
+26:Stairs_BuildDown(5),
+27:Stairs_BuildUp(5),
+28:Floor_RaiseAndCrush(3,4),
+29:Pillar_Build(3),
+30:Pillar_Open(4),
+31:Stairs_BuildDownSync(4),
+32:Stairs_BuildUpSync(4),
+33:ForceField(0),
+34:ClearForceField(1),
+35:Floor_RaiseByValueTimes8(3/*,5*/),
+36:Floor_LowerByValueTimes8(3/*,4*/),
+37:Floor_MoveToValue(3,4/*,5*/),
+38:Ceiling_Waggle(5),
+39:Teleport_ZombieChanger(2),
+40:Ceiling_LowerByValue(3/*,5*/),
+41:Ceiling_RaiseByValue(3/*,4*/),
+42:Ceiling_CrushAndRaise(3,4),
+43:Ceiling_LowerAndCrush(3,4),
+44:Ceiling_CrushStop(1/*,2*/),
+45:Ceiling_CrushRaiseAndStay(3,4),
+46:Floor_CrushStop(1),
+47:Ceiling_MoveToValue(3,4/*,5*/),
+/*
+48:Sector_Attach3dMidTex,
+*/
+49:GlassBreak(0,1/*,2*/),
+/*
+50:ExtraFloor_LightOnly,
+*/
+51:Sector_SetLink(4),
+52:Scroll_Wall(5),
+53:Line_SetTextureOffset(5),
+54:Sector_ChangeFlags(3),
+55:Line_SetBlocking(3),
+56:Line_SetTextureScale(5),
+/*
+57:Sector_SetPortal,
+58:Sector_CopyScroller,
+*/
+59:Polyobj_Or_MoveToSpot(3),
+60:Plat_PerpetualRaise(3),
+61:Plat_Stop(1/*,2*/),
+62:Plat_DownWaitUpStay(3),
+63:Plat_DownByValue(4),
+64:Plat_UpWaitDownStay(3),
+65:Plat_UpByValue(4),
+66:Floor_LowerInstant(3/*,4*/),
+67:Floor_RaiseInstant(3/*,5*/),
+68:Floor_MoveToValueTimes8(4/*,5*/),
+69:Ceiling_MoveToValueTimes8(4/*,5*/),
+70:Teleport(1,3),
+71:Teleport_NoFog(1,4),
+72:ThrustThing(2,4),
+73:DamageThing(1,2),
+74:Teleport_NewMap(2,3),
+75:Teleport_EndGame(0),
+76:TeleportOther(3),
+77:TeleportGroup(5),
+78:TeleportInSector(4,5),
+79:Thing_SetConversation(2),
+80:Acs_Execute(2,5),
+81:Acs_Suspend(2),
+82:Acs_Terminate(2),
+83:Acs_LockedExecute(5),
+84:Acs_ExecuteWithResult(1,5),
+85:Acs_LockedExecuteDoor(5),
+86:Polyobj_MoveToSpot(3),
+87:Polyobj_Stop(1),
+88:Polyobj_MoveTo(4),
+89:Polyobj_Or_MoveTo(4),
+90:Polyobj_Or_RotateLeft(3),
+91:Polyobj_Or_RotateRight(3),
+92:Polyobj_Or_Move(4),
+93:Polyobj_Or_MoveTimes8(4),
+94:Pillar_BuildAndCrush(4,5),
+95:FloorAndCeiling_LowerByValue(3),
+96:FloorAndCeiling_RaiseByValue(3),
+97:Ceiling_LowerAndCrushDist(3,5),
+98:Sector_SetTranslucent(3,4),
+99:Floor_RaiseAndCrushDoom(3,4),
+/*
+100:Scroll_Texture_Left,
+101:Scroll_Texture_Right,
+102:Scroll_Texture_Up,
+103:Scroll_Texture_Down,
+*/
+/*
+104:Ceiling_CrushAndRaiseSilentDist,
+105:Door_WaitRaise,
+106:Door_WaitClose,
+107:Line_SetPortalTarget,
+*/
+109:Light_ForceLightning(1),
+110:Light_RaiseByValue(2),
+111:Light_LowerByValue(2),
+112:Light_ChangeToValue(2),
+113:Light_Fade(3),
+114:Light_Glow(4),
+115:Light_Flicker(3),
+116:Light_Strobe(5),
+117:Light_Stop(1),
+/*
+118:Plane_Copy,
+*/
+119:Thing_Damage(2,3),
+120:Radius_Quake(5),
+/*
+121:Line_SetIdentification,
+*/
+125:Thing_Move(2,3),
+127:Thing_SetSpecial(5),
+128:ThrustThingZ(4),
+129:UsePuzzleItem(0),
+130:Thing_Activate(1),
+131:Thing_Deactivate(1),
+132:Thing_Remove(1),
+133:Thing_Destroy(1,3),
+134:Thing_Projectile(5),
+135:Thing_Spawn(3,4),
+136:Thing_ProjectileGravity(5),
+137:Thing_SpawnNoFog(3,4),
+138:Floor_Waggle(5),
+139:Thing_SpawnFacing(2,4),
+140:Sector_ChangeSound(2),
+145:Player_SetTeam(1),
+152:Team_Score(2),
+153:Team_GivePoints(3),
+154:Teleport_NoStop(2,3),
+/*
+157:SetGlobalFogParameter,
+158:Fs_Execute,
+*/
+159:Sector_SetPlaneReflection(3),
+/*
+160:Sector_Set3dFloor,
+161:Sector_SetContents,
+*/
+168:Ceiling_CrushAndRaiseDist(3,5),
+169:Generic_Crusher2(5),
+170:Sector_SetCeilingScale2(3),
+171:Sector_SetFloorScale2(3),
+172:Plat_UpNearestWaitDownStay(3),
+173:NoiseAlert(2),
+174:SendToCommunicator(4),
+175:Thing_ProjectileIntercept(5),
+176:Thing_ChangeTid(2),
+177:Thing_Hate(2,3),
+178:Thing_ProjectileAimed(4,5),
+179:ChangeSkill(1),
+180:Thing_SetTranslation(2),
+/*
+181:Plane_Align,
+*/
+182:Line_Mirror(0),
+183:Line_AlignCeiling(2),
+184:Line_AlignFloor(2),
+185:Sector_SetRotation(3),
+186:Sector_SetCeilingPanning(5),
+187:Sector_SetFloorPanning(5),
+188:Sector_SetCeilingScale(5),
+189:Sector_SetFloorScale(5),
+/*
+190:Static_Init,
+*/
+191:SetPlayerProperty(3),
+192:Ceiling_LowerToHighestFloor(2/*,5*/),
+193:Ceiling_LowerInstant(3/*,5*/),
+194:Ceiling_RaiseInstant(3/*,4*/),
+195:Ceiling_CrushRaiseAndStayA(4,5),
+196:Ceiling_CrushAndRaiseA(4,5),
+197:Ceiling_CrushAndRaiseSilentA(4,5),
+198:Ceiling_RaiseByValueTimes8(3/*,4*/),
+199:Ceiling_LowerByValueTimes8(3/*,5*/),
+200:Generic_Floor(5),
+201:Generic_Ceiling(5),
+202:Generic_Door(5),
+203:Generic_Lift(5),
+204:Generic_Stairs(5),
+205:Generic_Crusher(5),
+206:Plat_DownWaitUpStayLip(4,5),
+207:Plat_PerpetualRaiseLip(4),
+208:TranslucentLine(2,3),
+/*
+209:Transfer_Heights,
+210:Transfer_FloorLight,
+211:Transfer_CeilingLight,
+*/
+212:Sector_SetColor(4,5),
+213:Sector_SetFade(4),
+214:Sector_SetDamage(3/*,5*/),
+215:Teleport_Line(2,3),
+216:Sector_SetGravity(3),
+217:Stairs_BuildUpDoom(5),
+218:Sector_SetWind(4),
+219:Sector_SetFriction(2),
+220:Sector_SetCurrent(4),
+221:Scroll_Texture_Both(5),
+/*
+222:Scroll_Texture_Model,
+*/
+223:Scroll_Floor(4),
+224:Scroll_Ceiling(4),
+/*
+225:Scroll_Texture_Offsets,
+*/
+226:Acs_ExecuteAlways(2,5),
+/*
+227:PointPush_SetForce,
+*/
+228:Plat_RaiseAndStayTx0(2,3),
+229:Thing_SetGoal(3,4),
+230:Plat_UpByValueStayTx(3),
+231:Plat_ToggleCeiling(1),
+232:Light_StrobeDoom(3),
+233:Light_MinNeighbor(1),
+234:Light_MaxNeighbor(1),
+235:Floor_TransferTrigger(1),
+236:Floor_TransferNumeric(1),
+237:ChangeCamera(3),
+238:Floor_RaiseToLowestCeiling(2/*,4*/),
+239:Floor_RaiseByValueTxTy(3),
+240:Floor_RaiseByTexture(2/*,4*/),
+241:Floor_LowerToLowestTxTy(2),
+242:Floor_LowerToHighest(3,4),
+243:Exit_Normal(1),
+244:Exit_Secret(1),
+245:Elevator_RaiseToNearest(2),
+246:Elevator_MoveToFloor(2),
+247:Elevator_LowerToNearest(2),
+248:HealThing(1,2),
+249:Door_CloseWaitOpen(3,4),
+250:Floor_Donut(3),
+251:FloorAndCeiling_LowerRaise(1,4),
+252:Ceiling_RaiseToNearest(2/*,3*/),
+253:Ceiling_LowerToLowest(2/*,4*/),
+254:Ceiling_LowerToFloor(2,5),
+255:Ceiling_CrushRaiseAndStaySilA(4,5),
+/*
+256:Floor_LowerToHighestEE,
+257:Floor_RaiseToLowest,
+258:Floor_LowerToLowestCeiling,
+259:Floor_RaiseToCeiling,
+260:Floor_ToCeilingInstant,
+261:Floor_LowerByTexture,
+262:Ceiling_RaiseToHighest,
+263:Ceiling_ToHighestInstant,
+264:Ceiling_LowerToNearest,
+265:Ceiling_RaiseToLowest,
+266:Ceiling_RaiseToHighestFloor,
+267:Ceiling_ToFloorInstant,
+268:Ceiling_RaiseByTexture,
+269:Ceiling_LowerByTexture,
+270:Stairs_BuildDownDoom,
+271:Stairs_BuildUpDoomSync,
+272:Stairs_BuildDownDoomSync,
+273:Stairs_BuildUpDoomCrush,
+274:Door_AnimatedClose,
+275:Floor_Stop,
+276:Ceiling_Stop,
+277:Sector_SetFloorGlow,
+278:Sector_SetCeilingGlow,
+279:Floor_MoveToValueAndCrush,
+280:Ceiling_MoveToValueAndCrush,
+*/
+
+// Extension functions
+-1:GetLineUdmfInt(2),
+-2:GetLineUdmfFixed(2),
+-3:GetThingUdmfInt(2),
+-4:GetThingUdmfFixed(2),
+-5:GetSectorUdmfInt(2),
+-6:GetSectorUdmfFixed(2),
+-7:GetSideUdmfInt(3),
+-8:GetSideUdmfFixed(3),
+-9:GetActorVelX(1),
+-10:GetActorVelY(1),
+-11:GetActorVelZ(1),
+-12:SetActivator(1,2),
+-13:SetActivatorToTarget(1),
+-14:GetActorViewHeight(1),
+-15:GetChar(2),
+-16:GetAirSupply(1),
+-17:SetAirSupply(2),
+-18:SetSkyScrollSpeed(2),
+-19:GetArmorType(2),
+-20:SpawnSpotForced(2,4),
+-21:SpawnSpotFacingForced(2,3),
+-22:CheckActorProperty(3),
+-23:SetActorVelocity(6),
+-24:SetUserVariable(3),
+-25:GetUserVariable(2),
+-26:Radius_Quake2(6),
+-27:CheckActorClass(2),
+-28:SetUserArray(4),
+-29:GetUserArray(3),
+-30:SoundSequenceOnActor(2),
+-31:SoundSequenceOnSector(3),
+-32:SoundSequenceOnPolyobj(2),
+-33:GetPolyobjX(1),
+-34:GetPolyobjY(1),
+-35:CheckSight(3),
+-36:SpawnForced(4,6),
+-37:AnnouncerSound(2),
+-38:SetPointer(2,4),
+-39:Acs_NamedExecute(2,5),
+-40:Acs_NamedSuspend(2),
+-41:Acs_NamedTerminate(2),
+-42:Acs_NamedLockedExecute(5),
+-43:Acs_NamedLockedExecuteDoor(5),
+-44:Acs_NamedExecuteWithResult(1,5),
+-45:Acs_NamedExecuteAlways(2,5),
+-46:UniqueTid(0,2),
+-47:IsTidUsed(1),
+-48:Sqrt(1),
+-49:FixedSqrt(1),
+-50:VectorLength(2),
+-51:SetHudClipRect(4,5/*,6*/),
+-52:SetHudWrapWidth(1),
+-53:SetCVar(2),
+-54:GetUserCVar(2),
+-55:SetUserCVar(3),
+-56:GetCVarString(1),
+-57:SetCVarString(2),
+-58:GetUserCVarString(2),
+-59:SetUserCVarString(3),
+-60:LineAttack(4,8/*,9*/),
+-61:PlaySound(2,6/*,7*/),
+-62:StopSound(1,2),
+-63:Strcmp(2,3),
+-64:Stricmp(2,3),
+-64:Strcasecmp(2,3),
+-65:StrLeft(2),
+-66:StrRight(2),
+-67:StrMid(3),
+-68:GetActorClass(1),
+-69:GetWeapon(0),
+-70:SoundVolume(3),
+-71:PlayActorSound(2,6),
+-72:SpawnDecal(2,6),
+-73:CheckFont(1),
+-74:DropItem(2,4),
+-75:CheckFlag(2),
+-76:SetLineActivation(2),
+-77:GetLineActivation(1),
+-78:GetActorPowerupTics(2),
+-79:ChangeActorAngle(2,3),
+-80:ChangeActorPitch(2,3),
+-81:GetArmorInfo(1),
+-82:DropInventory(2),
+-83:PickActor(5,8),
+-84:IsPointerEqual(2,4),
+-85:CanRaiseActor(1),
+/*
+-86:SetActorTeleFog,
+-87:SwapActorTeleFog,
+-88:SetActorRoll,
+-89:ChangeActorRoll,
+-90:GetActorRoll,
+-91:QuakeEx,
+*/
+-92:Warp(6,8/*,11*/),
+/*
+-93:GetMaxInventory,
+-94:SetSectorDamage,
+-95:SetSectorTerrain,
+-96:SpawnParticle,
+-97:SetMusicVolume,
+-98:CheckProximity,
+-99:CheckActorState,
+*/
+
+// Zandronum.
+-100:ResetMap(0),
+-101:PlayerIsSpectator(1),
+-102:ConsolePlayerNumber(0),
+-103:GetTeamProperty(2),
+-104:GetPlayerLivesLeft(1),
+-105:SetPlayerLivesLeft(2),
+-106:KickFromGame(2),
+-107:GetGamemodeState(0),
+-108:SetDBEntry(3),
+-109:GetDBEntry(2),
+-110:SetDBEntryString(3),
+-111:GetDBEntryString(2),
+-112:IncrementDBEntry(3),
+-113:PlayerIsLoggedIn(1),
+-114:GetPlayerAccountName(1),
+-115:SortDBEntries(4),
+-116:CountDBResults(1),
+-117:FreeDBResults(1),
+-118:GetDBResultKeyString(2),
+-119:GetDBResultValueString(2),
+-120:GetDBResultValue(2),
+-121:GetDBEntryRank(3),
+-122:RequestScriptPuke(1,5),
+-123:BeginDBTransaction(0),
+-124:EndDBTransaction(0),
+-125:GetDBEntries(1),
+-126:NamedRequestScriptPuke(1,5),
+-127:SystemTime(0),
+-128:GetTimeProperty(2,3),
+-129:Strftime(2,3),
+-130:SetDeadSpectator(2),
+-131:SetActivatorToPlayer(1),
+
+// ZDoom/GZDoom.
+/*
+-200:CheckClass,
+-201:DamageActor,
+-202:SetActorFlag,
+-203:SetTranslation,
+*/
+-204:GetActorFloorTexture(1),
+/*
+-205:GetActorFloorTerrain,
+-206:StrArg,
+-207:Floor,
+-208:Round,
+-209:Ceil,
+-210:ScriptCall,
+-211:StartSlideShow,
+*/
+
+// Eternity.
+/*
+-300:GetLineX,
+-301:GetLineY,
+*/
+
+// GZDoom.
+/*
+-400:SetSectorGlow,
+-401:SetFogDensity,
+*/
+
+// ZDaemon.
+-19620:GetTeamScore(1),
+/*
+-19621:SetTeamScore,
+*/
+
+// End.
+-100000:__EndOfList__(10);
