@@ -1078,9 +1078,7 @@ special
 21:Floor_LowerToLowest(2/*,3*/),
 22:Floor_LowerToNearest(2/*,3*/),
 23:Floor_RaiseByValue(3/*,5*/),
-/*
-24:Floor_RaiseToHighest,
-*/
+24:Floor_RaiseToHighest(2/*,4*/),
 25:Floor_RaiseToNearest(2/*,4*/),
 26:Stairs_BuildDown(5),
 27:Stairs_BuildUp(5),

@@ -1229,9 +1229,7 @@ special
 21:Floor_LowerToLowest(int,int/*;int*/):int,
 22:Floor_LowerToNearest(int,int/*;int*/):int,
 23:Floor_RaiseByValue(int,int,int/*;int,int*/):int,
-/*
-24:Floor_RaiseToHighest,
-*/
+24:Floor_RaiseToHighest(int,int/*;int,int*/):int,
 25:Floor_RaiseToNearest(int,int/*;int,int*/):int,
 26:Stairs_BuildDown(int,int,int,int,int):int,
 27:Stairs_BuildUp(int,int,int,int,int):int,
