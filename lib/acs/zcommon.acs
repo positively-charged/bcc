@@ -1,1 +1,6 @@
+// BCC zcommon ACS files:
 #include "zcommon/master.acs"
+
+// ACC zcommon ACS files:
+// Comment out the BCC #include, then uncomment the following #include.
+// #include "zcommon_acc/zcommon.acs"
