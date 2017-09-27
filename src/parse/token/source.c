@@ -1782,8 +1782,14 @@ static void read_token( struct parse* parse, struct token* token ) {
       goto string;
    }
    else if ( ch == ':' ) {
-      tk = TK_COLON;
-      read_ch( parse );
+      ch = read_ch( parse );
+      if ( ch == ':' ) {
+         tk = TK_COLONCOLON;
+         read_ch( parse );
+      }
+      else {
+         tk = TK_COLON;
+      }
       goto finish;
    }
    else if ( ch == '#' ) {

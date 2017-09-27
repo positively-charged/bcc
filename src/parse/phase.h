@@ -177,6 +177,7 @@ enum tk {
    TK_FUNCTIONNAME,
    TK_SCRIPTNAME,
    TK_AT,
+   TK_COLONCOLON,
 
    TK_TOTAL,
 
