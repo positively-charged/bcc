@@ -87,10 +87,21 @@ using:
    using <path> : <import-list> ;
 
 path:
+   <path-coloncolon>
+   <path-dot>
+
+path-coloncolon:
+   :: <identifier>
+   upmost :: <identifier>
+   namespace :: <identifier>
+   <identifier> :: <identifier>
+   <path-coloncolon> :: <identifier>
+   
+path-dot:
    upmost // Upmost namespace.
    namespace // Current namespace.
    <identifier>
-   <path> . <identifier>
+   <path-dot> . <identifier>
 
 import-list:
    <import-item>

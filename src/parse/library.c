@@ -456,9 +456,11 @@ static struct using_item* alloc_using_item( void ) {
 struct path* p_read_path( struct parse* parse ) {
    // Head of path.
    struct path* path = alloc_path( parse->tk_pos );
-   if ( parse->tk == TK_UPMOST ) {
+   if ( parse->tk == TK_UPMOST || parse->tk == TK_COLONCOLON ) {
       path->upmost = true;
-      p_read_tk( parse );
+      if ( parse->tk == TK_UPMOST ) {
+         p_read_tk( parse );
+      }
    }
    else if ( parse->tk == TK_NAMESPACE ) {
       path->current_ns = true;
@@ -469,10 +471,14 @@ struct path* p_read_path( struct parse* parse ) {
       path->text = parse->tk_text;
       p_read_tk( parse );
    }
+   // Separator of path components can be either `::` or `.`. The separator
+   // must be consistent throughout the whole path.
+   enum tk separator = ( parse->tk == TK_DOT ) ? TK_DOT : TK_COLONCOLON;
+   path->match_against_nss_only = ( separator == TK_COLONCOLON );
    // Tail of path.
    struct path* head = path;
    struct path* tail = head;
-   while ( parse->tk == TK_DOT && p_peek( parse ) == TK_ID ) {
+   while ( parse->tk == separator ) {
       p_read_tk( parse );
       p_test_tk( parse, TK_ID );
       path = alloc_path( parse->tk_pos );
@@ -491,6 +497,7 @@ static struct path* alloc_path( struct pos pos ) {
    path->pos = pos;
    path->upmost = false;
    path->current_ns = false;
+   path->match_against_nss_only = false;
    return path;
 }
 

@@ -159,6 +159,7 @@ struct path {
    struct pos pos;
    bool upmost;
    bool current_ns;
+   bool match_against_nss_only;
 };
 
 enum {
