@@ -240,7 +240,8 @@ static void read_namespace_path( struct parse* parse ) {
    head->text = parse->tk_text;
    head->pos = parse->tk_pos;
    p_read_tk( parse );
-   while ( parse->tk == TK_DOT ) {
+   enum tk separator = ( parse->tk == TK_DOT ) ? TK_DOT : TK_COLONCOLON;
+   while ( parse->tk == separator ) {
       p_read_tk( parse );
       p_test_tk( parse, TK_ID );
       struct ns_path* path = mem_alloc( sizeof( *head ) );

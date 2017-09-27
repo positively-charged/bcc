@@ -58,8 +58,17 @@ namespace-visibility:
    E
 
 namespace-name:
+   <namespace-name-coloncolon>
+   <namespace-name-dot>
+
+namespace-name-coloncolon:
    <identifier>
-   <namespace-name> . <identifier>
+   <namespace-name-coloncolon> :: <identifier>
+
+// DEPRECATED.
+namespace-name-dot:
+   <identifier>
+   <namespace-name-dot> . <identifier>
 
 namespace-member-list:
    <namespace-member>
