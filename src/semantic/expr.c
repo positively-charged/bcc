@@ -32,6 +32,14 @@ struct call_test {
    bool format_param;
 };
 
+struct general_name_usage_test {
+   const char* text;
+   struct pos* pos;
+   struct path* path;
+   struct node* object;
+   bool qualified_name;
+};
+
 static void test_nested_expr( struct semantic* semantic,
    struct expr_test* parent_test, struct expr_test* test, struct expr* expr );
 static void test_root( struct semantic* semantic, struct expr_test* test,
@@ -216,9 +224,17 @@ static void test_boolean( struct semantic* semantic, struct result* result,
    struct boolean* boolean );
 static void test_name_usage( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct name_usage* usage );
+static void test_qualified_name_usage( struct semantic* semantic,
+   struct expr_test* expr_test, struct result* result,
+   struct qualified_name_usage* usage );
+static void init_general_name_usage_test( struct general_name_usage_test* test,
+   struct pos* pos, const char* text, struct path* path );
+static void test_general_name_usage( struct semantic* semantic,
+   struct expr_test* expr_test, struct result* result,
+   struct general_name_usage_test* test );
 static void test_found_object( struct semantic* semantic,
-   struct expr_test* test, struct result* result, struct name_usage* usage,
-   struct object* object );
+   struct expr_test* expr_test, struct result* result,
+   struct general_name_usage_test* test, struct object* object );
 static struct ref* find_map_ref( struct ref* ref,
    struct structure* structure );
 static struct ref* find_map_ref_struct( struct structure* structure );
@@ -2458,6 +2474,10 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
       test_name_usage( semantic, test, result,
          ( struct name_usage* ) node );
       break;
+   case NODE_QUALIFIEDNAMEUSAGE:
+      test_qualified_name_usage( semantic, test, result,
+         ( struct qualified_name_usage* ) node );
+      break;
    case NODE_STRCPY:
       test_strcpy( semantic, test, result,
          ( struct strcpy_call* ) node );
@@ -2493,6 +2513,7 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
       break;
    default:
       UNREACHABLE();
+      s_bail( semantic );
    }
 }
 
@@ -2539,46 +2560,90 @@ static void test_boolean( struct semantic* semantic, struct result* result,
    result->usable = true;
 }
 
-static void test_name_usage( struct semantic* semantic, struct expr_test* test,
-   struct result* result, struct name_usage* usage ) {
+static void test_name_usage( struct semantic* semantic,
+   struct expr_test* expr_test, struct result* result,
+   struct name_usage* usage ) {
+   struct general_name_usage_test test;
+   init_general_name_usage_test( &test, &usage->pos, usage->text, NULL );
+   test_general_name_usage( semantic, expr_test, result, &test );
+   usage->object = test.object;
+}
+
+static void test_qualified_name_usage( struct semantic* semantic,
+   struct expr_test* expr_test, struct result* result,
+   struct qualified_name_usage* usage ) {
+   struct general_name_usage_test test;
+   init_general_name_usage_test( &test, NULL, NULL, usage->path );
+   test_general_name_usage( semantic, expr_test, result, &test );
+   usage->object = test.object;
+}
+
+static void init_general_name_usage_test( struct general_name_usage_test* test,
+   struct pos* pos, const char* text, struct path* path ) {
+   test->path = path;
+   test->text = text;
+   test->pos = pos;
+   test->object = NULL;
+   test->qualified_name = ( path != NULL );
+}
+
+static void test_general_name_usage( struct semantic* semantic,
+   struct expr_test* expr_test, struct result* result,
+   struct general_name_usage_test* test ) {
    struct object* object = NULL;
-   if ( test->name_offset ) {
-      struct name* name = t_extend_name( test->name_offset, usage->text );
-      object = name->object;
+   // Locate object.
+   if ( test->qualified_name ) {
+      struct follower follower;
+      s_init_follower( &follower, test->path, NODE_NONE );
+      s_follow_path( semantic, &follower );
+      test->text = follower.path->text;
+      test->pos = &follower.path->pos;
+      object = follower.result.object;
    }
-   if ( ! object ) {
-      struct object_search search;
-      s_init_object_search( &search, NODE_NONE, &usage->pos, usage->text );
-      s_search_object( semantic, &search );
-      object = search.object;
+   else {
+      // NOTE: Not sure anymore what the following if statement is for. Need to
+      // look into it and explain it.
+      if ( expr_test->name_offset ) {
+         struct name* name = t_extend_name( expr_test->name_offset,
+            test->text );
+         object = name->object;
+      }
+      if ( ! object ) {
+         struct object_search search;
+         s_init_object_search( &search, NODE_NONE, test->pos, test->text );
+         s_search_object( semantic, &search );
+         object = search.object;
+      }
    }
+   // Only use resolved objects. Make an exception for namespace objects,
+   // because we need to resolve the objects inside the namespace in order to
+   // resolve the namespace itself.
    if ( object && ( object->resolved ||
       object->node.type == NODE_NAMESPACE ) ) {
-      test_found_object( semantic, test, result, usage, object );
+      test_found_object( semantic, expr_test, result, test, object );
    }
-   // Object not found or isn't valid.
    else {
       if ( semantic->trigger_err ) {
          if ( object ) {
-            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-               "`%s` undefined", usage->text );
+            s_diag( semantic, DIAG_POS_ERR, test->pos,
+               "`%s` undefined", test->text );
          }
          else {
-            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
-               "`%s` not found", usage->text );
+            s_diag( semantic, DIAG_POS_ERR, test->pos,
+               "`%s` not found", test->text );
          }
          s_bail( semantic );
       }
       else {
-         test->undef_erred = true;
-         longjmp( test->bail, 1 );
+         expr_test->undef_erred = true;
+         longjmp( expr_test->bail, 1 );
       }
    }
 }
 
 static void test_found_object( struct semantic* semantic,
-   struct expr_test* test, struct result* result, struct name_usage* usage,
-   struct object* object ) {
+   struct expr_test* expr_test, struct result* result,
+   struct general_name_usage_test* test, struct object* object ) {
    // The engine does not support accessing of arrays in another library unless
    // explicitly imported. So array and struct references only work in the
    // library which contains the referenced data.
@@ -2588,7 +2653,7 @@ static void test_found_object( struct semantic* semantic,
       struct ref* ref = find_map_ref( var->ref, ( var->spec == SPEC_STRUCT ) ?
          var->structure : NULL );
       if ( ref ) {
-         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+         s_diag( semantic, DIAG_POS_ERR, test->pos,
             "imported variable's type includes a reference-to-%s type",
             ref->type == REF_STRUCTURE ? "struct" : "array" );
          s_diag( semantic, DIAG_POS, &ref->pos,
@@ -2606,7 +2671,7 @@ static void test_found_object( struct semantic* semantic,
       struct func* func = ( struct func* ) object;
       struct ref* ref = find_map_ref( func->ref, NULL );
       if ( ref ) {
-         s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+         s_diag( semantic, DIAG_POS_ERR, test->pos,
             "imported function's return type includes a reference-to-%s type",
             ref->type == REF_STRUCTURE ? "struct" : "array" );
          s_diag( semantic, DIAG_POS, &ref->pos,
@@ -2621,7 +2686,7 @@ static void test_found_object( struct semantic* semantic,
       while ( param ) {
          struct ref* ref = find_map_ref( param->ref, NULL );
          if ( ref ) {
-            s_diag( semantic, DIAG_POS_ERR, &usage->pos,
+            s_diag( semantic, DIAG_POS_ERR, test->pos,
                "imported function has parameter whose type includes a "
                "reference-to-%s type",
                ref->type == REF_STRUCTURE ? "struct" : "array" );
@@ -2658,7 +2723,7 @@ static void test_found_object( struct semantic* semantic,
          func_test = func_test->parent;
       }
       if ( func_test && func_test->func->object.depth >= object->depth ) {
-         s_diag( semantic, DIAG_POS, &usage->pos,
+         s_diag( semantic, DIAG_POS, test->pos,
             "%s outside a static function cannot be used",
             object->node.type == NODE_FUNC ? "local functions" :
             "local-storage variables" );
@@ -2667,13 +2732,13 @@ static void test_found_object( struct semantic* semantic,
    }
    switch ( object->node.type ) {
    case NODE_MAGICID:
-      select_magic_id( semantic, test, result,
+      select_magic_id( semantic, expr_test, result,
          ( struct magic_id* ) object );
-      usage->object = &test->magic_id_usage->node;
+      test->object = &expr_test->magic_id_usage->node;
       break;
    default:
-      select_object( semantic, test, result, object );
-      usage->object = &object->node;
+      select_object( semantic, expr_test, result, object );
+      test->object = &object->node;
    }
 }
 

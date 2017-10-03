@@ -193,6 +193,10 @@ static void visit_boolean( struct codegen* codegen, struct result* result,
    struct boolean* boolean );
 static void visit_name_usage( struct codegen* codegen, struct result* result,
    struct name_usage* usage );
+static void visit_qualified_name_usage( struct codegen* codegen,
+   struct result* result, struct qualified_name_usage* usage );
+static void visit_general_name_usage( struct codegen* codegen,
+   struct result* result, struct node* object );
 static void visit_constant( struct codegen* codegen, struct result* result,
    struct constant* constant );
 static void visit_enumerator( struct codegen* codegen,
@@ -2109,6 +2113,10 @@ static void visit_primary( struct codegen* codegen, struct result* result,
       visit_name_usage( codegen, result,
          ( struct name_usage* ) node );
       break;
+   case NODE_QUALIFIEDNAMEUSAGE:
+      visit_qualified_name_usage( codegen, result,
+         ( struct qualified_name_usage* ) node );
+      break;
    case NODE_STRCPY:
       visit_strcpy( codegen, result,
          ( struct strcpy_call* ) node );
@@ -2142,6 +2150,7 @@ static void visit_primary( struct codegen* codegen, struct result* result,
       break;
    default:
       UNREACHABLE();
+      c_bail( codegen );
    }
 }
 
@@ -2187,33 +2196,44 @@ static void visit_boolean( struct codegen* codegen, struct result* result,
 
 static void visit_name_usage( struct codegen* codegen, struct result* result,
    struct name_usage* usage ) {
-   switch ( usage->object->type ) {
+   visit_general_name_usage( codegen, result, usage->object );
+}
+
+static void visit_qualified_name_usage( struct codegen* codegen,
+   struct result* result, struct qualified_name_usage* usage ) {
+   visit_general_name_usage( codegen, result, usage->object );
+}
+
+static void visit_general_name_usage( struct codegen* codegen,
+   struct result* result, struct node* object ) {
+   switch ( object->type ) {
    case NODE_CONSTANT:
       visit_constant( codegen, result,
-         ( struct constant* ) usage->object );
+         ( struct constant* ) object );
       break;
    case NODE_ENUMERATOR:
       visit_enumerator( codegen, result,
-         ( struct enumerator* ) usage->object );
+         ( struct enumerator* ) object );
       break;
    case NODE_VAR:
       visit_var( codegen, result,
-         ( struct var* ) usage->object );
+         ( struct var* ) object );
       break;
    case NODE_PARAM:
       visit_param( codegen, result,
-         ( struct param* ) usage->object );
+         ( struct param* ) object );
       break;
    case NODE_FUNC:
       visit_func( codegen, result,
-         ( struct func* ) usage->object );
+         ( struct func* ) object );
       break;
    case NODE_INDEXED_STRING_USAGE:
       visit_indexed_string_usage( codegen, result,
-         ( struct indexed_string_usage* ) usage->object );
+         ( struct indexed_string_usage* ) object );
       break;
    default:
       UNREACHABLE();
+      c_bail( codegen );
    }
 }
 

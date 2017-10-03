@@ -54,6 +54,10 @@ static bool peek_format_cast( struct parse* parse );
 static void init_array_field( struct array_field* field );
 static void read_array_field( struct parse* parse, struct array_field* field );
 static void read_id( struct parse* parse, struct expr_reading* reading );
+static void read_qualified_name_usage( struct parse* parse,
+   struct expr_reading* reading );
+static void read_name_usage( struct parse* parse,
+   struct expr_reading* reading );
 static void read_literal( struct parse* parse, struct expr_reading* reading );
 static void read_string( struct parse* parse, struct expr_reading* reading );
 static void read_boolean( struct parse* parse, struct expr_reading* reading );
@@ -567,6 +571,9 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
    case TK_NULL:
       read_null( parse, reading );
       break;
+   case TK_COLONCOLON:
+      read_qualified_name_usage( parse, reading );
+      break;
    case TK_UPMOST:
       read_upmost( parse, reading );
       break;
@@ -601,6 +608,26 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
 }
 
 static void read_id( struct parse* parse, struct expr_reading* reading ) {
+   if ( p_peek( parse ) == TK_COLONCOLON ) {
+      read_qualified_name_usage( parse, reading );
+   }
+   else {
+      read_name_usage( parse, reading );
+   }
+}
+
+static void read_qualified_name_usage( struct parse* parse,
+   struct expr_reading* reading ) {
+   struct qualified_name_usage* usage = mem_alloc( sizeof( *usage ) );
+   usage->node.type = NODE_QUALIFIEDNAMEUSAGE;
+   usage->path = p_read_path( parse );
+   usage->object = NULL;
+   reading->node = &usage->node;
+}
+
+static void read_name_usage( struct parse* parse,
+   struct expr_reading* reading ) {
+   p_test_tk( parse, TK_ID );
    struct name_usage* usage = mem_slot_alloc( sizeof( *usage ) );
    usage->node.type = NODE_NAME_USAGE;
    usage->text = parse->tk_text;
@@ -664,18 +691,28 @@ static void read_null( struct parse* parse, struct expr_reading* reading ) {
 }
 
 static void read_upmost( struct parse* parse, struct expr_reading* reading ) {
-   static struct node node = { NODE_UPMOST };
-   reading->node = &node;
-   p_test_tk( parse, TK_UPMOST );
-   p_read_tk( parse );
+   if ( p_peek( parse ) == TK_COLONCOLON ) {
+      read_qualified_name_usage( parse, reading );
+   }
+   else {
+      p_test_tk( parse, TK_UPMOST );
+      static struct node node = { NODE_UPMOST };
+      reading->node = &node;
+      p_read_tk( parse );
+   }
 }
 
 static void read_current_namespace( struct parse* parse,
    struct expr_reading* reading ) {
-   static struct node node = { NODE_CURRENTNAMESPACE };
-   reading->node = &node;
-   p_test_tk( parse, TK_NAMESPACE );
-   p_read_tk( parse );
+   if ( p_peek( parse ) == TK_COLONCOLON ) {
+      read_qualified_name_usage( parse, reading );
+   }
+   else {
+      p_test_tk( parse, TK_NAMESPACE );
+      static struct node node = { NODE_CURRENTNAMESPACE };
+      reading->node = &node;
+      p_read_tk( parse );
+   }
 }
 
 int p_extract_literal_value( struct parse* parse ) {

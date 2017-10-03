@@ -126,6 +126,8 @@ struct node {
       NODE_COMPOUNDLITERAL,
       NODE_MAGICID,
       NODE_BUILDMSG,
+      // 60
+      NODE_QUALIFIEDNAMEUSAGE,
    } type;
 };
 
@@ -151,6 +153,12 @@ struct name_usage {
    const char* text;
    struct node* object;
    struct pos pos;
+};
+
+struct qualified_name_usage {
+   struct node node;
+   struct path* path;
+   struct node* object;
 };
 
 struct path {
