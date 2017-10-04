@@ -65,9 +65,15 @@ static void import_selection( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc );
 static void import_item( struct semantic* semantic, struct ns* ns,
    struct using_dirc* dirc, struct using_item* item );
-static void search_linked_object( struct semantic* semantic,
+static struct object* search_in_local_scope( struct semantic* semantic,
    struct object_search* search );
+static struct object* search_in_ns( struct semantic* semantic,
+   struct object_search* search, struct ns* ns );
+static struct object* search_in_ns_links( struct semantic* semantic,
+   struct object_search* search, struct ns* ns );
 static void test_objects( struct semantic* semantic );
+static struct name* get_body( struct ns* ns, int requested_node );
+static struct object* follow_alias( struct object* object );
 static void test_all( struct semantic* semantic );
 static void test_lib( struct semantic* semantic, struct library* lib );
 static void test_namespace( struct semantic* semantic,
@@ -794,17 +800,13 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
       }
       else {
          struct object_search search;
-         s_init_object_search( &search, NODE_NONE, &path->pos, path->text );
+         s_init_object_search( &search, NODE_NAMESPACE, &path->pos,
+            path->text );
          s_search_object( semantic, &search );
          object = search.object;
          if ( ! object ) {
             s_diag( semantic, DIAG_POS_ERR, &path->pos,
-               "`%s` not found", path->text );
-            s_bail( semantic );
-         }
-         if ( object->node.type != NODE_NAMESPACE ) {
-            s_diag( semantic, DIAG_POS_ERR, &path->pos,
-               "`%s` not a namespace", path->text );
+               "namespace `%s` not found", path->text );
             s_bail( semantic );
          }
          ns = ( struct ns* ) object;
@@ -849,11 +851,15 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
    if ( ! object ) {
       const char* prefix;
       switch ( follower->requested_node ) {
+      case NODE_NAMESPACE:
+         prefix = "namespace ";
+         break;
       case NODE_STRUCTURE:
          prefix = "struct ";
          break;
       case NODE_ENUMERATION:
          prefix = "enum ";
+         break;
       default:
          prefix = "";
       }
@@ -873,7 +879,6 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
 
 void s_init_object_search( struct object_search* search, int requested_node,
    struct pos* pos, const char* name ) {
-   search->ns = NULL;
    search->name = name;
    search->pos = pos;
    search->object = NULL;
@@ -882,52 +887,92 @@ void s_init_object_search( struct object_search* search, int requested_node,
 
 void s_search_object( struct semantic* semantic,
    struct object_search* search ) {
-   search->ns = semantic->ns;
-   while ( search->ns ) {
+   // Search in local scope.
+   search->object = search_in_local_scope( semantic, search );
+   if ( search->object ) {
+      return;
+   }
+   // Search in namespaces.
+   struct ns* ns = semantic->ns;
+   while ( ns ) {
       // Search in the namespace.
-      struct name* body;
-      switch ( search->requested_node ) {
-      case NODE_STRUCTURE:
-         body = search->ns->body_structs;
-         break;
-      case NODE_ENUMERATION:
-         body = search->ns->body_enums;
-         break;
-      default:
-         body = search->ns->body;
-      }
-      struct name* name = t_extend_name( body, search->name );
-      if ( name->object ) {
-         search->object = name->object;
-         break;
+      search->object = search_in_ns( semantic, search, ns );
+      if ( search->object ) {
+         return;
       }
       // Search in any of the linked namespaces.
-      search_linked_object( semantic, search );
+      search->object = search_in_ns_links( semantic, search, ns );
       if ( search->object ) {
-         break;
+         return;
       }
       // Search in the parent namespace.
-      search->ns = search->ns->parent;
-   }
-   if ( search->object && search->object->node.type == NODE_ALIAS ) {
-      struct alias* alias = ( struct alias* ) search->object;
-      search->object = alias->target;
+      ns = ns->parent;
    }
 }
 
-static void search_linked_object( struct semantic* semantic,
+static struct object* search_in_local_scope( struct semantic* semantic,
    struct object_search* search ) {
-   struct ns_link_retriever links;
-   init_ns_link_retriever( semantic, &links, search->ns );
-   next_ns_link( &links );
-   while ( links.link && ! search->object ) {
-      search->object = s_get_ns_object( links.link->ns, search->name,
+   struct object* object = NULL;
+   switch ( search->requested_node ) {
+   case NODE_NAMESPACE:
+      {
+         struct object* candidate = s_get_local_object( semantic, search->name,
+            NODE_NONE );
+         if ( candidate && candidate->node.type == NODE_NAMESPACE ) {
+            object = candidate;
+         }
+      }
+      break;
+   case NODE_STRUCTURE:
+   case NODE_ENUMERATION:
+   case NODE_NONE:
+      object = s_get_local_object( semantic, search->name,
          search->requested_node );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   return object;
+}
+
+static struct object* search_in_ns( struct semantic* semantic,
+   struct object_search* search, struct ns* ns ) {
+   struct object* object = NULL;
+   switch ( search->requested_node ) {
+   case NODE_NAMESPACE:
+      {
+         struct object* candidate = s_get_ns_object( ns, search->name,
+            NODE_NONE );
+         if ( candidate && candidate->node.type == NODE_NAMESPACE ) {
+            object = candidate;
+         }
+      }
+      break;
+   case NODE_STRUCTURE:
+   case NODE_ENUMERATION:
+   case NODE_NONE:
+      object = s_get_ns_object( ns, search->name, search->requested_node );
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
+   return object;
+}
+
+static struct object* search_in_ns_links( struct semantic* semantic,
+   struct object_search* search, struct ns* ns ) {
+   struct object* object = NULL;
+   struct ns_link_retriever links;
+   init_ns_link_retriever( semantic, &links, ns );
+   next_ns_link( &links );
+   while ( links.link && ! object ) {
+      object = search_in_ns( semantic, search, links.link->ns );
       next_ns_link( &links );
    }
    // Make sure no other object with the same name can be found.
-   while ( links.link && ! s_get_ns_object( links.link->ns, search->name,
-      search->requested_node ) ) {
+   while ( links.link && ! search_in_ns( semantic, search, links.link->ns ) ) {
       next_ns_link( &links );
    }
    if ( links.link ) {
@@ -945,50 +990,81 @@ static void search_linked_object( struct semantic* semantic,
       s_diag( semantic, DIAG_POS_ERR, search->pos,
          "multiple instances of %s`%s` found (you must choose one)",
          prefix, search->name );
-      s_diag( semantic, DIAG_POS, &search->object->pos,
+      s_diag( semantic, DIAG_POS, &object->pos,
          "%s`%s` found here", prefix, search->name );
       while ( links.link ) {
-         struct object* object = s_get_ns_object( links.link->ns, search->name,
-            search->requested_node );
-         if ( object ) {
-            s_diag( semantic, DIAG_POS, &object->pos,
+         struct object* dup_object = search_in_ns( semantic, search,
+            links.link->ns );
+         if ( dup_object ) {
+            s_diag( semantic, DIAG_POS, &dup_object->pos,
                "another %s`%s` found here", prefix, search->name );
          }
          next_ns_link( &links );
       }
       s_bail( semantic );
    }
+   return object;
 }
 
-// Retrieves an object from a namespace.
+// Retrieves an object from a namespace. If the object is an alias, it is first
+// followed.
 struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node ) {
-   struct name* body;
-   switch ( requested_node ) {
-   case NODE_STRUCTURE:
-      body = ns->body_structs;
-      break;
-   case NODE_ENUMERATION:
-      body = ns->body_enums;
-      break;
-   default:
-      body = ns->body;
-   }
-   struct name* name = t_extend_name( body, object_name );
+   struct name* name = t_extend_name( get_body( ns, requested_node ),
+      object_name );
    if ( name->object ) {
       struct object* object = name->object;
       while ( object->next_scope ) {
          object = object->next_scope;
       }
       if ( object->depth == 0 ) {
-         if ( object && object->node.type == NODE_ALIAS ) {
-            struct alias* alias = ( struct alias* ) object;
-            object = alias->target;
-         }
-         return object;
+         return follow_alias( object );
       }
    }
    return NULL;
+}
+
+// Retrieves an object from local scope. If the object is an alias, it is first
+// followed.
+struct object* s_get_local_object( struct semantic* semantic,
+   const char* object_name, int requested_node ) {
+   struct name* name = t_extend_name( get_body( semantic->ns, requested_node ),
+      object_name );
+   if ( name->object && name->object->depth > 0 ) {
+      return follow_alias( name->object );
+   }
+   return NULL;
+}
+
+// Retrieves an object that is currently referenced by the specified name: when
+// in local scope, the local object is returned; when in namespace scope, the
+// object in the current namespace is returned. If the object is an alias, it
+// is first followed.
+struct object* s_get_object( struct semantic* semantic,
+   const char* object_name, int requested_node ) {
+   struct name* name = t_extend_name( get_body( semantic->ns, requested_node ),
+      object_name );
+   return follow_alias( name->object );
+}
+
+static struct name* get_body( struct ns* ns, int requested_node ) {
+   switch ( requested_node ) {
+   case NODE_STRUCTURE:
+      return ns->body_structs;
+   case NODE_ENUMERATION:
+      return ns->body_enums;
+   default:
+      return ns->body;
+   }
+}
+
+// If the object is an alias, retrieves what the alias points to.
+static struct object* follow_alias( struct object* object ) {
+   if ( object && object->node.type == NODE_ALIAS ) {
+      struct alias* alias = ( struct alias* ) object;
+      return alias->target;
+   }
+   return object;
 }
 
 static void test_objects( struct semantic* semantic ) {

@@ -15,7 +15,6 @@ struct follower {
 };
 
 struct object_search {
-   struct ns* ns;
    const char* name;
    struct pos* pos;
    struct object* object;
@@ -233,6 +232,10 @@ void s_test_nested_func( struct semantic* semantic, struct func* func );
 int s_spec( struct semantic* semantic, int spec );
 struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node );
+struct object* s_get_local_object( struct semantic* semantic,
+   const char* object_name, int requested_node );
+struct object* s_get_object( struct semantic* semantic,
+   const char* object_name, int requested_node );
 bool s_is_enumerator( struct type_info* type );
 bool s_is_null( struct type_info* type );
 bool s_is_nullable( struct type_info* type );
