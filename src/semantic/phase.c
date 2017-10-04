@@ -1458,7 +1458,7 @@ static void dupname_err( struct semantic* semantic, struct name* name,
       "object";
    struct str object_name;
    str_init( &object_name );
-   t_copy_name( name, false, &object_name );
+   t_copy_name( name, &object_name );
    s_diag( semantic, DIAG_POS_ERR, &object->pos,
       "duplicate %s name, `%s`", category, object_name.value );
    if ( name->object->pos.id == INTERNALFILE_COMPILER ) {
@@ -1540,7 +1540,7 @@ static void dupnameglobal_err( struct semantic* semantic, struct name* name,
    struct object* object ) {
    struct str object_name;
    str_init( &object_name );
-   t_copy_name( name, false, &object_name );
+   t_copy_name( name, &object_name );
    s_diag( semantic, DIAG_POS_ERR, &object->pos,
       "local object has the same name, `%s`, as a global object",
       object_name.value );

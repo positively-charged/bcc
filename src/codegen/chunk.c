@@ -359,7 +359,7 @@ static void do_fnam( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
-         size += t_full_name_length( func->name ) + 1;
+         size += t_full_name_length( func->name, NAMESEPARATOR_INTERNAL ) + 1;
          ++count;
       }
       list_next( &i );
@@ -377,7 +377,8 @@ static void do_fnam( struct codegen* codegen ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
          c_add_int( codegen, offset );
-         offset += t_full_name_length( func->name ) + 1;
+         offset += t_full_name_length( func->name,
+            NAMESEPARATOR_INTERNAL ) + 1;
       }
       list_next( &i );
    }
@@ -388,7 +389,7 @@ static void do_fnam( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
-         t_copy_name( func->name, true, &str );
+         t_copy_full_name( func->name, NAMESEPARATOR_INTERNAL, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );
@@ -828,7 +829,8 @@ static void do_mimp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       size += sizeof( int ) + // Index of variable.
-         t_full_name_length( var->name ) + 1; // Plus one for NUL character.
+         t_full_name_length( var->name,
+            NAMESEPARATOR_INTERNAL ) + 1; // Plus one for NUL character.
       list_next( &i );
    }
    if ( size == 0 ) {
@@ -842,7 +844,7 @@ static void do_mimp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       c_add_int( codegen, var->index );
-      t_copy_name( var->name, true, &str );
+      t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
       c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
@@ -868,7 +870,7 @@ static void do_aimp( struct codegen* codegen ) {
          // Array size.
          sizeof( int ) +
          // Array name, plus one for the NUL character.
-         t_full_name_length( var->name ) + 1;
+         t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
       list_next( &i );
    }
    c_add_str( codegen, "AIMP" );
@@ -881,7 +883,7 @@ static void do_aimp( struct codegen* codegen ) {
       struct var* var = list_data( &i );
       c_add_int( codegen, var->index );
       c_add_int( codegen, var->size );
-      t_copy_name( var->name, true, &str );
+      t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
       c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
@@ -896,7 +898,7 @@ static void do_mexp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
-         size += t_full_name_length( var->name ) + 1;
+         size += t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
          ++count;
       }
       list_next( &i );
@@ -917,7 +919,7 @@ static void do_mexp( struct codegen* codegen ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
          c_add_int( codegen, offset );
-         offset += t_full_name_length( var->name ) + 1;
+         offset += t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
       }
       list_next( &i );
    }
@@ -928,7 +930,7 @@ static void do_mexp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
-         t_copy_name( var->name, true, &str );
+         t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );

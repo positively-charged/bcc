@@ -1302,10 +1302,16 @@ struct task {
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
+#define NAMESEPARATOR_COLONCOLON "::"
+#define NAMESEPARATOR_DOT "."
+#define NAMESEPARATOR_INTERNAL NAMESEPARATOR_DOT 
+
 void t_init( struct task* task, struct options* options, jmp_buf* bail,
    struct str* compiler_dir );
-void t_copy_name( struct name*, bool full, struct str* buffer );
-int t_full_name_length( struct name* );
+void t_copy_name( struct name* start, struct str* str );
+void t_copy_full_name( struct name* start, const char* separator,
+   struct str* str );
+int t_full_name_length( struct name* name, const char* separator );
 void t_print_name( struct name* );
 void t_diag( struct task*, int flags, ... );
 void t_diag_args( struct task* task, int flags, va_list* args );

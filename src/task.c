@@ -247,39 +247,74 @@ struct name* t_extend_name( struct name* parent, const char* extension ) {
    return parent;
 }
 
-void t_copy_name( struct name* start, bool full, struct str* str ) {
+void t_copy_name( struct name* start, struct str* str ) {
    int length = 0;
    struct name* name = start;
-   if ( full ) {
-      while ( ! ( name->ch == '.' && name->parent->ch == '\0' ) ) {
-         name = name->parent;
-         ++length;
-      }
-   }
-   else {
-      while ( name->ch != '.' ) {
-         name = name->parent;
-         ++length;
-      }
+   while ( name && ! ( name->ch == '\0' || name->ch == '.' ) ) {
+      ++length;
+      name = name->parent;
    }
    if ( str->buffer_length < length + 1 ) {
       str_grow( str, length + 1 );
    }
    str->length = length;
-   str->value[ length ] = 0;
+   str->value[ length ] = '\0';
+   struct name* end = name;
    name = start;
-   while ( length ) {
+   while ( name != end ) {
       --length;
       str->value[ length ] = name->ch;
       name = name->parent;
    }
 }
 
-int t_full_name_length( struct name* name ) {
+void t_copy_full_name( struct name* start, const char* separator,
+   struct str* str ) {
    int length = 0;
-   while ( ! ( name->ch == '.' && name->parent->ch == '\0' ) ) {
+   struct name* name = start;
+   const int separator_length = strlen( separator );
+   while ( name && ! ( name->ch == '\0' || ( name->ch == '.' &&
+      name->parent && name->parent->ch == '\0' ) ) ) {
+      if ( name->ch == '.' ) {
+         length += separator_length;
+      }
+      else {
+         ++length;
+      }
       name = name->parent;
-      ++length;
+   }
+   if ( str->buffer_length < length + 1 ) {
+      str_grow( str, length + 1 );
+   }
+   str->length = length;
+   str->value[ length ] = '\0';
+   struct name* end = name;
+   name = start;
+   while ( name != end ) {
+      if ( name->ch == '.' ) {
+         length -= separator_length;
+         memcpy( str->value + length, separator, separator_length ); 
+      }
+      else {
+         --length;
+         str->value[ length ] = name->ch;
+      }
+      name = name->parent;
+   }
+}
+
+int t_full_name_length( struct name* name, const char* separator ) {
+   int length = 0;
+   const int separator_length = strlen( separator );
+   while ( name && ! ( name->ch == '\0' || ( name->ch == '.' &&
+      name->parent && name->parent->ch == '\0' ) ) ) {
+      if ( name->ch == '.' ) {
+         length += separator_length;
+      }
+      else {
+         ++length;
+      }
+      name = name->parent;
    }
    return length;
 }

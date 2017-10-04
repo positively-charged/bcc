@@ -593,7 +593,12 @@ static int map_file( struct saver* saver, int id ) {
 static const char* name_s( struct saver* saver,
    struct name* name, bool full ) {
    str_clear( &saver->string );
-   t_copy_name( name, full, &saver->string );
+   if ( full ) {
+      t_copy_full_name( name, NAMESEPARATOR_INTERNAL, &saver->string );
+   }
+   else {
+      t_copy_name( name, &saver->string );
+   }
    return saver->string.value;
 }
 

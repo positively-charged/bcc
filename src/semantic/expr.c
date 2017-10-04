@@ -1792,7 +1792,7 @@ static struct structure_member* get_structure_member(
       else {
          struct str str;
          str_init( &str );
-         t_copy_name( lside->type.structure->name, false, &str );
+         t_copy_name( lside->type.structure->name, &str );
          s_diag( semantic, DIAG_POS_ERR, &access->pos,
             "`%s` not a member of struct `%s`", access->name,
             str.value );
@@ -1855,7 +1855,7 @@ void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
    else {
       struct str name;
       str_init( &name );
-      t_copy_name( ns->name, true, &name );
+      t_copy_full_name( ns->name, NAMESEPARATOR_INTERNAL, &name );
       s_diag( semantic, DIAG_POS_ERR, pos,
          "`%s` not found in namespace `%s`", object_name,
          name.value );
@@ -2323,7 +2323,7 @@ static void present_func( struct semantic* semantic, struct call_test* test,
          test->func->name != semantic->task->blank_name ) {
          struct str name;
          str_init( &name );
-         t_copy_name( test->func->name, false, &name );
+         t_copy_name( test->func->name, &name );
          str_append( msg, "function " );
          str_append( msg, "`" );
          str_append( msg, name.value );
@@ -2347,7 +2347,7 @@ static void test_call_func( struct semantic* semantic, struct call_test* test,
       if ( ! impl->script_callable ) {
          struct str str;
          str_init( &str );
-         t_copy_name( test->func->name, false, &str );
+         t_copy_name( test->func->name, &str );
          s_diag( semantic, DIAG_POS_ERR, &call->pos,
             "action-special `%s` called from script", str.value );
          s_bail( semantic );
@@ -2404,7 +2404,7 @@ static void test_call_ded( struct semantic* semantic, struct call_test* test,
          if ( semantic->func_test->func ) {
             struct str str;
             str_init( &str );
-            t_copy_name( test->func->name, false, &str );
+            t_copy_name( test->func->name, &str );
             s_diag( semantic, DIAG_FILE, &call->pos,
                "waiting functions like `%s` can only be called inside a "
                "script", str.value );
@@ -3040,7 +3040,7 @@ static void expand_magic_id( struct semantic* semantic,
       break;
    case MAGICID_FUNCTION:
       if ( semantic->func_test->func->name ) {
-         t_copy_name( semantic->func_test->func->name, false, &name );
+         t_copy_name( semantic->func_test->func->name, &name );
       }
       else {
          // TODO: Create a nicer name.
@@ -3052,7 +3052,7 @@ static void expand_magic_id( struct semantic* semantic,
          str_append( &name, "" );
       }
       else {
-         t_copy_name( semantic->ns->name, true, &name );
+         t_copy_full_name( semantic->ns->name, NAMESEPARATOR_INTERNAL, &name );
       }
       break;
    default:

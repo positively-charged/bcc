@@ -1070,7 +1070,7 @@ static void refnotinit_var( struct semantic* semantic, struct var* var ) {
       init_initz_pres( &pres );
       struct str name;
       str_init( &name );
-      t_copy_name( var->name, false, &name );
+      t_copy_name( var->name, &name );
       str_append( &pres.output, name.value );
       str_deinit( &name );
       present_ref_element( &pres, var->dim, var->structure ?
@@ -1501,7 +1501,7 @@ static void present_parent( struct initz_pres* pres,
    else {
       struct str name;
       str_init( &name );
-      t_copy_name( test->var->name, false, &name );
+      t_copy_name( test->var->name, &name );
       str_append( &pres->output, name.value );
       str_deinit( &name );
    }
@@ -1517,7 +1517,7 @@ static void present_parent( struct initz_pres* pres,
       str_append( &pres->output, "." );
       struct str name;
       str_init( &name );
-      t_copy_name( test->member->name, false, &name );
+      t_copy_name( test->member->name, &name );
       str_append( &pres->output, name.value );
       str_deinit( &name );
       pres->member_last = true;
@@ -1541,7 +1541,7 @@ static void present_ref_element( struct initz_pres* pres, struct dim* dim,
       str_append( &pres->output, "." );
       struct str name;
       str_init( &name );
-      t_copy_name( member->name, false, &name );
+      t_copy_name( member->name, &name );
       str_append( &pres->output, name.value );
       str_deinit( &name );
       pres->member_last = true;

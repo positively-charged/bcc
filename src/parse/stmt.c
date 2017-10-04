@@ -57,7 +57,7 @@ static struct assert* alloc_assert( struct pos* pos );
 void t_print_name( struct name* name ) {
    struct str str;
    str_init( &str );
-   t_copy_name( name, true, &str );
+   t_copy_full_name( name, NAMESEPARATOR_INTERNAL, &str );
    printf( "%s\n", str.value );
    str_deinit( &str );
 }
