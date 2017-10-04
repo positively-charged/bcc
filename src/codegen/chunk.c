@@ -359,7 +359,9 @@ static void do_fnam( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
-         size += t_full_name_length( func->name, NAMESEPARATOR_INTERNAL ) + 1;
+         struct ns* ns = t_find_ns_of_object( codegen->task, &func->object );
+         size += t_full_name_length( func->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON ) + 1;
          ++count;
       }
       list_next( &i );
@@ -377,8 +379,10 @@ static void do_fnam( struct codegen* codegen ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
          c_add_int( codegen, offset );
+         struct ns* ns = t_find_ns_of_object( codegen->task, &func->object );
          offset += t_full_name_length( func->name,
-            NAMESEPARATOR_INTERNAL ) + 1;
+            ( ns && ns->dot_separator ) ? NAMESEPARATOR_DOT :
+            NAMESEPARATOR_COLONCOLON ) + 1;
       }
       list_next( &i );
    }
@@ -389,7 +393,9 @@ static void do_fnam( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct func* func = list_data( &i );
       if ( ! func->hidden ) {
-         t_copy_full_name( func->name, NAMESEPARATOR_INTERNAL, &str );
+         struct ns* ns = t_find_ns_of_object( codegen->task, &func->object );
+         t_copy_full_name( func->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );
@@ -828,9 +834,11 @@ static void do_mimp( struct codegen* codegen ) {
    list_iterate( &codegen->imported_scalars, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
+      struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
       size += sizeof( int ) + // Index of variable.
-         t_full_name_length( var->name,
-            NAMESEPARATOR_INTERNAL ) + 1; // Plus one for NUL character.
+         t_full_name_length( var->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT :
+            NAMESEPARATOR_COLONCOLON ) + 1; // Plus one for NUL character.
       list_next( &i );
    }
    if ( size == 0 ) {
@@ -844,7 +852,9 @@ static void do_mimp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       c_add_int( codegen, var->index );
-      t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
+      struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
+      t_copy_full_name( var->name, ( ns && ns->dot_separator ) ?
+         NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON, &str );
       c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
@@ -864,13 +874,15 @@ static void do_aimp( struct codegen* codegen ) {
    list_iterate( &codegen->imported_arrays, &i );
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
+      struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
       size +=
          // Array index.
          sizeof( int ) +
          // Array size.
          sizeof( int ) +
          // Array name, plus one for the NUL character.
-         t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
+         t_full_name_length( var->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON ) + 1;
       list_next( &i );
    }
    c_add_str( codegen, "AIMP" );
@@ -883,7 +895,9 @@ static void do_aimp( struct codegen* codegen ) {
       struct var* var = list_data( &i );
       c_add_int( codegen, var->index );
       c_add_int( codegen, var->size );
-      t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
+      struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
+      t_copy_full_name( var->name, ( ns && ns->dot_separator ) ?
+         NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON, &str );
       c_add_sized( codegen, str.value, str.length + 1 );
       list_next( &i );
    }
@@ -898,7 +912,9 @@ static void do_mexp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
-         size += t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
+         struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
+         size += t_full_name_length( var->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON ) + 1;
          ++count;
       }
       list_next( &i );
@@ -919,7 +935,9 @@ static void do_mexp( struct codegen* codegen ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
          c_add_int( codegen, offset );
-         offset += t_full_name_length( var->name, NAMESEPARATOR_INTERNAL ) + 1;
+         struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
+         offset += t_full_name_length( var->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON ) + 1;
       }
       list_next( &i );
    }
@@ -930,7 +948,9 @@ static void do_mexp( struct codegen* codegen ) {
    while ( ! list_end( &i ) ) {
       struct var* var = list_data( &i );
       if ( ! var->hidden ) {
-         t_copy_full_name( var->name, NAMESEPARATOR_INTERNAL, &str );
+         struct ns* ns = t_find_ns_of_object( codegen->task, &var->object );
+         t_copy_full_name( var->name, ( ns && ns->dot_separator ) ?
+            NAMESEPARATOR_DOT : NAMESEPARATOR_COLONCOLON, &str );
          c_add_sized( codegen, str.value, str.length + 1 );
       }
       list_next( &i );

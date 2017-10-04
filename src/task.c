@@ -46,6 +46,9 @@ static void link_file_entry( struct task* task, struct file_entry* entry );
 static struct indexed_string* intern_string( struct task* task,
    struct str_table* table, const char* value, int length, bool copy_value );
 static void init_ref( struct ref* ref, int type );
+static bool is_object_in_ns( struct ns* ns, struct object* object );
+static bool is_object_in_fragment( struct ns_fragment* fragment,
+   struct object* object );
 
 void t_init( struct task* task, struct options* options, jmp_buf* bail,
    struct str* compiler_dir ) {
@@ -1225,4 +1228,42 @@ struct script* t_alloc_script( void ) {
    script->size = 0;
    script->named_script = false;
    return script;
+}
+
+struct ns* t_find_ns_of_object( struct task* task, struct object* object ) {
+   struct list_iter i;
+   list_iterate( &task->namespaces, &i );
+   while ( ! list_end( &i ) ) {
+      struct ns* ns = list_data( &i );
+      if ( is_object_in_ns( ns, object ) ) {
+         return ns;
+      }
+      list_next( &i );
+   }
+   return NULL;
+}
+
+static bool is_object_in_ns( struct ns* ns, struct object* object ) {
+   struct list_iter i;
+   list_iterate( &ns->fragments, &i );
+   while ( ! list_end( &i ) ) {
+      if ( is_object_in_fragment( list_data( &i ), object ) ) {
+         return true;
+      }
+      list_next( &i );
+   }
+   return false;
+}
+
+static bool is_object_in_fragment( struct ns_fragment* fragment,
+   struct object* object ) {
+   struct list_iter i;
+   list_iterate( &fragment->objects, &i );
+   while ( ! list_end( &i ) ) {
+      if ( object == list_data( &i ) ) {
+         return true;
+      }
+      list_next( &i );
+   }
+   return false;
 }

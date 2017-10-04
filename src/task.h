@@ -1375,5 +1375,6 @@ struct include_history_entry* t_decode_include_history_entry(
    struct task* task, int id );
 const char* t_get_lang_lib_dir( struct task* task, int lang );
 struct script* t_alloc_script( void );
+struct ns* t_find_ns_of_object( struct task* task, struct object* object );
 
 #endif
