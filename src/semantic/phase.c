@@ -69,6 +69,8 @@ static struct object* search_in_local_scope( struct semantic* semantic,
    struct object_search* search );
 static struct object* search_in_ns( struct semantic* semantic,
    struct object_search* search, struct ns* ns );
+static struct object* search_in_ns_direct( struct semantic* semantic,
+   struct object_search* search, struct ns* ns );
 static struct object* search_in_ns_links( struct semantic* semantic,
    struct object_search* search, struct ns* ns );
 static void test_objects( struct semantic* semantic );
@@ -938,13 +940,19 @@ static struct object* search_in_local_scope( struct semantic* semantic,
 
 static struct object* search_in_ns( struct semantic* semantic,
    struct object_search* search, struct ns* ns ) {
+   return follow_alias( search_in_ns_direct( semantic, search, ns ) );
+}
+
+static struct object* search_in_ns_direct( struct semantic* semantic,
+   struct object_search* search, struct ns* ns ) {
    struct object* object = NULL;
    switch ( search->requested_node ) {
    case NODE_NAMESPACE:
       {
-         struct object* candidate = s_get_ns_object( ns, search->name,
+         struct object* candidate = s_get_direct_ns_object( ns, search->name,
             NODE_NONE );
-         if ( candidate && candidate->node.type == NODE_NAMESPACE ) {
+         if ( candidate &&
+            follow_alias( candidate )->node.type == NODE_NAMESPACE ) {
             object = candidate;
          }
       }
@@ -952,7 +960,8 @@ static struct object* search_in_ns( struct semantic* semantic,
    case NODE_STRUCTURE:
    case NODE_ENUMERATION:
    case NODE_NONE:
-      object = s_get_ns_object( ns, search->name, search->requested_node );
+      object = s_get_direct_ns_object( ns, search->name,
+         search->requested_node );
       break;
    default:
       UNREACHABLE();
@@ -964,11 +973,13 @@ static struct object* search_in_ns( struct semantic* semantic,
 static struct object* search_in_ns_links( struct semantic* semantic,
    struct object_search* search, struct ns* ns ) {
    struct object* object = NULL;
+   struct ns_link* link = NULL;
    struct ns_link_retriever links;
    init_ns_link_retriever( semantic, &links, ns );
    next_ns_link( &links );
    while ( links.link && ! object ) {
-      object = search_in_ns( semantic, search, links.link->ns );
+      link = links.link;
+      object = search_in_ns( semantic, search, link->ns );
       next_ns_link( &links );
    }
    // Make sure no other object with the same name can be found.
@@ -976,28 +987,21 @@ static struct object* search_in_ns_links( struct semantic* semantic,
       next_ns_link( &links );
    }
    if ( links.link ) {
-      const char* prefix;
-      switch ( search->requested_node ) {
-      case NODE_STRUCTURE:
-         prefix = "struct ";
-         break;
-      case NODE_ENUMERATION:
-         prefix = "enum ";
-         break;
-      default:
-         prefix = "";
-      }
       s_diag( semantic, DIAG_POS_ERR, search->pos,
-         "multiple instances of %s`%s` found (you must choose one)",
-         prefix, search->name );
+         "multiple instances of `%s` found (you must be more specific)",
+         search->name );
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &link->pos,
+         "through this using directive..." );
       s_diag( semantic, DIAG_POS, &object->pos,
-         "%s`%s` found here", prefix, search->name );
+         "`%s` refers to the object found here", search->name );
       while ( links.link ) {
-         struct object* dup_object = search_in_ns( semantic, search,
+         struct object* dup_object = search_in_ns_direct( semantic, search,
             links.link->ns );
          if ( dup_object ) {
+            s_diag( semantic, DIAG_POS | DIAG_NOTE, &links.link->pos,
+               "and through this using directive..." );
             s_diag( semantic, DIAG_POS, &dup_object->pos,
-               "another %s`%s` found here", prefix, search->name );
+               "`%s` refers to the object found here", search->name );
          }
          next_ns_link( &links );
       }
@@ -1010,6 +1014,13 @@ static struct object* search_in_ns_links( struct semantic* semantic,
 // followed.
 struct object* s_get_ns_object( struct ns* ns, const char* object_name,
    int requested_node ) {
+   return follow_alias( s_get_direct_ns_object( ns, object_name,
+      requested_node ) );
+}
+
+// Retrieves an object from a namespace, including aliases.
+struct object* s_get_direct_ns_object( struct ns* ns, const char* object_name,
+   int requested_node ) {
    struct name* name = t_extend_name( get_body( ns, requested_node ),
       object_name );
    if ( name->object ) {
@@ -1018,7 +1029,7 @@ struct object* s_get_ns_object( struct ns* ns, const char* object_name,
          object = object->next_scope;
       }
       if ( object->depth == 0 ) {
-         return follow_alias( object );
+         return object;
       }
    }
    return NULL;
