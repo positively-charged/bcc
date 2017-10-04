@@ -205,11 +205,30 @@ static void read_namespace_name( struct parse* parse ) {
       struct ns_path* path = parse->ns_fragment->path;
       while ( path ) {
          struct name* name = t_extend_name( ns->body, path->text );
-         if ( ! ( name->object &&
-            name->object->node.type == NODE_NAMESPACE ) ) {
+         if ( name->object ) {
+            // Object must be a namespace.
+            if ( name->object->node.type != NODE_NAMESPACE ) {
+               p_diag( parse, DIAG_INTERNAL | DIAG_ERR,
+                  "object not a namespace (%s:%d)", __FILE__, __LINE__ );
+               p_bail( parse );
+            }
+            // Separators must be consistent.
+            struct ns* parent_ns = ( struct ns* ) name->object;
+            if ( parent_ns->dot_separator != path->dot_separator ) {
+               p_diag( parse, DIAG_POS_ERR, &path->pos,
+                  "this namespace must be separated by `%s`, so it matches "
+                  "the initial declaration",
+                  parent_ns->dot_separator ? "." : "::" );
+               p_diag( parse, DIAG_POS | DIAG_NOTE, &parent_ns->object.pos,
+                  "initial declaration of this namespace found here" );
+               p_bail( parse );
+            }
+         }
+         else {
             struct ns* nested_ns = t_alloc_ns( name );
             nested_ns->object.pos = path->pos;
             nested_ns->parent = ns;
+            nested_ns->dot_separator = path->dot_separator;
             list_append( &parse->task->namespaces, nested_ns );
             nested_ns->object.next_scope = name->object;
             name->object = &nested_ns->object;
@@ -239,6 +258,7 @@ static void read_namespace_path( struct parse* parse ) {
    head->next = NULL;
    head->text = parse->tk_text;
    head->pos = parse->tk_pos;
+   head->dot_separator = false;
    p_read_tk( parse );
    enum tk separator = ( parse->tk == TK_DOT ) ? TK_DOT : TK_COLONCOLON;
    while ( parse->tk == separator ) {
@@ -248,6 +268,7 @@ static void read_namespace_path( struct parse* parse ) {
       path->next = NULL;
       path->text = parse->tk_text;
       path->pos = parse->tk_pos;
+      path->dot_separator = ( separator == TK_DOT );
       tail->next = path;
       tail = path;
       p_read_tk( parse );

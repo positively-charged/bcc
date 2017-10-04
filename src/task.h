@@ -1129,6 +1129,7 @@ struct ns {
    struct ns_link* links;
    struct list fragments;
    bool hidden;
+   bool dot_separator;
 };
 
 struct ns_link {
@@ -1159,6 +1160,7 @@ struct ns_path {
    struct ns_path* next;
    const char* text;
    struct pos pos;
+   bool dot_separator;
 };
 
 struct using_dirc {

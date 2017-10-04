@@ -153,6 +153,7 @@ struct ns* t_alloc_ns( struct name* name ) {
    ns->links = NULL;
    list_init( &ns->fragments );
    ns->hidden = false;
+   ns->dot_separator = false;
    return ns;
 }
 
