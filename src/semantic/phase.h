@@ -117,6 +117,13 @@ enum type_description {
    TYPEDESC_PRIMITIVE
 };
 
+enum deprecation {
+   // Occurs when using `.` operator on namespaces. Recommend using `::`
+   // instead.
+   DEPRECATION_NSDOT,
+   DEPRECATION_TOTAL
+};
+
 struct semantic {
    struct task* task;
    struct library* main_lib;
@@ -142,6 +149,10 @@ struct semantic {
    bool trigger_err;
    bool in_localscope;
    bool strong_type;
+   struct {
+      bool registered;
+      bool suppressed;
+   } deprecations[ DEPRECATION_TOTAL ];
 };
 
 void s_init( struct semantic* semantic, struct task* task );
@@ -258,5 +269,8 @@ bool s_is_str( struct type_info* type );
 bool s_is_struct_ref( struct type_info* type );
 bool s_same_storageignored_type( struct type_info* a, struct type_info* b );
 void s_init_magic_id( struct magic_id* magic_id, int name );
+bool s_deprecation( struct semantic* semantic, enum deprecation deprecation );
+void s_register_deprecation( struct semantic* semantic,
+   enum deprecation deprecation );
 
 #endif

@@ -80,6 +80,10 @@ static void test_all( struct semantic* semantic );
 static void test_lib( struct semantic* semantic, struct library* lib );
 static void test_namespace( struct semantic* semantic,
    struct ns_fragment* fragment );
+static void test_nested_namespace( struct semantic* semantic,
+   struct ns_fragment* fragment );
+static void test_nested_namespace_name( struct semantic* semantic,
+   struct ns_fragment* fragment );
 static void test_namespace_object( struct semantic* semantic,
    struct object* object );
 static void test_objects_bodies( struct semantic* semantic );
@@ -131,6 +135,10 @@ void s_init( struct semantic* semantic, struct task* task ) {
    semantic->in_localscope = false;
    semantic->strong_type = false;
    semantic->lang = semantic->lib->lang;
+   for ( int i = 0; i < ARRAY_SIZE( semantic->deprecations ); ++i ) {
+      semantic->deprecations[ i ].registered = false;
+      semantic->deprecations[ i ].suppressed = false;
+   }
 }
 
 static void init_worldglobal_vars( struct semantic* semantic ) {
@@ -655,7 +663,8 @@ void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
       import_selection( semantic, follower.result.ns, dirc );
       break;
    default:
-      UNREACHABLE()
+      UNREACHABLE();
+      s_bail( semantic );
    }
 }
 
@@ -813,6 +822,14 @@ void s_follow_path( struct semantic* semantic, struct follower* follower ) {
          }
          ns = ( struct ns* ) object;
          path = path->next;
+      }
+      // Deprecation warning for using `.` operator on a namespace.
+      if ( path->dot_separator &&
+         s_deprecation( semantic, DEPRECATION_NSDOT ) ) {
+         s_diag( semantic, DIAG_WARN | DIAG_POS, &path->pos,
+            "accessing a namespace member using `.` is deprecated, use `::` "
+            "instead" );
+         s_register_deprecation( semantic, DEPRECATION_NSDOT );
       }
       // Middle.
       while ( path->next ) {
@@ -1147,10 +1164,22 @@ static void test_namespace( struct semantic* semantic,
 static void test_nested_namespace( struct semantic* semantic,
    struct ns_fragment* fragment ) {
    struct ns_fragment* parent_fragment = semantic->ns_fragment;
+   test_nested_namespace_name( semantic, fragment );
    test_namespace( semantic, fragment );
    semantic->ns_fragment = parent_fragment;
    semantic->ns = parent_fragment->ns;
    semantic->strong_type = parent_fragment->strict;
+}
+
+static void test_nested_namespace_name( struct semantic* semantic,
+   struct ns_fragment* fragment ) {
+   // Deprecation warning for using `.` operator on a namespace.
+   if ( s_deprecation( semantic, DEPRECATION_NSDOT ) && fragment->path &&
+      fragment->path->next && fragment->path->next->dot_separator ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &fragment->path->next->pos,
+         "namespace names separated by `.` is deprecated, use `::` instead" );
+      s_register_deprecation( semantic, DEPRECATION_NSDOT );
+   }
 }
 
 static void test_namespace_object( struct semantic* semantic,
@@ -1608,4 +1637,18 @@ void s_type_mismatch( struct semantic* semantic, const char* label_a,
       label_a, string_a.value, label_b, string_b.value );
    str_deinit( &string_a );
    str_deinit( &string_b );
+}
+
+// Returns whether to print a deprecation warning or not.
+bool s_deprecation( struct semantic* semantic, enum deprecation deprecation ) {
+   return ( semantic->lib == semantic->main_lib &&
+      ! semantic->deprecations[ deprecation ].suppressed &&
+      ! semantic->deprecations[ deprecation ].registered );
+}
+
+// Signals that a deprecation warning has been printed and should no longer
+// be printed.
+void s_register_deprecation( struct semantic* semantic,
+   enum deprecation deprecation ) {
+   semantic->deprecations[ deprecation ].registered = true;
 }

@@ -1844,6 +1844,13 @@ static void test_access_ns( struct semantic* semantic,
       select_ns_object( semantic, test, result, object );
       access->rside = &object->node;
    }
+   // Deprecation warning for using `.` operator on a namespace.
+   if ( s_deprecation( semantic, DEPRECATION_NSDOT ) ) {
+      s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
+         "using `.` to access a namespace member is deprecated, use `::` "
+         "instead" );
+      s_register_deprecation( semantic, DEPRECATION_NSDOT );
+   }
 }
 
 void s_unknown_ns_object( struct semantic* semantic, struct ns* ns,
