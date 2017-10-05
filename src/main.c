@@ -124,6 +124,7 @@ static void init_options( struct options* options ) {
    options->write_asserts = true;
    options->lang_specified = false;
    options->show_version = false;
+   options->legacy_ns_dot = false;
    options->cache.dir_path = NULL;
    options->cache.lifetime = -1;
    options->cache.enable = false;
@@ -291,6 +292,9 @@ static bool read_options( struct options* options, char** argv ) {
             return false;
          }
       }
+      else if ( strcmp( option, "legacy-ns-dot" ) == 0 ) {
+         options->legacy_ns_dot = true;
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -345,6 +349,8 @@ static void print_usage( char* path ) {
       "  -tab-size <size>     Specify the width of the tab character\n"
       "  -strip-asserts       Do not include asserts in object file\n"
       "                       (asserts will not be executed at run-time)\n"
+      "  -legacy-ns-dot       Do not show any deprecation warnings for using\n"
+      "                       the `.` operator on namespaces\n"
       "  -E                   Do preprocessing only\n"
       "  -D <name>            Create a macro with the specified name. The\n"
       "                       macro will have a value of 1\n"

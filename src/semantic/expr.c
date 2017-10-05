@@ -1848,7 +1848,8 @@ static void test_access_ns( struct semantic* semantic,
    if ( s_deprecation( semantic, DEPRECATION_NSDOT ) ) {
       s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
          "using `.` to access a namespace member is deprecated, use `::` "
-         "instead" );
+         "instead (to suppress this warning, use the -legacy-ns-dot "
+         "command-line option)" );
       s_register_deprecation( semantic, DEPRECATION_NSDOT );
    }
 }
