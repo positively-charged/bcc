@@ -533,7 +533,9 @@ bool p_peek_type_path( struct parse* parse ) {
       struct parsertk_iter iter;
       p_init_parsertk_iter( parse, &iter );
       p_next_tk( parse, &iter );
-      while ( iter.token->type == TK_DOT ) {
+      enum tk separator = ( iter.token->type == TK_DOT ) ? TK_DOT :
+         TK_COLONCOLON;
+      while ( iter.token->type == separator ) {
          p_next_tk( parse, &iter );
          if ( iter.token->type == TK_TYPENAME ) {
             return true;
@@ -562,7 +564,9 @@ bool p_peek_type_path_from_iter( struct parse* parse,
       iter->token->type == TK_UPMOST ||
       iter->token->type == TK_NAMESPACE ) {
       p_next_tk( parse, iter );
-      while ( iter->token->type == TK_DOT ) {
+      enum tk separator = ( iter->token->type == TK_DOT ) ? TK_DOT :
+         TK_COLONCOLON;
+      while ( iter->token->type == separator ) {
          p_next_tk( parse, iter );
          if ( iter->token->type == TK_TYPENAME ) {
             return true;
@@ -607,21 +611,26 @@ struct path* p_read_type_path( struct parse* parse ) {
       // Middle.
       struct path* head = path;
       struct path* tail = head;
-      while ( parse->tk == TK_DOT && p_peek( parse ) == TK_ID ) {
+      // Like for a normal path, the separator can be either `::` or `.`, and
+      // must be consistent throughout.
+      enum tk separator = ( parse->tk == TK_DOT ) ? TK_DOT : TK_COLONCOLON;
+      while ( parse->tk == separator && p_peek( parse ) == TK_ID ) {
          p_read_tk( parse );
          p_test_tk( parse, TK_ID );
          path = alloc_path( parse->tk_pos );
          path->text = parse->tk_text;
+         path->dot_separator = ( separator == TK_DOT );
          tail->next = path;
          tail = path;
          p_read_tk( parse );
       }
       // Tail.
-      p_test_tk( parse, TK_DOT );
+      p_test_tk( parse, separator );
       p_read_tk( parse );
       p_test_tk( parse, TK_TYPENAME );
       path = alloc_path( parse->tk_pos );
       path->text = parse->tk_text;
+      path->dot_separator = ( separator == TK_DOT );
       tail->next = path;
       p_read_tk( parse );
       return head;
