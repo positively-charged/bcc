@@ -126,6 +126,7 @@ static void read_token_bcs( struct parse* parse ) {
          { "goto", TK_GOTO },
          { "if", TK_IF },
          { "int", TK_INT },
+         { "lengthof", TK_LENGTHOF },
          { "let", TK_LET },
          { "memcpy", TK_MEMCPY },
          { "namespace", TK_NAMESPACE },

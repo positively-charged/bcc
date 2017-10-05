@@ -178,6 +178,7 @@ enum tk {
    TK_SCRIPTNAME,
    TK_AT,
    TK_COLONCOLON,
+   TK_LENGTHOF,
 
    TK_TOTAL,
 
