@@ -72,6 +72,7 @@ static void read_strcpy( struct parse* parse, struct expr_reading* reading );
 static void read_strcpy_call( struct parse* parse,
    struct strcpy_reading* reading );
 static void read_memcpy( struct parse* parse, struct expr_reading* reading );
+static void read_lengthof( struct parse* parse, struct expr_reading* reading );
 static void read_paren( struct parse* parse, struct expr_reading* reading );
 static void read_func_literal( struct parse* parse,
    struct expr_reading* reading, struct paren_reading* paren );
@@ -585,6 +586,9 @@ static void read_primary( struct parse* parse, struct expr_reading* reading ) {
       break;
    case TK_MEMCPY:
       read_memcpy( parse, reading );
+      break;
+   case TK_LENGTHOF:
+      read_lengthof( parse, reading );
       break;
    case TK_INT:
    case TK_FIXED:
@@ -1289,6 +1293,25 @@ static void read_memcpy( struct parse* parse, struct expr_reading* reading ) {
    call->source_offset = call_r.offset;
    call->type = MEMCPY_ARRAY;
    call->array_cast = call_r.array_cast;
+   reading->node = &call->node;
+}
+
+static void read_lengthof( struct parse* parse,
+   struct expr_reading* reading ) {
+   p_test_tk( parse, TK_LENGTHOF );
+   p_read_tk( parse );
+   struct lengthof* call = mem_alloc( sizeof( *call ) );
+   call->node.type = NODE_LENGTHOF;
+   call->operand = NULL;
+   call->value = 0;
+   p_test_tk( parse, TK_PAREN_L );
+   p_read_tk( parse );
+   struct expr_reading operand;
+   p_init_expr_reading( &operand, false, false, false, true );
+   p_read_expr( parse, &operand );
+   call->operand = operand.output_node;
+   p_test_tk( parse, TK_PAREN_R );
+   p_read_tk( parse );
    reading->node = &call->node;
 }
 

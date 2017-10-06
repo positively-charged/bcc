@@ -76,6 +76,7 @@ struct expr_test {
    struct structure_member* structure_member;
    struct func* func;
    struct indexed_string_usage* magic_id_usage;
+   struct dim* dim;
    int dim_depth;
    bool result_required;
    bool has_str;

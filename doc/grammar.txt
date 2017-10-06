@@ -754,6 +754,7 @@ format-item-array:
 primary:
    <strcpy>
    <memcpy>
+   <lengthof>
    <conversion>
    <parentheses>
    <name-usage>
@@ -780,6 +781,9 @@ strcpy-source-argument:
 
 memcpy:
    memcpy <strcpy-call>
+
+lengthof:
+   lengthof ( <expression> )
 
 conversion:
    int ( <expression> )

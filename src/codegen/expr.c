@@ -228,6 +228,8 @@ static void push_ref_array_length( struct codegen* codegen,
    struct result* result, bool dim_info_pushed );
 static void copy_struct( struct codegen* codegen, struct result* result,
    struct memcpy_call* call );
+static void visit_lengthof( struct codegen* codegen, struct result* result,
+   struct lengthof* call );
 static void visit_conversion( struct codegen* codegen, struct result* result,
    struct conversion* conv );
 static void visit_null( struct codegen* codegen, struct result* result );
@@ -2125,6 +2127,10 @@ static void visit_primary( struct codegen* codegen, struct result* result,
       visit_memcpy( codegen, result,
          ( struct memcpy_call* ) node );
       break;
+   case NODE_LENGTHOF:
+      visit_lengthof( codegen, result,
+         ( struct lengthof* ) node );
+      break;
    case NODE_CONVERSION:
       visit_conversion( codegen, result,
          ( struct conversion* ) node );
@@ -2947,6 +2953,25 @@ static void copy_struct( struct codegen* codegen, struct result* result,
       c_pcd( codegen, PCD_PUSHNUMBER, 1 );
       result->status = R_VALUE;
    }
+}
+
+static void visit_lengthof( struct codegen* codegen, struct result* result,
+   struct lengthof* call ) {
+   // Length known at compile time.
+   if ( call->operand->folded ) {
+      c_pcd( codegen, PCD_PUSHNUMBER, call->value );
+   }
+   // Length must be determined at run time.
+   else {
+      struct result operand;
+      init_result( &operand, true );
+      push_operand_result( codegen, &operand, call->operand->root );
+      if ( operand.status == R_ARRAYINDEX ) {
+         c_pcd( codegen, PCD_DROP );
+      }
+      push_array_length( codegen, &operand, false );
+   }
+   result->status = R_VALUE;
 }
 
 static void visit_conversion( struct codegen* codegen, struct result* result,

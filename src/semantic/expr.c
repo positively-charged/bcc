@@ -265,6 +265,8 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct strcpy_call* call );
 static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct memcpy_call* call );
+static void test_lengthof( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct lengthof* call );
 static void test_conversion( struct semantic* semantic, struct expr_test* test,
    struct result* result, struct conversion* conv );
 static bool perform_conversion( struct semantic* semantic,
@@ -293,6 +295,7 @@ void s_init_expr_test( struct expr_test* test, bool result_required,
    test->structure_member = NULL;
    test->func = NULL;
    test->magic_id_usage = NULL;
+   test->dim = NULL;
    test->dim_depth = 0;
    test->result_required = result_required;
    test->has_str = false;
@@ -368,6 +371,7 @@ static void test_root_with_result( struct semantic* semantic,
    test->structure_member = result->data_origin.structure_member;
    test->dim_depth = result->data_origin.dim_depth;
    test->func = result->func;
+   test->dim = result->dim;
    expr->spec = result->type.spec;
    expr->folded = result->folded;
    expr->value = result->value;
@@ -2495,6 +2499,10 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
       test_memcpy( semantic, test, result,
          ( struct memcpy_call* ) node );
       break;
+   case NODE_LENGTHOF:
+      test_lengthof( semantic, test, result,
+         ( struct lengthof* ) node );
+      break;
    case NODE_CONVERSION:
       test_conversion( semantic, test, result,
          ( struct conversion* ) node );
@@ -3201,6 +3209,27 @@ static void test_memcpy( struct semantic* semantic, struct expr_test* test,
    result->usable = true;
    if ( s_is_struct( &dst.type ) ) {
       call->type = MEMCPY_STRUCT;
+   }
+}
+
+static void test_lengthof( struct semantic* semantic, struct expr_test* test,
+   struct result* result, struct lengthof* call ) {
+   struct expr_test operand;
+   s_init_expr_test( &operand, false, false );
+   test_nested_expr( semantic, test, &operand, call->operand );
+   if ( s_describe_type( &operand.type ) != TYPEDESC_ARRAYREF ) {
+      s_diag( semantic, DIAG_POS_ERR, &call->operand->pos,
+         "operand is not an array" );
+      s_bail( semantic );
+   }
+   s_init_type_info_scalar( &result->type, s_spec( semantic, SPEC_INT ) );
+   result->complete = true;
+   result->usable = true;
+   // Compile-time evaluation.
+   if ( call->operand->folded ) {
+      call->value = operand.dim->length;
+      result->value = call->value;
+      result->folded = true;
    }
 }
 
