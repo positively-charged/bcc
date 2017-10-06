@@ -998,7 +998,34 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
       s_diag( semantic, DIAG_WARN | DIAG_POS, &assign->pos,
          "assignment operation not in parentheses" );
    }
-   assign->spec = lside.type.spec;
+   // Summarize the left operand.
+   switch ( s_describe_type( &lside.type ) ) {
+   case TYPEDESC_PRIMITIVE:
+      switch ( lside.type.spec ) {
+      case SPEC_STR:
+         assign->lside_type = ASSIGNLSIDE_PRIMITIVESTR;
+         break;
+      case SPEC_FIXED:
+         assign->lside_type = ASSIGNLSIDE_PRIMITIVEFIXED;
+         break;
+      default:
+         assign->lside_type = ASSIGNLSIDE_PRIMITIVE;
+      }
+      break;
+   case TYPEDESC_ENUM:
+      assign->lside_type = ASSIGNLSIDE_PRIMITIVE;
+      break;
+   case TYPEDESC_FUNCREF:
+   case TYPEDESC_STRUCTREF:
+      assign->lside_type = ASSIGNLSIDE_REF;
+      break;
+   case TYPEDESC_ARRAYREF:
+      assign->lside_type = ASSIGNLSIDE_REFARRAY;
+      break;
+   default:
+      UNREACHABLE();
+      s_bail( semantic );
+   }
 }
 
 static bool perform_assign( struct semantic* semantic, struct assign* assign,

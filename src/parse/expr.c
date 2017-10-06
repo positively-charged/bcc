@@ -379,7 +379,7 @@ static void read_op( struct parse* parse, struct expr_reading* reading ) {
    assign->lside = reading->node;
    assign->rside = NULL;
    assign->pos = parse->tk_pos;
-   assign->spec = SPEC_NONE;
+   assign->lside_type = ASSIGNLSIDE_NONE;
    p_read_tk( parse );
    switch ( parse->lang ) {
    case LANG_ACS95:

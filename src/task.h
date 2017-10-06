@@ -438,7 +438,14 @@ struct assign {
    struct node* lside;
    struct node* rside;
    struct pos pos;
-   int spec;
+   enum {
+      ASSIGNLSIDE_NONE,
+      ASSIGNLSIDE_PRIMITIVE,
+      ASSIGNLSIDE_PRIMITIVESTR,
+      ASSIGNLSIDE_PRIMITIVEFIXED,
+      ASSIGNLSIDE_REF,
+      ASSIGNLSIDE_REFARRAY,
+   } lside_type;
 };
 
 struct conditional {
