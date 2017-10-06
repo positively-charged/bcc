@@ -115,6 +115,9 @@ struct codegen {
 #define C_INTERNAL_ERR( codegen, ... ) \
    c_diag( codegen, DIAG_FILENAME | DIAG_LINE | DIAG_INTERNAL | DIAG_ERR, \
       __FILE__, __LINE__, __VA_ARGS__ )
+#define C_UNREACHABLE( codegen ) \
+   C_INTERNAL_ERR( codegen, "unreachable code" ); \
+   c_bail( codegen )
 
 void c_init( struct codegen*, struct task* );
 void c_init_obj( struct codegen* );

@@ -19,8 +19,8 @@ static void write_func( struct codegen* codegen, struct func* func );
 static void init_func_record( struct func_record* record, struct func* func );
 static void alloc_param_indexes( struct func_record* func,
    struct param* param );
-static void alloc_funcscopevars_indexes( struct func_record* func,
-   struct list* vars );
+static void alloc_funcscopevars_indexes( struct codegen* codegen,
+   struct func_record* func, struct list* vars );
 static void visit_local_var( struct codegen* codegen, struct var* var );
 static void visit_world_var( struct codegen* codegen, struct var* var );
 static void write_multi_initz( struct codegen* codegen, struct var* var );
@@ -128,7 +128,7 @@ static void write_script( struct codegen* codegen, struct script* script ) {
       assign_nested_call_ids( codegen, script->nested_funcs );
    }
    alloc_param_indexes( &record, script->params );
-   alloc_funcscopevars_indexes( &record, &script->funcscope_vars );
+   alloc_funcscopevars_indexes( codegen, &record, &script->funcscope_vars );
    c_write_block( codegen, script->body );
    c_pcd( codegen, PCD_TERMINATE );
    script->size = record.size;
@@ -154,7 +154,7 @@ static void write_func( struct codegen* codegen, struct func* func ) {
       assign_nested_call_ids( codegen, impl->nested_funcs );
    }
    alloc_param_indexes( &record, func->params );
-   alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
+   alloc_funcscopevars_indexes( codegen, &record, &impl->funcscope_vars );
    c_write_block( codegen, impl->body );
    if ( func->return_spec == SPEC_VOID && ! func->ref ) {
       c_pcd( codegen, PCD_RETURNVOID );
@@ -189,8 +189,8 @@ static void alloc_param_indexes( struct func_record* func,
    }
 }
 
-static void alloc_funcscopevars_indexes( struct func_record* func,
-   struct list* vars ) {
+static void alloc_funcscopevars_indexes( struct codegen* codegen,
+   struct func_record* func, struct list* vars ) {
    struct list_iter i;
    list_iterate( vars, &i );
    while ( ! list_end( &i ) ) {
@@ -209,7 +209,7 @@ static void alloc_funcscopevars_indexes( struct func_record* func,
             func->size += var->size;
             break;
          default:
-            UNREACHABLE();
+            C_UNREACHABLE( codegen );
          }
       }
       list_next( &i );
@@ -278,7 +278,7 @@ static void visit_local_var( struct codegen* codegen, struct var* var ) {
       }
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -368,8 +368,7 @@ static bool is_zero_local_value( struct codegen* codegen,
       }
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
    return false;
 }
@@ -394,8 +393,7 @@ static int get_local_value_size( struct codegen* codegen,
       // Offset to the array and offset to the dimension information.
       return 2;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
       return 0;
    }
 }
@@ -430,8 +428,7 @@ static void write_local_value( struct codegen* codegen, struct var* var,
       c_update_element( codegen, var->storage, var->index, AOP_NONE );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -480,7 +477,7 @@ static void write_string_initz( struct codegen* codegen, struct var* var,
       case STORAGE_LOCAL:
          break;
       default:
-         UNREACHABLE();
+         C_UNREACHABLE( codegen );
       }
       c_pcd( codegen, opcode );
       if ( nul_element ) {
@@ -638,7 +635,7 @@ static void write_one_nestedfunc( struct codegen* codegen,
    record.start_index = start_index;
    record.nested_func = true;
    alloc_param_indexes( &record, func->params );
-   alloc_funcscopevars_indexes( &record, &impl->funcscope_vars );
+   alloc_funcscopevars_indexes( codegen, &record, &impl->funcscope_vars );
    codegen->func = &record;
    // Body:
    // -----------------------------------------------------------------------

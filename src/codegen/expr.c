@@ -285,7 +285,7 @@ void c_visit_expr( struct codegen* codegen, struct expr* expr ) {
    case R_VAR:
       break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -375,8 +375,7 @@ static void push_operand_result( struct codegen* codegen,
    case RESULTDESC_PRIMITIVE:
       break;
    default:
-      UNREACHABLE();
-      t_bail( codegen->task );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -445,7 +444,7 @@ static void visit_binary( struct codegen* codegen, struct result* result,
       write_binary_ref_func( codegen, result, binary );
       break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -472,7 +471,7 @@ static void write_binary_int( struct codegen* codegen, struct result* result,
    case BOP_DIV: code = PCD_DIVIDE; break;
    case BOP_MOD: code = PCD_MODULUS; break;
    default: 
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
@@ -495,7 +494,7 @@ static void write_binary_fixed( struct codegen* codegen, struct result* result,
    case BOP_GT: code = PCD_GT; break;
    case BOP_GTE: code = PCD_GE; break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
@@ -510,7 +509,7 @@ static void write_binary_bool( struct codegen* codegen, struct result* result,
    case BOP_EQ: code = PCD_EQ; break;
    case BOP_NEQ: code = PCD_NE; break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
@@ -533,7 +532,7 @@ static void write_binary_str( struct codegen* codegen, struct result* result,
       concat_str( codegen, result, binary );
       break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -569,7 +568,7 @@ static void lt_str( struct codegen* codegen, struct result* result,
       code = PCD_GT;
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
    c_pcd( codegen, code );
    result->status = R_VALUE;
@@ -594,7 +593,7 @@ static void write_binary_ref( struct codegen* codegen, struct result* result,
       eq_ref( codegen, result, binary );
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -655,7 +654,7 @@ static void write_binary_ref_func( struct codegen* codegen,
       eq_func( codegen, result, binary );
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -753,8 +752,7 @@ static void convert_to_boolean( struct codegen* codegen, struct result* result,
    case RESULTDESC_REF:
       break;
    default:
-      UNREACHABLE();
-      t_bail( codegen->task );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -775,8 +773,7 @@ static void visit_assign( struct codegen* codegen, struct result* result,
       assign_array_ref( codegen, assign, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -793,8 +790,7 @@ static void assign_value( struct codegen* codegen, struct assign* assign,
       assign_value_array( codegen, assign, &lside, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -838,8 +834,7 @@ static void assign_fixed( struct codegen* codegen, struct assign* assign,
       assign_fixed_muldiv( codegen, assign, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -856,8 +851,7 @@ static void assign_fixed_muldiv( struct codegen* codegen,
       assign_fixed_muldiv_array( codegen, assign, &lside, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -911,8 +905,7 @@ static void assign_str( struct codegen* codegen, struct assign* assign,
       assign_str_add( codegen, assign, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -929,8 +922,7 @@ static void assign_str_add( struct codegen* codegen, struct assign* assign,
       assign_str_add_array( codegen, assign, &lside, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -981,8 +973,7 @@ static void assign_array_ref( struct codegen* codegen, struct assign* assign,
       assign_array_ref_array( codegen, assign, &lside, result );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -1199,7 +1190,7 @@ static void write_unary( struct codegen* codegen, struct result* result,
       // Unary plus is ignored.
       break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
    result->status = R_VALUE;
 }
@@ -1391,8 +1382,7 @@ static void visit_subscript( struct codegen* codegen, struct result* result,
       subscript_str( codegen, subscript, result );
    }
    else {
-      UNREACHABLE();
-      t_bail( codegen->task );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -1573,8 +1563,7 @@ static void visit_access( struct codegen* codegen, struct result* result,
          *result = lside;
          break;
       default:
-         UNREACHABLE();
-         c_bail( codegen );
+         C_UNREACHABLE( codegen );
       }
       break;
    case ACCESS_NAMESPACE:
@@ -1602,8 +1591,7 @@ static void visit_access( struct codegen* codegen, struct result* result,
       case NODE_NAMESPACE:
          break;
       default:
-         UNREACHABLE();
-         c_bail( codegen );
+         C_UNREACHABLE( codegen );
       }
       break;
    case ACCESS_STR:
@@ -1700,7 +1688,7 @@ static void visit_call( struct codegen* codegen, struct result* result,
       visit_internal_call( codegen, result, call );
       break;
    default:
-      UNREACHABLE()
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -1904,7 +1892,7 @@ static void set_user_func_call_result( struct codegen* codegen,
          result->status = R_VALUE;
          break;
       default:
-         UNREACHABLE();
+         C_UNREACHABLE( codegen );
       }
    }
    // Primitive-type result.
@@ -1954,7 +1942,7 @@ static void visit_sample_call( struct codegen* codegen, struct result* result,
          result->status = R_VALUE;
          break;
       default:
-         UNREACHABLE();
+         C_UNREACHABLE( codegen );
       }
    }
    // Primitive-type result.
@@ -2187,8 +2175,7 @@ static void write_null_check( struct codegen* codegen ) {
       c_pcd( codegen, PCD_CASEGOTO, NULLVALUE, impl->obj_pos );
    }
    else {
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -2255,8 +2242,7 @@ static void visit_primary( struct codegen* codegen, struct result* result,
          ( struct magic_id* ) node );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -2338,8 +2324,7 @@ static void visit_general_name_usage( struct codegen* codegen,
          ( struct indexed_string_usage* ) object );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -2618,7 +2603,7 @@ static void visit_memcpy( struct codegen* codegen, struct result* result,
       copy_struct( codegen, result, call );
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -2916,7 +2901,7 @@ static void push_array_size( struct codegen* codegen, struct result* result ) {
       push_diminfo( codegen );
    }
    else {
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -2929,7 +2914,7 @@ static void push_array_length( struct codegen* codegen, struct result* result,
       push_ref_array_length( codegen, result, dim_info_pushed );
    }
    else {
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -3103,7 +3088,7 @@ static void visit_conversion( struct codegen* codegen, struct result* result,
          result->status = R_VALUE;
          break;
       default:
-         UNREACHABLE()
+         C_UNREACHABLE( codegen );
       }
       break;
    case SPEC_FIXED:
@@ -3121,7 +3106,7 @@ static void visit_conversion( struct codegen* codegen, struct result* result,
          result->status = R_VALUE;
          break;
       default:
-         UNREACHABLE()
+         C_UNREACHABLE( codegen );
       }
       break;
    case SPEC_BOOL:
@@ -3156,7 +3141,7 @@ static void visit_conversion( struct codegen* codegen, struct result* result,
             result->status = R_VALUE;
             break;
          default:
-            UNREACHABLE()
+            C_UNREACHABLE( codegen );
          }
       }
       break;
@@ -3196,11 +3181,11 @@ static void visit_conversion( struct codegen* codegen, struct result* result,
          result->status = R_VALUE;
          break;
       default:
-         UNREACHABLE()
+         C_UNREACHABLE( codegen );
       }
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 

@@ -236,7 +236,7 @@ void c_write_stmt( struct codegen* codegen, struct node* node ) {
    case NODE_USING:
       break;
    default:
-      UNREACHABLE();
+      C_UNREACHABLE( codegen );
    }
 }
 

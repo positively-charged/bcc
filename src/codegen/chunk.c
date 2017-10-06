@@ -536,8 +536,7 @@ static void write_mini_value( struct codegen* codegen, struct value* value ) {
       }
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -627,8 +626,7 @@ static bool is_zero_value( struct codegen* codegen, struct value* value ) {
       impl = value->more.funcref.func->impl;
       return ( impl->index == 0 );
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
    return false;
 }
@@ -651,8 +649,7 @@ static int get_value_size( struct codegen* codegen, struct value* value ) {
       // Offset to the array and offset to the dimension information.
       return 2;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
       return 0;
    }
 }
@@ -720,8 +717,7 @@ static void write_value( struct codegen* codegen,
       }
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
@@ -1112,8 +1108,7 @@ static void write_atag_chunk( struct codegen* codegen,
          case VALUE_STRUCTREF:
             break;
          default:
-            UNREACHABLE();
-            c_bail( codegen );
+            C_UNREACHABLE( codegen );
          }
          value = value->next;
       }
@@ -1161,8 +1156,7 @@ static void write_atag_chunk( struct codegen* codegen,
          case VALUE_STRUCTREF:
             break;
          default:
-            UNREACHABLE();
-            c_bail( codegen );
+            C_UNREACHABLE( codegen );
          }
          value = value->next;
       }

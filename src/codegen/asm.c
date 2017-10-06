@@ -51,8 +51,7 @@ static void write_arg( struct codegen* codegen, struct inline_asm_arg* arg ) {
       write_expr_arg( codegen, arg );
       break;
    default:
-      UNREACHABLE();
-      c_bail( codegen );
+      C_UNREACHABLE( codegen );
    }
 }
 
