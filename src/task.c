@@ -13,6 +13,7 @@ enum {
 struct diag_msg {
    struct str text;
    struct include_history_entry* file;
+   const char* filename;
    int line;
    int column;
    int flags;
@@ -395,12 +396,19 @@ void t_diag_args( struct task* task, int flags, va_list* args ) {
    if ( task->options->acc_err ) {
       log_diag( task, &msg );
    }
+   // Let the user know that internal errors are bugs.
+   if ( flags & DIAG_INTERNAL ) {
+      t_diag( task, DIAG_NOTE,
+         "an internal error is a bug in the compiler, please report it to the "
+         "developer" );
+   }
 }
 
 static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
    va_list* args ) {
    str_init( &msg->text );
    msg->file = NULL;
+   msg->filename = NULL;
    msg->line = 0;
    msg->column = 0;
    msg->flags = flags;
@@ -414,6 +422,12 @@ static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
          if ( msg->file->parent ) {
             msg->include_history = true;
          }
+      }
+   }
+   else if ( flags & DIAG_FILENAME ) {
+      msg->filename = va_arg( *args, const char* );
+      if ( flags & DIAG_LINE ) {
+         msg->line = va_arg( *args, int );
       }
    }
    // Append message prefix.
@@ -438,9 +452,14 @@ static void init_diag_msg( struct task* task, struct diag_msg* msg, int flags,
 }
 
 static void print_diag( struct task* task, struct diag_msg* msg ) {
-   if ( msg->flags & DIAG_FILE ) {
-      print_include_history( task, msg, stdout );
-      printf( "%s:", decode_filename( task, msg->file ) );
+   if ( msg->flags & DIAG_FILE || msg->flags & DIAG_FILENAME ) {
+      if ( msg->flags & DIAG_FILENAME ) {
+         printf( "%s:", msg->filename );
+      }
+      else {
+         print_include_history( task, msg, stdout );
+         printf( "%s:", decode_filename( task, msg->file ) );
+      }
       if ( msg->flags & DIAG_LINE ) {
          printf( "%d:", msg->line );
          if ( msg->flags & DIAG_COLUMN ) {
@@ -476,10 +495,15 @@ static void log_diag( struct task* task, struct diag_msg* msg ) {
       if ( ! task->err_file ) {
          open_logfile( task );
       }
-      if ( msg->flags & DIAG_FILE ) {
-         print_include_history( task, msg, task->err_file );
-         fprintf( task->err_file, "%s:",
-            decode_filename( task, msg->file ) );
+      if ( msg->flags & DIAG_FILE || msg->flags & DIAG_FILENAME ) {
+         if ( msg->flags & DIAG_FILENAME ) {
+            fprintf( task->err_file, "%s:", msg->filename );
+         }
+         else {
+            print_include_history( task, msg, task->err_file );
+            fprintf( task->err_file, "%s:",
+               decode_filename( task, msg->file ) );
+         }
          if ( msg->flags & DIAG_LINE ) {
             fprintf( task->err_file, "%d:", msg->line );
          }

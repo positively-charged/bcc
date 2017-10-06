@@ -1304,7 +1304,7 @@ struct task {
    struct list structures;
 };
 
-#define DIAG_NONE 0
+#define DIAG_NONE 0x0
 #define DIAG_FILE 0x1
 #define DIAG_LINE 0x2
 #define DIAG_COLUMN 0x4
@@ -1313,6 +1313,7 @@ struct task {
 #define DIAG_SYNTAX 0x20
 #define DIAG_INTERNAL 0x40
 #define DIAG_NOTE 0x80
+#define DIAG_FILENAME 0x100
 #define DIAG_POS DIAG_FILE | DIAG_LINE | DIAG_COLUMN
 #define DIAG_POS_ERR DIAG_POS | DIAG_ERR
 
