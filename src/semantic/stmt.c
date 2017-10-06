@@ -767,14 +767,17 @@ static void test_foreach( struct semantic* semantic, struct stmt_test* test,
          "expression not of iterable type" );
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &iter.value ) && expr.var ) {
-      if ( ! expr.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
-            "non-private collection (references only work with private map "
-            "variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &iter.value ) ) {
+      if ( expr.var ) {
+         if ( ! expr.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &stmt->collection->pos,
+               "non-private collection (references only work with private map "
+               "variables)" );
+            s_bail( semantic );
+         }
+         expr.var->addr_taken = true;
       }
-      expr.var->addr_taken = true;
       if ( expr.structure_member ) {
          expr.structure_member->addr_taken = true;
       }
@@ -981,14 +984,17 @@ static void test_return_value( struct semantic* semantic,
          s_bail( semantic );
       }
    }
-   if ( s_is_ref_type( &expr.type ) && expr.var ) {
-      if ( ! expr.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
-            "non-private return-value (references only work with private map "
-            "variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &expr.type ) ) {
+      if ( expr.var ) {
+         if ( ! expr.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &stmt->return_value->pos,
+               "non-private return-value (references only work with private map "
+               "variables)" );
+            s_bail( semantic );
+         }
+         expr.var->addr_taken = true;
       }
-      expr.var->addr_taken = true;
       if ( expr.structure_member ) {
          expr.structure_member->addr_taken = true;
       }

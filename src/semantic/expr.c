@@ -969,14 +969,17 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
          "invalid assignment operation" );
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &lside.type ) && rside.data_origin.var ) {
-      if ( ! rside.data_origin.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &assign->pos,
-            "non-private right operand (references only work with private map "
-            "variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &lside.type ) ) {
+      if ( rside.data_origin.var ) {
+         if ( ! rside.data_origin.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &assign->pos,
+               "non-private right operand (references only work with private "
+               "map variables)" );
+            s_bail( semantic );
+         }
+         rside.data_origin.var->addr_taken = true;
       }
-      rside.data_origin.var->addr_taken = true;
       if ( rside.data_origin.structure_member ) {
          rside.data_origin.structure_member->addr_taken = true;
       }
@@ -1165,6 +1168,7 @@ static void test_conditional( struct semantic* semantic,
       middle.data_origin : right.data_origin;
    cond->ref = snapshot.ref;
    cond->left_spec = left.type.spec;
+   // Note which variable is passed by reference.
    if ( s_is_ref_type( &middle.type ) ) {
       if ( middle.data_origin.var ) {
          if ( ! middle.data_origin.var->hidden ) {
@@ -1175,9 +1179,9 @@ static void test_conditional( struct semantic* semantic,
             s_bail( semantic );
          }
          middle.data_origin.var->addr_taken = true;
-         if ( middle.data_origin.structure_member ) {
-            middle.data_origin.structure_member->addr_taken = true;
-         }
+      }
+      if ( middle.data_origin.structure_member ) {
+         middle.data_origin.structure_member->addr_taken = true;
       }
       if ( right.data_origin.var ) {
          if ( ! right.data_origin.var->hidden ) {
@@ -1187,9 +1191,9 @@ static void test_conditional( struct semantic* semantic,
             s_bail( semantic );
          }
          right.data_origin.var->addr_taken = true;
-         if ( right.data_origin.structure_member ) {
-            right.data_origin.structure_member->addr_taken = true;
-         }
+      }
+      if ( right.data_origin.structure_member ) {
+         right.data_origin.structure_member->addr_taken = true;
       }
    }
    // Compile-time evaluation.
@@ -2294,14 +2298,17 @@ static void test_remaining_arg( struct semantic* semantic,
       }
    }
    ++test->num_args;
-   if ( s_is_ref_type( &arg.type ) && arg.var ) {
-      if ( ! arg.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &expr->pos,
-            "non-private argument (references only work with private "
-            "map variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &arg.type ) ) {
+      if ( arg.var ) {
+         if ( ! arg.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &expr->pos,
+               "non-private argument (references only work with private "
+               "map variables)" );
+            s_bail( semantic );
+         }
+         arg.var->addr_taken = true;
       }
-      arg.var->addr_taken = true;
       if ( arg.structure_member ) {
          arg.structure_member->addr_taken = true;
       }

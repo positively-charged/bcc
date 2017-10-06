@@ -1428,14 +1428,17 @@ static bool test_scalar_initz( struct semantic* semantic,
       UNREACHABLE();
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &test->initz_type ) && expr.var ) {
-      if ( ! expr.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
-            "non-private initializer (references only work with private map "
-            "variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &test->initz_type ) ) {
+      if ( expr.var ) {
+         if ( ! expr.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &value->expr->pos,
+               "non-private initializer (references only work with private "
+               "map variables)" );
+            s_bail( semantic );
+         }
+         expr.var->addr_taken = true;
       }
-      expr.var->addr_taken = true;
       if ( expr.structure_member ) {
          expr.structure_member->addr_taken = true;
       }
@@ -2186,14 +2189,17 @@ static bool test_param_default_value( struct semantic* semantic,
          &expr.type, &param->default_value->pos );
       s_bail( semantic );
    }
-   if ( s_is_ref_type( &expr.type ) && expr.var ) {
-      if ( ! expr.var->hidden ) {
-         s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
-            "non-private default argument (references only work with private "
-            "map variables)" );
-         s_bail( semantic );
+   // Note which variable is passed by reference.
+   if ( s_is_ref_type( &expr.type ) ) {
+      if ( expr.var ) {
+         if ( ! expr.var->hidden ) {
+            s_diag( semantic, DIAG_POS_ERR, &param->default_value->pos,
+               "non-private default argument (references only work with "
+               "private map variables)" );
+            s_bail( semantic );
+         }
+         expr.var->addr_taken = true;
       }
-      expr.var->addr_taken = true;
       if ( expr.structure_member ) {
          expr.structure_member->addr_taken = true;
       }
