@@ -27,6 +27,7 @@ struct result {
       R_NONE,
       R_VALUE,
       R_VAR,
+      R_ARRAY,
       R_ARRAYINDEX,
       R_NULL
    } status;
@@ -2373,6 +2374,7 @@ static void visit_var( struct codegen* codegen, struct result* result,
       else {
          result->storage = var->storage;
          result->index = var->index;
+         result->status = R_ARRAY;
       }
       result->direct = true;
    }
@@ -2544,21 +2546,30 @@ static void visit_magic_id( struct codegen* codegen, struct result* result,
 
 static void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call ) {
-   struct result object;
-   init_result( &object, false );
-   visit_operand( codegen, &object, call->array->root );
-   if ( object.status != R_ARRAYINDEX ) {
+   // Push array offset. This is the start of the array.
+   struct result array;
+   init_result( &array, EXPECTING_SPACE );
+   visit_operand( codegen, &array, call->array->root );
+   switch ( array.status ) {
+   case R_ARRAY:
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
+      break;
+   case R_ARRAYINDEX:
+      break;
+   default:
+      C_UNREACHABLE( codegen );
    }
-   c_pcd( codegen, PCD_PUSHNUMBER, object.index );
-   // Offset within the array.
+   // Push array index.
+   c_pcd( codegen, PCD_PUSHNUMBER, array.index );
+   // Push offset for the starting element. The string characters will be
+   // stored in the array starting from this element.
    if ( call->array_offset ) {
       c_push_expr( codegen, call->array_offset );
    }
    else {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
-   // Number of characters to copy from the string.
+   // Push number of characters to copy from the string.
    if ( call->array_length ) {
       c_push_expr( codegen, call->array_length );
    }
@@ -2566,30 +2577,32 @@ static void visit_strcpy( struct codegen* codegen, struct result* result,
       enum { MAX_LENGTH = INT_MAX };
       c_pcd( codegen, PCD_PUSHNUMBER, MAX_LENGTH );
    }
-   // String field.
+   // Push string.
    c_push_expr( codegen, call->string );
-   // String-offset field.
+   // Push substring offset. The string will be copied starting from this
+   // offset.
    if ( call->offset ) {
       c_push_expr( codegen, call->offset );
    }
    else {
       c_pcd( codegen, PCD_PUSHNUMBER, 0 );
    }
-   int code = PCD_STRCPYTOSCRIPTCHRANGE;
-   switch ( object.storage ) {
+   switch ( array.storage ) {
+   case STORAGE_LOCAL:
+      c_pcd( codegen, PCD_STRCPYTOSCRIPTCHRANGE );
+      break;
    case STORAGE_MAP:
-      code = PCD_STRCPYTOMAPCHRANGE;
+      c_pcd( codegen, PCD_STRCPYTOMAPCHRANGE );
       break;
    case STORAGE_WORLD:
-      code = PCD_STRCPYTOWORLDCHRANGE;
+      c_pcd( codegen, PCD_STRCPYTOWORLDCHRANGE );
       break;
    case STORAGE_GLOBAL:
-      code = PCD_STRCPYTOGLOBALCHRANGE;
+      c_pcd( codegen, PCD_STRCPYTOGLOBALCHRANGE );
       break;
    default:
-      break;
+      C_UNREACHABLE( codegen );
    }
-   c_pcd( codegen, code );
    result->status = R_VALUE;
 }
 
