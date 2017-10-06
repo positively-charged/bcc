@@ -112,6 +112,10 @@ struct codegen {
    int dummy_script_offset;
 };
 
+#define C_INTERNAL_ERR( codegen, ... ) \
+   c_diag( codegen, DIAG_FILENAME | DIAG_LINE | DIAG_INTERNAL | DIAG_ERR, \
+      __FILE__, __LINE__, __VA_ARGS__ )
+
 void c_init( struct codegen*, struct task* );
 void c_init_obj( struct codegen* );
 void c_publish( struct codegen* );
@@ -180,6 +184,7 @@ void c_update_dimtrack( struct codegen* codegen );
 void c_inc_dimtrack( struct codegen* codegen );
 int c_total_param_size( struct func* func );
 void c_init_local_var( struct codegen* codegen, struct var* var );
+void c_diag( struct codegen* codegen, int flags, ... );
 void c_bail( struct codegen* codegen );
 bool c_is_array( struct var* var );
 bool c_is_public_array( struct var* var );

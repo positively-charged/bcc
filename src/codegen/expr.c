@@ -3402,34 +3402,58 @@ void c_push_foreach_collection( struct codegen* codegen,
 }
 
 void c_push_dimtrack( struct codegen* codegen ) {
-   if ( codegen->shary.dim_counter_var ) {
-      push_indexed( codegen, STORAGE_MAP, codegen->shary.dim_counter );
+   if ( codegen->shary.used ) {
+      if ( codegen->shary.dim_counter_var ) {
+         push_indexed( codegen, STORAGE_MAP, codegen->shary.dim_counter );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      }
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_PUSHMAPARRAY, codegen->shary.index );
+      C_INTERNAL_ERR( codegen,
+         "asked to push dimension information, but shared array is not "
+         "allocated", __FILE__, __LINE__ ); 
+      c_bail( codegen );
    }
 }
 
 void c_update_dimtrack( struct codegen* codegen ) {
-   if ( codegen->shary.dim_counter_var ) {
-      c_update_indexed( codegen, STORAGE_MAP, codegen->shary.dim_counter,
-         AOP_NONE );
+   if ( codegen->shary.used ) {
+      if ( codegen->shary.dim_counter_var ) {
+         c_update_indexed( codegen, STORAGE_MAP, codegen->shary.dim_counter,
+            AOP_NONE );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_SWAP );
+         c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
+      }
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_SWAP );
-      c_pcd( codegen, PCD_ASSIGNMAPARRAY, codegen->shary.index );
+      C_INTERNAL_ERR( codegen,
+         "asked to update dimension information, but shared array is not "
+         "allocated" );
+      c_bail( codegen );
    }
 }
 
 static void inc_dimtrack( struct codegen* codegen ) {
-   if ( codegen->shary.dim_counter_var ) {
-      c_pcd( codegen, PCD_INCMAPVAR, codegen->shary.dim_counter );
+   if ( codegen->shary.used ) {
+      if ( codegen->shary.dim_counter_var ) {
+         c_pcd( codegen, PCD_INCMAPVAR, codegen->shary.dim_counter );
+      }
+      else {
+         c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
+         c_pcd( codegen, PCD_INCMAPARRAY, codegen->shary.index );
+      }
    }
    else {
-      c_pcd( codegen, PCD_PUSHNUMBER, SHAREDARRAYFIELD_DIMTRACK );
-      c_pcd( codegen, PCD_INCMAPARRAY, codegen->shary.index );
+      C_INTERNAL_ERR( codegen,
+         "asked to increment dimension information, but shared array is not "
+         "allocated" );
+      c_bail( codegen );
    }
 }
 

@@ -747,6 +747,13 @@ static void append_acs_strings( struct codegen* codegen ) {
    }
 }
 
+void c_diag( struct codegen* codegen, int flags, ... ) {
+   va_list args;
+   va_start( args, flags );
+   t_diag_args( codegen->task, flags, &args );
+   va_end( args );
+}
+
 void c_bail( struct codegen* codegen ) {
    t_bail( codegen->task );
 }
