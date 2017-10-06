@@ -2548,7 +2548,7 @@ static void visit_strcpy( struct codegen* codegen, struct result* result,
    struct strcpy_call* call ) {
    // Push array offset. This is the start of the array.
    struct result array;
-   init_result( &array, EXPECTING_SPACE );
+   init_result( &array, EXPECTING_VALUE );
    visit_operand( codegen, &array, call->array->root );
    switch ( array.status ) {
    case R_ARRAY:
