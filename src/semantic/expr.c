@@ -3238,6 +3238,10 @@ static void test_lengthof( struct semantic* semantic, struct expr_test* test,
       result->value = call->value;
       result->folded = true;
    }
+   // Null check.
+   if ( s_is_nullable( &operand.type ) ) {
+      semantic->lib->uses_nullable_refs = true;
+   }
 }
 
 static void test_conversion( struct semantic* semantic, struct expr_test* test,

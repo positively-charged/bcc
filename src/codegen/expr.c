@@ -2088,8 +2088,14 @@ static void visit_sure( struct codegen* codegen, struct result* result,
 }
 
 static void write_null_check( struct codegen* codegen ) {
-   struct func_user* impl = codegen->null_handler->impl;
-   c_pcd( codegen, PCD_CASEGOTO, NULLVALUE, impl->obj_pos );
+   if ( codegen->null_handler ) {
+      struct func_user* impl = codegen->null_handler->impl;
+      c_pcd( codegen, PCD_CASEGOTO, NULLVALUE, impl->obj_pos );
+   }
+   else {
+      UNREACHABLE();
+      c_bail( codegen );
+   }
 }
 
 static void visit_primary( struct codegen* codegen, struct result* result,
@@ -2966,6 +2972,12 @@ static void visit_lengthof( struct codegen* codegen, struct result* result,
       struct result operand;
       init_result( &operand, true );
       push_operand_result( codegen, &operand, call->operand->root );
+      // Null check.
+      if ( operand.ref && operand.ref->type == REF_ARRAY &&
+         operand.ref->nullable && ! operand.safe ) {
+         write_null_check( codegen );
+      }
+      // Drop the array address because we do not need it for this operation.
       if ( operand.status == R_ARRAYINDEX ) {
          c_pcd( codegen, PCD_DROP );
       }
