@@ -2105,11 +2105,6 @@ static void visit_internal_call( struct codegen* codegen,
       c_pcd( codegen, PCD_STRLEN );
       result->status = R_VALUE;
       break;
-   case INTERN_FUNC_STR_AT:
-      visit_operand( codegen, result, call->operand );
-      c_push_expr( codegen, list_head( &call->args ) );
-      c_pcd( codegen, PCD_CALLFUNC, 2, 15 );
-      break;
    case INTERN_FUNC_ARRAY_LENGTH:
       call_array_length( codegen, result, call );
       result->status = R_VALUE;
