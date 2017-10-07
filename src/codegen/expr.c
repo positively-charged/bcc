@@ -2101,8 +2101,9 @@ static void visit_internal_call( struct codegen* codegen,
          ( impl->id == INTERN_FUNC_ACS_NAMEDEXECUTEWAIT ) );
       break;
    case INTERN_FUNC_STR_LENGTH:
-      visit_operand( codegen, result, call->operand );
+      push_operand( codegen, call->operand );
       c_pcd( codegen, PCD_STRLEN );
+      result->status = R_VALUE;
       break;
    case INTERN_FUNC_STR_AT:
       visit_operand( codegen, result, call->operand );
@@ -2111,6 +2112,7 @@ static void visit_internal_call( struct codegen* codegen,
       break;
    case INTERN_FUNC_ARRAY_LENGTH:
       call_array_length( codegen, result, call );
+      result->status = R_VALUE;
       break;
    default:
       C_UNREACHABLE( codegen );
