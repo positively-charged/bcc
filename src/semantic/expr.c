@@ -2000,6 +2000,18 @@ static void test_access_str( struct semantic* semantic,
    case NODE_FUNC:
       select_func( semantic, result,
          ( struct func* ) name->object );
+      // Deprecation warning for using Length() function.
+      if ( s_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTHSTR ) ) {
+         struct func* func = ( struct func* ) name->object;
+         if ( func->type == FUNC_INTERNAL &&
+            ( ( struct func_intern* ) func->impl )->id ==
+            INTERN_FUNC_STR_LENGTH ) {
+            s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
+               "using the Length() function of a string is deprecated, use "
+               "StrLen() instead" );
+            s_register_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTHSTR );
+         }
+      }
       break;
    default:
       UNREACHABLE();

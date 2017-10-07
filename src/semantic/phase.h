@@ -122,9 +122,12 @@ enum deprecation {
    // Description: using `.` operator on namespaces. Recommend using `::`
    // instead.
    DEPRECATION_NSDOT,
-   // Description: using the Length() function of arrays and strings. Recommend
-   // using lengthof() for arrays and StrLen() for strings.
+   // Description: using the Length() function of arrays. Recommend using
+   // lengthof() instead.
    DEPRECATION_ASSOCFUNCLENGTH,
+   // Description: using the Length() function of strings. Recommend using
+   // StrLen() instead.
+   DEPRECATION_ASSOCFUNCLENGTHSTR,
    DEPRECATION_TOTAL
 };
 
