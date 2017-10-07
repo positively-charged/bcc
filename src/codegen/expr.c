@@ -200,6 +200,7 @@ static void call_array_length( struct codegen* codegen, struct result* result,
    struct call* call );
 static void visit_sure( struct codegen* codegen, struct result* result,
    struct sure* sure );
+static bool is_null_check_needed( struct result* result );
 static void write_null_check( struct codegen* codegen );
 static void visit_primary( struct codegen* codegen, struct result* result,
    struct node* node );
@@ -2170,6 +2171,15 @@ static void visit_sure( struct codegen* codegen, struct result* result,
    result->direct = operand.direct;
 }
 
+static bool is_null_check_needed( struct result* result ) {
+   switch ( describe_result( result ) ) {
+   case RESULTDESC_REF:
+      return ( result->ref->nullable && ! result->safe );
+   default:
+      return false;
+   }
+}
+
 static void write_null_check( struct codegen* codegen ) {
    if ( codegen->null_handler ) {
       struct func_user* impl = codegen->null_handler->impl;
@@ -2558,6 +2568,10 @@ static void visit_strcpy( struct codegen* codegen, struct result* result,
       break;
    default:
       C_UNREACHABLE( codegen );
+   }
+   // Null check.
+   if ( is_null_check_needed( &array ) ) {
+      write_null_check( codegen );
    }
    // Push array index.
    c_pcd( codegen, PCD_PUSHNUMBER, array.index );

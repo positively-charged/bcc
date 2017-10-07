@@ -3123,7 +3123,13 @@ static void test_strcpy( struct semantic* semantic, struct expr_test* test,
    struct expr_test arg;
    s_init_expr_test( &arg, false, false );
    test_nested_expr( semantic, test, &arg, call->array );
-   if ( ! is_printable_array( semantic, &arg.type ) ) {
+   if ( is_printable_array( semantic, &arg.type ) ) {
+      // Null check.
+      if ( arg.type.ref->nullable ) {
+         semantic->lib->uses_nullable_refs = true;
+      }
+   }
+   else {
       s_diag( semantic, DIAG_POS_ERR, &call->array->pos,
          "argument is not a one-dimensional int array" );
       s_bail( semantic );
