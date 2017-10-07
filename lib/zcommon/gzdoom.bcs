@@ -209,7 +209,11 @@ enum {
    CR_PURPLE,
    CR_DARKGRAY,
    CR_DARKGREY = CR_DARKGRAY,
-   CR_CYAN
+   CR_CYAN,
+   CR_ICE,
+   CR_FIRE,
+   CR_SAPPHIRE,
+   CR_TEAL,
 };
 
 enum {

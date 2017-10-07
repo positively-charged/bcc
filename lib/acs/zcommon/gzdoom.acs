@@ -168,6 +168,10 @@
 #define CR_DARKGRAY 20
 #define CR_DARKGREY CR_DARKGRAY
 #define CR_CYAN 21
+#define CR_ICE 22
+#define CR_FIRE 23
+#define CR_SAPPHIRE 24
+#define CR_TEAL 25
 
 #define HUDMSG_PLAIN 0
 #define HUDMSG_FADEOUT 1
