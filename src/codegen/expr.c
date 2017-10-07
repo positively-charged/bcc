@@ -2186,7 +2186,10 @@ static void write_null_check( struct codegen* codegen ) {
       c_pcd( codegen, PCD_CASEGOTO, NULLVALUE, impl->obj_pos );
    }
    else {
-      C_UNREACHABLE( codegen );
+      C_INTERNAL_ERR( codegen,
+         "asked to write a null check, but the null handler is not "
+         "allocated" );
+      c_bail( codegen );
    }
 }
 
