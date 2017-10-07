@@ -2093,23 +2093,27 @@ static void visit_msgbuild_format_item( struct codegen* codegen,
 
 static void visit_internal_call( struct codegen* codegen,
    struct result* result, struct call* call ) {
-   struct func_intern* impl = call->func->impl; 
-   if ( impl->id == INTERN_FUNC_ACS_EXECWAIT ||
-      impl->id == INTERN_FUNC_ACS_NAMEDEXECUTEWAIT ) {
+   struct func_intern* impl = call->func->impl;
+   switch ( impl->id ) {
+   case INTERN_FUNC_ACS_EXECWAIT:
+   case INTERN_FUNC_ACS_NAMEDEXECUTEWAIT:
       write_executewait( codegen, call,
          ( impl->id == INTERN_FUNC_ACS_NAMEDEXECUTEWAIT ) );
-   }
-   else if ( impl->id == INTERN_FUNC_STR_LENGTH ) {
+      break;
+   case INTERN_FUNC_STR_LENGTH:
       visit_operand( codegen, result, call->operand );
       c_pcd( codegen, PCD_STRLEN );
-   }
-   else if ( impl->id == INTERN_FUNC_STR_AT ) {
+      break;
+   case INTERN_FUNC_STR_AT:
       visit_operand( codegen, result, call->operand );
       c_push_expr( codegen, list_head( &call->args ) );
       c_pcd( codegen, PCD_CALLFUNC, 2, 15 );
-   }
-   else if ( impl->id == INTERN_FUNC_ARRAY_LENGTH ) {
+      break;
+   case INTERN_FUNC_ARRAY_LENGTH:
       call_array_length( codegen, result, call );
+      break;
+   default:
+      C_UNREACHABLE( codegen );
    }
 }
 
