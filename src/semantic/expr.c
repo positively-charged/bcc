@@ -1961,6 +1961,18 @@ static void test_access_array( struct semantic* semantic,
    case NODE_FUNC:
       select_func( semantic, result,
          ( struct func* ) name->object );
+      // Deprecation warning for using Length() function.
+      if ( s_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTH ) ) {
+         struct func* func = ( struct func* ) name->object;
+         if ( func->type == FUNC_INTERNAL &&
+            ( ( struct func_intern* ) func->impl )->id ==
+            INTERN_FUNC_ARRAY_LENGTH ) {
+            s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
+               "using the Length() function of an array is deprecated, use "
+               "the lengthof() operator instead" );
+            s_register_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTH );
+         }
+      }
       break;
    default:
       UNREACHABLE();

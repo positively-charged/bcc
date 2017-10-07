@@ -119,9 +119,12 @@ enum type_description {
 };
 
 enum deprecation {
-   // Occurs when using `.` operator on namespaces. Recommend using `::`
+   // Description: using `.` operator on namespaces. Recommend using `::`
    // instead.
    DEPRECATION_NSDOT,
+   // Description: using the Length() function of arrays and strings. Recommend
+   // using lengthof() for arrays and StrLen() for strings.
+   DEPRECATION_ASSOCFUNCLENGTH,
    DEPRECATION_TOTAL
 };
 
