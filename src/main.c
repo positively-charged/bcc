@@ -126,6 +126,7 @@ static void init_options( struct options* options ) {
    options->show_version = false;
    options->legacy_ns_dot = false;
    options->legacy_array_length_func = false;
+   options->legacy_str_length_func = false;
    options->cache.dir_path = NULL;
    options->cache.lifetime = -1;
    options->cache.enable = false;
@@ -299,6 +300,9 @@ static bool read_options( struct options* options, char** argv ) {
       else if ( strcmp( option, "legacy-array-length-func" ) == 0 ) {
          options->legacy_array_length_func = true;
       }
+      else if ( strcmp( option, "legacy-str-length-func" ) == 0 ) {
+         options->legacy_str_length_func = true;
+      }
       else {
          printf( "error: unknown option: %s\n", option );
          return false;
@@ -358,6 +362,9 @@ static void print_usage( char* path ) {
       "  -legacy-array...\n"
       "    -length-func       Do not show any deprecation warnings for using\n"
       "                       Length() function of an array\n"
+      "  -legacy-str...\n"
+      "    -length-func       Do not show any deprecation warnings for using\n"
+      "                       Length() function of a string\n"
       "  -E                   Do preprocessing only\n"
       "  -D <name>            Create a macro with the specified name. The\n"
       "                       macro will have a value of 1\n"

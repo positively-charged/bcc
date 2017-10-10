@@ -144,6 +144,8 @@ void s_init( struct semantic* semantic, struct task* task ) {
       task->options->legacy_ns_dot;
    semantic->deprecations[ DEPRECATION_ASSOCFUNCLENGTH ].suppressed =
       task->options->legacy_array_length_func;
+   semantic->deprecations[ DEPRECATION_ASSOCFUNCLENGTHSTR ].suppressed =
+      task->options->legacy_str_length_func;
 }
 
 static void init_worldglobal_vars( struct semantic* semantic ) {

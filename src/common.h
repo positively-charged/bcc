@@ -125,6 +125,7 @@ struct options {
    bool show_version;
    bool legacy_ns_dot;
    bool legacy_array_length_func;
+   bool legacy_str_length_func;
    struct {
       const char* dir_path;
       int lifetime;
