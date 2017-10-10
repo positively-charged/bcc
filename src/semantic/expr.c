@@ -1969,7 +1969,8 @@ static void test_access_array( struct semantic* semantic,
             INTERN_FUNC_ARRAY_LENGTH ) {
             s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
                "using the Length() function of an array is deprecated, use "
-               "the lengthof() operator instead" );
+               "the lengthof() operator instead (to suppress this warning, "
+               "use the -legacy-array-length-func command-line option)" );
             s_register_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTH );
          }
       }
@@ -2008,7 +2009,8 @@ static void test_access_str( struct semantic* semantic,
             INTERN_FUNC_STR_LENGTH ) {
             s_diag( semantic, DIAG_WARN | DIAG_POS, &access->pos,
                "using the Length() function of a string is deprecated, use "
-               "StrLen() instead" );
+               "StrLen() instead (to suppress this warning, use the "
+               "-legacy-str-length-func command-line option)" );
             s_register_deprecation( semantic, DEPRECATION_ASSOCFUNCLENGTHSTR );
          }
       }
