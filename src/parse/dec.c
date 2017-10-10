@@ -592,7 +592,7 @@ static void read_struct_name( struct parse* parse, struct dec* dec,
 
 static void read_struct_body( struct parse* parse, struct dec* dec,
    struct structure* structure ) {
-   structure->body = t_extend_name( structure->name, "." );
+   structure->body = t_create_name();
    p_test_tk( parse, TK_BRACE_L );
    p_read_tk( parse );
    while ( true ) {

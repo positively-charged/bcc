@@ -896,7 +896,7 @@ static struct structure* restore_structure( struct restorer* restorer ) {
       structure->name = t_create_name();
       structure->anon = true;
    }
-   structure->body = t_extend_name( structure->name, "." );
+   structure->body = t_create_name();
    while ( f_peek( restorer->r ) == F_STRUCTUREMEMBER ) {
       restore_structure_member( restorer, structure );
    }
