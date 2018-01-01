@@ -121,14 +121,12 @@ import-name:
    <identifier>
    <type-name>
 
-symbolic-constant:
-   symb <identifier> = <expression> ;
-
 declaration:
    <specifier-declaration>
    <object-declaration>
 
 specifier-declaration:
+   <specifier-visibility> <symbolic-constant> ;
    <specifier-visibility> <enumeration> ;
    <specifier-visibility> <structure> ;
    <specifier-visibility> <type-alias> ;
@@ -136,6 +134,9 @@ specifier-declaration:
 specifier-visibility:
    private
    E
+
+symbolic-constant:
+   symb <identifier> = <expression> ;
 
 enumeration:
    enum <enumeration-name> <enumeration-base> <enumeration-body>
