@@ -770,9 +770,23 @@ static void read_define( struct parse* parse ) {
    if ( parse->lang == LANG_BCS ) {
       switch ( parse->tk ) {
       case TK_TRUE:
+         p_read_tk( parse );
+         p_test_tk( parse, TK_LIT_DECIMAL );
+         if ( ! ( parse->tk_length == 1 && parse->tk_text[ 0 ] == '1' ) ) {
+            p_diag( parse, DIAG_SYNTAX | DIAG_POS_ERR, &parse->tk_pos,
+               "`true` constant must be defined as 1" );
+            p_bail( parse );
+         }
+         p_read_tk( parse );
+         return;
       case TK_FALSE:
          p_read_tk( parse );
          p_test_tk( parse, TK_LIT_DECIMAL );
+         if ( ! ( parse->tk_length == 1 && parse->tk_text[ 0 ] == '0' ) ) {
+            p_diag( parse, DIAG_SYNTAX | DIAG_POS_ERR, &parse->tk_pos,
+               "`false` constant must be defined as 0" );
+            p_bail( parse );
+         }
          p_read_tk( parse );
          return;
       default:
