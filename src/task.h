@@ -1062,6 +1062,7 @@ struct constant {
    int value;
    bool hidden;
    bool has_str;
+   bool force_local_scope;
 };
 
 struct indexed_string {

@@ -265,6 +265,12 @@ static void bind_builtin_script_aliases( struct semantic* semantic,
    struct builtin_script_aliases* aliases );
 
 void s_test_constant( struct semantic* semantic, struct constant* constant ) {
+   // Name.
+   if ( semantic->in_localscope ) {
+      s_bind_local_name( semantic, constant->name, &constant->object,
+         constant->force_local_scope );
+   }
+   // Expression.
    struct expr_test expr;
    s_init_expr_test( &expr, true, false );
    s_test_expr( semantic, &expr, constant->value_node );
@@ -281,6 +287,7 @@ void s_test_constant( struct semantic* semantic, struct constant* constant ) {
          "expression not of primitive type" );
       s_bail( semantic );
    }
+   // Finish.
    constant->spec = constant->value_node->spec;
    constant->value = constant->value_node->value;
    constant->has_str = constant->value_node->has_str;

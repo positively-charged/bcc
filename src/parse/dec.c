@@ -58,6 +58,7 @@ struct special_reading {
 static bool is_dec_bcs( struct parse* parse );
 static void read_local_var( struct parse* parse, struct dec* dec );
 static void read_dec( struct parse* parse, struct dec* dec );
+static void read_symbolic_constant( struct parse* parse, struct dec* dec );
 static void read_enum( struct parse* parse, struct dec* dec );
 static bool is_enum_def( struct parse* parse );
 static void read_enum_def( struct parse* parse, struct dec* dec );
@@ -216,6 +217,7 @@ static bool is_dec_bcs( struct parse* parse ) {
       case TK_VOID:
       case TK_WORLD:
       case TK_GLOBAL:
+      case TK_SYMB:
       case TK_ENUM:
       case TK_STRUCT:
       case TK_FUNCTION:
@@ -316,6 +318,9 @@ static void read_dec( struct parse* parse, struct dec* dec ) {
       p_read_tk( parse );
    }
    switch ( parse->tk ) {
+   case TK_SYMB:
+      read_symbolic_constant( parse, dec );
+      break;
    case TK_ENUM:
       read_enum( parse, dec );
       break;
@@ -333,6 +338,32 @@ static void read_dec( struct parse* parse, struct dec* dec ) {
       p_diag( parse, DIAG_POS_ERR, &dec->pos,
          "only namespace-level objects can be declared private" );
       p_bail( parse );
+   }
+}
+
+static void read_symbolic_constant( struct parse* parse, struct dec* dec ) {
+   p_test_tk( parse, TK_SYMB );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ID );
+   struct constant* constant = t_alloc_constant();
+   constant->object.pos = parse->tk_pos;
+   constant->name = t_extend_name( parse->ns->body, parse->tk_text );
+   p_read_tk( parse );
+   p_test_tk( parse, TK_ASSIGN );
+   p_read_tk( parse );
+   struct expr_reading value;
+   p_init_expr_reading( &value, true, false, false, true );
+   p_read_expr( parse, &value );
+   constant->value_node = value.output_node;
+   constant->hidden = dec->private_visibility;
+   constant->force_local_scope = dec->force_local_scope;
+   if ( dec->vars ) {
+      list_append( dec->vars, constant );
+   }
+   else {
+      p_add_unresolved( parse, &constant->object );
+      list_append( &parse->ns_fragment->objects, constant );
+      list_append( &parse->lib->objects, constant );
    }
 }
 

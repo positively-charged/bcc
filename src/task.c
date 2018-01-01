@@ -888,6 +888,7 @@ struct constant* t_alloc_constant( void ) {
    constant->value = 0;
    constant->hidden = false;
    constant->has_str = false;
+   constant->force_local_scope = false;
    return constant;
 }
 

@@ -193,6 +193,10 @@ static void test_block_item( struct semantic* semantic, struct stmt_test* test,
    struct stmt_test nested_test;
    s_init_stmt_test( &nested_test, test );
    switch ( node->type ) {
+   case NODE_CONSTANT:
+      s_test_constant( semantic,
+         ( struct constant* ) node );
+      break;
    case NODE_ENUMERATION:
       s_test_enumeration( semantic,
          ( struct enumeration* ) node );

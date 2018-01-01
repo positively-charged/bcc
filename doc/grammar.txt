@@ -119,7 +119,10 @@ import-item:
 
 import-name:
    <identifier>
-   <type-name> 
+   <type-name>
+
+symbolic-constant:
+   symb <identifier> = <expression> ;
 
 declaration:
    <specifier-declaration>
@@ -935,6 +938,7 @@ keyword:
    struct
    suspend
    switch
+   symb
    terminate
    true
    typedef
