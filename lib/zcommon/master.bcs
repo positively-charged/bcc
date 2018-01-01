@@ -18,10 +18,10 @@ strict namespace {
 // Constants
 // --------------------------------------------------------------------------
 
-enum { OFF = 0 };
-enum { ON = 1 };
-enum { NO = 0 };
-enum { YES = 1 };
+symb OFF = 0;
+symb ON = 1;
+symb NO = 0;
+symb YES = 1;
 
 enum {
    LINE_FRONT,
@@ -966,7 +966,7 @@ enum {
    CHANGELEVEL_PRERAISEWEAPON = 0x40
 };
 
-enum : fixed { NO_CHANGE = 32767.0 };
+symb NO_CHANGE = 32767.0;
 
 enum {
    SECF_SILENT = 0x1,
@@ -1025,7 +1025,7 @@ enum {
    PICKAF_RETURNTID = 0x2
 };
 
-enum { TRANSLATION_ICE = 0x10'0007 };
+symb TRANSLATION_ICE = 0x10'0007;
 
 enum {
    MF_SPECIAL = 0x1,
@@ -1170,8 +1170,8 @@ enum {
    TM_WEEKDAY
 };
 
-enum { INT_MIN = -INT_MAX - 1 };
-enum { INT_MAX = 2147483647 };
+symb INT_MIN = -INT_MAX - 1;
+symb INT_MAX = 2147483647;
 
 // Functions
 // --------------------------------------------------------------------------
