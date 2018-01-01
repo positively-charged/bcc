@@ -299,7 +299,7 @@ void s_test_enumeration( struct semantic* semantic,
    if ( enumeration->name ) {
       if ( semantic->in_localscope ) {
          s_bind_local_name( semantic, enumeration->name, &enumeration->object,
-            &enumeration->force_local_scope );
+            enumeration->force_local_scope );
       }
    }
    struct enumeration_test test = { -1 };
