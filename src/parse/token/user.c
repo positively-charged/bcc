@@ -144,6 +144,7 @@ static void read_token_bcs( struct parse* parse ) {
          { "struct", TK_STRUCT },
          { "suspend", TK_SUSPEND },
          { "switch", TK_SWITCH },
+         { "symb", TK_SYMB },
          { "terminate", TK_TERMINATE },
          { "true", TK_TRUE },
          { "typedef", TK_TYPEDEF },

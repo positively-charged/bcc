@@ -179,6 +179,7 @@ enum tk {
    TK_AT,
    TK_COLONCOLON,
    TK_LENGTHOF,
+   TK_SYMB,
 
    TK_TOTAL,
 
