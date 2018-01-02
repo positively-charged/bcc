@@ -613,37 +613,45 @@ static void test_switch( struct semantic* semantic, struct stmt_test* test,
    if ( s_describe_type( &test->cond_type ) == TYPEDESC_ENUM && ! (
       test->num_cases == test->cond_type.enumeration->num_enumerators ||
       stmt->case_default ) ) {
-      s_diag( semantic, DIAG_POS_ERR, get_heavy_cond_pos( &stmt->cond ),
-         "not all enumerators handled by switch statement" );
-      struct str name;
-      str_init( &name );
       enum { MISSING_CASE_SHOW_LIMIT = 10 };
-      int shown = 0;
+      int missing = 0;
       struct enumerator* enumerator = test->cond_type.enumeration->head;
-      while ( enumerator && shown < MISSING_CASE_SHOW_LIMIT ) {
+      while ( enumerator ) {
          struct case_label* label = stmt->case_head;
          while ( label && label->number->value != enumerator->value ) {
             label = label->next;
          }
          if ( ! label ) {
-            t_copy_name( enumerator->name, &name );
-            s_diag( semantic, DIAG_POS | DIAG_NOTE,
-               get_heavy_cond_pos( &stmt->cond ),
-               "a case is missing for enumerator `%s`", name.value );
-            ++shown;
+            // Report an error on the first missing case.
+            if ( missing == 0 ) {
+               s_diag( semantic, DIAG_POS_ERR,
+                  get_heavy_cond_pos( &stmt->cond ),
+                  "not all enumerators handled by switch statement" );
+            }
+            // Show the user some of the unhandled enumerators.
+            if ( missing < MISSING_CASE_SHOW_LIMIT ) {
+               struct str name;
+               str_init( &name );
+               t_copy_name( enumerator->name, &name );
+               s_diag( semantic, DIAG_POS | DIAG_NOTE,
+                  get_heavy_cond_pos( &stmt->cond ),
+                  "a case is missing for enumerator `%s`", name.value );
+               str_deinit( &name );
+            }
+            ++missing;
          }
          enumerator = enumerator->next;
       }
-      int not_shown = test->cond_type.enumeration->num_enumerators -
-         test->num_cases - shown;
-      if ( not_shown > 0 ) {
-         s_diag( semantic, DIAG_POS | DIAG_NOTE,
-            get_heavy_cond_pos( &stmt->cond ),
-            "a case is missing for %d more enumerator%s", not_shown,
-            not_shown == 1 ? "" : "s" );
+      if ( missing > 0 ) {
+         int not_shown = missing - MISSING_CASE_SHOW_LIMIT;
+         if ( not_shown > 0 ) {
+            s_diag( semantic, DIAG_POS | DIAG_NOTE,
+               get_heavy_cond_pos( &stmt->cond ),
+               "a case is missing for %d more enumerator%s", not_shown,
+               not_shown == 1 ? "" : "s" );
+         }
+         s_bail( semantic );
       }
-      str_deinit( &name );
-      s_bail( semantic );
    }
    // Flow.
    if ( ( test->found_folded_case || stmt->case_default ) &&
