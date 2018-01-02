@@ -164,6 +164,13 @@ struct semantic {
    } deprecations[ DEPRECATION_TOTAL ];
 };
 
+#define S_INTERNAL_ERR( semantic, ... ) \
+   s_diag( semantic, DIAG_FILENAME | DIAG_LINE | DIAG_INTERNAL | DIAG_ERR, \
+      __FILE__, __LINE__, __VA_ARGS__ )
+#define S_UNREACHABLE( semantic ) \
+   S_INTERNAL_ERR( semantic, "unreachable code" ); \
+   s_bail( semantic )
+
 void s_init( struct semantic* semantic, struct task* task );
 void s_test( struct semantic* semantic );
 void s_test_constant( struct semantic* semantic, struct constant* );

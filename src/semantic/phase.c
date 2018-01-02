@@ -285,8 +285,7 @@ static void test_module_item_acs( struct semantic* semantic,
          ( struct script* ) node );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -402,7 +401,7 @@ static void bind_namespace_object( struct semantic* semantic,
          ( struct ns_fragment* ) object );
       break;
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -509,7 +508,7 @@ static void show_private_objects( struct semantic* semantic ) {
             ( struct ns_fragment* ) object );
          break;
       default:
-         UNREACHABLE();
+         S_UNREACHABLE( semantic );
       }
       list_next( &i );
    }
@@ -586,7 +585,7 @@ static void hide_private_objects( struct semantic* semantic ) {
             ( struct ns_fragment* ) object );
          break;
       default:
-         UNREACHABLE();
+         S_UNREACHABLE( semantic );
       }
       list_next( &i );
    }
@@ -670,8 +669,7 @@ void s_perform_using( struct semantic* semantic, struct using_dirc* dirc ) {
       import_selection( semantic, follower.result.ns, dirc );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -957,8 +955,7 @@ static struct object* search_in_local_scope( struct semantic* semantic,
          search->requested_node );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    return object;
 }
@@ -989,8 +986,7 @@ static struct object* search_in_ns_direct( struct semantic* semantic,
          search->requested_node );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    return object;
 }
@@ -1224,10 +1220,7 @@ static void test_namespace_object( struct semantic* semantic,
          ( struct ns_fragment* ) object );
       break;
    default:
-      UNREACHABLE();
-      if ( semantic->trigger_err ) {
-         s_bail( semantic );
-      }
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1283,8 +1276,7 @@ static void test_objects_bodies_ns( struct semantic* semantic,
             ( struct ns_fragment* ) node );
          break;
       default:
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       list_next( &i );
    }

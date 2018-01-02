@@ -482,7 +482,7 @@ static bool perform_bop( struct semantic* semantic, struct binary* binary,
    case TYPEDESC_NULLREF:
       return perform_bop_ref( semantic, binary, lside, rside, result );
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
       return false;
    }
 }
@@ -641,8 +641,7 @@ static void fold_bop( struct semantic* semantic, struct binary* binary,
    case TYPEDESC_NULLREF:
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -664,8 +663,7 @@ static void fold_bop_primitive( struct semantic* semantic,
       fold_bop_str( semantic, binary, lside, rside );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    result->value = binary->value;
    result->folded = binary->folded;
@@ -794,8 +792,7 @@ static void fold_bop_str_compare( struct semantic* semantic,
    case BOP_GT: binary->value = ( result > 0 ); break;
    case BOP_GTE: binary->value = ( result >= 0 ); break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    binary->folded = true;
 }
@@ -868,7 +865,7 @@ static bool can_convert_to_boolean( struct semantic* semantic,
    case TYPEDESC_NULLREF:
       return true;
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
       return false;
    }
 }
@@ -886,8 +883,7 @@ static void fold_logical( struct semantic* semantic, struct logical* logical,
    case TYPEDESC_NULLREF:
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    result->value = logical->value;
    result->folded = logical->folded;
@@ -905,8 +901,7 @@ static void fold_logical_primitive( struct semantic* semantic,
       l = lside->value;
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    int r = 0;
    switch ( rside->type.spec ) {
@@ -918,15 +913,13 @@ static void fold_logical_primitive( struct semantic* semantic,
       r = rside->value;
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    switch ( logical->op ) {
    case LOP_OR: l = ( l || r ); break;
    case LOP_AND: l = ( l && r ); break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    logical->value = l;
    logical->folded = true;
@@ -1023,8 +1016,7 @@ static void test_assign( struct semantic* semantic, struct expr_test* test,
       assign->lside_type = ASSIGNLSIDE_REFARRAY;
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1040,7 +1032,7 @@ static bool perform_assign( struct semantic* semantic, struct assign* assign,
    case TYPEDESC_FUNCREF:
       return perform_assign_ref( assign, lside, result );
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
       return false;
    }
 }
@@ -1287,7 +1279,7 @@ static bool perform_unary( struct semantic* semantic, struct unary* unary,
    case TYPEDESC_NULLREF:
       return perform_unary_ref( semantic, unary, operand, result );
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
       return false;
    }
 }
@@ -1322,7 +1314,7 @@ static bool perform_unary_primitive( struct semantic* semantic,
       spec = SPEC_BOOL;
       break;
    default:
-      UNREACHABLE()
+      S_UNREACHABLE( semantic );
    }
    if ( spec != SPEC_NONE ) {
       s_init_type_info_scalar( &result->type, s_spec( semantic, spec ) );
@@ -1372,8 +1364,7 @@ static void fold_unary( struct semantic* semantic, struct unary* unary,
       fold_unary_ref( semantic, unary, operand, result );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1390,8 +1381,7 @@ static void fold_unary_primitive( struct semantic* semantic,
          result->folded = true;
          break;
       default:
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       break;
    case UOP_PLUS:
@@ -1403,8 +1393,7 @@ static void fold_unary_primitive( struct semantic* semantic,
          result->folded = true;
          break;
       default:
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       break;
    case UOP_LOG_NOT:
@@ -1418,8 +1407,7 @@ static void fold_unary_primitive( struct semantic* semantic,
          result->folded = true;
          break;
       default:
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       break;
    case UOP_BIT_NOT:
@@ -1430,13 +1418,11 @@ static void fold_unary_primitive( struct semantic* semantic,
          result->folded = true;
          break;
       default:
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1450,8 +1436,7 @@ static void fold_unary_ref( struct semantic* semantic,
       result->folded = true;
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1718,8 +1703,7 @@ static void test_subscript_array( struct semantic* semantic,
    case SUBSCRIPTRESULT_PRIMITIVE:
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1942,8 +1926,7 @@ static void select_ns_object( struct semantic* semantic,
          ( struct alias* ) object );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -1976,8 +1959,7 @@ static void test_access_array( struct semantic* semantic,
       }
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    access->type = ACCESS_ARRAY;
    access->rside = &name->object->node;
@@ -2016,8 +1998,7 @@ static void test_access_str( struct semantic* semantic,
       }
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    access->type = ACCESS_STR;
    access->rside = &name->object->node;
@@ -2084,7 +2065,7 @@ static void test_call( struct semantic* semantic, struct expr_test* expr_test,
       call->ref_func = func;
    }
    else {
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -2190,7 +2171,7 @@ static void test_format_item( struct semantic* semantic,
       spec = SPEC_STR;
       break;
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
    struct type_info required_type;
    s_init_type_info_scalar( &required_type, spec );
@@ -2589,8 +2570,7 @@ static void test_primary( struct semantic* semantic, struct expr_test* test,
       test_null( result );
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -2895,8 +2875,7 @@ static void select_object( struct semantic* semantic, struct expr_test* test,
    case NODE_TYPE_ALIAS:
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -3135,8 +3114,7 @@ static void expand_magic_id( struct semantic* semantic,
       }
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    magic_id->string = t_intern_string_copy( semantic->task,
       name.value, name.length );

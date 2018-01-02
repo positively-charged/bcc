@@ -609,7 +609,7 @@ static void test_var_arg( struct semantic* semantic, struct test* test,
       case 'w': name = "world"; break;
       case 'g': name = "global"; break;
       default:
-         UNREACHABLE();
+         S_UNREACHABLE( semantic );
       }
       s_diag( semantic, DIAG_POS_ERR, &arg->pos,
          "instruction argument not a %s %s", name,

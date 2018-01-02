@@ -496,7 +496,7 @@ static void test_stmt( struct semantic* semantic, struct stmt_test* test,
          ( struct inline_asm* ) node );
       break;
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -784,8 +784,7 @@ static void test_for( struct semantic* semantic, struct stmt_test* test,
          s_bail( semantic );
       }
       else {
-         UNREACHABLE();
-         s_bail( semantic );
+         S_UNREACHABLE( semantic );
       }
       list_next( &i );
    }

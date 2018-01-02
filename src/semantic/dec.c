@@ -665,7 +665,7 @@ static void test_spec( struct semantic* semantic, struct spec_test* test ) {
          ! ( ( struct type_alias* ) test->type_alias )->hidden ) );
       break;
    default:
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
    // Expand type alias.
    if ( test->spec == SPEC_NAME ) {
@@ -809,7 +809,7 @@ static void merge_ref( struct semantic* semantic, struct spec_test* test,
       }
    }
    else {
-      UNREACHABLE();
+      S_UNREACHABLE( semantic );
    }
 }
 
@@ -895,7 +895,7 @@ static bool test_ref( struct semantic* semantic, struct ref_test* test ) {
             ( struct ref_func* ) ref );
          break;
       default:
-         UNREACHABLE();
+         S_UNREACHABLE( semantic );
       }
       if ( ! resolved ) {
          return false;
@@ -1432,8 +1432,7 @@ static bool test_scalar_initz( struct semantic* semantic,
       }
       break;
    default:
-      UNREACHABLE();
-      s_bail( semantic );
+      S_UNREACHABLE( semantic );
    }
    // Note which variable is passed by reference.
    if ( s_is_ref_type( &test->initz_type ) ) {
