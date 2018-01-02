@@ -115,7 +115,7 @@ static void read_module_item( struct parse* parse ) {
    case LANG_ACS95:
       read_module_item_acs( parse );
       break;
-   default:
+   case LANG_BCS:
       switch ( parse->tk ) {
       case TK_HASH:
          read_pseudo_dirc( parse, false );
@@ -124,6 +124,8 @@ static void read_module_item( struct parse* parse ) {
          read_namespace_member( parse );
       }
       break;
+   default:
+      P_UNREACHABLE( parse );
    }
 }
 
@@ -673,8 +675,11 @@ static void read_pseudo_dirc( struct parse* parse, bool first_object ) {
          break;
       }
       break;
-   default:
+   case LANG_BCS:
       dirc = determine_bcs_pseudo_dirc( parse );
+      break;
+   default:
+      P_UNREACHABLE( parse );
    }
    // Read directive.
    switch ( dirc ) {
@@ -1138,8 +1143,7 @@ static void append_imported_lib( struct parse* parse, struct import_dirc* dirc,
       list_append( &parse->lib->dynamic_acs, lib );
       break;
    default:
-      UNREACHABLE();
-      p_bail( parse );
+      P_UNREACHABLE( parse );
    }
    dirc->lib = lib;
 }
@@ -1242,7 +1246,7 @@ static void collect_private_objects( struct parse* parse, struct library* lib,
          }
          break;
       default:
-         UNREACHABLE();
+         P_UNREACHABLE( parse );
       }
       // Add object to the hidden list.
       if ( hidden ) {

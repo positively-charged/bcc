@@ -200,7 +200,7 @@ static void read_identified_dirc( struct parse* parse, struct pos* pos,
       break;
    case DIRC_NONE:
    default:
-      UNREACHABLE()
+      P_UNREACHABLE( parse );
    }
 }
 

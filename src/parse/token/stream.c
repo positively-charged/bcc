@@ -471,7 +471,7 @@ static void expand_predef_macro( struct parse* parse,
       expand_predef_imported( parse, expan );
       break;
    default:
-      UNREACHABLE();
+      P_UNREACHABLE( parse );
    }
 }
 

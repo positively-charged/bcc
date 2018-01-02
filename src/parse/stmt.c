@@ -198,8 +198,11 @@ static void read_stmt( struct parse* parse, struct stmt_reading* reading,
          break;
       }
       break;
-   default:
+   case LANG_BCS:
       stmt = parse->tk;
+      break;
+   default:
+      P_UNREACHABLE( parse );
    }
    // Read statement.
    switch ( stmt ) {

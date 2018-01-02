@@ -1015,7 +1015,7 @@ static void read_ref( struct parse* parse, struct ref_reading* reading ) {
             read_ref_func( parse, reading );
             break;
          default:
-            UNREACHABLE()
+            P_UNREACHABLE( parse );
          }
       }
       if ( parse->tk == TK_BIT_AND ) {
@@ -1585,7 +1585,7 @@ static void add_var( struct parse* parse, struct dec* dec ) {
       }
    }
    else {
-      UNREACHABLE();
+      P_UNREACHABLE( parse );
    }
    if ( dec->var ) {
       dec->var->next_instance = var;

@@ -453,6 +453,13 @@ struct parse {
    } wadauthor;
 };
 
+#define P_INTERNAL_ERR( parse, ... ) \
+   p_diag( parse, DIAG_FILENAME | DIAG_LINE | DIAG_INTERNAL | DIAG_ERR, \
+      __FILE__, __LINE__, __VA_ARGS__ )
+#define P_UNREACHABLE( parse ) \
+   P_INTERNAL_ERR( parse, "unreachable code" ); \
+   p_bail( parse )
+
 void p_init( struct parse* parse, struct task* task, struct cache* cache );
 void p_init_stream( struct parse* parse );
 void p_run( struct parse* parse );
