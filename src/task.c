@@ -900,6 +900,7 @@ struct enumeration* t_alloc_enumeration( void ) {
    enumeration->name = NULL;
    enumeration->body = NULL;
    enumeration->base_type = SPEC_INT;
+   enumeration->num_enumerators = 0;
    enumeration->hidden = false;
    enumeration->semicolon = false;
    enumeration->force_local_scope = false;
@@ -928,6 +929,7 @@ void t_append_enumerator( struct enumeration* enumeration,
       enumeration->head = enumerator;
    }
    enumeration->tail = enumerator;
+   ++enumeration->num_enumerators;
 }
 
 struct structure* t_alloc_structure( void ) {

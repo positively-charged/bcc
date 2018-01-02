@@ -55,6 +55,8 @@ struct stmt_test {
    struct jump* jump_break;
    struct jump* jump_continue;
    struct type_info cond_type;
+   // Number of non-default cases found for a switch statement.
+   int num_cases;
    enum {
       FLOW_GOING,
       FLOW_BREAKING,

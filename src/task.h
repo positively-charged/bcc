@@ -195,6 +195,7 @@ struct enumeration {
    struct name* name;
    struct name* body;
    int base_type;
+   int num_enumerators;
    bool hidden;
    bool semicolon;
    bool force_local_scope;
