@@ -261,7 +261,7 @@ reference-list:
 
 reference-item:
    <reference-storage> <dimension-list> <reference-marker>
-   ( <parameter-list-declaration> ) <reference-marker>
+   <function-keyword> <function-parameter-list> <reference-marker>
 
 instance-list:
    <instance>
@@ -302,8 +302,8 @@ initializer-list:
    <initializer-list> , <initializer>
 
 function:
-   <function-keyword> <function-return> <identifier> (
-      <parameter-list-declaration> ) <function-body>
+   <function-keyword> <function-return> <identifier> <function-parameter-list>
+      <function-body>
 
 function-keyword:
    function
@@ -312,6 +312,9 @@ function-keyword:
 function-return:
    <extended-specifier> <reference>
    <auto>
+
+function-parameter-list:
+   ( <parameter-list-declaration> )
 
 parameter-list-declaration:
    <parameter-list>

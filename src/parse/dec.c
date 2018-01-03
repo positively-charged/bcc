@@ -56,6 +56,7 @@ struct special_reading {
 };
 
 static bool is_dec_bcs( struct parse* parse );
+static bool is_dec_and_not_conversion_call( struct parse* parse );
 static void read_local_var( struct parse* parse, struct dec* dec );
 static void read_dec( struct parse* parse, struct dec* dec );
 static void read_symbolic_constant( struct parse* parse, struct dec* dec );
@@ -211,8 +212,7 @@ static bool is_dec_bcs( struct parse* parse ) {
       case TK_FIXED:
       case TK_BOOL:
       case TK_STR:
-         // Make sure it is not a conversion call.
-         return ( p_peek( parse ) != TK_PAREN_L );
+         return is_dec_and_not_conversion_call( parse );
       case TK_RAW:
       case TK_VOID:
       case TK_WORLD:
@@ -235,6 +235,65 @@ static bool is_dec_bcs( struct parse* parse ) {
          return false;
       }
    }
+}
+
+static bool is_dec_and_not_conversion_call( struct parse* parse ) {
+   switch ( parse->tk ) {
+   case TK_INT:
+   case TK_FIXED:
+   case TK_BOOL:
+   case TK_STR:
+      // Syntax of function references and conversion calls is very similar, so
+      // extra (possibly infinite) peeking needs to be done to differentiate
+      // between the two. (I am not too happy about this situation. If I am to
+      // choose between the two, I would rather have the shorter function
+      // reference syntax (not needing the `function` keyword). Maybe deprecate
+      // conversion calls and provide some standard (inline?) functions to do
+      // conversions?)
+      if ( p_peek( parse ) == TK_PAREN_L ) {
+         struct parsertk_iter iter;
+         p_init_parsertk_iter( parse, &iter );
+         p_next_tk( parse, &iter );
+         p_next_tk( parse, &iter );
+         bool illformed = false;
+         while ( ! illformed ) {
+            switch ( iter.token->type ) {
+            case TK_RAW:
+            case TK_ENUM:
+            case TK_STRUCT:
+            case TK_TYPENAME:
+            case TK_VOID:
+            case TK_PAREN_R:
+               return true;
+            case TK_INT:
+            case TK_FIXED:
+            case TK_BOOL:
+            case TK_STR:
+               p_next_tk( parse, &iter );
+               if ( iter.token->type == TK_PAREN_L ) {
+                  p_next_tk( parse, &iter );
+               }
+               else {
+                  return true;
+               }
+               break;
+            case TK_ID:
+            case TK_UPMOST:
+            case TK_NAMESPACE:
+               return p_peek_type_path_from_iter( parse, &iter );
+            default:
+               illformed = true;
+            }
+         }
+      }
+      else {
+         return true;
+      }
+      break;
+   default:
+      break;
+   }
+   return false;
 }
 
 void p_init_dec( struct dec* dec ) {
@@ -1000,7 +1059,8 @@ static void read_ref( struct parse* parse, struct ref_reading* reading ) {
       break;
    }
    // Read array and function references.
-   while ( parse->tk == TK_BRACKET_L || parse->tk == TK_FUNCTION ) {
+   while ( parse->tk == TK_BRACKET_L || ( parse->tk == TK_PAREN_L ||
+      parse->tk == TK_FUNCTION ) ) {
       if ( parse->tk == TK_BRACKET_L ) {
          if ( is_array_ref( parse ) ) {
             read_array_ref( parse, reading );
@@ -1011,6 +1071,7 @@ static void read_ref( struct parse* parse, struct ref_reading* reading ) {
       }
       else {
          switch ( parse->tk ) {
+         case TK_PAREN_L:
          case TK_FUNCTION:
             read_ref_func( parse, reading );
             break;
@@ -1114,8 +1175,10 @@ static void read_array_ref( struct parse* parse,
 static void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
    struct ref_func* part = t_alloc_ref_func();
    part->ref.pos = parse->tk_pos;
-   p_test_tk( parse, TK_FUNCTION );
-   p_read_tk( parse );
+   // Read optional `function` keyword.
+   if ( parse->tk == TK_FUNCTION ) {
+      p_read_tk( parse );
+   }
    // Read parameter list.
    p_test_tk( parse, TK_PAREN_L );
    p_read_tk( parse );
