@@ -31,7 +31,7 @@ struct source {
    // Link for forming a free list.
    struct source* next_free;
    // Current file position.
-   int file_entry_id;
+   struct include_history_entry* include_history_entry;
    int line;
    int column;
    // Current character. Changes every time a new character is read.
@@ -92,7 +92,7 @@ void p_load_main_source( struct parse* parse ) {
       create_entry( parse, &request, false );
       create_include_history_entry( parse, 0 );
       t_update_err_file_dir( parse->task, request.file->full_path.value );
-      parse->lib->file_pos.id = request.source->file_entry_id;
+      parse->lib->file_pos.id = request.source->include_history_entry->id;
       parse->lib->file = request.file;
    }
    else {
@@ -112,7 +112,7 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
       append_file( parse->lib, file );
       create_entry( parse, &request, true );
       create_include_history_entry_imported( parse, dirc );
-      parse->lib->file_pos.id = request.source->file_entry_id;
+      parse->lib->file_pos.id = request.source->include_history_entry->id;
       parse->lib->file = file;
    }
    else {
@@ -289,7 +289,6 @@ static void open_source_file( struct parse* parse, struct request* request ) {
    // Create source.
    struct source* source = alloc_source( parse );
    source->file = request->file;
-   source->file_entry_id = source->file->id;
    source->fh = fh;
    source->next_free = NULL;
    request->source = source;
@@ -309,6 +308,7 @@ static struct source* alloc_source( struct parse* parse ) {
    source->file = NULL;
    source->fh = NULL;
    source->next_free = NULL;
+   source->include_history_entry = NULL;
    reset_filepos( source );
    source->ch = '\0';
    source->buffer_pos = SOURCE_BUFFER_SIZE;
@@ -353,7 +353,7 @@ static void create_include_history_entry( struct parse* parse, int line ) {
    entry->file = parse->source->file;
    entry->line = line;
    parse->include_history_entry = entry;
-   parse->source->file_entry_id = entry->id;
+   parse->source->include_history_entry = entry;
 }
 
 static void create_include_history_entry_imported( struct parse* parse,
@@ -365,7 +365,7 @@ static void create_include_history_entry_imported( struct parse* parse,
    entry->line = dirc->pos.line;
    entry->imported = true;
    parse->include_history_entry = entry;
-   parse->source->file_entry_id = entry->id;
+   parse->source->include_history_entry = entry;
 }
 
 void p_add_altern_file_name( struct parse* parse,
@@ -378,7 +378,7 @@ void p_add_altern_file_name( struct parse* parse,
    entry->line = parse->include_history_entry->line;
    entry->imported = parse->include_history_entry->imported;
    parse->include_history_entry = entry;
-   parse->source->file_entry_id = entry->id;
+   parse->source->include_history_entry = entry;
    parse->source->line = line;
 }
 
@@ -463,7 +463,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
    // being used. Identifier tokens are one of the most common, so look for
    // them first.
    // -----------------------------------------------------------------------
-   id = parse->source->file_entry_id;
+   id = parse->source->include_history_entry->id;
    line = parse->source->line;
    column = parse->source->column;
    if ( isalpha( ch ) || ch == '_' ) {
@@ -766,8 +766,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
    }
    else {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-         column );
+      t_init_pos( &pos, parse->source->include_history_entry->id,
+         parse->source->line, column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "invalid character" );
       p_bail( parse );
@@ -853,7 +853,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       if ( text->length > MAX_IDENTIFIER_LENGTH ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "identifier too long (maximum length is %d)",
@@ -893,8 +893,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-            parse->source->column );
+         t_init_pos( &pos, parse->source->include_history_entry->id,
+            parse->source->line, parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in hexadecimal literal" );
          p_bail( parse );
@@ -902,7 +902,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       else {
          if ( text->length == 0 ) {
             struct pos pos;
-            t_init_pos( &pos, parse->source->file_entry_id,
+            t_init_pos( &pos, parse->source->include_history_entry->id,
                parse->source->line, column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "hexadecimal literal has no digits, will interpret it as 0x0" );
@@ -962,8 +962,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-            parse->source->column );
+         t_init_pos( &pos, parse->source->include_history_entry->id,
+            parse->source->line, parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in decimal literal" );
          p_bail( parse );
@@ -983,8 +983,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       }
       else if ( isalpha( ch ) ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-            parse->source->column );
+         t_init_pos( &pos, parse->source->include_history_entry->id,
+            parse->source->line, parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "invalid digit in fractional part of fixed-point literal" );
          p_bail( parse );
@@ -992,7 +992,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       else {
          if ( text->value[ text->length - 1 ] == '.' ) {
             struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
+               parse->source->include_history_entry->id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "fixed-point literal has no digits after point, will interpret "
                "it as %s0", text->value );
@@ -1013,7 +1013,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       else {
          if ( text->value[ text->length - 1 ] == '_' ) {
             struct pos pos = { parse->source->line, column,
-               parse->source->file_entry_id };
+               parse->source->include_history_entry->id };
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
                "radix literal has no digits after underscore, "
                "will interpret it as %s0", text->value );
@@ -1031,7 +1031,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       if ( ! ch ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
@@ -1040,7 +1040,7 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
       else if ( ch == ACC_EOF_CHARACTER ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -1071,8 +1071,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
    text = temp_text( parse );
    if ( ch == '\'' || ! ch ) {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-         parse->source->column );
+      t_init_pos( &pos, parse->source->include_history_entry->id,
+         parse->source->line, parse->source->column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "missing character in character literal" );
       p_bail( parse );
@@ -1093,8 +1093,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
    }
    if ( ch != '\'' ) {
       struct pos pos;
-      t_init_pos( &pos, parse->source->file_entry_id, parse->source->line,
-         column );
+      t_init_pos( &pos, parse->source->include_history_entry->id,
+         parse->source->line, column );
       p_diag( parse, DIAG_POS_ERR, &pos,
          "multiple characters in character literal" );
       p_bail( parse );
@@ -1115,7 +1115,8 @@ static void read_token_acs( struct parse* parse, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, line, column );
+         t_init_pos( &pos, parse->source->include_history_entry->id, line,
+            column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated comment" );
          p_bail( parse );
@@ -1171,7 +1172,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
    // being used. Identifier tokens are one of the most common, so look for
    // them first.
    // -----------------------------------------------------------------------
-   id = parse->source->file_entry_id;
+   id = parse->source->include_history_entry->id;
    line = parse->source->line;
    column = parse->source->column;
    if ( isalpha( ch ) || ch == '_' ) {
@@ -1416,7 +1417,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
    else {
       struct pos pos;
       t_init_pos( &pos,
-         parse->source->file_entry_id,
+         parse->source->include_history_entry->id,
          parse->source->line,
          column );
       p_diag( parse, DIAG_POS_ERR, &pos,
@@ -1469,7 +1470,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
       if ( text->length > MAX_IDENTIFIER_LENGTH ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "identifier too long (maximum length is %d)",
@@ -1534,7 +1535,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
          if ( text->length == 0 ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -1610,7 +1611,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
          if ( text->value[ text->length - 1 ] == '.' ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -1634,7 +1635,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
          if ( text->value[ text->length - 1 ] == '_' ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -1654,7 +1655,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
       if ( ! ch ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
@@ -1663,7 +1664,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
       else if ( ch == ACC_EOF_CHARACTER ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -1694,7 +1695,7 @@ static void read_token_acs95( struct parse* parse, struct token* token ) {
       if ( ! ch ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated comment" );
@@ -2095,7 +2096,7 @@ static void read_token( struct parse* parse, struct token* token ) {
    else {
       struct pos pos;
       t_init_pos( &pos,
-         parse->source->file_entry_id,
+         parse->source->include_history_entry->id,
          parse->source->line,
          column );
       p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2117,7 +2118,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          ! parse->variadic_macro_context ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "`__VA_ARGS__` can only appear in the body of a variadic macro" );
@@ -2145,7 +2146,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! ( ch == '0' || ch == '1' ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2156,7 +2157,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2166,7 +2167,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( text->length == 0 ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2193,7 +2194,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! isxdigit( ch ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2204,7 +2205,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2215,7 +2216,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( text->length == 0 ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -2240,7 +2241,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! ( ch >= '0' && ch <= '7' ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2251,7 +2252,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( isalnum( ch ) ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2262,7 +2263,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( text->length == 0 ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2316,7 +2317,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! isdigit( ch ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2343,7 +2344,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( isalpha( ch ) ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2368,7 +2369,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! isdigit( ch ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2379,7 +2380,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( isalpha( ch ) ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2390,7 +2391,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( text->value[ text->length - 1 ] == '.' ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                column );
             p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -2408,7 +2409,7 @@ static void read_token( struct parse* parse, struct token* token ) {
    if ( ! ( isalnum( ch ) || ch == '\'' ) ) {
       struct pos pos;
       t_init_pos( &pos,
-         parse->source->file_entry_id,
+         parse->source->include_history_entry->id,
          parse->source->line,
          column );
       p_diag( parse, DIAG_POS | DIAG_WARN, &pos,
@@ -2427,7 +2428,7 @@ static void read_token( struct parse* parse, struct token* token ) {
          if ( ! isalnum( ch ) ) {
             struct pos pos;
             t_init_pos( &pos,
-               parse->source->file_entry_id,
+               parse->source->include_history_entry->id,
                parse->source->line,
                parse->source->column );
             p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2451,7 +2452,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       if ( ! ch ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             line, column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated string" );
@@ -2460,7 +2461,7 @@ static void read_token( struct parse* parse, struct token* token ) {
       else if ( ch == ACC_EOF_CHARACTER ) {
          struct pos pos;
          t_init_pos( &pos,
-            parse->source->file_entry_id,
+            parse->source->include_history_entry->id,
             parse->source->line,
             parse->source->column );
          p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2492,7 +2493,7 @@ static void read_token( struct parse* parse, struct token* token ) {
    if ( ch == '\'' || ! ch ) {
       struct pos pos;
       t_init_pos( &pos,
-         parse->source->file_entry_id,
+         parse->source->include_history_entry->id,
          parse->source->line,
          parse->source->column );
       p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2524,7 +2525,7 @@ static void read_token( struct parse* parse, struct token* token ) {
    if ( ch != '\'' ) {
       struct pos pos;
       t_init_pos( &pos,
-         parse->source->file_entry_id,
+         parse->source->include_history_entry->id,
          parse->source->line,
          column );
       p_diag( parse, DIAG_POS_ERR, &pos,
@@ -2547,7 +2548,8 @@ static void read_token( struct parse* parse, struct token* token ) {
    while ( true ) {
       if ( ! ch ) {
          struct pos pos;
-         t_init_pos( &pos, parse->source->file_entry_id, line, column );
+         t_init_pos( &pos, parse->source->include_history_entry->id, line,
+            column );
          p_diag( parse, DIAG_POS_ERR, &pos,
             "unterminated comment" );
          p_bail( parse );
@@ -2582,7 +2584,7 @@ static void read_token( struct parse* parse, struct token* token ) {
    }
    token->pos.line = line;
    token->pos.column = column;
-   token->pos.id = parse->source->file_entry_id;
+   token->pos.id = parse->source->include_history_entry->id;
    token->next = NULL;
 }
 
@@ -2690,7 +2692,7 @@ static void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    if ( ! ch ) {
       empty: ;
       struct pos pos = { parse->source->line, parse->source->column,
-         parse->source->file_entry_id };
+         parse->source->include_history_entry->id };
       p_diag( parse, DIAG_POS_ERR, &pos, "empty escape sequence" );
       p_bail( parse );
    }
@@ -2722,7 +2724,7 @@ static void escape_ch( struct parse* parse, char* ch_out, struct str* text,
       if ( i == 3 ) {
          too_many_digits: ;
          struct pos pos = { parse->source->line, parse->source->column,
-            parse->source->file_entry_id };
+            parse->source->include_history_entry->id };
          p_diag( parse, DIAG_POS_ERR, &pos, "too many digits" );
          p_bail( parse );
       }
@@ -2784,7 +2786,7 @@ static void escape_ch( struct parse* parse, char* ch_out, struct str* text,
       }
       else {
          struct pos pos = { parse->source->line, slash,
-            parse->source->file_entry_id };
+            parse->source->include_history_entry->id };
          p_diag( parse, DIAG_POS_ERR, &pos, "unknown escape sequence" );
          p_bail( parse );
       }
@@ -2796,7 +2798,7 @@ static void escape_ch( struct parse* parse, char* ch_out, struct str* text,
    // Code needs to be a valid character.
    if ( code > 127 ) {
       struct pos pos = { parse->source->line, slash,
-         parse->source->file_entry_id };
+         parse->source->include_history_entry->id };
       p_diag( parse, DIAG_POS_ERR, &pos, "invalid character `\\%s`", buffer );
       p_bail( parse );
    }
