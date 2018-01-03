@@ -56,7 +56,7 @@ static void read_token_bcs( struct parse* parse ) {
       }
       break;
    case TK_HASH:
-      if ( parse->source_entry->line_beginning ) {
+      if ( p_is_beginning_of_line( parse ) ) {
          if ( p_read_dirc( parse ) ) {
             goto top;
          }
@@ -387,7 +387,7 @@ void p_read_eoptiontk( struct parse* parse ) {
       }
       break;
    case TK_HASH:
-      if ( parse->source_entry->line_beginning ) {
+      if ( p_is_beginning_of_line( parse ) ) {
          p_read_dirc( parse );
       }
       break;

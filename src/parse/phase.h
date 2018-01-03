@@ -276,33 +276,6 @@ struct streamtk_iter {
    struct token* token;
 };
 
-enum { SOURCE_BUFFER_SIZE = 16384 };
-
-struct source {
-   struct file_entry* file;
-   FILE* fh;
-   struct source* prev;
-   int file_entry_id;
-   int line;
-   int column;
-   bool load_once;
-   char ch;
-   // Plus one for the null character.
-   char buffer[ SOURCE_BUFFER_SIZE + 2 ];
-   int buffer_pos;
-};
-
-struct source_entry {
-   struct source_entry* prev;
-   struct source* source;
-   struct macro_expan* macro_expan;
-   struct token_queue peeked;
-   enum tk prev_tk;
-   bool main;
-   bool imported;
-   bool line_beginning;
-};
-
 struct dec {
    enum {
       DEC_TOP,
@@ -556,6 +529,7 @@ void p_read_func_body( struct parse* parse, struct func* func );
 int p_determine_lang_from_file_path( const char* path );
 bool p_is_macro_defined( struct parse* parse, const char* name );
 void p_init_token( struct token* token );
+bool p_source_has_data( struct parse* parse );
 void p_pop_source( struct parse* parse );
 void p_create_cmdline_library_links( struct parse* parse );
 void p_read_local_using( struct parse* parse, struct list* output );
@@ -567,5 +541,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading );
 void p_add_altern_file_name( struct parse* parse, const char* name, int line );
 bool p_peek_type_path_from_iter( struct parse* parse,
    struct parsertk_iter* iter );
+void p_update_line_beginning_status( struct parse* parse );
+bool p_is_beginning_of_line( struct parse* parse );
 
 #endif

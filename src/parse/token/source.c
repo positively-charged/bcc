@@ -7,6 +7,7 @@
 
 enum { LINE_OFFSET = 1 };
 enum { ACC_EOF_CHARACTER = 127 };
+enum { SOURCE_BUFFER_SIZE = 16384 };
 
 struct request {
    const char* given_path;
@@ -18,6 +19,31 @@ struct request {
    bool err_loading;
    bool err_loaded_before;
    bool implicit_bcs_ext;
+};
+
+struct source {
+   struct file_entry* file;
+   FILE* fh;
+   struct source* prev;
+   int file_entry_id;
+   int line;
+   int column;
+   bool load_once;
+   char ch;
+   // Plus one for the null character.
+   char buffer[ SOURCE_BUFFER_SIZE + 2 ];
+   int buffer_pos;
+};
+
+struct source_entry {
+   struct source_entry* prev;
+   struct source* source;
+   struct macro_expan* macro_expan;
+   struct token_queue peeked;
+   enum tk prev_tk;
+   bool main;
+   bool imported;
+   bool line_beginning;
 };
 
 static void append_file( struct library* lib, struct file_entry* file );
@@ -347,6 +373,10 @@ void p_add_altern_file_name( struct parse* parse,
    parse->source->line = line;
 }
 
+bool p_source_has_data( struct parse* parse ) {
+   return ( parse->source_entry->source != NULL );
+}
+
 void p_pop_source( struct parse* parse ) {
    struct source_entry* entry = parse->source_entry;
    struct source* source = entry->source;
@@ -379,6 +409,18 @@ void p_pop_source( struct parse* parse ) {
    if ( parse->include_history_entry ) {
       parse->include_history_entry = parse->include_history_entry->parent;
    }
+}
+
+void p_update_line_beginning_status( struct parse* parse ) {
+   parse->source_entry->line_beginning =
+      ( parse->source_entry->prev_tk == TK_NL ) ||
+      ( parse->source_entry->prev_tk == TK_HORZSPACE &&
+         parse->source_entry->line_beginning );
+   parse->source_entry->prev_tk = parse->token->type;
+}
+
+bool p_is_beginning_of_line( struct parse* parse ) {
+   return parse->source_entry->line_beginning;
 }
 
 void p_read_source( struct parse* parse, struct token* token ) {

@@ -96,18 +96,14 @@ void p_init_stream( struct parse* parse ) {
 }
 
 void p_read_stream( struct parse* parse ) {
-   while ( parse->source_entry->source ) {
+   while ( p_source_has_data( parse ) ) {
       read_peeked_token( parse );
       if ( parse->token->type != TK_END ) {
          break;
       }
       p_pop_source( parse );
    }
-   parse->source_entry->line_beginning =
-      ( parse->source_entry->prev_tk == TK_NL ) ||
-      ( parse->source_entry->prev_tk == TK_HORZSPACE &&
-         parse->source_entry->line_beginning );
-   parse->source_entry->prev_tk = parse->token->type;
+   p_update_line_beginning_status( parse );
 }
 
 static void read_peeked_token( struct parse* parse ) {
