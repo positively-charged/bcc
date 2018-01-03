@@ -464,8 +464,6 @@ static void present_ref( struct ref* ref, struct str* string ) {
       }
       else if ( ref->type == REF_FUNCTION ) {
          struct ref_func* func = ( struct ref_func* ) ref;
-         str_append( string, " " );
-         str_append( string, "function" );
          str_append( string, "(" );
          present_param_list( func->params, string );
          str_append( string, ")" );
