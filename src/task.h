@@ -29,19 +29,37 @@ struct file_query {
    bool success;
 };
 
+// Nonexistent files.
 enum {
    INTERNALFILE_NONE,
+   // Refers to the internals of the compiler.
    INTERNALFILE_COMPILER,
+   // Refers to the command-line.
    INTERNALFILE_COMMANDLINE,
    INTERNALFILE_TOTAL,
 };
 
+// Keeps track of the include history of source files. Also used for
+// alternative file names.
 struct include_history_entry {
+   // The parent source file that #includes/#imports the current file. Walking
+   // up the chain gives us the include history for a file.
    struct include_history_entry* parent;
-   const char* altern_name; // Alternative file name.
-   int file_entry_id;
+   // `file` is the file that was included or read. If an alternative name is
+   // provided by the user, this field still points to a file. But this field
+   // is NULL for an internal file.
+   struct file_entry* file;
+   // Alternative file name. Instead of using the file path of the source
+   // file (`file`), this provides an alternative file path. It can be set by
+   // the user via the #line preprocessor directive. Also used for internal
+   // file names.
+   const char* altern_name;
+   // ID of the include history entry.
    int id;
+   // The line number of where the file inclusion occurs. For the source file
+   // of the main module, the line number is 0.
    int line;
+   // States whether the file is #imported. If false, it means #included.
    bool imported;
 };
 
@@ -52,9 +70,12 @@ struct text_buffer {
    char* left;
 };
 
+// File position in a source file.
 struct pos {
    int line;
    int column;
+   // ID of an include history entry. The include history entry has the file
+   // path and parent files.
    int id;
 };
 
@@ -1385,7 +1406,7 @@ struct type_alias* t_alloc_type_alias( void );
 char* t_intern_text( struct task* task, const char* value, int length );
 struct text_buffer* t_get_text_buffer( struct task* task, int min_free_size );
 void t_update_err_file_dir( struct task* task, const char* path );
-struct include_history_entry* t_alloc_include_history_entry(
+struct include_history_entry* t_reserve_include_history_entry(
    struct task* task );
 struct include_history_entry* t_decode_include_history_entry(
    struct task* task, int id );

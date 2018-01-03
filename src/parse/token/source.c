@@ -348,9 +348,9 @@ static void create_entry( struct parse* parse, struct request* request,
 
 static void create_include_history_entry( struct parse* parse, int line ) {
    struct include_history_entry* entry =
-      t_alloc_include_history_entry( parse->task );
+      t_reserve_include_history_entry( parse->task );
    entry->parent = parse->include_history_entry;
-   entry->file_entry_id = parse->source->file_entry_id;
+   entry->file = parse->source->file;
    entry->line = line;
    parse->include_history_entry = entry;
    parse->source->file_entry_id = entry->id;
@@ -359,9 +359,9 @@ static void create_include_history_entry( struct parse* parse, int line ) {
 static void create_include_history_entry_imported( struct parse* parse,
    struct import_dirc* dirc ) {
    struct include_history_entry* entry =
-      t_alloc_include_history_entry( parse->task );
+      t_reserve_include_history_entry( parse->task );
    entry->parent = t_decode_include_history_entry( parse->task, dirc->pos.id );
-   entry->file_entry_id = parse->source->file_entry_id;
+   entry->file = parse->source->file;
    entry->line = dirc->pos.line;
    entry->imported = true;
    parse->include_history_entry = entry;
@@ -371,9 +371,10 @@ static void create_include_history_entry_imported( struct parse* parse,
 void p_add_altern_file_name( struct parse* parse,
    const char* name, int line ) {
    struct include_history_entry* entry =
-      t_alloc_include_history_entry( parse->task );
+      t_reserve_include_history_entry( parse->task );
    entry->parent = parse->include_history_entry->parent;
    entry->altern_name = name;
+   entry->file = parse->source->file;
    entry->line = parse->include_history_entry->line;
    entry->imported = parse->include_history_entry->imported;
    parse->include_history_entry = entry;

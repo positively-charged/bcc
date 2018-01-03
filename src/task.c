@@ -365,16 +365,18 @@ void t_init_type_members( struct task* task ) {
 } */
 
 static void add_internal_file( struct task* task, const char* name ) {
-   struct include_history_entry* entry = t_alloc_include_history_entry( task );
+   struct include_history_entry* entry =
+      t_reserve_include_history_entry( task );
    entry->altern_name = name;
 }
 
-struct include_history_entry* t_alloc_include_history_entry(
+// Allocates and keeps track of (appends to a list) an include history entry.
+struct include_history_entry* t_reserve_include_history_entry(
    struct task* task ) {
    struct include_history_entry* entry = mem_alloc( sizeof( *entry ) );
    entry->parent = NULL;
    entry->altern_name = NULL;
-   entry->file_entry_id = INTERNALFILE_NONE;
+   entry->file = NULL;
    entry->id = list_size( &task->include_history );
    entry->line = 0;
    entry->imported = false;
@@ -556,14 +558,7 @@ static const char* decode_filename( struct task* task,
       return entry->altern_name;
    }
    else {
-      struct file_entry* file_entry = task->file_entries;
-      while ( file_entry ) {
-         if ( file_entry->id == entry->file_entry_id ) {
-            return file_entry->path.value;
-         }
-         file_entry = file_entry->next;
-      }
-      return NULL;
+      return entry->file->path.value;
    }
 }
 
