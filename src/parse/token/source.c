@@ -21,17 +21,25 @@ struct request {
    bool implicit_bcs_ext;
 };
 
+// The `source` structure holds information about a source file that is being
+// read.
 struct source {
+   // File being read.
    struct file_entry* file;
+   // File handle to the (above) file being read.
    FILE* fh;
-   struct source* prev;
+   // Link for forming a free list.
+   struct source* next_free;
+   // Current file position.
    int file_entry_id;
    int line;
    int column;
-   bool load_once;
+   // Current character. Changes every time a new character is read.
    char ch;
-   // Plus one for the null character.
-   char buffer[ SOURCE_BUFFER_SIZE + 2 ];
+   // Data of the source file is read in chunks. Each chunk of data read is
+   // stored in `buffer`, overwritting any previous chunk of data.
+   char buffer[ SOURCE_BUFFER_SIZE + 2 ]; // Plus one for the null character.
+   // Current position in `buffer`.
    int buffer_pos;
 };
 
@@ -283,7 +291,7 @@ static void open_source_file( struct parse* parse, struct request* request ) {
    source->file = request->file;
    source->file_entry_id = source->file->id;
    source->fh = fh;
-   source->prev = NULL;
+   source->next_free = NULL;
    request->source = source;
 }
 
@@ -292,7 +300,7 @@ static struct source* alloc_source( struct parse* parse ) {
    struct source* source;
    if ( parse->free_source ) {
       source = parse->free_source;
-      parse->free_source = source->prev;
+      parse->free_source = source->next_free;
    }
    else {
       source = mem_alloc( sizeof( *source ) );
@@ -300,7 +308,7 @@ static struct source* alloc_source( struct parse* parse ) {
    // Initialize with default values.
    source->file = NULL;
    source->fh = NULL;
-   source->prev = NULL;
+   source->next_free = NULL;
    reset_filepos( source );
    source->ch = '\0';
    source->buffer_pos = SOURCE_BUFFER_SIZE;
@@ -387,7 +395,7 @@ void p_pop_source( struct parse* parse ) {
    else {
       parse->included_lines += source->line - LINE_OFFSET;
    }
-   source->prev = parse->free_source;
+   source->next_free = parse->free_source;
    parse->free_source = source;
    entry->source = NULL;
    if ( entry->prev ) {
