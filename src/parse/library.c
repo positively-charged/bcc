@@ -1017,8 +1017,11 @@ static void perform_library_imports( struct parse* parse ) {
 }
 
 static void import_lib( struct parse* parse, struct import_dirc* dirc ) {
-   struct file_entry* file = p_find_module_file( parse,
-      parse->task->library_main, dirc->file_path );
+   // Use the source file of the import directive for relative include paths. 
+   struct include_history_entry* entry =
+      t_decode_include_history_entry( parse->task, dirc->pos.id );
+   struct file_entry* file = p_find_module_file( parse, entry->file,
+      dirc->file_path );
    if ( ! file ) {
       p_diag( parse, DIAG_POS_ERR, &dirc->pos,
          "library not found: %s", dirc->file_path );

@@ -123,9 +123,9 @@ void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
 }
 
 struct file_entry* p_find_module_file( struct parse* parse,
-   struct library* importing_module, const char* path ) {
+   struct file_entry* offset_file, const char* path ) {
    struct request request;
-   init_request( &request, importing_module->file, path );
+   init_request( &request, offset_file, path );
    add_lang_dir( parse, &request );
    find_source( parse, &request );
    return request.file;

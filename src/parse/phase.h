@@ -443,7 +443,7 @@ void p_load_main_source( struct parse* parse );
 void p_load_imported_lib_source( struct parse* parse, struct import_dirc* dirc,
    struct file_entry* file );
 struct file_entry* p_find_module_file( struct parse* parse,
-   struct library* importing_module, const char* path );
+   struct file_entry* offset_file, const char* path );
 void p_read_tk( struct parse* parse );
 void p_read_preptk( struct parse* parse );
 void p_read_expanpreptk( struct parse* parse );
