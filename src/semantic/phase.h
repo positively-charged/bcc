@@ -170,6 +170,11 @@ struct semantic {
 #define S_UNREACHABLE( semantic ) \
    S_INTERNAL_ERR( semantic, "unreachable code" ); \
    s_bail( semantic )
+#define S_ASSERT( semantic, cond ) \
+   if ( ! ( cond ) ) { \
+      S_INTERNAL_ERR( semantic, "assertion failure" ); \
+      s_bail( semantic ); \
+   }
 
 void s_init( struct semantic* semantic, struct task* task );
 void s_test( struct semantic* semantic );

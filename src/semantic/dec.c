@@ -209,6 +209,16 @@ static void present_ref_element( struct initz_pres* pres, struct dim* dim,
    struct structure_member* member );
 static void refnotinit( struct semantic* semantic, struct initz_pres* pres,
    struct pos* pos );
+static void test_special_func( struct semantic* semantic, struct func* func );
+static bool test_special_func_param_list( struct semantic* semantic,
+   struct func* func );
+static void test_special_func_param( struct semantic* semantic,
+   struct func* func, struct param* param );
+static bool test_special_func_param_type( struct semantic* semantic,
+   struct func* func, struct param* param );
+static bool test_special_func_return_type( struct semantic* semantic,
+   struct func* func );
+static void test_func( struct semantic* semantic, struct func* func );
 static bool test_func_return_spec( struct semantic* semantic,
    struct func* func );
 static bool test_func_ref( struct semantic* semantic, struct func* func );
@@ -1940,6 +1950,112 @@ void s_test_foreach_var( struct semantic* semantic,
 }
 
 void s_test_func( struct semantic* semantic, struct func* func ) {
+   switch ( func->type ) {
+   // Other builtin functions (dedicated functions, format functions, and
+   // internal functions) are part of the compiler and assumed to be resolved,
+   // so they should not appear here.
+   case FUNC_ASPEC:
+   case FUNC_EXT:
+      test_special_func( semantic, func );
+      break;
+   case FUNC_USER:
+   case FUNC_ALIAS:
+      test_func( semantic, func );
+      break;
+   default:
+      S_UNREACHABLE( semantic );
+   }
+}
+
+// Tests the following function types:
+//  - FUNC_ASPEC (action-specials)
+//  - FUNC_EXT (extension functions)
+// Most of the testing done by this function are just sanity checks.
+static void test_special_func( struct semantic* semantic, struct func* func ) {
+   // Special functions should not appear inside scripts or functions. Special
+   // functions should not be hidden, although that could be added later.
+   S_ASSERT( semantic, semantic->in_localscope == false );
+   S_ASSERT( semantic, func->hidden == false );
+   func->object.resolved =
+      test_special_func_param_list( semantic, func ) &&
+      test_special_func_return_type( semantic, func );
+   // Special functions should be resolved in one go.
+   S_ASSERT( semantic, func->object.resolved == true );
+}
+
+static bool test_special_func_param_list( struct semantic* semantic,
+   struct func* func ) {
+   struct param* param = func->params;
+   while ( param ) {
+      test_special_func_param( semantic, func, param );
+      if ( ! param->object.resolved ) {
+         return false;
+      }
+      param = param->next;
+   }
+   // Action-specials can take up to 5 arguments.
+   // TODO: See if we need to do the same for extension functions.
+   enum { MAX_ASPEC_PARAMS = 5 };
+   if ( func->type == FUNC_ASPEC && func->max_param > MAX_ASPEC_PARAMS ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "too many parameters for action-special (maximum is %d)",
+         MAX_ASPEC_PARAMS );
+      s_bail( semantic );
+   }
+   return true;
+}
+
+static void test_special_func_param( struct semantic* semantic,
+   struct func* func, struct param* param ) {
+   S_ASSERT( semantic, param->name == NULL );
+   S_ASSERT( semantic, param->default_value == NULL );
+   param->object.resolved =
+      test_special_func_param_type( semantic, func, param );
+}
+
+static bool test_special_func_param_type( struct semantic* semantic,
+   struct func* func, struct param* param ) {
+   S_ASSERT( semantic, param->ref == NULL );
+   S_ASSERT( semantic, param->structure == NULL );
+   S_ASSERT( semantic, param->enumeration == NULL );
+   S_ASSERT( semantic, param->path == NULL );
+   switch ( param->spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+      return true;
+   default:
+      S_UNREACHABLE( semantic );
+   }
+   return false;
+}
+
+static bool test_special_func_return_type( struct semantic* semantic,
+   struct func* func ) {
+   S_ASSERT( semantic, func->ref == NULL );
+   S_ASSERT( semantic, func->structure == NULL );
+   S_ASSERT( semantic, func->enumeration == NULL );
+   S_ASSERT( semantic, func->path == NULL );
+   switch ( func->return_spec ) {
+   case SPEC_RAW:
+   case SPEC_INT:
+   case SPEC_FIXED:
+   case SPEC_BOOL:
+   case SPEC_STR:
+   case SPEC_VOID:
+      return true;
+   default:
+      S_UNREACHABLE( semantic );
+   }
+   return false;
+}
+
+// Tests the following function types:
+//  - FUNC_USER (user-defined functions)
+//  - FUNC_ALIAS (function aliases created through typedef)
+static void test_func( struct semantic* semantic, struct func* func ) {
    func->object.resolved =
       test_func_return_spec( semantic, func ) &&
       test_func_ref( semantic, func ) &&
@@ -2059,14 +2175,6 @@ static bool test_param_list( struct semantic* semantic,
       }
       test->prev_param = param;
       param = param->next;
-   }
-   // Action-specials can take up to 5 arguments.
-   enum { MAX_ASPEC_PARAMS = 5 };
-   if ( test->func && test->func->type == FUNC_ASPEC &&
-      test->func->max_param > MAX_ASPEC_PARAMS ) {
-      s_diag( semantic, DIAG_POS_ERR, &test->func->object.pos,
-         "action-special has more than %d parameters", MAX_ASPEC_PARAMS );
-      s_bail( semantic );
    }
    return true;
 }

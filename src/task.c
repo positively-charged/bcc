@@ -1071,6 +1071,7 @@ struct param* t_alloc_param( void ) {
    param->ref = NULL;
    param->structure = NULL;
    param->enumeration = NULL;
+   param->path = NULL;
    param->next = NULL;
    param->name = NULL;
    param->default_value = NULL;
