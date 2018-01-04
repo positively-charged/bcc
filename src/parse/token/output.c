@@ -30,56 +30,68 @@ static void output_source( struct parse* parse, struct str* output ) {
 
 // TODO: Get the original text of the token.
 static void output_token( struct parse* parse, struct str* output ) {
-   switch ( parse->token->type ) {
+   p_decorate_token( parse->token, output, true );
+}
+
+void p_decorate_token( struct token* token, struct str* string,
+   bool expand_horzspace ) {
+   // TODO: Make sure we encode every token, because I did not actually do that
+   // before adding the static assert.
+   STATIC_ASSERT( TK_TOTAL == 157 );
+   switch ( token->type ) {
    case TK_NL:
-      str_append( output, NEWLINE_CHAR );
+      str_append( string, NEWLINE_CHAR );
       break;
    case TK_HORZSPACE:
-      for ( int i = 0; i < parse->token->length; ++i ) {
-         str_append( output, parse->token->text );
+      if ( expand_horzspace ) {
+         for ( int i = 0; i < token->length; ++i ) {
+            str_append( string, token->text );
+         }
+      }
+      else {
+         str_append( string, " " );
       }
       break;
    case TK_LIT_STRING:
-      str_append( output, "\"" );
-      for ( int i = 0; i < parse->token->length; ++i ) {
-         if ( parse->token->text[ i ] == '"' ) {
-            str_append( output, "\\" );
+      str_append( string, "\"" );
+      for ( int i = 0; i < token->length; ++i ) {
+         if ( token->text[ i ] == '"' ) {
+            str_append( string, "\\" );
          }
-         char ch[] = { parse->token->text[ i ], 0 };
-         str_append( output, ch );
+         char ch[] = { token->text[ i ], 0 };
+         str_append( string, ch );
       }
-      str_append( output, "\"" );
+      str_append( string, "\"" );
       break;
    case TK_LIT_CHAR:
-      str_append( output, "'" );
-      str_append( output, parse->token->text );
-      str_append( output, "'" );
+      str_append( string, "'" );
+      str_append( string, token->text );
+      str_append( string, "'" );
       break;
    case TK_LIT_OCTAL:
-      str_append( output, "0o" );
-      str_append( output, parse->token->text );
+      str_append( string, "0o" );
+      str_append( string, token->text );
       break;
    case TK_LIT_HEX:
-      str_append( output, "0x" );
-      str_append( output, parse->token->text );
+      str_append( string, "0x" );
+      str_append( string, token->text );
       break;
    case TK_LIT_BINARY:
-      str_append( output, "0b" );
-      str_append( output, parse->token->text );
+      str_append( string, "0b" );
+      str_append( string, token->text );
       break;
    case TK_LIT_RADIX:
-      for ( int i = 0; i < parse->token->length; ++i ) {
-         if ( parse->token->text[ i ] == '_' ) {
-            str_append( output, "r" );
+      for ( int i = 0; i < token->length; ++i ) {
+         if ( token->text[ i ] == '_' ) {
+            str_append( string, "r" );
          }
          else {
-            char ch[] = { parse->token->text[ i ], 0 };
-            str_append( output, ch );
+            char ch[] = { token->text[ i ], 0 };
+            str_append( string, ch );
          }
       }
       break;
    default:
-      str_append( output, parse->token->text );
-      break;
+      str_append( string, token->text );
    }
 }

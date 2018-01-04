@@ -593,7 +593,7 @@ static void read_error( struct parse* parse, struct pos* pos ) {
    str_init( &message );
    str_append( &message, "#error " );
    while ( parse->token->type != TK_NL ) {
-      str_append( &message, parse->token->text );
+      p_decorate_token( parse->token, &message, false );
       p_read_stream( parse );
    }
    p_diag( parse, DIAG_POS_ERR, pos, message.value );

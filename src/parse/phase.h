@@ -543,5 +543,7 @@ bool p_peek_type_path_from_iter( struct parse* parse,
    struct parsertk_iter* iter );
 void p_update_line_beginning_status( struct parse* parse );
 bool p_is_beginning_of_line( struct parse* parse );
+void p_decorate_token( struct token* token, struct str* string,
+   bool expand_horzspace );
 
 #endif
