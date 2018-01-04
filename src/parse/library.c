@@ -1115,7 +1115,19 @@ static void read_imported_lib( struct parse* parse,
    read_module( parse );
    parse->lib = parse->task->library_main;
    // An imported library must have a #library directive.
-   if ( ! lib->header ) {
+   if ( lib->header ) {
+      // An imported library must have a different name from the importing
+      // library.
+      // TODO: Find out if library names need case-insensitive comparison.
+      if ( parse->lib->header &&
+         strcmp( parse->lib->name.value, lib->name.value ) == 0 ) {
+         p_diag( parse, DIAG_POS_ERR, &request->dirc->pos,
+            "imported library has the same name (\"%s\") as the current "
+            "library", lib->name.value );
+         p_bail( parse );
+      }
+   }
+   else {
       p_diag( parse, DIAG_POS_ERR, &request->dirc->pos,
          "imported library missing #library directive" );
       p_bail( parse );
