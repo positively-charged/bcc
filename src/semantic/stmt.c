@@ -413,7 +413,7 @@ static void test_assert( struct semantic* semantic, struct stmt_test* test,
                s_bail( semantic );
             }
          }
-         s_diag( semantic, DIAG_POS, &assert->pos,
+         s_diag( semantic, DIAG_POS_ERR, &assert->pos,
             "assertion failure%s%s",
             string ? ": " : "",
             string ? string->value : "" );
