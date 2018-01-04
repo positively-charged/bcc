@@ -253,6 +253,7 @@ void str_append_format_va( struct str* str, const char* format,
       }
       vsnprintf( str->value + str->length, str->buffer_length - str->length,
          format, args_copy );
+      str->length += length;
    }
    va_end( args_copy );
 }
