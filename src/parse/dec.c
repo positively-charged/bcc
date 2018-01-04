@@ -102,6 +102,7 @@ static void read_struct_ref( struct parse* parse,
    struct ref_reading* reading );
 static bool is_array_ref( struct parse* parse );
 static void read_array_ref( struct parse* parse, struct ref_reading* reading );
+static bool is_func_ref( struct parse* parse );
 static void read_ref_func( struct parse* parse, struct ref_reading* reading );
 static void read_after_ref( struct parse* parse, struct dec* dec );
 static void read_var( struct parse* parse, struct dec* dec );
@@ -1061,6 +1062,7 @@ static void read_ref( struct parse* parse, struct ref_reading* reading ) {
    // Read array and function references.
    while ( parse->tk == TK_BRACKET_L || ( parse->tk == TK_PAREN_L ||
       parse->tk == TK_FUNCTION ) ) {
+      // Array reference.
       if ( parse->tk == TK_BRACKET_L ) {
          if ( is_array_ref( parse ) ) {
             read_array_ref( parse, reading );
@@ -1069,13 +1071,20 @@ static void read_ref( struct parse* parse, struct ref_reading* reading ) {
             break;
          }
       }
+      // Function reference.
       else {
-         switch ( parse->tk ) {
-         case TK_PAREN_L:
-         case TK_FUNCTION:
+         if ( parse->tk == TK_PAREN_L ) {
+            if ( is_func_ref( parse ) ) {
+               read_ref_func( parse, reading );
+            }
+            else {
+               break;
+            }
+         }
+         else if ( parse->tk == TK_FUNCTION ) {
             read_ref_func( parse, reading );
-            break;
-         default:
+         }
+         else {
             P_UNREACHABLE( parse );
          }
       }
@@ -1170,6 +1179,41 @@ static void read_array_ref( struct parse* parse,
    part->storage = STORAGE_MAP;
    part->storage_index = 0;
    prepend_ref( reading, &part->ref );
+}
+
+static bool is_func_ref( struct parse* parse ) {
+   if ( parse->tk == TK_PAREN_L ) {
+      int depth = 1;
+      struct parsertk_iter iter;
+      p_init_parsertk_iter( parse, &iter );
+      while ( depth > 0 ) {
+         p_next_tk( parse, &iter );
+         switch ( iter.token->type ) {
+         case TK_PAREN_R:
+            --depth;
+            if ( depth == 0 ) {
+               p_next_tk( parse, &iter );
+               if ( iter.token->type == TK_BIT_AND ||
+                  iter.token->type == TK_QUESTION_MARK ) {
+                  return true;
+               }
+               else {
+                  return false;
+               }
+            }
+            break;
+         case TK_PAREN_L:
+            ++depth;
+            break;
+         case TK_LIB_END:
+         case TK_END:
+            return false;
+         default:
+            break;
+         }
+      }
+   }
+   return false;
 }
 
 static void read_ref_func( struct parse* parse, struct ref_reading* reading ) {
