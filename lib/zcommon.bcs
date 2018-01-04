@@ -1,0 +1,5 @@
+// Because there is a "zcommon.acs" file, users might try to also include a
+// "zcommon.bcs" file, but we do not use such a file. So create the file and
+// let the user know of a real file.
+#error the "zcommon.bcs" file should not be included, \
+   try including "zcommon.h" instead
