@@ -233,7 +233,6 @@ static void test_param( struct semantic* semantic,
    struct param_list_test* test, struct param* param );
 static bool test_param_spec( struct semantic* semantic,
    struct param_list_test* test, struct param* param );
-static bool test_param_name( struct semantic* semantic, struct param* param );
 static bool test_param_ref( struct semantic* semantic,
    struct param_list_test* test, struct param* param );
 static bool test_param_after_name( struct semantic* semantic,
@@ -2132,12 +2131,10 @@ static bool test_func_name( struct semantic* semantic, struct func* func ) {
 
 static bool test_func_after_name( struct semantic* semantic,
    struct func* func ) {
-   s_add_scope( semantic, true );
    struct param_list_test param_test;
    init_param_list_test( &param_test, func, NULL,
       ( semantic->depth == 1 && ! func->hidden ) );
    bool resolved = test_param_list( semantic, &param_test );
-   s_pop_scope( semantic );
    if ( resolved && func->external ) {
       resolved = test_external_func( semantic, func );
    }
@@ -2160,14 +2157,23 @@ static void init_param_list_test( struct param_list_test* test,
 
 static bool test_param_list( struct semantic* semantic,
    struct param_list_test* test ) {
+   // Parameter names must be unique.
+   s_add_scope( semantic, true );
    struct param* param = test->params;
    while ( param ) {
-      if ( param->object.resolved ) {
-         if ( param->name ) {
-            s_bind_local_name( semantic, param->name, &param->object, true );
-         }
+      if ( param->name ) {
+         s_bind_local_name( semantic, param->name, &param->object, true );
       }
-      else {
+      param = param->next;
+   }
+   s_pop_scope( semantic );
+   // Test parameters.
+   param = test->params;
+   while ( param ) {
+      // Only test a parameter if it has not already been tested. Note that
+      // previous parameters are not visible to following parameters, so we do
+      // not bind the names of previous parameters. 
+      if ( ! param->object.resolved ) {
          test_param( semantic, test, param );
          if ( ! param->object.resolved ) {
             return false;
@@ -2184,7 +2190,6 @@ static void test_param( struct semantic* semantic,
    param->object.resolved =
       test_param_spec( semantic, test, param ) &&
       test_param_ref( semantic, test, param ) &&
-      test_param_name( semantic, param ) &&
       test_param_after_name( semantic, test, param );
    if ( param->object.resolved ) {
       calc_param_size( param );
@@ -2234,13 +2239,6 @@ static bool test_param_ref( struct semantic* semantic,
    struct ref_test ref_test;
    init_ref_test( &ref_test, param->ref, param->spec, test->need_public_spec );
    return test_ref( semantic, &ref_test );
-}
-
-static bool test_param_name( struct semantic* semantic, struct param* param ) {
-   if ( param->name ) {
-      s_bind_local_name( semantic, param->name, &param->object, true );
-   }
-   return true;
 }
 
 static bool test_param_after_name( struct semantic* semantic,

@@ -1945,6 +1945,7 @@ void p_read_paren_type( struct parse* parse, struct paren_reading* reading ) {
    }
    else {
       dec.area = DEC_TOP;
+      dec.private_visibility = true;
    }
    p_read_tk( parse );
    // Static.
