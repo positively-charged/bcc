@@ -2251,6 +2251,16 @@ static bool test_external_func( struct semantic* semantic,
    }
    bool resolved = false;
    struct func* other_func = ( struct func* ) func->name->object;
+   // External function declarations only apply to user-defined functions.
+   if ( other_func->type != FUNC_USER ) {
+      s_diag( semantic, DIAG_POS_ERR, &func->object.pos,
+         "external function declaration refers to a function that is not "
+         "user-defined" );
+      s_diag( semantic, DIAG_POS | DIAG_NOTE, &other_func->object.pos,
+         "the target function (the function the external function declaration "
+         "is referring to) is found here" );
+      s_bail( semantic );
+   }
    if ( func == other_func ) {
       resolved = true;
    }
